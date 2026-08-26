@@ -1,6 +1,4 @@
 import { APP_NAME, CONFIG_DIR_NAME } from "../config.ts";
-import { emitProjectTrustEvent } from "./extensions/runner.ts";
-import type { LoadExtensionsResult, ProjectTrustContext } from "./extensions/types.ts";
 import type { DefaultProjectTrust } from "./settings-manager.ts";
 import {
 	getProjectTrustOptions,
@@ -11,18 +9,29 @@ import {
 
 export type AppMode = "interactive" | "print" | "json" | "rpc";
 
+export interface ProjectTrustUI {
+	select(title: string, options: readonly string[]): Promise<string | undefined>;
+	confirm(title: string, message: string): Promise<boolean>;
+	input(title: string, placeholder?: string): Promise<string | undefined>;
+	notify(message: string, type?: "info" | "warning" | "error"): void;
+}
+
+export interface ProjectTrustContext {
+	cwd: string;
+	hasUI: boolean;
+	ui: ProjectTrustUI;
+}
+
 export interface ResolveProjectTrustedOptions {
 	cwd: string;
 	trustStore: ProjectTrustStore;
 	trustOverride?: boolean;
 	defaultProjectTrust?: DefaultProjectTrust;
-	extensionsResult?: LoadExtensionsResult;
 	projectTrustContext: ProjectTrustContext;
-	onExtensionError?: (message: string) => void;
 }
 
 function formatProjectTrustPrompt(cwd: string): string {
-	return `Trust project folder?\n${cwd}\n\nThis allows ${APP_NAME} to load ${CONFIG_DIR_NAME} settings and resources, install missing project packages, and execute project extensions.`;
+	return `Trust project folder?\n${cwd}\n\nThis allows ${APP_NAME} to load ${CONFIG_DIR_NAME} settings and resources.`;
 }
 
 async function selectProjectTrustOption(
@@ -30,10 +39,7 @@ async function selectProjectTrustOption(
 	ctx: ProjectTrustContext,
 ): Promise<ProjectTrustOption | undefined> {
 	const options = getProjectTrustOptions(cwd, { includeSessionOnly: true });
-	const selected = await ctx.ui.select(
-		formatProjectTrustPrompt(cwd),
-		options.map((option) => option.label),
-	);
+	const selected = await ctx.ui.select(formatProjectTrustPrompt(cwd), options.map((option) => option.label));
 	return options.find((option) => option.label === selected);
 }
 
@@ -49,24 +55,6 @@ export async function resolveProjectTrusted(options: ResolveProjectTrustedOption
 	}
 	if (!hasTrustRequiringProjectResources(options.cwd)) {
 		return true;
-	}
-
-	if (options.extensionsResult) {
-		const { result, errors } = await emitProjectTrustEvent(
-			options.extensionsResult,
-			{ type: "project_trust", cwd: options.cwd },
-			options.projectTrustContext,
-		);
-		for (const error of errors) {
-			options.onExtensionError?.(`Extension "${error.extensionPath}" project_trust error: ${error.error}`);
-		}
-		if (result) {
-			const trusted = result.trusted === "yes";
-			if (result.remember === true) {
-				options.trustStore.set(options.cwd, trusted);
-			}
-			return trusted;
-		}
 	}
 
 	const decision = options.trustStore.get(options.cwd);

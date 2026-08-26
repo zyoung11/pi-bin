@@ -1,7 +1,6 @@
 import type { TextContent } from "@earendil-works/pi-ai";
 import type { Component } from "@earendil-works/pi-tui";
 import { Box, Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
-import type { MessageRenderer } from "../../../core/extensions/types.ts";
 import type { CustomMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 
@@ -11,7 +10,6 @@ import { getMarkdownTheme, theme } from "../theme/theme.ts";
  */
 export class CustomMessageComponent extends Container {
 	private message: CustomMessage<unknown>;
-	private customRenderer?: MessageRenderer;
 	private box: Box;
 	private customComponent?: Component;
 	private markdownTheme: MarkdownTheme;
@@ -20,13 +18,11 @@ export class CustomMessageComponent extends Container {
 
 	constructor(
 		message: CustomMessage<unknown>,
-		customRenderer?: MessageRenderer,
 		markdownTheme: MarkdownTheme = getMarkdownTheme(),
 		outputPad = 1,
 	) {
 		super();
 		this.message = message;
-		this.customRenderer = customRenderer;
 		this.markdownTheme = markdownTheme;
 		this.outputPad = outputPad;
 
@@ -64,25 +60,6 @@ export class CustomMessageComponent extends Container {
 			this.customComponent = undefined;
 		}
 		this.removeChild(this.box);
-
-		// Try custom renderer first - it handles its own styling
-		if (this.customRenderer) {
-			try {
-				const component = this.customRenderer(
-					this.message,
-					{ expanded: this._expanded, outputPad: this.outputPad },
-					theme,
-				);
-				if (component) {
-					// Custom renderer provides its own styled component
-					this.customComponent = component;
-					this.addChild(component);
-					return;
-				}
-			} catch {
-				// Fall through to default rendering
-			}
-		}
 
 		// Default rendering uses our box
 		this.addChild(this.box);

@@ -1,4 +1,12 @@
-import type { MarkdownTransformContext, MarkdownTransformer } from "../../../core/extensions/types.ts";
+/** Context passed to Markdown transformers. */
+export interface MarkdownTransformContext {
+	messageType: "user" | "assistant" | "assistant-thinking";
+	isStreaming: boolean;
+	availableWidth: number;
+}
+
+/** Transform function applied to assistant/user message Markdown before rendering. */
+export type MarkdownTransformer = (markdown: string, context: MarkdownTransformContext) => string;
 
 export function createMarkdownTransform(
 	messageType: MarkdownTransformContext["messageType"],

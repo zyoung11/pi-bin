@@ -1,6 +1,5 @@
 import chalk from "chalk";
-import type { ProjectTrustContext } from "../core/extensions/types.ts";
-import type { AppMode } from "../core/project-trust.ts";
+import type { AppMode, ProjectTrustContext } from "../core/project-trust.ts";
 import type { SettingsManager } from "../core/settings-manager.ts";
 import { showStartupInput, showStartupSelector } from "./startup-ui.ts";
 
@@ -12,7 +11,6 @@ export function createProjectTrustContext(options: {
 }): ProjectTrustContext {
 	return {
 		cwd: options.cwd,
-		mode: options.mode === "interactive" ? "tui" : options.mode,
 		hasUI: options.hasUI,
 		ui: {
 			select: async (title, selectOptions) => {

@@ -1,5 +1,10 @@
 import { type Component, Loader, type TUI } from "@earendil-works/pi-tui";
-import type { WorkingIndicatorOptions } from "../../../core/extensions/index.ts";
+/** Working indicator configuration for the interactive streaming loader. */
+export interface WorkingIndicatorOptions {
+	frames?: string[];
+	intervalMs?: number;
+}
+
 import { theme } from "../theme/theme.ts";
 import { CountdownTimer } from "./countdown-timer.ts";
 import { keyText } from "./keybinding-hints.ts";

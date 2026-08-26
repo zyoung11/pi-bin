@@ -27,7 +27,6 @@ import {
 	type SelfUpdatePackageTarget,
 	VERSION,
 } from "./config.ts";
-import type { InlineExtension } from "./core/extensions/types.ts";
 import { ModelRuntime } from "./core/model-runtime.ts";
 import { DefaultPackageManager } from "./core/package-manager.ts";
 import { type AppMode, resolveProjectTrusted } from "./core/project-trust.ts";
@@ -721,10 +720,6 @@ function prepareWindowsNpmSelfUpdate(): void {
 	quarantineWindowsNativeDependencies(packageDir);
 }
 
-export interface PackageCommandRuntimeOptions {
-	extensionFactories?: InlineExtension[];
-}
-
 interface CommandSettingsResult {
 	settingsManager: SettingsManager;
 	projectTrustWarnings: string[];
@@ -745,7 +740,6 @@ async function createCommandSettingsManager(options: {
 	agentDir: string;
 	projectTrustOverride?: boolean;
 	useSavedProjectTrustOnly?: boolean;
-	extensionFactories?: InlineExtension[];
 }): Promise<CommandSettingsResult> {
 	const settingsManager = SettingsManager.create(options.cwd, options.agentDir, { projectTrusted: false });
 	const projectTrustWarnings: string[] = [];
@@ -757,32 +751,18 @@ async function createCommandSettingsManager(options: {
 	}
 
 	const appMode = getCommandAppMode();
-	const extensionsResult =
-		options.projectTrustOverride === undefined && hasTrustRequiringProjectResources(options.cwd)
-			? await new DefaultResourceLoader({
-					cwd: options.cwd,
-					agentDir: options.agentDir,
-					settingsManager,
-					extensionFactories: options.extensionFactories,
-				}).loadProjectTrustExtensions()
-			: undefined;
-	for (const error of extensionsResult?.errors ?? []) {
-		projectTrustWarnings.push(`Failed to load extension "${error.path}": ${error.error}`);
-	}
 
 	const projectTrusted = await resolveProjectTrusted({
 		cwd: options.cwd,
 		trustStore,
 		trustOverride: options.projectTrustOverride,
 		defaultProjectTrust: settingsManager.getDefaultProjectTrust(),
-		extensionsResult,
 		projectTrustContext: createProjectTrustContext({
 			cwd: options.cwd,
 			mode: appMode,
 			settingsManager,
 			hasUI: appMode === "interactive",
 		}),
-		onExtensionError: (message) => projectTrustWarnings.push(message),
 	});
 	settingsManager.setProjectTrusted(projectTrusted);
 	return { settingsManager, projectTrustWarnings };
@@ -790,7 +770,6 @@ async function createCommandSettingsManager(options: {
 
 export async function handleConfigCommand(
 	args: string[],
-	runtimeOptions: PackageCommandRuntimeOptions = {},
 ): Promise<boolean> {
 	const [command, ...rest] = args;
 	if (command !== "config") {
@@ -830,7 +809,6 @@ export async function handleConfigCommand(
 		cwd,
 		agentDir,
 		projectTrustOverride,
-		extensionFactories: runtimeOptions.extensionFactories,
 	});
 	reportProjectTrustWarnings(projectTrustWarnings);
 	if (local && !settingsManager.isProjectTrusted()) {
@@ -863,7 +841,6 @@ export async function handleConfigCommand(
 
 export async function handlePackageCommand(
 	args: string[],
-	runtimeOptions: PackageCommandRuntimeOptions = {},
 ): Promise<boolean> {
 	const options = parsePackageCommand(args);
 	if (!options) {
@@ -930,7 +907,6 @@ export async function handlePackageCommand(
 		agentDir,
 		projectTrustOverride: options.projectTrustOverride,
 		useSavedProjectTrustOnly: options.command === "update",
-		extensionFactories: runtimeOptions.extensionFactories,
 	});
 	reportProjectTrustWarnings(projectTrustWarnings);
 	if (!settingsManager.isProjectTrusted() && writesProjectPackageConfig) {

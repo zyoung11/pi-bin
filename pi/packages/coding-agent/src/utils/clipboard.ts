@@ -1,7 +1,10 @@
 import { type ExecFileSyncOptionsWithStringEncoding, execFileSync, execSync, spawn } from "child_process";
 import { platform } from "os";
-import { isWaylandSession } from "./clipboard-image.ts";
 import { clipboard } from "./clipboard-native.ts";
+
+function isWaylandSession(env: NodeJS.ProcessEnv = process.env): boolean {
+	return Boolean(env.WAYLAND_DISPLAY) || env.XDG_SESSION_TYPE === "wayland";
+}
 
 type NativeClipboardExecOptions = {
 	input: string;

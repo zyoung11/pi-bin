@@ -7,7 +7,6 @@
 import { getModel } from "@earendil-works/pi-ai/compat";
 import {
 	createAgentSession,
-	createExtensionRuntime,
 	ModelRuntime,
 	type ResourceLoader,
 	SessionManager,
@@ -34,7 +33,6 @@ const settingsManager = SettingsManager.inMemory({
 const cwd = process.cwd();
 
 const resourceLoader: ResourceLoader = {
-	getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
 	getSkills: () => ({ skills: [], diagnostics: [] }),
 	getPrompts: () => ({ prompts: [], diagnostics: [] }),
 	getThemes: () => ({ themes: [], diagnostics: [] }),

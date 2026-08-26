@@ -17,7 +17,7 @@ import {
 	untrackDetachedChildPid,
 } from "../../utils/shell.ts";
 import { getExperimentalToolSampling } from "../experimental.ts";
-import type { ExtensionContext, ToolDefinition, ToolRenderResultOptions } from "../extensions/types.ts";
+import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -172,7 +172,7 @@ function resolveSpawnContext(
 	cwd: string,
 	spawnHook: BashSpawnHook | undefined,
 	exposeSessionEnvironment: boolean,
-	ctx: ExtensionContext | undefined,
+	sessionEnvProvider: (() => Record<string, string | undefined>) | undefined,
 ): BashSpawnContext {
 	const env = { ...getShellEnv() };
 	delete env.PI_SESSION_ID;
@@ -180,16 +180,10 @@ function resolveSpawnContext(
 	delete env.PI_PROVIDER;
 	delete env.PI_MODEL;
 	delete env.PI_REASONING_LEVEL;
-	if (exposeSessionEnvironment && ctx) {
-		const model = ctx.model;
-		env.PI_SESSION_ID = ctx.sessionManager.getSessionId();
-		const sessionFile = ctx.sessionManager.getSessionFile();
-		if (sessionFile) env.PI_SESSION_FILE = sessionFile;
-		if (model) {
-			env.PI_PROVIDER = model.provider;
-			env.PI_MODEL = model.id;
+	if (exposeSessionEnvironment && sessionEnvProvider) {
+		for (const [key, value] of Object.entries(sessionEnvProvider())) {
+			if (value !== undefined) env[key] = value;
 		}
-		if (ctx.thinkingLevel) env.PI_REASONING_LEVEL = ctx.thinkingLevel;
 	}
 	const baseContext: BashSpawnContext = { command, cwd, env };
 	return spawnHook ? spawnHook(baseContext) : baseContext;
@@ -202,6 +196,8 @@ export interface BashToolOptions {
 	commandPrefix?: string;
 	/** Optional explicit shell path from settings */
 	shellPath?: string;
+	/** Provides the session metadata exposed as PI_* environment variables, evaluated per execution. */
+	sessionEnvProvider?: () => Record<string, string | undefined>;
 	/** Expose current Pi session metadata as PI_* environment variables. Default: true */
 	exposeSessionEnvironment?: boolean;
 	/** Hook to adjust command, cwd, or env before execution */
@@ -344,6 +340,7 @@ export function createShellToolDefinition(
 	const commandPrefix = options?.commandPrefix;
 	const exposeSessionEnvironment = options?.exposeSessionEnvironment ?? true;
 	const spawnHook = options?.spawnHook;
+	const sessionEnvProvider = options?.sessionEnvProvider;
 	return {
 		name: config.name,
 		label: config.label,
@@ -357,10 +354,9 @@ export function createShellToolDefinition(
 			{ command, timeout }: { command: string; timeout?: number },
 			signal?: AbortSignal,
 			onUpdate?,
-			ctx?,
 		) {
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
-			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook, exposeSessionEnvironment, ctx);
+			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook, exposeSessionEnvironment, sessionEnvProvider);
 			const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
 			let acceptingOutput = true;
 			let updateTimer: NodeJS.Timeout | undefined;

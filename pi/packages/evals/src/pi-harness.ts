@@ -163,9 +163,6 @@ async function runPiCodingAgent<TOutput extends JsonValue>(
 		signal?.addEventListener("abort", abort, { once: true });
 		try {
 			signal?.throwIfAborted();
-			if (evalSession.extensionRunner.getExtensionPaths().length !== 0) {
-				throw new Error("Expected an isolated eval session to start without extensions.");
-			}
 			const steps = typeof input === "string" ? [{ type: "prompt" as const, content: input }] : input;
 			let response: string | undefined;
 			for (const step of steps) {
