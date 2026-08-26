@@ -1,0 +1,11 @@
+jsdoc-import-require.js:1:15 - error SC0001: 'from' expected.
+
+  1 | /** @import x = require("./nope") */
+    |               ^
+  2 | 
+
+jsdoc-import-require.js:1:15 - error SC0001: String literal expected.
+
+  1 | /** @import x = require("./nope") */
+    |               ^~~~~~~~~~~~~~~~~~~
+  2 | 

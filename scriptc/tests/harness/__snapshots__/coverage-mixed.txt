@@ -1,0 +1,8 @@
+scriptc coverage tests/coverage-fixtures/mixed.ts
+
+  statements analyzed   13
+  compile statically    11  (84%)
+
+  blockers:
+      ×1  object destructuring of non-record values (the source is array-typed)  SC1031
+      ×1  loose equality (== and !=)                                             SC1040

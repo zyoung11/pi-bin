@@ -1,0 +1,85 @@
+class-decorators.ts:18:3 - error SC1090: method decorators (the standard context object and member replacement have no static lowering — class decorators and provably-throwing ambient decorations compile) are not supported yet
+
+  17 | class MemberDecorated {
+  18 |   @mdec
+     |   ^~~~~
+  19 |   m() {
+
+class-decorators.ts:24:3 - error SC1090: field decorators (the standard context object and member replacement have no static lowering — class decorators and provably-throwing ambient decorations compile) are not supported yet
+
+  23 | class FieldDecorated {
+  24 |   @fdec
+     |   ^~~~~
+  25 |   f: number = 1;
+
+class-decorators.ts:28:3 - error SC1090: auto-accessor decorators (the standard context object and member replacement have no static lowering — class decorators and provably-throwing ambient decorations compile) are not supported yet
+
+  27 | class AutoAccessorDecorated {
+  28 |   @adec
+     |   ^~~~~
+  29 |   accessor a = 1;
+
+class-decorators.ts:32:3 - error SC1090: accessor decorators (the standard context object and member replacement have no static lowering — class decorators and provably-throwing ambient decorations compile) are not supported yet
+
+  31 | class GetterDecorated {
+  32 |   @gdec
+     |   ^~~~~
+  33 |   get g(): number {
+
+class-decorators.ts:40:33 - error SC2020: 'ClassDecoratorContext<abstract new (...args: any) => any>' is part of the standard library types but has no scriptc lowering yet
+
+  39 | // lowering — single-parameter class decorators compile.
+  40 | function withCtx(t: typeof Ctx, context: ClassDecoratorContext): void {}
+     |                                 ^~~~~~~
+  41 | @withCtx
+
+  hint: the type checker sees the full standard library, but only the supported surface compiles (https://scriptc.dev/limitations)
+
+class-decorators.ts:41:1 - error SC1090: class decorators that take the standard 'context' parameter (its object — addInitializer, metadata — has no static lowering; single-parameter decorators compile) is not supported yet
+
+  40 | function withCtx(t: typeof Ctx, context: ClassDecoratorContext): void {}
+  41 | @withCtx
+     | ^~~~~~~~
+  42 | class Ctx {}
+
+class-decorators.ts:47:1 - error SC1090: decorators on generic classes (JS decorates the one runtime class; the compiled family instantiates per type argument) are not supported yet
+
+  46 | function anyClass(t: unknown): void {}
+  47 | @anyClass
+     | ^~~~~~~~~
+  48 | class GenericBox<T> {
+
+class-decorators.ts:68:1 - error SC1090: class decorators returning 'typeof Root' (a replacement must be 'Decorated' itself or a subclass sharing its constructor signature — tsc's structural check admits shapes the compiled nominal hierarchy cannot rebind) is not supported yet
+
+  67 | }
+  68 | @pickImpl
+     | ^~~~~~~~~
+  69 | class Decorated extends Root {
+
+class-decorators.ts:80:1 - error SC1090: class decorators that can replace a class with subclasses ('BelowReplaced' extends 'ReplacedBase', but the runtime base would be the decoration result — return void, or decorate the leaf classes) are not supported yet
+
+  79 | }
+  80 | @identity
+     | ^~~~~~~~~
+  81 | class ReplacedBase {}
+
+class-decorators.ts:90:1 - error SC1090: class decorators returning 'typeof Sometimes | undefined' (supported returns: the decorated class type, a subclass with the same constructor signature, or void) is not supported yet
+
+  89 | }
+  90 | @maybe
+     | ^~~~~~
+  91 | class Sometimes {}
+
+class-decorators.ts:105:1 - error SC1090: using the class 'ShellDoomed' whose decoration provably throws ('ambientDec' is an ambient name nothing defines — the class statement crashes before the binding exists) are not supported yet
+
+  104 | }
+  105 | new ShellDoomed();
+      | ^~~~~~~~~~~~~~~~~
+  106 | const shellVal = ShellDoomed;
+
+class-decorators.ts:106:18 - error SC1090: using the class 'ShellDoomed' whose decoration provably throws ('ambientDec' is an ambient name nothing defines — the class statement crashes before the binding exists) are not supported yet
+
+  105 | new ShellDoomed();
+  106 | const shellVal = ShellDoomed;
+      |                  ^~~~~~~~~~~
+  107 | class UnderShell extends ShellDoomed {}

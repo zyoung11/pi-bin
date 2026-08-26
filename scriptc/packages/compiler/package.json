@@ -1,0 +1,39 @@
+{
+  "name": "@scriptc/compiler",
+  "version": "0.0.35",
+  "description": "The scriptc compiler — TypeScript/JavaScript frontend, typed IR, LLVM and C backends",
+  "license": "Apache-2.0",
+  "homepage": "https://scriptc.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "directory": "packages/compiler"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./startup-cache": "./dist/startup-cache.js",
+    "./scriptc.d.ts": "./ambient/scriptc.d.ts",
+    "./scriptc-overrides.d.ts": "./ambient/scriptc-overrides.d.ts",
+    "./scriptc-node-fallback.d.ts": "./ambient/scriptc-node-fallback.d.ts",
+    "./surface-manifest.json": "./surface-manifest.json"
+  },
+  "files": [
+    "dist",
+    "ambient",
+    "surface-manifest.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node node_modules/typescript5/bin/tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@scriptc/runtime": "workspace:*",
+    "typescript": "7.0.2",
+    "typescript5": "npm:typescript@5.9.3"
+  }
+}

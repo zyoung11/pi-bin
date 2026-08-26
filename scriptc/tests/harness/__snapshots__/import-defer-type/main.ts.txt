@@ -1,0 +1,41 @@
+import-defer-type/main.ts:4:19 - error SC0001: 'from' expected.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                   ^
+  5 | 
+
+import-defer-type/main.ts:4:19 - error SC0001: String literal expected.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                   ^~~~
+  5 | 
+
+import-defer-type/main.ts:4:24 - error SC0001: ';' expected.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                        ^~~
+  5 | 
+
+import-defer-type/main.ts:4:24 - error SC0001: Cannot find name 'ns1'.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                        ^~~
+  5 | 
+
+import-defer-type/main.ts:4:28 - error SC0001: Unexpected keyword or identifier.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                            ^~~~
+  5 | 
+
+import-defer-type/main.ts:4:28 - error SC0001: Cannot find name 'from'.
+
+  3 | // the checker's own parse errors gate the build.
+  4 | import defer type * as ns1 from "./a";
+    |                            ^~~~
+  5 | 

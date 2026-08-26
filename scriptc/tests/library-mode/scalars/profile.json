@@ -1,0 +1,21 @@
+{
+  "profile_format": 1,
+  "name": "conformance-scalars",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kt_",
+    "init_symbol": "kt_init",
+    "sink_register_symbol": "kt_set_panic_sink",
+    "collect_symbol": "kt_collect",
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "add", "symbol": "kt_add", "params": ["f64", "f64"], "returns": "f64" },
+    { "export": "passthrough", "symbol": "kt_passthrough", "params": ["f64"], "returns": "f64" },
+    { "export": "negZero", "symbol": "kt_neg_zero", "params": [], "returns": "f64" },
+    { "export": "isNan", "symbol": "kt_is_nan", "params": ["f64"], "returns": "bool" },
+    { "export": "invert", "symbol": "kt_invert", "params": ["bool"], "returns": "bool" },
+    { "export": "plumb", "symbol": "kt_plumb", "params": ["u8", "u32", "i32"], "returns": "f64" }
+  ]
+}

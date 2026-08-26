@@ -1,0 +1,14 @@
+{
+  "profile_format": 1,
+  "name": "conformance-init-trap",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "ki_",
+    "init_symbol": "ki_init",
+    "sink_register_symbol": "ki_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": []
+}

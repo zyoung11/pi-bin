@@ -1,0 +1,19 @@
+{
+  "profile_format": 1,
+  "name": "conformance-buffers",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kb_",
+    "init_symbol": "kb_init",
+    "sink_register_symbol": "kb_set_panic_sink",
+    "collect_symbol": "kb_collect",
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "shout", "symbol": "kb_shout", "params": ["string"], "returns": "string" },
+    { "export": "strlen", "symbol": "kb_strlen", "params": ["string"], "returns": "f64" },
+    { "export": "wrap", "symbol": "kb_wrap", "params": ["bytes"], "returns": "bytes" },
+    { "export": "dashes", "symbol": "kb_dashes", "params": ["string"], "returns": "string" }
+  ]
+}

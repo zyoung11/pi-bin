@@ -1,0 +1,3682 @@
+{
+  "schemaVersion": 1,
+  "compilerVersion": "0.0.35",
+  "coverage": [
+    "Entries are projected mechanically from the compiler's own decision tables: the diagnostics registry, the unsupported-syntax dispatch tables, the stdlib and node-builtin lowering tables, and the supported-builtin-module list. Nothing is hand-maintained; the manifest regenerates byte-identically from the source tree at this version.",
+    "Absence from this manifest means 'not projected', never 'unsupported'. Surfaces lowered through dedicated code paths rather than tables are not yet projected: console, JSON, Promise/async and the timer surface, the net/http/tls/https/dgram/dns/assert/test/stream/readline module member surfaces, template literals, the regex slice, global functions (parseInt, parseFloat, isNaN, isFinite), and the process surface outside its ambient slice.",
+    "The ambient-nondeterminism and ambient-authority surfaces the library sidecar's determinism attestation scans ARE projected even where they lower through dedicated code paths — the Date compositions (stdlib.date.*), perf_hooks' performance.now, and the process global's ambient reads and authority calls (node-builtin.process.*) — so a determinism fence can name every surface the attestation demotes on.",
+    "stdlib and node-builtin member entries name surface whose LOWERED call forms are constrained (arity, argument shapes); declared call forms outside the lowered set are refused per site, with code SC2020 for standard-library and node-builtin surface.",
+    "Entries with status 'unsupported' or 'dynamic-only' describe where the named code is raised: forms of the construct outside the supported subset are refused with that code — not that every form of the named feature is refused. Supported forms appear as their own static entries where a table projects them.",
+    "Entries with status 'dynamic-only' compile when the build embeds the dynamic engine (--dynamic); without the flag each use site is refused with the entry's code.",
+    "The engine-free fetch projection targets Node 24.15.0 with bundled Undici 7.24.4. Each projected row names the differential evidence that guards it; changing the pinned Node or Undici version is an explicit profile update.",
+    "The fetch profile also contains a runtime-reflected census of the selected fetch, abort, Headers, and readable-stream interfaces plus RequestInit/ResponseInit dictionary reads. Static, dynamic-only, and unsupported census rows are projected here; its explicitly out-of-scope metadata rows and adjacent-interface exclusions remain in the profile so absence is deliberate rather than ambiguous.",
+    "Process-level diagnostic codes are not surface entries: SC0001-SC0004 are preflight gates, SC1110 is a comptime evaluation failure, SC3001/SC3002 are backend/target tier refusals, SC9001/SC9002 are internal errors.",
+    "Entry statuses are projected for the desktop targets. The mobile targets (aarch64-apple-ios, aarch64-apple-ios-simulator, aarch64-linux-android) compile library-mode archives only: the library-admissible surface (what SC4005's async_free requirement and the library link set admit) is supported there, the executable lane refuses those triples with SC3002, and no entry outside the library-admissible surface carries a mobile support claim. iOS archives build for iOS 15.0 on darwin hosts; Android archives build against NDK API level 26.",
+    "No scheduling metadata is published; entry ids are the stable diff keys across releases."
+  ],
+  "entries": [
+    {
+      "id": "diagnostic.sc1010",
+      "kind": "diagnostic-fence",
+      "name": "package imports",
+      "status": "unsupported",
+      "code": "SC1010",
+      "note": "relative imports (./file, ../dir/file), package.json-mediated project imports (#alias via the imports field, self-name references via exports), installed npm packages (their code runs under --dynamic), and the built-in fs, fs/promises, path, os, url, crypto, zlib, child_process, net, http, tls, https, http2, dgram, dns, util, util/types, string_decoder, querystring, readline, events, stream, stream/promises, stream/consumers, buffer, assert, assert/strict, worker_threads, cluster, tty, async_hooks, timers, timers/promises, diagnostics_channel, perf_hooks, and module modules (bare or node:-prefixed) and node:test (node:-prefixed only, like in Node) are supported"
+    },
+    {
+      "id": "diagnostic.sc1012",
+      "kind": "diagnostic-fence",
+      "name": "default exports/imports",
+      "status": "unsupported",
+      "code": "SC1012",
+      "note": "use named exports: export function f() {} / import { f } from \"./m\""
+    },
+    {
+      "id": "diagnostic.sc1013",
+      "kind": "diagnostic-fence",
+      "name": "namespace imports (* as ns)",
+      "status": "unsupported",
+      "code": "SC1013"
+    },
+    {
+      "id": "diagnostic.sc1014",
+      "kind": "diagnostic-fence",
+      "name": "re-exports and export lists",
+      "status": "unsupported",
+      "code": "SC1014",
+      "note": "export declarations directly: export function f() {}"
+    },
+    {
+      "id": "diagnostic.sc1015",
+      "kind": "diagnostic-fence",
+      "name": "dynamic import()",
+      "status": "unsupported",
+      "code": "SC1015"
+    },
+    {
+      "id": "diagnostic.sc1016",
+      "kind": "diagnostic-fence",
+      "name": "circular imports",
+      "status": "unsupported",
+      "code": "SC1016",
+      "note": "cycles of ES modules with declaration-only top levels whose cycle-crossing bindings are only used inside function bodies compile as-is; move the named top-level read or call into a function body (or break the named edge) so nothing runs during the cycle's init window"
+    },
+    {
+      "id": "diagnostic.sc1020",
+      "kind": "diagnostic-fence",
+      "name": "class expressions",
+      "status": "unsupported",
+      "code": "SC1020"
+    },
+    {
+      "id": "diagnostic.sc1030",
+      "kind": "diagnostic-fence",
+      "name": "var declarations",
+      "status": "unsupported",
+      "code": "SC1030"
+    },
+    {
+      "id": "diagnostic.sc1031",
+      "kind": "diagnostic-fence",
+      "name": "destructuring",
+      "status": "unsupported",
+      "code": "SC1031"
+    },
+    {
+      "id": "diagnostic.sc1040",
+      "kind": "diagnostic-fence",
+      "name": "loose equality (== and !=)",
+      "status": "unsupported",
+      "code": "SC1040",
+      "note": "use === / !== ('x == null' / 'x != null' — the null-or-undefined test — is supported; other loose comparisons need dynamic coercion semantics)"
+    },
+    {
+      "id": "diagnostic.sc1042",
+      "kind": "diagnostic-fence",
+      "name": "logical operators on mixed operand types",
+      "status": "unsupported",
+      "code": "SC1042",
+      "note": "give both operands the same type (number, string, or boolean)"
+    },
+    {
+      "id": "diagnostic.sc1043",
+      "kind": "diagnostic-fence",
+      "name": "comparing non-number, non-string values",
+      "status": "unsupported",
+      "code": "SC1043"
+    },
+    {
+      "id": "diagnostic.sc1045",
+      "kind": "diagnostic-fence",
+      "name": "increment/decrement in expression position",
+      "status": "unsupported",
+      "code": "SC1045",
+      "note": "use ++/-- as a standalone statement, or write x = x + 1"
+    },
+    {
+      "id": "diagnostic.sc1050",
+      "kind": "diagnostic-fence",
+      "name": "labeled break/continue",
+      "status": "unsupported",
+      "code": "SC1050"
+    },
+    {
+      "id": "diagnostic.sc1052",
+      "kind": "diagnostic-fence",
+      "name": "for-in loops",
+      "status": "unsupported",
+      "code": "SC1052"
+    },
+    {
+      "id": "diagnostic.sc1062",
+      "kind": "diagnostic-fence",
+      "name": "destructuring catch clause bindings",
+      "status": "unsupported",
+      "code": "SC1062",
+      "note": "bind an identifier (catch (e)) and narrow it — 'e instanceof Error' exposes .name/.message, typeof tests expose primitives"
+    },
+    {
+      "id": "diagnostic.sc1063",
+      "kind": "diagnostic-fence",
+      "name": "this use of a catch binding",
+      "status": "unsupported",
+      "code": "SC1063",
+      "note": "a catch binding is typed by what was thrown — narrow before reading: 'if (e instanceof Error)' (then .name/.message), 'typeof e === \"string\"/\"number\"/\"boolean\"', or rethrow with 'throw e'; String(e) and `${e}` also compile ('Error: msg' for Error payloads — Node's String(), which has no stack), so 'e instanceof Error ? e.message : String(e)' works as-is"
+    },
+    {
+      "id": "diagnostic.sc1070",
+      "kind": "diagnostic-fence",
+      "name": "async/await",
+      "status": "unsupported",
+      "code": "SC1070"
+    },
+    {
+      "id": "diagnostic.sc1071",
+      "kind": "diagnostic-fence",
+      "name": "generators",
+      "status": "unsupported",
+      "code": "SC1071"
+    },
+    {
+      "id": "diagnostic.sc1080",
+      "kind": "diagnostic-fence",
+      "name": "'this' outside a class method",
+      "status": "unsupported",
+      "code": "SC1080"
+    },
+    {
+      "id": "diagnostic.sc1090",
+      "kind": "diagnostic-fence",
+      "name": "this syntax",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "diagnostic.sc1100",
+      "kind": "diagnostic-fence",
+      "name": "operations on 'unknown' values",
+      "status": "unsupported",
+      "code": "SC1100",
+      "note": "validate with 'as <type>' first — the cast checks the dynamic value at runtime and throws on mismatch"
+    },
+    {
+      "id": "diagnostic.sc1101",
+      "kind": "diagnostic-fence",
+      "name": "converting typed values to 'unknown'",
+      "status": "unsupported",
+      "code": "SC1101",
+      "note": "numbers, strings, booleans, JSON-safe records/arrays/unions (a deep copy — the 'unknown' value never aliases the original), and functions over those (boxed, identity preserved) convert into 'unknown' slots; this value's type has no dynamic representation yet"
+    },
+    {
+      "id": "diagnostic.sc1120",
+      "kind": "diagnostic-fence",
+      "name": "this regex feature",
+      "status": "unsupported",
+      "code": "SC1120",
+      "note": "supported: literal regexes with the g/i/m/s/u/y flags — .test(), .exec()/.match()/.matchAll(), named capture groups (.groups, $<name> templates, \\k<name>), .source/.flags, and string replace/replaceAll/split with string replacement templates"
+    },
+    {
+      "id": "diagnostic.sc1121",
+      "kind": "diagnostic-fence",
+      "name": "'.test()' on a regex with the 'g' or 'y' flag",
+      "status": "unsupported",
+      "code": "SC1121",
+      "note": "g/y regexes carry mutable lastIndex state between calls, which is not modeled; drop the flag for a plain match test, or use replace/replaceAll/split (their iteration is internal)"
+    },
+    {
+      "id": "diagnostic.sc2001",
+      "kind": "diagnostic-fence",
+      "name": "values of types outside the compilable set (bigint and symbol primitives, constructor objects, and library-derived or unresolved generic shapes)",
+      "status": "unsupported",
+      "code": "SC2001"
+    },
+    {
+      "id": "diagnostic.sc2002",
+      "kind": "diagnostic-fence",
+      "name": "record shape flows outside the width-copy rules (shapes must match exactly or width-coerce)",
+      "status": "unsupported",
+      "code": "SC2002"
+    },
+    {
+      "id": "diagnostic.sc2003",
+      "kind": "diagnostic-fence",
+      "name": "union-to-union conversions outside the re-tagging rule",
+      "status": "unsupported",
+      "code": "SC2003"
+    },
+    {
+      "id": "diagnostic.sc2004",
+      "kind": "diagnostic-fence",
+      "name": "uses of a binding whose declaration did not compile (cascade marker)",
+      "status": "unsupported",
+      "code": "SC2004"
+    },
+    {
+      "id": "diagnostic.sc2005",
+      "kind": "diagnostic-fence",
+      "name": "values whose type keeps a generic call signature (a compiled function is one concrete signature)",
+      "status": "unsupported",
+      "code": "SC2005"
+    },
+    {
+      "id": "diagnostic.sc2006",
+      "kind": "diagnostic-fence",
+      "name": "index-signature object types outside the supported shape",
+      "status": "unsupported",
+      "code": "SC2006"
+    },
+    {
+      "id": "diagnostic.sc2007",
+      "kind": "diagnostic-fence",
+      "name": "values of overloaded function type (a compiled function value is one signature)",
+      "status": "unsupported",
+      "code": "SC2007"
+    },
+    {
+      "id": "diagnostic.sc2008",
+      "kind": "diagnostic-fence",
+      "name": "intersection types with no resolved lowering",
+      "status": "unsupported",
+      "code": "SC2008"
+    },
+    {
+      "id": "diagnostic.sc2009",
+      "kind": "diagnostic-fence",
+      "name": "supported container and function shapes over a component type outside its slot",
+      "status": "unsupported",
+      "code": "SC2009"
+    },
+    {
+      "id": "diagnostic.sc2010",
+      "kind": "diagnostic-fence",
+      "name": "constructs that exist only in the embedded dynamic engine",
+      "status": "dynamic-only",
+      "code": "SC2010"
+    },
+    {
+      "id": "diagnostic.sc2011",
+      "kind": "diagnostic-fence",
+      "name": "'any'-typed values and the operations on them",
+      "status": "dynamic-only",
+      "code": "SC2011"
+    },
+    {
+      "id": "diagnostic.sc2012",
+      "kind": "diagnostic-fence",
+      "name": "standard-library surface that runs in the embedded dynamic engine",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "diagnostic.sc2013",
+      "kind": "diagnostic-fence",
+      "name": "npm package imports and values (the package's implementation runs in the embedded engine)",
+      "status": "dynamic-only",
+      "code": "SC2013"
+    },
+    {
+      "id": "diagnostic.sc2020",
+      "kind": "diagnostic-fence",
+      "name": "standard-library or @types/node surface with no lowering",
+      "status": "unsupported",
+      "code": "SC2020"
+    },
+    {
+      "id": "diagnostic.sc2030",
+      "kind": "diagnostic-fence",
+      "name": "npm package code that cannot be embedded for the dynamic engine",
+      "status": "unsupported",
+      "code": "SC2030"
+    },
+    {
+      "id": "node-builtin.assert",
+      "kind": "node-builtin",
+      "name": "assert",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.assert.AssertionError",
+      "kind": "node-builtin",
+      "name": "assert.AssertionError",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the class itself has no lowering — catch and test err.name === \"AssertionError\" or err.code === \"ERR_ASSERTION\""
+    },
+    {
+      "id": "node-builtin.assert.deepEqual",
+      "kind": "node-builtin",
+      "name": "assert.deepEqual",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "loose == equality has no lowering — the strict forms compare with Object.is/structural equality like Node's assert/strict module, where equal IS strictEqual"
+    },
+    {
+      "id": "node-builtin.assert.doesNotReject",
+      "kind": "node-builtin",
+      "name": "assert.doesNotReject",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "await the promise directly — an unexpected rejection already fails the test"
+    },
+    {
+      "id": "node-builtin.assert.doesNotThrow",
+      "kind": "node-builtin",
+      "name": "assert.doesNotThrow",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "call the function directly — an unexpected throw already fails the test"
+    },
+    {
+      "id": "node-builtin.assert.equal",
+      "kind": "node-builtin",
+      "name": "assert.equal",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "loose == equality has no lowering — the strict forms compare with Object.is/structural equality like Node's assert/strict module, where equal IS strictEqual"
+    },
+    {
+      "id": "node-builtin.assert.ifError",
+      "kind": "node-builtin",
+      "name": "assert.ifError",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "test explicitly instead: assert.strictEqual(err, null) / assert.strictEqual(err, undefined)"
+    },
+    {
+      "id": "node-builtin.assert.notDeepEqual",
+      "kind": "node-builtin",
+      "name": "assert.notDeepEqual",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "loose == equality has no lowering — the strict forms compare with Object.is/structural equality like Node's assert/strict module, where equal IS strictEqual"
+    },
+    {
+      "id": "node-builtin.assert.notEqual",
+      "kind": "node-builtin",
+      "name": "assert.notEqual",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "loose == equality has no lowering — the strict forms compare with Object.is/structural equality like Node's assert/strict module, where equal IS strictEqual"
+    },
+    {
+      "id": "node-builtin.assert.rejects",
+      "kind": "node-builtin",
+      "name": "assert.rejects",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "await the promise inside assert.throws's callback story instead: try { await p; assert.fail(\"expected rejection\") } catch { ... }"
+    },
+    {
+      "id": "node-builtin.assert.strict",
+      "kind": "node-builtin",
+      "name": "assert/strict",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.assert.strict.AssertionError",
+      "kind": "node-builtin",
+      "name": "assert/strict.AssertionError",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the class itself has no lowering — catch and test err.name === \"AssertionError\" or err.code === \"ERR_ASSERTION\""
+    },
+    {
+      "id": "node-builtin.assert.strict.doesNotReject",
+      "kind": "node-builtin",
+      "name": "assert/strict.doesNotReject",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "await the promise directly — an unexpected rejection already fails the test"
+    },
+    {
+      "id": "node-builtin.assert.strict.doesNotThrow",
+      "kind": "node-builtin",
+      "name": "assert/strict.doesNotThrow",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "call the function directly — an unexpected throw already fails the test"
+    },
+    {
+      "id": "node-builtin.assert.strict.ifError",
+      "kind": "node-builtin",
+      "name": "assert/strict.ifError",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "test explicitly instead: assert.strictEqual(err, null) / assert.strictEqual(err, undefined)"
+    },
+    {
+      "id": "node-builtin.assert.strict.rejects",
+      "kind": "node-builtin",
+      "name": "assert/strict.rejects",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "await the promise inside assert.throws's callback story instead: try { await p; assert.fail(\"expected rejection\") } catch { ... }"
+    },
+    {
+      "id": "node-builtin.async_hooks",
+      "kind": "node-builtin",
+      "name": "async_hooks",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.buffer",
+      "kind": "node-builtin",
+      "name": "buffer",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.child_process",
+      "kind": "node-builtin",
+      "name": "child_process",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.child_process.execFile",
+      "kind": "node-builtin",
+      "name": "child_process.execFile",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the callback form has no lowering — promisify it: const execFileAsync = promisify(execFile) (from node:util), or use execFileSync"
+    },
+    {
+      "id": "node-builtin.child_process.execFileSync",
+      "kind": "node-builtin",
+      "name": "child_process.execFileSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.child_process.execSync",
+      "kind": "node-builtin",
+      "name": "child_process.execSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.child_process.spawn",
+      "kind": "node-builtin",
+      "name": "child_process.spawn",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.child_process.spawnSync",
+      "kind": "node-builtin",
+      "name": "child_process.spawnSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.cluster",
+      "kind": "node-builtin",
+      "name": "cluster",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.cluster.isMaster",
+      "kind": "node-builtin",
+      "name": "cluster.isMaster",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.cluster.isPrimary",
+      "kind": "node-builtin",
+      "name": "cluster.isPrimary",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.cluster.isWorker",
+      "kind": "node-builtin",
+      "name": "cluster.isWorker",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.crypto",
+      "kind": "node-builtin",
+      "name": "crypto",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.crypto.createCipheriv",
+      "kind": "node-builtin",
+      "name": "crypto.createCipheriv",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "symmetric ciphers need a cipher stack the static runtime does not vendor — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createDecipheriv",
+      "kind": "node-builtin",
+      "name": "crypto.createDecipheriv",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "symmetric ciphers need a cipher stack the static runtime does not vendor — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createDiffieHellman",
+      "kind": "node-builtin",
+      "name": "crypto.createDiffieHellman",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createDiffieHellmanGroup",
+      "kind": "node-builtin",
+      "name": "crypto.createDiffieHellmanGroup",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createECDH",
+      "kind": "node-builtin",
+      "name": "crypto.createECDH",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createHash",
+      "kind": "node-builtin",
+      "name": "crypto.createHash",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the one lowered shape is the composed chain createHash(\"sha256\").update(data).digest(\"hex\") — the Hash handle itself has no lowering"
+    },
+    {
+      "id": "node-builtin.crypto.createHmac",
+      "kind": "node-builtin",
+      "name": "crypto.createHmac",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "HMAC has no lowering yet — the lowered crypto surface is randomUUID, randomBytes, the createHash(\"sha256\"|\"sha1\") chain, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createPrivateKey",
+      "kind": "node-builtin",
+      "name": "crypto.createPrivateKey",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createPublicKey",
+      "kind": "node-builtin",
+      "name": "crypto.createPublicKey",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createSecretKey",
+      "kind": "node-builtin",
+      "name": "crypto.createSecretKey",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createSign",
+      "kind": "node-builtin",
+      "name": "crypto.createSign",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.createVerify",
+      "kind": "node-builtin",
+      "name": "crypto.createVerify",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.diffieHellman",
+      "kind": "node-builtin",
+      "name": "crypto.diffieHellman",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.generateKey",
+      "kind": "node-builtin",
+      "name": "crypto.generateKey",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.generateKeyPair",
+      "kind": "node-builtin",
+      "name": "crypto.generateKeyPair",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.generateKeyPairSync",
+      "kind": "node-builtin",
+      "name": "crypto.generateKeyPairSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.generateKeySync",
+      "kind": "node-builtin",
+      "name": "crypto.generateKeySync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.getCipherInfo",
+      "kind": "node-builtin",
+      "name": "crypto.getCipherInfo",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "symmetric ciphers need a cipher stack the static runtime does not vendor — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.getDiffieHellman",
+      "kind": "node-builtin",
+      "name": "crypto.getDiffieHellman",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.hash",
+      "kind": "node-builtin",
+      "name": "crypto.hash",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the one-shot digest has no lowering — the composed chain createHash(\"sha256\").update(data).digest(\"hex\") is the lowered hashing surface"
+    },
+    {
+      "id": "node-builtin.crypto.hkdf",
+      "kind": "node-builtin",
+      "name": "crypto.hkdf",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.hkdfSync",
+      "kind": "node-builtin",
+      "name": "crypto.hkdfSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.pbkdf2",
+      "kind": "node-builtin",
+      "name": "crypto.pbkdf2",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.pbkdf2Sync",
+      "kind": "node-builtin",
+      "name": "crypto.pbkdf2Sync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.privateDecrypt",
+      "kind": "node-builtin",
+      "name": "crypto.privateDecrypt",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.privateEncrypt",
+      "kind": "node-builtin",
+      "name": "crypto.privateEncrypt",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.publicDecrypt",
+      "kind": "node-builtin",
+      "name": "crypto.publicDecrypt",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.publicEncrypt",
+      "kind": "node-builtin",
+      "name": "crypto.publicEncrypt",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.randomBytes",
+      "kind": "node-builtin",
+      "name": "crypto.randomBytes",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.crypto.randomUUID",
+      "kind": "node-builtin",
+      "name": "crypto.randomUUID",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.crypto.scrypt",
+      "kind": "node-builtin",
+      "name": "crypto.scrypt",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.scryptSync",
+      "kind": "node-builtin",
+      "name": "crypto.scryptSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "key-derivation functions have no lowering yet — the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.setFips",
+      "kind": "node-builtin",
+      "name": "crypto.setFips",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "a compiled binary has no FIPS provider to enable, and Node itself throws on setFips(true) in a non-FIPS build — getFips() answers 0 here"
+    },
+    {
+      "id": "node-builtin.crypto.sign",
+      "kind": "node-builtin",
+      "name": "crypto.sign",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.verify",
+      "kind": "node-builtin",
+      "name": "crypto.verify",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "asymmetric-key operations need a public-key stack (bignum, RSA/EC/EdDSA math) and a KeyObject value model — neither exists in the static runtime, so no faithful lowering can be small; the lowered crypto surface is hashing, randomness, and the introspection statics"
+    },
+    {
+      "id": "node-builtin.crypto.webcrypto",
+      "kind": "node-builtin",
+      "name": "crypto.webcrypto",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the WebCrypto object has no lowering — the lowered crypto surface is randomUUID, randomBytes, and the createHash chain"
+    },
+    {
+      "id": "node-builtin.dgram",
+      "kind": "node-builtin",
+      "name": "dgram",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel.channel",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel.channel",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel.hasSubscribers",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel.hasSubscribers",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel.subscribe",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel.subscribe",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel.tracingChannel",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel.tracingChannel",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.diagnostics_channel.unsubscribe",
+      "kind": "node-builtin",
+      "name": "diagnostics_channel.unsubscribe",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.dns",
+      "kind": "node-builtin",
+      "name": "dns",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.events",
+      "kind": "node-builtin",
+      "name": "events",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.fs",
+      "kind": "node-builtin",
+      "name": "fs",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.fs.accessSync",
+      "kind": "node-builtin",
+      "name": "fs.accessSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.appendFileSync",
+      "kind": "node-builtin",
+      "name": "fs.appendFileSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.chmodSync",
+      "kind": "node-builtin",
+      "name": "fs.chmodSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.chownSync",
+      "kind": "node-builtin",
+      "name": "fs.chownSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.closeSync",
+      "kind": "node-builtin",
+      "name": "fs.closeSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.copyFileSync",
+      "kind": "node-builtin",
+      "name": "fs.copyFileSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.existsSync",
+      "kind": "node-builtin",
+      "name": "fs.existsSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.lstatSync",
+      "kind": "node-builtin",
+      "name": "fs.lstatSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.mkdirSync",
+      "kind": "node-builtin",
+      "name": "fs.mkdirSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.mkdtempSync",
+      "kind": "node-builtin",
+      "name": "fs.mkdtempSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.openSync",
+      "kind": "node-builtin",
+      "name": "fs.openSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises",
+      "kind": "node-builtin",
+      "name": "fs/promises",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.fs.promises.chmod",
+      "kind": "node-builtin",
+      "name": "fs/promises.chmod",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.mkdir",
+      "kind": "node-builtin",
+      "name": "fs/promises.mkdir",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.open",
+      "kind": "node-builtin",
+      "name": "fs/promises.open",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.readFile",
+      "kind": "node-builtin",
+      "name": "fs/promises.readFile",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.readdir",
+      "kind": "node-builtin",
+      "name": "fs/promises.readdir",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.rename",
+      "kind": "node-builtin",
+      "name": "fs/promises.rename",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.rm",
+      "kind": "node-builtin",
+      "name": "fs/promises.rm",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.stat",
+      "kind": "node-builtin",
+      "name": "fs/promises.stat",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.unlink",
+      "kind": "node-builtin",
+      "name": "fs/promises.unlink",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.promises.writeFile",
+      "kind": "node-builtin",
+      "name": "fs/promises.writeFile",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.readFileSync",
+      "kind": "node-builtin",
+      "name": "fs.readFileSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.readSync",
+      "kind": "node-builtin",
+      "name": "fs.readSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.readdirSync",
+      "kind": "node-builtin",
+      "name": "fs.readdirSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.realpathSync",
+      "kind": "node-builtin",
+      "name": "fs.realpathSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.rename",
+      "kind": "node-builtin",
+      "name": "fs.rename",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.renameSync",
+      "kind": "node-builtin",
+      "name": "fs.renameSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.rmSync",
+      "kind": "node-builtin",
+      "name": "fs.rmSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.rmdirSync",
+      "kind": "node-builtin",
+      "name": "fs.rmdirSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.statSync",
+      "kind": "node-builtin",
+      "name": "fs.statSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.unlinkSync",
+      "kind": "node-builtin",
+      "name": "fs.unlinkSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.watch",
+      "kind": "node-builtin",
+      "name": "fs.watch",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.writeFileSync",
+      "kind": "node-builtin",
+      "name": "fs.writeFileSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.fs.writeSync",
+      "kind": "node-builtin",
+      "name": "fs.writeSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.http",
+      "kind": "node-builtin",
+      "name": "http",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.http2",
+      "kind": "node-builtin",
+      "name": "http2",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.http2.connect",
+      "kind": "node-builtin",
+      "name": "http2.connect",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "HTTP/2 client sessions have no lowering — the lowered http2 surface is the SERVER side: createSecureServer({ allowHTTP1: true, cert, key }), which serves HTTP/1.1 only (ALPN never offers h2 — h2-capable clients negotiate down); an HTTP/1.1 client is https.request"
+    },
+    {
+      "id": "node-builtin.http2.createServer",
+      "kind": "node-builtin",
+      "name": "http2.createServer",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "cleartext (h2c) servers have no lowering — the lowered http2 surface is createSecureServer({ allowHTTP1: true, cert, key }), which serves HTTP/1.1 over TLS (plain HTTP/1.1 is http.createServer)"
+    },
+    {
+      "id": "node-builtin.https",
+      "kind": "node-builtin",
+      "name": "https",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.module",
+      "kind": "node-builtin",
+      "name": "module",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.module.createRequire",
+      "kind": "node-builtin",
+      "name": "module.createRequire",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the lowered shape is a const binding over createRequire(import.meta.url) (or __filename) whose require calls take STATIC string literals — builtins, relative .json documents, and installed npm packages (under --dynamic) resolve at build time; dynamic specifiers cannot exist in a compiled binary's fixed module graph"
+    },
+    {
+      "id": "node-builtin.module.isBuiltin",
+      "kind": "node-builtin",
+      "name": "module.isBuiltin",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "builtinModules.includes(name) answers the same question over the baked list (strip a node: prefix first; the prefix-only builtins appear with it, as node:test)"
+    },
+    {
+      "id": "node-builtin.module.syncBuiltinESMExports",
+      "kind": "node-builtin",
+      "name": "module.syncBuiltinESMExports",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "a compiled program has no live builtin ESM namespace bindings to synchronize — nothing a compiled surface can mutate makes the call observable; remove it"
+    },
+    {
+      "id": "node-builtin.net",
+      "kind": "node-builtin",
+      "name": "net",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.net.getDefaultAutoSelectFamilyAttemptTimeout",
+      "kind": "node-builtin",
+      "name": "net.getDefaultAutoSelectFamilyAttemptTimeout",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.net.setDefaultAutoSelectFamilyAttemptTimeout",
+      "kind": "node-builtin",
+      "name": "net.setDefaultAutoSelectFamilyAttemptTimeout",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os",
+      "kind": "node-builtin",
+      "name": "os",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.os.EOL",
+      "kind": "node-builtin",
+      "name": "os.EOL",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.os.homedir",
+      "kind": "node-builtin",
+      "name": "os.homedir",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.networkInterfaces",
+      "kind": "node-builtin",
+      "name": "os.networkInterfaces",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.platform",
+      "kind": "node-builtin",
+      "name": "os.platform",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.release",
+      "kind": "node-builtin",
+      "name": "os.release",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.tmpdir",
+      "kind": "node-builtin",
+      "name": "os.tmpdir",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.totalmem",
+      "kind": "node-builtin",
+      "name": "os.totalmem",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.type",
+      "kind": "node-builtin",
+      "name": "os.type",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.os.userInfo",
+      "kind": "node-builtin",
+      "name": "os.userInfo",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path",
+      "kind": "node-builtin",
+      "name": "path",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.path.basename",
+      "kind": "node-builtin",
+      "name": "path.basename",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.delimiter",
+      "kind": "node-builtin",
+      "name": "path.delimiter",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.dirname",
+      "kind": "node-builtin",
+      "name": "path.dirname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.extname",
+      "kind": "node-builtin",
+      "name": "path.extname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.isAbsolute",
+      "kind": "node-builtin",
+      "name": "path.isAbsolute",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.join",
+      "kind": "node-builtin",
+      "name": "path.join",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.normalize",
+      "kind": "node-builtin",
+      "name": "path.normalize",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix",
+      "kind": "node-builtin",
+      "name": "path/posix",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.path.posix.basename",
+      "kind": "node-builtin",
+      "name": "path/posix.basename",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.delimiter",
+      "kind": "node-builtin",
+      "name": "path/posix.delimiter",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.posix.dirname",
+      "kind": "node-builtin",
+      "name": "path/posix.dirname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.extname",
+      "kind": "node-builtin",
+      "name": "path/posix.extname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.isAbsolute",
+      "kind": "node-builtin",
+      "name": "path/posix.isAbsolute",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.join",
+      "kind": "node-builtin",
+      "name": "path/posix.join",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.normalize",
+      "kind": "node-builtin",
+      "name": "path/posix.normalize",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.relative",
+      "kind": "node-builtin",
+      "name": "path/posix.relative",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.resolve",
+      "kind": "node-builtin",
+      "name": "path/posix.resolve",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.posix.sep",
+      "kind": "node-builtin",
+      "name": "path/posix.sep",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.posix.toNamespacedPath",
+      "kind": "node-builtin",
+      "name": "path/posix.toNamespacedPath",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.relative",
+      "kind": "node-builtin",
+      "name": "path.relative",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.resolve",
+      "kind": "node-builtin",
+      "name": "path.resolve",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.sep",
+      "kind": "node-builtin",
+      "name": "path.sep",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.toNamespacedPath",
+      "kind": "node-builtin",
+      "name": "path.toNamespacedPath",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32",
+      "kind": "node-builtin",
+      "name": "path/win32",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.path.win32.basename",
+      "kind": "node-builtin",
+      "name": "path/win32.basename",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.delimiter",
+      "kind": "node-builtin",
+      "name": "path/win32.delimiter",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.win32.dirname",
+      "kind": "node-builtin",
+      "name": "path/win32.dirname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.extname",
+      "kind": "node-builtin",
+      "name": "path/win32.extname",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.isAbsolute",
+      "kind": "node-builtin",
+      "name": "path/win32.isAbsolute",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.join",
+      "kind": "node-builtin",
+      "name": "path/win32.join",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.normalize",
+      "kind": "node-builtin",
+      "name": "path/win32.normalize",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.relative",
+      "kind": "node-builtin",
+      "name": "path/win32.relative",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.resolve",
+      "kind": "node-builtin",
+      "name": "path/win32.resolve",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.path.win32.sep",
+      "kind": "node-builtin",
+      "name": "path/win32.sep",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.path.win32.toNamespacedPath",
+      "kind": "node-builtin",
+      "name": "path/win32.toNamespacedPath",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.perf_hooks",
+      "kind": "node-builtin",
+      "name": "perf_hooks",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.perf_hooks.performance.now",
+      "kind": "node-builtin",
+      "name": "perf_hooks.performance.now",
+      "status": "static",
+      "note": "the global performance object and the performance.now.bind(performance) function value reach the same clock"
+    },
+    {
+      "id": "node-builtin.process.argv",
+      "kind": "node-builtin",
+      "name": "process.argv",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.availableMemory",
+      "kind": "node-builtin",
+      "name": "process.availableMemory",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.chdir",
+      "kind": "node-builtin",
+      "name": "process.chdir",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.columns",
+      "kind": "node-builtin",
+      "name": "process.columns",
+      "status": "static",
+      "note": "the columns read on the process stdio streams (terminal geometry)"
+    },
+    {
+      "id": "node-builtin.process.constrainedMemory",
+      "kind": "node-builtin",
+      "name": "process.constrainedMemory",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.cpuUsage",
+      "kind": "node-builtin",
+      "name": "process.cpuUsage",
+      "status": "static",
+      "note": "the plain-sample and previous-value diff forms are one surface"
+    },
+    {
+      "id": "node-builtin.process.cwd",
+      "kind": "node-builtin",
+      "name": "process.cwd",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.env",
+      "kind": "node-builtin",
+      "name": "process.env",
+      "status": "static",
+      "note": "reads, writes, deletes, and enumeration of the process environment (the process global)"
+    },
+    {
+      "id": "node-builtin.process.execPath",
+      "kind": "node-builtin",
+      "name": "process.execPath",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.exit",
+      "kind": "node-builtin",
+      "name": "process.exit",
+      "status": "static",
+      "note": "process.exit and the process._exiting flag read are one surface"
+    },
+    {
+      "id": "node-builtin.process.getgid",
+      "kind": "node-builtin",
+      "name": "process.getgid",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.getuid",
+      "kind": "node-builtin",
+      "name": "process.getuid",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.isTTY",
+      "kind": "node-builtin",
+      "name": "process.isTTY",
+      "status": "static",
+      "note": "the isTTY read on process.stdin/stdout/stderr — one surface across the three streams"
+    },
+    {
+      "id": "node-builtin.process.kill",
+      "kind": "node-builtin",
+      "name": "process.kill",
+      "status": "static",
+      "note": "the signal-name and signal-number forms are one surface"
+    },
+    {
+      "id": "node-builtin.process.pid",
+      "kind": "node-builtin",
+      "name": "process.pid",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.resourceUsage",
+      "kind": "node-builtin",
+      "name": "process.resourceUsage",
+      "status": "static",
+      "note": "getrusage's 16 fields — every field read samples live machine state"
+    },
+    {
+      "id": "node-builtin.process.threadCpuUsage",
+      "kind": "node-builtin",
+      "name": "process.threadCpuUsage",
+      "status": "static",
+      "note": "the plain-sample and previous-value diff forms are one surface"
+    },
+    {
+      "id": "node-builtin.process.umask",
+      "kind": "node-builtin",
+      "name": "process.umask",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.process.uptime",
+      "kind": "node-builtin",
+      "name": "process.uptime",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring",
+      "kind": "node-builtin",
+      "name": "querystring",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.querystring.decode",
+      "kind": "node-builtin",
+      "name": "querystring.decode",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring.encode",
+      "kind": "node-builtin",
+      "name": "querystring.encode",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring.escape",
+      "kind": "node-builtin",
+      "name": "querystring.escape",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring.parse",
+      "kind": "node-builtin",
+      "name": "querystring.parse",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring.stringify",
+      "kind": "node-builtin",
+      "name": "querystring.stringify",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.querystring.unescape",
+      "kind": "node-builtin",
+      "name": "querystring.unescape",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.readline",
+      "kind": "node-builtin",
+      "name": "readline",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.readline.createInterface",
+      "kind": "node-builtin",
+      "name": "readline.createInterface",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.stream",
+      "kind": "node-builtin",
+      "name": "stream",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.stream.consumers",
+      "kind": "node-builtin",
+      "name": "stream/consumers",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.stream.consumers.arrayBuffer",
+      "kind": "node-builtin",
+      "name": "stream/consumers.arrayBuffer",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "no free-standing ArrayBuffer value exists here (typed arrays own their storage) — buffer(stream) collects the same bytes as a Buffer"
+    },
+    {
+      "id": "node-builtin.stream.consumers.blob",
+      "kind": "node-builtin",
+      "name": "stream/consumers.blob",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Blob values have no representation in a compiled binary — buffer(stream) collects the same bytes as a Buffer, text(stream) the decoded text"
+    },
+    {
+      "id": "node-builtin.stream.promises",
+      "kind": "node-builtin",
+      "name": "stream/promises",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.string_decoder",
+      "kind": "node-builtin",
+      "name": "string_decoder",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.test",
+      "kind": "node-builtin",
+      "name": "node:test",
+      "status": "static",
+      "note": "recognized module (node:-prefixed specifier only, matching Node)"
+    },
+    {
+      "id": "node-builtin.timers",
+      "kind": "node-builtin",
+      "name": "timers",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.timers.promises",
+      "kind": "node-builtin",
+      "name": "timers/promises",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.timers.promises.setImmediate",
+      "kind": "node-builtin",
+      "name": "timers/promises.setImmediate",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.timers.promises.setTimeout",
+      "kind": "node-builtin",
+      "name": "timers/promises.setTimeout",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.tls",
+      "kind": "node-builtin",
+      "name": "tls",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.tls.connect",
+      "kind": "node-builtin",
+      "name": "tls.connect",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the lowered TLS client is https.request({ hostname, port, path, method, ca?, rejectUnauthorized? }); raw tls.connect sockets have no lowering yet"
+    },
+    {
+      "id": "node-builtin.tls.createSecureContext",
+      "kind": "node-builtin",
+      "name": "tls.createSecureContext",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the lowered form is createSecureContext({ cert, key }) — an opaque SecureContext handle for SNI callbacks (http2.createSecureServer accepts SNICallback); other options fence by name"
+    },
+    {
+      "id": "node-builtin.tls.getCACertificates",
+      "kind": "node-builtin",
+      "name": "tls.getCACertificates",
+      "status": "static",
+      "note": "the per-type cached PEM bundle: 'default' and 'extra' additionally read NODE_EXTRA_CA_CERTS, 'system' the platform store"
+    },
+    {
+      "id": "node-builtin.tls.rootCertificates",
+      "kind": "node-builtin",
+      "name": "tls.rootCertificates",
+      "status": "static",
+      "note": "the value read; answers the same bundled array as getCACertificates('bundled'), but fenced under its own id — the spelling an author writes"
+    },
+    {
+      "id": "node-builtin.tls.setDefaultCACertificates",
+      "kind": "node-builtin",
+      "name": "tls.setDefaultCACertificates",
+      "status": "static",
+      "note": "replaces the default set and the client trust anchors for the rest of the process"
+    },
+    {
+      "id": "node-builtin.tty",
+      "kind": "node-builtin",
+      "name": "tty",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.url",
+      "kind": "node-builtin",
+      "name": "url",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.url.fileURLToPath",
+      "kind": "node-builtin",
+      "name": "url.fileURLToPath",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.url.pathToFileURL",
+      "kind": "node-builtin",
+      "name": "url.pathToFileURL",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.util",
+      "kind": "node-builtin",
+      "name": "util",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.util.parseArgs",
+      "kind": "node-builtin",
+      "name": "util.parseArgs",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.util.promisify",
+      "kind": "node-builtin",
+      "name": "util.promisify",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "the one lowered shape is a const binding over child_process.execFile: const execFileAsync = promisify(execFile), then call execFileAsync directly"
+    },
+    {
+      "id": "node-builtin.util.types",
+      "kind": "node-builtin",
+      "name": "util/types",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.worker_threads",
+      "kind": "node-builtin",
+      "name": "worker_threads",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.worker_threads.isMainThread",
+      "kind": "node-builtin",
+      "name": "worker_threads.isMainThread",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.worker_threads.threadId",
+      "kind": "node-builtin",
+      "name": "worker_threads.threadId",
+      "status": "static",
+      "note": "constant value read"
+    },
+    {
+      "id": "node-builtin.zlib",
+      "kind": "node-builtin",
+      "name": "zlib",
+      "status": "static",
+      "note": "recognized module (bare and node:-prefixed specifiers)"
+    },
+    {
+      "id": "node-builtin.zlib.brotliCompressSync",
+      "kind": "node-builtin",
+      "name": "zlib.brotliCompressSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "deflateSync and inflateSync are the lowered zlib surface"
+    },
+    {
+      "id": "node-builtin.zlib.brotliDecompressSync",
+      "kind": "node-builtin",
+      "name": "zlib.brotliDecompressSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "deflateSync and inflateSync are the lowered zlib surface"
+    },
+    {
+      "id": "node-builtin.zlib.deflateSync",
+      "kind": "node-builtin",
+      "name": "zlib.deflateSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.zlib.gunzipSync",
+      "kind": "node-builtin",
+      "name": "zlib.gunzipSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "deflateSync and inflateSync are the lowered zlib surface"
+    },
+    {
+      "id": "node-builtin.zlib.gzipSync",
+      "kind": "node-builtin",
+      "name": "zlib.gzipSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "deflateSync and inflateSync are the lowered zlib surface"
+    },
+    {
+      "id": "node-builtin.zlib.inflateSync",
+      "kind": "node-builtin",
+      "name": "zlib.inflateSync",
+      "status": "static"
+    },
+    {
+      "id": "node-builtin.zlib.unzipSync",
+      "kind": "node-builtin",
+      "name": "zlib.unzipSync",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "deflateSync and inflateSync are the lowered zlib surface"
+    },
+    {
+      "id": "stdlib.abort-controller.abort",
+      "kind": "stdlib",
+      "name": "AbortController.abort",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: callback-order, identity, liveness, state-machine, surplus-arguments; differential evidence: fixture:static-controller"
+    },
+    {
+      "id": "stdlib.abort-controller.constructor",
+      "kind": "stdlib",
+      "name": "AbortController constructor",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: argument-evaluation, identity, state-machine, surplus-arguments; differential evidence: fixture:static-controller"
+    },
+    {
+      "id": "stdlib.abort-controller.signal",
+      "kind": "stdlib",
+      "name": "AbortController.signal",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, property-read, state-machine; differential evidence: fixture:static-controller"
+    },
+    {
+      "id": "stdlib.abort-signal.abort",
+      "kind": "stdlib",
+      "name": "AbortSignal.abort",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, liveness, surplus-arguments, property-read; differential evidence: generated:webidl-operations, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.abort-signal.aborted",
+      "kind": "stdlib",
+      "name": "AbortSignal.aborted",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: generated:webidl-operations"
+    },
+    {
+      "id": "stdlib.abort-signal.add-event-listener",
+      "kind": "stdlib",
+      "name": "AbortSignal.addEventListener",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, identity, callback-order, callback-this; differential evidence: generated:abort-events, fixture:static-listener-this, fixture:static-listener-noncallable"
+    },
+    {
+      "id": "stdlib.abort-signal.any",
+      "kind": "stdlib",
+      "name": "AbortSignal.any",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, missing-arguments, surplus-arguments, property-read; differential evidence: generated:webidl-operations, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.abort-signal.constructor",
+      "kind": "stdlib",
+      "name": "AbortSignal constructor",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; Node exposes the interface object but constructing it throws; neither compiler tier currently preserves that constructor behavior"
+    },
+    {
+      "id": "stdlib.abort-signal.dispatch-event",
+      "kind": "stdlib",
+      "name": "AbortSignal.dispatchEvent",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: callback-order, callback-this, error-shape; differential evidence: fixture:static-dispatch-throw"
+    },
+    {
+      "id": "stdlib.abort-signal.onabort",
+      "kind": "stdlib",
+      "name": "AbortSignal.onabort",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: callback-order, callback-this, mutation, property-read; differential evidence: generated:abort-events, fixture:static-listener-this"
+    },
+    {
+      "id": "stdlib.abort-signal.reason",
+      "kind": "stdlib",
+      "name": "AbortSignal.reason",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, liveness, property-read; differential evidence: generated:webidl-operations, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.abort-signal.remove-event-listener",
+      "kind": "stdlib",
+      "name": "AbortSignal.removeEventListener",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, identity, callback-order; differential evidence: generated:abort-events, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.abort-signal.throw-if-aborted",
+      "kind": "stdlib",
+      "name": "AbortSignal.throwIfAborted",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, error-shape; differential evidence: generated:webidl-operations, fixture:static-abort-throw"
+    },
+    {
+      "id": "stdlib.abort-signal.timeout",
+      "kind": "stdlib",
+      "name": "AbortSignal.timeout",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, missing-arguments, surplus-arguments, error-shape; differential evidence: generated:webidl-operations, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.array.at",
+      "kind": "stdlib",
+      "name": "Array.prototype.at",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.concat",
+      "kind": "stdlib",
+      "name": "Array.prototype.concat",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.every",
+      "kind": "stdlib",
+      "name": "Array.prototype.every",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.filter",
+      "kind": "stdlib",
+      "name": "Array.prototype.filter",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.find",
+      "kind": "stdlib",
+      "name": "Array.prototype.find",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.findIndex",
+      "kind": "stdlib",
+      "name": "Array.prototype.findIndex",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.findLast",
+      "kind": "stdlib",
+      "name": "Array.prototype.findLast",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.findLastIndex",
+      "kind": "stdlib",
+      "name": "Array.prototype.findLastIndex",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.flatMap",
+      "kind": "stdlib",
+      "name": "Array.prototype.flatMap",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.forEach",
+      "kind": "stdlib",
+      "name": "Array.prototype.forEach",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.includes",
+      "kind": "stdlib",
+      "name": "Array.prototype.includes",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.indexOf",
+      "kind": "stdlib",
+      "name": "Array.prototype.indexOf",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.join",
+      "kind": "stdlib",
+      "name": "Array.prototype.join",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.map",
+      "kind": "stdlib",
+      "name": "Array.prototype.map",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.pop",
+      "kind": "stdlib",
+      "name": "Array.prototype.pop",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.push",
+      "kind": "stdlib",
+      "name": "Array.prototype.push",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.reduce",
+      "kind": "stdlib",
+      "name": "Array.prototype.reduce",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.reduceRight",
+      "kind": "stdlib",
+      "name": "Array.prototype.reduceRight",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.reverse",
+      "kind": "stdlib",
+      "name": "Array.prototype.reverse",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.slice",
+      "kind": "stdlib",
+      "name": "Array.prototype.slice",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.some",
+      "kind": "stdlib",
+      "name": "Array.prototype.some",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.toReversed",
+      "kind": "stdlib",
+      "name": "Array.prototype.toReversed",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.toSorted",
+      "kind": "stdlib",
+      "name": "Array.prototype.toSorted",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.toSpliced",
+      "kind": "stdlib",
+      "name": "Array.prototype.toSpliced",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.unshift",
+      "kind": "stdlib",
+      "name": "Array.prototype.unshift",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.array.with",
+      "kind": "stdlib",
+      "name": "Array.prototype.with",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.UTC",
+      "kind": "stdlib",
+      "name": "Date.UTC",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 7 number arguments"
+    },
+    {
+      "id": "stdlib.date.constructor",
+      "kind": "stdlib",
+      "name": "Date constructor",
+      "status": "static",
+      "note": "zero arguments, or one milliseconds/date-string argument; values are the read-only TimeClip scalar slice"
+    },
+    {
+      "id": "stdlib.date.getDate",
+      "kind": "stdlib",
+      "name": "Date.prototype.getDate",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getDay",
+      "kind": "stdlib",
+      "name": "Date.prototype.getDay",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getFullYear",
+      "kind": "stdlib",
+      "name": "Date.prototype.getFullYear",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getHours",
+      "kind": "stdlib",
+      "name": "Date.prototype.getHours",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getMilliseconds",
+      "kind": "stdlib",
+      "name": "Date.prototype.getMilliseconds",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getMinutes",
+      "kind": "stdlib",
+      "name": "Date.prototype.getMinutes",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getMonth",
+      "kind": "stdlib",
+      "name": "Date.prototype.getMonth",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getSeconds",
+      "kind": "stdlib",
+      "name": "Date.prototype.getSeconds",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getTime",
+      "kind": "stdlib",
+      "name": "Date.prototype.getTime",
+      "status": "static",
+      "note": "the millisecond value of a stored Date"
+    },
+    {
+      "id": "stdlib.date.getTimezoneOffset",
+      "kind": "stdlib",
+      "name": "Date.prototype.getTimezoneOffset",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCDate",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCDate",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCDay",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCDay",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCFullYear",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCFullYear",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCHours",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCHours",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCMilliseconds",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCMilliseconds",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCMinutes",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCMinutes",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCMonth",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCMonth",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.getUTCSeconds",
+      "kind": "stdlib",
+      "name": "Date.prototype.getUTCSeconds",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.date.now",
+      "kind": "stdlib",
+      "name": "Date.now",
+      "status": "static",
+      "note": "the live clock"
+    },
+    {
+      "id": "stdlib.date.toISOString",
+      "kind": "stdlib",
+      "name": "Date.prototype.toISOString",
+      "status": "static",
+      "note": "UTC ISO formatting over constructed and stored Date values"
+    },
+    {
+      "id": "stdlib.date.valueOf",
+      "kind": "stdlib",
+      "name": "Date.prototype.valueOf",
+      "status": "static",
+      "note": "the same millisecond read as getTime()"
+    },
+    {
+      "id": "stdlib.fetch",
+      "kind": "stdlib",
+      "name": "fetch",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: argument-evaluation, webidl-conversion, surplus-arguments, promise-settlement, transport, error-shape; differential evidence: fixture:static, fixture:static-coercion, fixture:static-network-error"
+    },
+    {
+      "id": "stdlib.fetch.request-init.body",
+      "kind": "stdlib",
+      "name": "RequestInit.body",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: string, Uint8Array, ReadableStream, or null; differential evidence: fixture:static, fixture:static-stream, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.fetch.request-init.cache",
+      "kind": "stdlib",
+      "name": "RequestInit.cache",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.credentials",
+      "kind": "stdlib",
+      "name": "RequestInit.credentials",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.dispatcher",
+      "kind": "stdlib",
+      "name": "RequestInit.dispatcher",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic tier recognizes Vercel CLI's EnvProxyDispatcher and applies equivalent native environment-proxy routing"
+    },
+    {
+      "id": "stdlib.fetch.request-init.duplex",
+      "kind": "stdlib",
+      "name": "RequestInit.duplex",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: WebIDL enum; 'half' required for streaming bodies; differential evidence: fixture:static-stream, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.fetch.request-init.headers",
+      "kind": "stdlib",
+      "name": "RequestInit.headers",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: Headers, record, or sequence-of-pairs snapshot; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.fetch.request-init.integrity",
+      "kind": "stdlib",
+      "name": "RequestInit.integrity",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.keepalive",
+      "kind": "stdlib",
+      "name": "RequestInit.keepalive",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.method",
+      "kind": "stdlib",
+      "name": "RequestInit.method",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: WebIDL ByteString after all call arguments evaluate; differential evidence: fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.fetch.request-init.mode",
+      "kind": "stdlib",
+      "name": "RequestInit.mode",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.priority",
+      "kind": "stdlib",
+      "name": "RequestInit.priority",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.redirect",
+      "kind": "stdlib",
+      "name": "RequestInit.redirect",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: WebIDL enum: follow, error, or manual; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.fetch.request-init.referrer",
+      "kind": "stdlib",
+      "name": "RequestInit.referrer",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.referrerPolicy",
+      "kind": "stdlib",
+      "name": "RequestInit.referrerPolicy",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.fetch.request-init.signal",
+      "kind": "stdlib",
+      "name": "RequestInit.signal",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: native AbortSignal handle or absent; differential evidence: fixture:static, fixture:static-abort-throw"
+    },
+    {
+      "id": "stdlib.fetch.request-init.window",
+      "kind": "stdlib",
+      "name": "RequestInit.window",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; neither compiler tier preserves this RequestInit member's conversion or transport behavior"
+    },
+    {
+      "id": "stdlib.headers.append",
+      "kind": "stdlib",
+      "name": "Headers.append",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, mutation, error-shape; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.constructor",
+      "kind": "stdlib",
+      "name": "Headers constructor",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the interface constructor has no compiler bridge in either tier"
+    },
+    {
+      "id": "stdlib.headers.delete",
+      "kind": "stdlib",
+      "name": "Headers.delete",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, mutation, error-shape; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.entries",
+      "kind": "stdlib",
+      "name": "Headers.entries",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; native Headers iteration does not yet expose a static iterator handle"
+    },
+    {
+      "id": "stdlib.headers.forEach",
+      "kind": "stdlib",
+      "name": "Headers.forEach",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: callback-order, callback-this, mutation; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.get",
+      "kind": "stdlib",
+      "name": "Headers.get",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, missing-arguments, property-read; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.getSetCookie",
+      "kind": "stdlib",
+      "name": "Headers.getSetCookie",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, mutation, error-shape; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.has",
+      "kind": "stdlib",
+      "name": "Headers.has",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, missing-arguments, property-read; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.keys",
+      "kind": "stdlib",
+      "name": "Headers.keys",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; native Headers iteration does not yet expose a static iterator handle"
+    },
+    {
+      "id": "stdlib.headers.set",
+      "kind": "stdlib",
+      "name": "Headers.set",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, mutation, error-shape; differential evidence: fixture:static, fixture:static-coercion"
+    },
+    {
+      "id": "stdlib.headers.symbol.iterator",
+      "kind": "stdlib",
+      "name": "Headers.[Symbol.iterator]",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; native Headers iteration does not expose an engine-free iterator handle"
+    },
+    {
+      "id": "stdlib.headers.values",
+      "kind": "stdlib",
+      "name": "Headers.values",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; native Headers iteration does not yet expose a static iterator handle"
+    },
+    {
+      "id": "stdlib.map.clear",
+      "kind": "stdlib",
+      "name": "Map.prototype.clear",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.map.delete",
+      "kind": "stdlib",
+      "name": "Map.prototype.delete",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.map.forEach",
+      "kind": "stdlib",
+      "name": "Map.prototype.forEach",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.map.get",
+      "kind": "stdlib",
+      "name": "Map.prototype.get",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.map.has",
+      "kind": "stdlib",
+      "name": "Map.prototype.has",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.map.set",
+      "kind": "stdlib",
+      "name": "Map.prototype.set",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.math.E",
+      "kind": "stdlib",
+      "name": "Math.E",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.PI",
+      "kind": "stdlib",
+      "name": "Math.PI",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.abs",
+      "kind": "stdlib",
+      "name": "Math.abs",
+      "status": "static",
+      "note": "compiles statically at arity 1; other declared call shapes run only in the embedded dynamic engine (SC2012 without --dynamic)"
+    },
+    {
+      "id": "stdlib.math.acos",
+      "kind": "stdlib",
+      "name": "Math.acos",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.asin",
+      "kind": "stdlib",
+      "name": "Math.asin",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.atan",
+      "kind": "stdlib",
+      "name": "Math.atan",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.atan2",
+      "kind": "stdlib",
+      "name": "Math.atan2",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.cbrt",
+      "kind": "stdlib",
+      "name": "Math.cbrt",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.ceil",
+      "kind": "stdlib",
+      "name": "Math.ceil",
+      "status": "static",
+      "note": "compiles statically at arity 1; other declared call shapes run only in the embedded dynamic engine (SC2012 without --dynamic)"
+    },
+    {
+      "id": "stdlib.math.cos",
+      "kind": "stdlib",
+      "name": "Math.cos",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.exp",
+      "kind": "stdlib",
+      "name": "Math.exp",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.floor",
+      "kind": "stdlib",
+      "name": "Math.floor",
+      "status": "static",
+      "note": "compiles statically at arity 1"
+    },
+    {
+      "id": "stdlib.math.hypot",
+      "kind": "stdlib",
+      "name": "Math.hypot",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.log",
+      "kind": "stdlib",
+      "name": "Math.log",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.log10",
+      "kind": "stdlib",
+      "name": "Math.log10",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.log2",
+      "kind": "stdlib",
+      "name": "Math.log2",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.max",
+      "kind": "stdlib",
+      "name": "Math.max",
+      "status": "static",
+      "note": "compiles statically at arity 2"
+    },
+    {
+      "id": "stdlib.math.min",
+      "kind": "stdlib",
+      "name": "Math.min",
+      "status": "static",
+      "note": "compiles statically at arity 2"
+    },
+    {
+      "id": "stdlib.math.pow",
+      "kind": "stdlib",
+      "name": "Math.pow",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.random",
+      "kind": "stdlib",
+      "name": "Math.random",
+      "status": "static",
+      "note": "compiles statically at arity 0"
+    },
+    {
+      "id": "stdlib.math.round",
+      "kind": "stdlib",
+      "name": "Math.round",
+      "status": "static",
+      "note": "compiles statically at arity 1; other declared call shapes run only in the embedded dynamic engine (SC2012 without --dynamic)"
+    },
+    {
+      "id": "stdlib.math.sign",
+      "kind": "stdlib",
+      "name": "Math.sign",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.sin",
+      "kind": "stdlib",
+      "name": "Math.sin",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.sqrt",
+      "kind": "stdlib",
+      "name": "Math.sqrt",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.tan",
+      "kind": "stdlib",
+      "name": "Math.tan",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.math.trunc",
+      "kind": "stdlib",
+      "name": "Math.trunc",
+      "status": "static",
+      "note": "compiles statically at arity 1; other declared call shapes run only in the embedded dynamic engine (SC2012 without --dynamic)"
+    },
+    {
+      "id": "stdlib.number.toFixed",
+      "kind": "stdlib",
+      "name": "number.prototype.toFixed",
+      "status": "static",
+      "note": "the lowered call form takes 0 to 1 arguments"
+    },
+    {
+      "id": "stdlib.number.toPrecision",
+      "kind": "stdlib",
+      "name": "number.prototype.toPrecision",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.number.toString",
+      "kind": "stdlib",
+      "name": "number.prototype.toString",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.readable-stream-default-controller.close",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultController.close",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: state-machine, error-shape; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-controller.constructor",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultController constructor",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the constructor object is unavailable in the dynamic engine; static controller handles come from underlying-source callbacks"
+    },
+    {
+      "id": "stdlib.readable-stream-default-controller.desired-size",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultController.desiredSize",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read, state-machine; differential evidence: generated:stream-traces"
+    },
+    {
+      "id": "stdlib.readable-stream-default-controller.enqueue",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultController.enqueue",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, liveness, state-machine, error-shape; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-controller.error",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultController.error",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, promise-settlement, state-machine; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-reader.cancel",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultReader.cancel",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, promise-settlement, state-machine; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-reader.closed",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultReader.closed",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: promise-settlement, property-read, state-machine; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-reader.constructor",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultReader constructor",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the constructor object is unavailable in the dynamic engine; static reader handles come from ReadableStream.getReader()"
+    },
+    {
+      "id": "stdlib.readable-stream-default-reader.read",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultReader.read",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, promise-settlement, state-machine; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream-default-reader.release-lock",
+      "kind": "stdlib",
+      "name": "ReadableStreamDefaultReader.releaseLock",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: promise-settlement, state-machine, error-shape; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream.cancel",
+      "kind": "stdlib",
+      "name": "ReadableStream.cancel",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: identity, promise-settlement, state-machine; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream.constructor",
+      "kind": "stdlib",
+      "name": "ReadableStream constructor",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, callback-this, callback-order, state-machine; differential evidence: generated:stream-traces, fixture:static-stream-this"
+    },
+    {
+      "id": "stdlib.readable-stream.from",
+      "kind": "stdlib",
+      "name": "ReadableStream.from",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, missing-arguments, surplus-arguments, liveness; differential evidence: generated:webidl-operations, generated:stream-traces"
+    },
+    {
+      "id": "stdlib.readable-stream.get-reader",
+      "kind": "stdlib",
+      "name": "ReadableStream.getReader",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, identity, state-machine, error-shape; differential evidence: generated:stream-traces, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.readable-stream.locked",
+      "kind": "stdlib",
+      "name": "ReadableStream.locked",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read, state-machine; differential evidence: generated:stream-traces"
+    },
+    {
+      "id": "stdlib.readable-stream.pipeThrough",
+      "kind": "stdlib",
+      "name": "ReadableStream.pipeThrough",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the wider Web Streams graph is outside the native readable-stream slice"
+    },
+    {
+      "id": "stdlib.readable-stream.pipeTo",
+      "kind": "stdlib",
+      "name": "ReadableStream.pipeTo",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic Web Streams bridge exposes only an explicit unsupported stub for this operation"
+    },
+    {
+      "id": "stdlib.readable-stream.symbol.asyncIterator",
+      "kind": "stdlib",
+      "name": "ReadableStream.[Symbol.asyncIterator]",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; symbol-keyed async iterator handles have no compiler lowering in either tier; use values() with --dynamic"
+    },
+    {
+      "id": "stdlib.readable-stream.tee",
+      "kind": "stdlib",
+      "name": "ReadableStream.tee",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic Web Streams bridge exposes only an explicit unsupported stub for this operation"
+    },
+    {
+      "id": "stdlib.readable-stream.values",
+      "kind": "stdlib",
+      "name": "ReadableStream.values",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the wider Web Streams graph is outside the native readable-stream slice"
+    },
+    {
+      "id": "stdlib.request.arrayBuffer",
+      "kind": "stdlib",
+      "name": "Request.arrayBuffer",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.attribute",
+      "kind": "stdlib",
+      "name": "Request.attribute",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.blob",
+      "kind": "stdlib",
+      "name": "Request.blob",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.body",
+      "kind": "stdlib",
+      "name": "Request.body",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.bodyUsed",
+      "kind": "stdlib",
+      "name": "Request.bodyUsed",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.bytes",
+      "kind": "stdlib",
+      "name": "Request.bytes",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.cache",
+      "kind": "stdlib",
+      "name": "Request.cache",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.clone",
+      "kind": "stdlib",
+      "name": "Request.clone",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.constructor",
+      "kind": "stdlib",
+      "name": "Request constructor",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.credentials",
+      "kind": "stdlib",
+      "name": "Request.credentials",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.destination",
+      "kind": "stdlib",
+      "name": "Request.destination",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.duplex",
+      "kind": "stdlib",
+      "name": "Request.duplex",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.formData",
+      "kind": "stdlib",
+      "name": "Request.formData",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.headers",
+      "kind": "stdlib",
+      "name": "Request.headers",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.integrity",
+      "kind": "stdlib",
+      "name": "Request.integrity",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.isHistoryNavigation",
+      "kind": "stdlib",
+      "name": "Request.isHistoryNavigation",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.isReloadNavigation",
+      "kind": "stdlib",
+      "name": "Request.isReloadNavigation",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.json",
+      "kind": "stdlib",
+      "name": "Request.json",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.keepalive",
+      "kind": "stdlib",
+      "name": "Request.keepalive",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.method",
+      "kind": "stdlib",
+      "name": "Request.method",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.mode",
+      "kind": "stdlib",
+      "name": "Request.mode",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.redirect",
+      "kind": "stdlib",
+      "name": "Request.redirect",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.referrer",
+      "kind": "stdlib",
+      "name": "Request.referrer",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.referrerPolicy",
+      "kind": "stdlib",
+      "name": "Request.referrerPolicy",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.signal",
+      "kind": "stdlib",
+      "name": "Request.signal",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.text",
+      "kind": "stdlib",
+      "name": "Request.text",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.request.url",
+      "kind": "stdlib",
+      "name": "Request.url",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; typed source has no compiler bridge for this interface in either tier"
+    },
+    {
+      "id": "stdlib.response-init.headers",
+      "kind": "stdlib",
+      "name": "ResponseInit.headers",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: Headers, record, or sequence-of-pairs snapshot; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response-init.status",
+      "kind": "stdlib",
+      "name": "ResponseInit.status",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: WebIDL unsigned-short conversion followed by the 200–599 range check; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response-init.statusText",
+      "kind": "stdlib",
+      "name": "ResponseInit.statusText",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; conversion: WebIDL ByteString with HTTP reason-phrase validation; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.arrayBuffer",
+      "kind": "stdlib",
+      "name": "Response.arrayBuffer",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; free-standing ArrayBuffer values have no static representation; use Response.bytes()"
+    },
+    {
+      "id": "stdlib.response.blob",
+      "kind": "stdlib",
+      "name": "Response.blob",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic fetch bridge does not implement this Response operation"
+    },
+    {
+      "id": "stdlib.response.body",
+      "kind": "stdlib",
+      "name": "Response.body",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.bodyUsed",
+      "kind": "stdlib",
+      "name": "Response.bodyUsed",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.bytes",
+      "kind": "stdlib",
+      "name": "Response.bytes",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: body-consumption, promise-settlement, state-machine, error-shape; differential evidence: fixture:static, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.response.clone",
+      "kind": "stdlib",
+      "name": "Response.clone",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic fetch bridge does not implement this Response operation"
+    },
+    {
+      "id": "stdlib.response.constructor",
+      "kind": "stdlib",
+      "name": "Response constructor",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: webidl-conversion, body-consumption, state-machine, error-shape; supported scope: BodyInit is string, Uint8Array/Buffer, ReadableStream<Uint8Array>, null/undefined, or a checked-dynamic value that follows the supported WebIDL string conversion; ResponseInit is headers/status/statusText; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.formData",
+      "kind": "stdlib",
+      "name": "Response.formData",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the dynamic fetch bridge does not implement this Response operation"
+    },
+    {
+      "id": "stdlib.response.headers",
+      "kind": "stdlib",
+      "name": "Response.headers",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.json",
+      "kind": "stdlib",
+      "name": "Response.json",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: body-consumption, promise-settlement, state-machine, error-shape; differential evidence: fixture:static, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.response.ok",
+      "kind": "stdlib",
+      "name": "Response.ok",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.redirected",
+      "kind": "stdlib",
+      "name": "Response.redirected",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.static.error",
+      "kind": "stdlib",
+      "name": "Response.error",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; Response static constructor-object operations have no compiler lowering in either tier"
+    },
+    {
+      "id": "stdlib.response.static.json",
+      "kind": "stdlib",
+      "name": "Response.json",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; Response static constructor-object operations have no compiler lowering in either tier"
+    },
+    {
+      "id": "stdlib.response.static.redirect",
+      "kind": "stdlib",
+      "name": "Response.redirect",
+      "status": "unsupported",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; Response static constructor-object operations have no compiler lowering in either tier"
+    },
+    {
+      "id": "stdlib.response.status",
+      "kind": "stdlib",
+      "name": "Response.status",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.statusText",
+      "kind": "stdlib",
+      "name": "Response.statusText",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.response.text",
+      "kind": "stdlib",
+      "name": "Response.text",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: body-consumption, promise-settlement, state-machine, error-shape; differential evidence: fixture:static, fixture:static-stream"
+    },
+    {
+      "id": "stdlib.response.type",
+      "kind": "stdlib",
+      "name": "Response.type",
+      "status": "dynamic-only",
+      "code": "SC2020",
+      "note": "Node 24.15.0 / Undici 7.24.4; the member is outside the native static handle projection"
+    },
+    {
+      "id": "stdlib.response.url",
+      "kind": "stdlib",
+      "name": "Response.url",
+      "status": "static",
+      "note": "Node 24.15.0 / Undici 7.24.4; facets: property-read; differential evidence: fixture:static"
+    },
+    {
+      "id": "stdlib.set.add",
+      "kind": "stdlib",
+      "name": "Set.prototype.add",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.set.clear",
+      "kind": "stdlib",
+      "name": "Set.prototype.clear",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.set.delete",
+      "kind": "stdlib",
+      "name": "Set.prototype.delete",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.set.difference",
+      "kind": "stdlib",
+      "name": "Set.prototype.difference",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.forEach",
+      "kind": "stdlib",
+      "name": "Set.prototype.forEach",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.set.has",
+      "kind": "stdlib",
+      "name": "Set.prototype.has",
+      "status": "static"
+    },
+    {
+      "id": "stdlib.set.intersection",
+      "kind": "stdlib",
+      "name": "Set.prototype.intersection",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.isDisjointFrom",
+      "kind": "stdlib",
+      "name": "Set.prototype.isDisjointFrom",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.isSubsetOf",
+      "kind": "stdlib",
+      "name": "Set.prototype.isSubsetOf",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.isSupersetOf",
+      "kind": "stdlib",
+      "name": "Set.prototype.isSupersetOf",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.symmetricDifference",
+      "kind": "stdlib",
+      "name": "Set.prototype.symmetricDifference",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.set.union",
+      "kind": "stdlib",
+      "name": "Set.prototype.union",
+      "status": "static",
+      "note": "compiles over Set receivers with Set arguments (the general ReadonlySetLike argument forms are refused per site)"
+    },
+    {
+      "id": "stdlib.string.at",
+      "kind": "stdlib",
+      "name": "string.prototype.at",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.string.charAt",
+      "kind": "stdlib",
+      "name": "string.prototype.charAt",
+      "status": "static",
+      "note": "the lowered call form takes exactly 1 argument"
+    },
+    {
+      "id": "stdlib.string.charCodeAt",
+      "kind": "stdlib",
+      "name": "string.prototype.charCodeAt",
+      "status": "static",
+      "note": "the lowered call form takes exactly 1 argument"
+    },
+    {
+      "id": "stdlib.string.endsWith",
+      "kind": "stdlib",
+      "name": "string.prototype.endsWith",
+      "status": "static",
+      "note": "the lowered call form takes exactly 1 argument"
+    },
+    {
+      "id": "stdlib.string.includes",
+      "kind": "stdlib",
+      "name": "string.prototype.includes",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.indexOf",
+      "kind": "stdlib",
+      "name": "string.prototype.indexOf",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.isWellFormed",
+      "kind": "stdlib",
+      "name": "string.prototype.isWellFormed",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.padEnd",
+      "kind": "stdlib",
+      "name": "string.prototype.padEnd",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.padStart",
+      "kind": "stdlib",
+      "name": "string.prototype.padStart",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.repeat",
+      "kind": "stdlib",
+      "name": "string.prototype.repeat",
+      "status": "static",
+      "note": "the lowered call form takes exactly 1 argument"
+    },
+    {
+      "id": "stdlib.string.replace",
+      "kind": "stdlib",
+      "name": "string.prototype.replace",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.string.replaceAll",
+      "kind": "stdlib",
+      "name": "string.prototype.replaceAll",
+      "status": "dynamic-only",
+      "code": "SC2012"
+    },
+    {
+      "id": "stdlib.string.slice",
+      "kind": "stdlib",
+      "name": "string.prototype.slice",
+      "status": "static",
+      "note": "the lowered call form takes 0 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.split",
+      "kind": "stdlib",
+      "name": "string.prototype.split",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.startsWith",
+      "kind": "stdlib",
+      "name": "string.prototype.startsWith",
+      "status": "static",
+      "note": "the lowered call form takes exactly 1 argument"
+    },
+    {
+      "id": "stdlib.string.substring",
+      "kind": "stdlib",
+      "name": "string.prototype.substring",
+      "status": "static",
+      "note": "the lowered call form takes 1 to 2 arguments"
+    },
+    {
+      "id": "stdlib.string.toLowerCase",
+      "kind": "stdlib",
+      "name": "string.prototype.toLowerCase",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.toUpperCase",
+      "kind": "stdlib",
+      "name": "string.prototype.toUpperCase",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.toWellFormed",
+      "kind": "stdlib",
+      "name": "string.prototype.toWellFormed",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.trim",
+      "kind": "stdlib",
+      "name": "string.prototype.trim",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.trimEnd",
+      "kind": "stdlib",
+      "name": "string.prototype.trimEnd",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.trimLeft",
+      "kind": "stdlib",
+      "name": "string.prototype.trimLeft",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.trimRight",
+      "kind": "stdlib",
+      "name": "string.prototype.trimRight",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "stdlib.string.trimStart",
+      "kind": "stdlib",
+      "name": "string.prototype.trimStart",
+      "status": "static",
+      "note": "the lowered call form takes no arguments"
+    },
+    {
+      "id": "syntax.class-declarations-inside-functions",
+      "kind": "syntax",
+      "name": "class declarations inside functions",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.class-expressions",
+      "kind": "syntax",
+      "name": "class expressions",
+      "status": "unsupported",
+      "code": "SC1020"
+    },
+    {
+      "id": "syntax.compound-assignment.bitwise-and",
+      "kind": "syntax",
+      "name": "compound assignment operator '&='",
+      "status": "static",
+      "note": "compiles over the operand types the '&' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.bitwise-or",
+      "kind": "syntax",
+      "name": "compound assignment operator '|='",
+      "status": "static",
+      "note": "compiles over the operand types the '|' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.bitwise-xor",
+      "kind": "syntax",
+      "name": "compound assignment operator '^='",
+      "status": "static",
+      "note": "compiles over the operand types the '^' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.divide",
+      "kind": "syntax",
+      "name": "compound assignment operator '/='",
+      "status": "static",
+      "note": "compiles over the operand types the '/' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.exponent",
+      "kind": "syntax",
+      "name": "compound assignment operator '**='",
+      "status": "static",
+      "note": "compiles over the operand types the '**' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.minus",
+      "kind": "syntax",
+      "name": "compound assignment operator '-='",
+      "status": "static",
+      "note": "compiles over the operand types the '-' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.plus",
+      "kind": "syntax",
+      "name": "compound assignment operator '+='",
+      "status": "static",
+      "note": "compiles over the operand types the '+' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.remainder",
+      "kind": "syntax",
+      "name": "compound assignment operator '%='",
+      "status": "static",
+      "note": "compiles over the operand types the '%' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.shift-left",
+      "kind": "syntax",
+      "name": "compound assignment operator '<<='",
+      "status": "static",
+      "note": "compiles over the operand types the '<<' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.shift-right",
+      "kind": "syntax",
+      "name": "compound assignment operator '>>='",
+      "status": "static",
+      "note": "compiles over the operand types the '>>' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.shift-right-unsigned",
+      "kind": "syntax",
+      "name": "compound assignment operator '>>>='",
+      "status": "static",
+      "note": "compiles over the operand types the '>>>' operator supports"
+    },
+    {
+      "id": "syntax.compound-assignment.times",
+      "kind": "syntax",
+      "name": "compound assignment operator '*='",
+      "status": "static",
+      "note": "compiles over the operand types the '*' operator supports"
+    },
+    {
+      "id": "syntax.debugger-statements",
+      "kind": "syntax",
+      "name": "debugger statements",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.delete-expressions",
+      "kind": "syntax",
+      "name": "delete expressions",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.namespaces",
+      "kind": "syntax",
+      "name": "namespaces",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.spread-arguments",
+      "kind": "syntax",
+      "name": "spread arguments",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.typeof-expressions",
+      "kind": "syntax",
+      "name": "typeof expressions",
+      "status": "unsupported",
+      "code": "SC1090"
+    },
+    {
+      "id": "syntax.with-statements",
+      "kind": "syntax",
+      "name": "'with' statements (runtime scope injection has no static resolution — bind the object to a variable and read members through it)",
+      "status": "unsupported",
+      "code": "SC1090"
+    }
+  ]
+}

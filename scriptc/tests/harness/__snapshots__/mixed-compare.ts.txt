@@ -1,0 +1,13 @@
+mixed-compare.ts:3:13 - error SC0001: This comparison appears to be unintentional because the types 'true' and 'false' have no overlap.
+
+  2 | const other: boolean = false;
+  3 | console.log(flag === other);
+    |             ^~~~~~~~~~~~~~
+  4 | const s: string = "1";
+
+mixed-compare.ts:5:13 - error SC0001: Operator '<' cannot be applied to types 'string' and 'number'.
+
+  4 | const s: string = "1";
+  5 | console.log(s < 2);
+    |             ^~~~~
+  6 | 

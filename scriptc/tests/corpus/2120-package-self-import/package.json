@@ -1,0 +1,10 @@
+{
+  "name": "selfimp-corpus",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./main.ts" },
+  "imports": {
+    "#me": "selfimp-corpus",
+    "#sib": "./sib.ts"
+  }
+}

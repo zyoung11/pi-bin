@@ -1,0 +1,40 @@
+{
+  "profile_format": 1,
+  "name": "conformance-fences-attest",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kf_",
+    "init_symbol": "kf_init",
+    "sink_register_symbol": "kf_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "boot", "symbol": "kf_boot", "params": ["f64"], "returns": "f64" }
+  ],
+  "sidecar": {
+    "wire_version": 1,
+    "abi_version": 1,
+    "snapshot_format": 1,
+    "build_id_symbol": "kf_build_id",
+    "abi_version_symbol": "kf_abi_version",
+    "model": "Model",
+    "msg": "Msg"
+  },
+  "determinism": {
+    "teachings": {
+      "SC4005": "async is unavailable in this compilation mode; the host executes effects — declare a command instead."
+    },
+    "fences": [
+      { "id": "stdlib.math.random", "teaching": "randomness is an effect: request it from the host and receive it as a Msg." },
+      { "prefix": "node-builtin.fs.", "teaching": "files are effects: declare reads and writes as commands the host executes." },
+      { "prefix": "node-builtin.net.", "teaching": "network is an effect: declare requests as commands; responses arrive as Msgs." },
+      { "prefix": "node-builtin.os.", "teaching": "machine identity is an effect: ask the host." },
+      { "prefix": "node-builtin.crypto.", "teaching": "randomness and digests come from the host." },
+      { "prefix": "stdlib.date.", "teaching": "time is an effect: the host passes the clock in as a Msg." },
+      { "prefix": "node-builtin.process.", "teaching": "process ambient state and authority belong to the host." },
+      { "prefix": "node-builtin.perf_hooks.", "teaching": "the monotonic clock is the host's." }
+    ]
+  }
+}

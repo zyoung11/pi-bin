@@ -1,0 +1,35 @@
+{
+  "profile_format": 1,
+  "name": "conformance-contract",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kc_",
+    "init_symbol": "kc_init",
+    "sink_register_symbol": "kc_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null,
+    "callback_register_symbol": "kc_set_callback"
+  },
+  "callbacks": [
+    { "name": "contractNotice", "params": ["string"], "returns": "void" }
+  ],
+  "exports": [
+    { "export": "boot", "symbol": "kc_boot", "params": [], "returns": "void" },
+    { "export": "send", "symbol": "kc_send", "params": ["f64", "f64"], "returns": "void" },
+    { "export": "commandMsg", "symbol": "kc_command_msg", "params": ["string"], "returns": "void" },
+    { "export": "title", "symbol": "kc_title", "params": [], "returns": "string" },
+    { "export": "helperProbe", "symbol": "kc_helper_probe", "params": ["f64"], "returns": "string" },
+    { "export": "boom", "symbol": "kc_boom", "params": ["f64"], "returns": "f64" }
+  ],
+  "sidecar": {
+    "path": "app.contract.json",
+    "wire_version": 3,
+    "abi_version": 7,
+    "snapshot_format": 2,
+    "build_id_symbol": "kc_build_id",
+    "abi_version_symbol": "kc_abi_version",
+    "model": "Model",
+    "msg": "Msg"
+  }
+}

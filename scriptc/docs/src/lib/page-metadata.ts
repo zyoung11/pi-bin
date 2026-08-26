@@ -1,0 +1,37 @@
+import type { Metadata } from "next";
+import { PAGE_TITLES } from "./page-titles";
+import { description, siteName } from "./site";
+
+export function pageMetadata(slug: string): Metadata {
+  const title = PAGE_TITLES[slug];
+  if (!title) return {};
+
+  const displayTitle = title.replace(/\n/g, " ");
+  const fullTitle = `${displayTitle} | ${siteName}`;
+  const ogImageUrl = slug ? `/og/${slug}` : "/og";
+
+  return {
+    title: displayTitle,
+    openGraph: {
+      type: "website",
+      locale: "en_US",
+      siteName,
+      title: fullTitle,
+      description,
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${displayTitle} - ${siteName}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: fullTitle,
+      description,
+      images: [ogImageUrl],
+    },
+  };
+}

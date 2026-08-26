@@ -1,0 +1,30 @@
+{
+  "profile_format": 1,
+  "name": "conformance-teach",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kv_",
+    "init_symbol": "kv_init",
+    "sink_register_symbol": "kv_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "wrap", "symbol": "kv_wrap", "params": ["bytes"], "returns": "f64" },
+    { "export": "teach", "symbol": "kv_teach", "params": [], "returns": "f64" },
+    { "export": "teachStr", "symbol": "kv_teach_str", "params": [], "returns": "f64" },
+    { "export": "boomRuntime", "symbol": "kv_boom_runtime", "params": ["f64"], "returns": "f64" },
+    { "export": "failRuntime", "symbol": "kv_fail_runtime", "params": [], "returns": "f64" }
+  ],
+  "determinism": {
+    "teachings": {
+      "SC4012": "inbound bytes length does not fit the marshalling class — the host and this library disagree about the call contract\n",
+      "SC4014": "this core read past the end of a collection — an index the embedding fed it does not exist\n"
+    },
+    "remediations": {
+      "SC4012": "pass the buffer's true byte length; lengths must stay below 2^53",
+      "SC4014": "clamp indices to the collection's length before calling into the core"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "profile_format": 1,
+  "name": "conformance-traps",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kp_",
+    "init_symbol": "kp_init",
+    "sink_register_symbol": "kp_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "boom", "symbol": "kp_boom", "params": ["f64"], "returns": "f64" },
+    { "export": "fail", "symbol": "kp_fail", "params": ["string"], "returns": "f64" },
+    { "export": "ok", "symbol": "kp_ok", "params": ["f64"], "returns": "f64" }
+  ]
+}

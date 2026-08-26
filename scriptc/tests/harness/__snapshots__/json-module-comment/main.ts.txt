@@ -1,0 +1,13 @@
+json-module-comment/main.ts:4:1 - error SC0003: imported JSON module 'json-module-comment/a.json' is not valid JSON (Unexpected token '/', "// comment"... is not valid JSON)
+
+  3 | // gate at the import, never an uncaught parse throw (invariant signature 05).
+  4 | import a from "./a.json" with { type: "json" };
+    | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  5 | console.log(a.key);
+
+json-module-comment/main.ts:5:13 - error SC1090: the reference to 'a' (a binding form with no lowering) is not supported yet
+
+  4 | import a from "./a.json" with { type: "json" };
+  5 | console.log(a.key);
+    |             ^
+  6 | 

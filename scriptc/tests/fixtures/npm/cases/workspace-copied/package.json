@@ -1,0 +1,5 @@
+{
+  "name": "wscopyroot",
+  "private": true,
+  "workspaces": ["members/*"]
+}

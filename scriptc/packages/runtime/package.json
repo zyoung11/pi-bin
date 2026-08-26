@@ -1,0 +1,22 @@
+{
+  "name": "@scriptc/runtime",
+  "version": "0.0.35",
+  "description": "scriptc native runtime — C sources, compiled into every scriptc binary",
+  "license": "Apache-2.0",
+  "homepage": "https://scriptc.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "directory": "packages/runtime"
+  },
+  "files": [
+    "src",
+    "vendor"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "true"
+  }
+}

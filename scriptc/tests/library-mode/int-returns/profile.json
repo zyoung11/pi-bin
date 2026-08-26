@@ -1,0 +1,19 @@
+{
+  "profile_format": 1,
+  "name": "int-returns",
+  "entry": "lib.ts",
+  "emission": "c",
+  "abi": {
+    "prefix": "kr_",
+    "init_symbol": "kr_init",
+    "sink_register_symbol": "kr_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "retMax", "symbol": "kr_ret_max", "params": [], "returns": "i64" },
+    { "export": "retNegZero", "symbol": "kr_ret_neg_zero", "params": [], "returns": "i64" },
+    { "export": "retRem", "symbol": "kr_ret_rem", "params": [], "returns": "i64" },
+    { "export": "retU32Max", "symbol": "kr_ret_u32_max", "params": [], "returns": "u64" }
+  ]
+}

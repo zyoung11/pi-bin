@@ -1,0 +1,15 @@
+// tsc-clean misuses of the standard-library surface: each line below is
+// valid TypeScript against the ambient declarations but outside the
+// supported lowering (library, island-backed, Math, string, and number
+// functions have no value form; `process` itself is not a first-class
+// value).
+import { readFileSync } from "node:fs";
+
+const read = readFileSync;
+const cwd = process.cwd;
+const p = process;
+const env = process.env;
+const flo = Math.floor;
+const upper = "abc".toUpperCase;
+const fix = (1.5).toFixed;
+const pf = parseFloat;

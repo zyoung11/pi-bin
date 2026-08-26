@@ -1,0 +1,24 @@
+new-target-field-initializer.ts:6:3 - error SC2009: values of type '() => ...' cannot be compiled: the function shape is supported, but its return type '() => ...' does not compile
+
+  5 | class A {
+  6 |   d = function () { return new.target; };
+    |   ^
+  7 | }
+
+  hint: the outer shape is supported — the named component is the blocker; restate it inside the compilable set (number, string, boolean, arrays, Maps, Sets, RegExp, functions, classes, records, unions of those, and 'unknown')
+
+new-target-field-initializer.ts:8:11 - error SC1090: constructing through a class value whose class has no lowering (the class declaration itself was rejected — see its own diagnostic) is not supported yet
+
+  7 | }
+  8 | const a = new A();
+    |           ^~~~~~~
+  9 | console.log(typeof a.d);
+
+new-target-field-initializer.ts:9:20 - error SC2004: uses of 'a' inherit the blocker on its declaration
+
+   8 | const a = new A();
+   9 | console.log(typeof a.d);
+     |                    ^~~
+  10 | 
+
+  hint: the declaration of 'a' did not compile — fix the diagnostic reported there and these sites clear with it

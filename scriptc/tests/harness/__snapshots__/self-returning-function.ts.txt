@@ -1,0 +1,35 @@
+self-returning-function.ts:4:10 - error SC2009: values of type '() => typeof somefn' cannot be compiled: the function shape is supported, but its return type '() => typeof somefn' does not compile
+
+  3 | // (invariant signature 15), and the uses fence by name.
+  4 | function somefn() {
+    |          ^~~~~~
+  5 |   return somefn;
+
+  hint: the outer shape is supported — the named component is the blocker; restate it inside the compilable set (number, string, boolean, arrays, Maps, Sets, RegExp, functions, classes, records, unions of those, and 'unknown')
+
+self-returning-function.ts:7:7 - error SC2009: values of type '() => typeof somefn' cannot be compiled: the function shape is supported, but its return type '() => typeof somefn' does not compile
+
+  6 | }
+  7 | const g = somefn();
+    |       ^
+  8 | console.log(typeof g);
+
+  hint: the outer shape is supported — the named component is the blocker; restate it inside the compilable set (number, string, boolean, arrays, Maps, Sets, RegExp, functions, classes, records, unions of those, and 'unknown')
+
+self-returning-function.ts:7:11 - error SC2004: uses of 'somefn' inherit the blocker on its declaration
+
+  6 | }
+  7 | const g = somefn();
+    |           ^~~~~~
+  8 | console.log(typeof g);
+
+  hint: the declaration of 'somefn' did not compile — fix the diagnostic reported there and these sites clear with it
+
+self-returning-function.ts:8:20 - error SC2004: uses of 'g' inherit the blocker on its declaration
+
+  7 | const g = somefn();
+  8 | console.log(typeof g);
+    |                    ^
+  9 | 
+
+  hint: the declaration of 'g' did not compile — fix the diagnostic reported there and these sites clear with it

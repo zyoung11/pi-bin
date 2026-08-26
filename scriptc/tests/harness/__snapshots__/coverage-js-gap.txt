@@ -1,0 +1,6 @@
+scriptc coverage tests/coverage-fixtures/js-gap/gap.js
+
+  statements analyzed   5
+  compile statically    5  (100%)
+
+  fully static — this program has no dynamic remainder.

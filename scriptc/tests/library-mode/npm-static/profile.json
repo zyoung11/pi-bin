@@ -1,0 +1,17 @@
+{
+  "profile_format": 1,
+  "name": "conformance-npm-static",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "kn_",
+    "init_symbol": "kn_init",
+    "sink_register_symbol": "kn_set_panic_sink",
+    "collect_symbol": "kn_collect",
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "scaled", "symbol": "kn_scaled", "params": ["f64"], "returns": "f64" },
+    { "export": "tail", "symbol": "kn_tail", "params": ["string"], "returns": "string" }
+  ]
+}

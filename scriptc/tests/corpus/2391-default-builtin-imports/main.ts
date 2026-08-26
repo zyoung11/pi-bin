@@ -1,0 +1,15 @@
+// DEFAULT imports of supported builtins in a TS source, under the
+// project's own adopted interop knob (esModuleInterop in this case's
+// tsconfig): Node's default export of a CJS builtin IS the module object,
+// so the binding exposes exactly the namespace-import surface — the same
+// tables `import * as fs` keys (a real CLI spells `import fs from
+// 'node:fs'` and `import path from 'path'` throughout). Without the
+// interop knob the SC1012 fence stands; with it, the checker accepted the
+// spelling and so does the lowering.
+import fs from "node:fs";
+import path from "path";
+import url from "node:url";
+
+console.log(fs.existsSync(process.cwd()) ? "cwd-exists" : "cwd-missing");
+console.log(path.join("a", "b"));
+console.log(url.fileURLToPath("file:///tmp/x.txt"));

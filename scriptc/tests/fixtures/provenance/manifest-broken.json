@@ -1,0 +1,7 @@
+{
+  "packages": {
+    "greeter": {
+      "dir": "./no-such-dir/greeter"
+    }
+  }
+}

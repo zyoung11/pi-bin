@@ -1,0 +1,7 @@
+{
+  "name": "node-types-fixture",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "24.13.3"
+  }
+}

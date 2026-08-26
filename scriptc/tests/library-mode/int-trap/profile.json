@@ -1,0 +1,22 @@
+{
+  "profile_format": 1,
+  "name": "int-trap",
+  "entry": "lib.ts",
+  "emission": "c",
+  "abi": {
+    "prefix": "kt_",
+    "init_symbol": "kt_init",
+    "sink_register_symbol": "kt_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "take", "symbol": "kt_take", "params": ["i64"], "returns": "void" },
+    { "export": "takeU", "symbol": "kt_take_u", "params": ["u64"], "returns": "void" },
+    { "export": "last", "symbol": "kt_last", "params": [], "returns": "f64" }
+  ],
+  "determinism": {
+    "teachings": { "SC4012": "this core's integer channel carries at most 2^53 - 1" },
+    "remediations": { "SC4012": "keep host-side ids within the exact-integer range" }
+  }
+}

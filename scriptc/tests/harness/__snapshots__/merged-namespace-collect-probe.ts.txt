@@ -1,0 +1,6 @@
+merged-namespace-collect-probe.ts:13:11 - error SC1090: the bare reference to 'x' from a different block of the merged namespace (Node's TypeScript transform does not bind exported members across namespace blocks — it throws ReferenceError where tsc's emit would qualify; write M.x) is not supported yet
+
+  12 | namespace M {
+  13 |   var p = x;
+     |           ^
+  14 | }

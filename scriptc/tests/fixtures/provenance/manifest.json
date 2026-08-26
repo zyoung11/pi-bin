@@ -1,0 +1,9 @@
+{
+  "packages": {
+    "greeter": {
+      "dir": "./attested-src/greeter",
+      "commit": "0000000000000000000000000000000000000000",
+      "repo": "https://github.com/example/greeter"
+    }
+  }
+}

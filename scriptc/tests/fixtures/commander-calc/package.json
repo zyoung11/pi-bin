@@ -1,0 +1,8 @@
+{
+  "name": "commander-calc-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "commander": "14.0.0"
+  }
+}

@@ -1,0 +1,76 @@
+# How It Works
+
+## The pipeline
+
+```
+TypeScript ──tsc: parse + typecheck──▶ lowering ──▶ typed IR ──▶ LLVM IR ──clang──▶ native executable
+                                                        └─────▶ C ────┘
+```
+
+1. **Frontend** — the real TypeScript compiler parses and type-checks your program against `es2025` (plus `@types/node` when your project has it), honoring your `tsconfig.json` for checker strictness. The frontend then lowers the checked AST into a typed intermediate representation, using tsc's own type and narrowing answers to drive every decision. A construct with no lowering is a precise diagnostic at this stage — never a miscompile later.
+2. **Typed IR** — the only interface between the ends: a validated, serializable representation (`--emit-ir` writes it as JSON). Types are concrete here; generics have been monomorphized, unions are tagged values, closures have explicit captures.
+3. **Backends** — the LLVM backend is the production default and emits textual LLVM IR. A native program outside its tier can fall back to C transparently (one stderr note; `--backend llvm` pins it and fails with a diagnostic instead). The production <code>wasm32-wasi</code> target never falls back. The C backend is a readable inspection and debugging aid (`--backend c`), kept next to the binary by default (`--keep-c`). Both are compiled by the same clang, and differential tests require byte-identical program output wherever they overlap.
+4. **Link** — the runtime is a C library of link-gated feature units: binaries pay only for what they use. A hello-world links nothing but libSystem; a regex-using program links the regex engine; an `http` server links the net stack.
+
+Inspect any stage yourself:
+
+```console
+$ scriptc build fib.ts --emit-ir
+$ ls .scriptc/
+fib
+fib.ir.json
+fib.ll
+$ scriptc build fib.ts --backend c --emit-ir
+$ ls .scriptc/
+fib
+fib.c
+fib.ir.json
+```
+
+## The runtime
+
+- **Memory** — values are reference-counted; an acyclic value is freed the moment its last reference drops. Reference cycles are collected at deterministic points by a cycle collector, not a concurrent GC. There are no GC pauses and no tracing heap.
+- **Concurrency** — `async`/`await` runs on stackful fibers with JS-exact scheduling: microtasks drain in the same order Node's do, timers fire in the same order, and the event loop (kqueue on macOS, epoll on Linux) has no external dependencies.
+- **The server stack** — `net`, `http`, `https`, `tls` (vendored mbedTLS), `dgram`, `dns` are native implementations on that same loop.
+- **Numbers** — JS-exact f64 semantics, including shortest-roundtrip number-to-string formatting fuzz-verified against Node's output.
+- **Regular expressions** — the same ECMAScript-exact bytecode interpreter QuickJS uses, linked only into regex-using binaries.
+
+## The correctness story: differential testing
+
+scriptc's correctness claim is not "we implemented the spec" — it is "we ran your semantics against Node's and they matched." Two lanes enforce it on every change:
+
+- **The differential corpus** — every corpus program runs under Node *and* as a compiled binary; stdout, stderr, and exit codes must match **byte-for-byte**. Servers are exercised by live client drivers against both implementations. Number formatting was additionally fuzz-verified against Node's `String(x)` on a million random doubles.
+- **The memory-safety lane** — the entire corpus re-runs under AddressSanitizer with a reference-count audit at exit; a leak or use-after-free anywhere is a build failure. The same lane is available for your programs as `scriptc build --sanitize`.
+
+Where matching Node byte-for-byte is impossible or deliberately not the goal (timing internals, error-object internals, aliasing at the dynamic boundary), the divergence is **documented and numbered** — see [Limitations](/limitations). Empty divergence space is load-bearing: the verified-identical list records what has been verified, not merely assumed.
+
+## The dynamic island
+
+`--dynamic` embeds quickjs-ng for [npm dependencies](/dependencies) and `any`-typed code. Architecturally, the island is a second world with its own heap and its own microtask queue; the boundary between the worlds copies values and validates every dynamic → static crossing at runtime. Static code never trusts the island — a lying type is a catchable `TypeError`, not corruption.
+
+## Repository layout
+
+<table>
+  <thead>
+    <tr>
+      <th>Package</th>
+      <th>What it is</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>packages/compiler</code></td>
+      <td>The frontend (tsc API → IR), the typed IR with validator and serializer, the C and LLVM backends, the coverage analyzer.</td>
+    </tr>
+    <tr>
+      <td><code>packages/runtime</code></td>
+      <td>The C runtime: refcounted values with a cycle collector, fibers and the event loop, the server stack, JS-exact number formatting, the island glue.</td>
+    </tr>
+    <tr>
+      <td><code>packages/cli</code></td>
+      <td><code>scriptc build | run | coverage</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+The repository README covers the development workflow.

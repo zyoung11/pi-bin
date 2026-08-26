@@ -1,0 +1,26 @@
+lib.ts:6:6 - error SC4021: integer slot 'exports.send.params[0]' (i64) cannot be proven — representability failed: the literal 9007199254740993 is not representable as f64 — it reads back as 9007199254740992
+
+  5 | export function at(i: number): number { return crossed[i]; }
+  6 | send(9007199254740993);
+    |      ^~~~~~~~~~~~~~~~
+  7 | export function half(a: number): void {
+
+  hint: write the nearest representable integer explicitly, or restructure so the value stays within ±(2^53 − 1)
+
+lib.ts:9:10 - error SC4022: integer slot 'exports.send.params[0]' (i64) cannot be proven — wholeness failed: the value is not provably whole — the proven range [0, 500] may contain non-integers
+
+   8 |   if (a >= 0 && a <= 1000) {
+   9 |     send(a * 0.5);
+     |          ^~~~~~~
+  10 |   }
+
+  hint: state intent at the boundary with Math.trunc, Math.floor, Math.ceil, or Math.round
+
+lib.ts:15:10 - error SC4023: integer slot 'exports.send.params[0]' (i64) cannot be proven — range failed: the proven range [0, 1152921504606847000] does not fit [-9007199254740991, 9007199254740991] — integrality is provable only within ±(2^53 − 1)
+
+  14 |     const t = Math.trunc(a);
+  15 |     send(t * t);
+     |          ^~~~~
+  16 |   }
+
+  hint: bound the value before the boundary (clamp, compare, or restructure the computation to stay in range)

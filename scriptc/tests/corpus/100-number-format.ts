@@ -1,0 +1,15 @@
+console.log(0.1 + 0.2);
+console.log(1 / 3);
+console.log(2 / 3);
+console.log(0.000001);
+console.log(0.0000001);
+console.log(123456789012345680);
+console.log(999999999999999999999);
+console.log(1000000000000000000000);
+console.log(5e-324);
+console.log(1.7976931348623157e308);
+console.log(9007199254740993);
+console.log(-0);
+console.log(0);
+console.log(-1.5);
+console.log(3.141592653589793);

@@ -1,0 +1,20 @@
+namespaces.ts:17:17 - error SC1090: namespace objects as first-class values (access 'N' members directly: N.<member>) are not supported yet
+
+  16 | // The namespace object has no first-class runtime value.
+  17 | const grabbed = N;
+     |                 ^
+  18 | console.log(grabbed.x);
+
+namespaces.ts:22:13 - error SC1090: reading namespace member 'v' above its declaration (Node evaluates namespace bodies in source order — this read would observe an uninitialized binding; move it below the declaring block) is not supported yet
+
+  21 | // uninitialized binding.
+  22 | console.log(Late.v);
+     |             ^~~~~~
+  23 | namespace Late {
+
+namespaces.ts:31:12 - error SC1090: the bare reference to 'f' from a different block of the merged namespace (Node's TypeScript transform does not bind exported members across namespace blocks — it throws ReferenceError where tsc's emit would qualify; write N.f) is not supported yet
+
+  30 |   export function g(): number {
+  31 |     return f() + 1;
+     |            ^
+  32 |   }

@@ -1,0 +1,24 @@
+generic-signature-values.ts:9:5 - error SC1090: generic function values in reassigned bindings (calls of 'held' resolve statically against this initializer, so the binding must provably hold it — a const, or a let/var nothing in its declaring file writes) are not supported yet
+
+   8 | // A slot ANNOTATED with a generic signature fences the same way.
+   9 | let held: <T>(x: T) => T = id;
+     |     ^~~~
+  10 | held = id;
+
+generic-signature-values.ts:10:1 - error SC2004: uses of 'held' inherit the blocker on its declaration
+
+   9 | let held: <T>(x: T) => T = id;
+  10 | held = id;
+     | ^~~~
+  11 | console.log(held(2));
+
+  hint: the declaration of 'held' did not compile — fix the diagnostic reported there and these sites clear with it
+
+generic-signature-values.ts:11:13 - error SC2004: uses of 'held' inherit the blocker on its declaration
+
+  10 | held = id;
+  11 | console.log(held(2));
+     |             ^~~~
+  12 | 
+
+  hint: the declaration of 'held' did not compile — fix the diagnostic reported there and these sites clear with it

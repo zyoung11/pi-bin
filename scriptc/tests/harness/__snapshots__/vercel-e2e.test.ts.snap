@@ -1,0 +1,812 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > --version > --version endpoints 1`] = `[]`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > --version > --version exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > --version > --version stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > --version > --version stdout 1`] = `
+"56.2.0
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias ls > alias ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v3/now/aliases?limit=20&teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias ls > alias ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias ls > alias ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching aliases under mock-team
+> aliases found under mock-team [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias ls > alias ls stdout 1`] = `
+"  source                                      url                     age    
+  mock-app-abc123defg-mock-team.vercel.app    mock-app.vercel.app    <T>    
+  mock-app-abc123defg-mock-team.vercel.app    mock-example.com       <T>    
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias rm > alias rm mock-app.vercel.app --yes endpoints 1`] = `
+[
+  "DELETE /now/aliases/ali_mock0000000000000000000001?teamId=team_mock0000000000000001",
+  "GET /now/aliases/mock-app.vercel.app?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias rm > alias rm mock-app.vercel.app --yes exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias rm > alias rm mock-app.vercel.app --yes stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Success! Alias mock-app.vercel.app removed [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias rm > alias rm mock-app.vercel.app --yes stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias set > alias set mock-app-abc123defg-mock-team.vercel.app staging-mock.vercel.app endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "POST /now/deployments/mock-app-abc123defg-mock-team.vercel.app/aliases?teamId=team_mock0000000000000001 {"alias":"staging-mock.vercel.app"}",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias set > alias set mock-app-abc123defg-mock-team.vercel.app staging-mock.vercel.app exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias set > alias set mock-app-abc123defg-mock-team.vercel.app staging-mock.vercel.app stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Assigning alias staging-mock.vercel.app to mock-app-abc123defg-mock-team.vercel.app
+Creating alias
+> Success! https://staging-mock.vercel.app now points to mock-app-abc123defg-mock-team.vercel.app [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > alias set > alias set mock-app-abc123defg-mock-team.vercel.app staging-mock.vercel.app stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > certs ls > certs ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v4/certs?limit=20",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > certs ls > certs ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > certs ls > certs ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Certificates found under mock-team [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > certs ls > certs ls stdout 1`] = `
+"  id                              cns                   expiration  renew   age  
+  cert_mock000000000000000000001  - mock-example.com      <T> ago   yes   <T>  
+                                  - *.mock-example.com                           
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns add > dns add mock-example.com api A 76.76.21.42 endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "POST /v3/domains/mock-example.com/records?teamId=team_mock0000000000000001 {"name":"api","type":"A","value":"76.76.21.42"}",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns add > dns add mock-example.com api A 76.76.21.42 exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns add > dns add mock-example.com api A 76.76.21.42 stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Success! DNS record for domain mock-example.com (rec_mock000000000000000000new1) created under mock-team [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns add > dns add mock-example.com api A 76.76.21.42 stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns ls > dns ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v3/domains/mock-example.com/records?limit=20&teamId=team_mock0000000000000001",
+  "GET /v5/domains?limit=20&teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns ls > dns ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns ls > dns ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching domains under mock-team
+> Records found under mock-team [<T>]
+> 
+mock-example.com
+                                   id    name    type     value                       created     
+                                                 A        76.76.21.21                 default     
+       rec_mock0000000000000000000002    www     CNAME    cname.vercel-dns.com        <T> ago    
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns ls > dns ls stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns rm > dns rm rec_mock0000000000000000000002 --yes endpoints 1`] = `
+[
+  "DELETE /v3/domains/mock-example.com/records/rec_mock0000000000000000000002?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v5/domains/records/rec_mock0000000000000000000002?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns rm > dns rm rec_mock0000000000000000000002 --yes exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns rm > dns rm rec_mock0000000000000000000002 --yes stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Success! Record rec_mock0000000000000000000002 removed [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > dns rm > dns rm rec_mock0000000000000000000002 --yes stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains inspect > domains inspect mock-example.com endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v1/domains/mock-example.com/project-domains?limit=100&teamId=team_mock0000000000000001",
+  "GET /v1/registrar/domains/mock-example.com/price?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v4/domains/mock-example.com/config?teamId=team_mock0000000000000001",
+  "GET /v4/domains/mock-example.com?teamId=team_mock0000000000000001",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains inspect > domains inspect mock-example.com exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains inspect > domains inspect mock-example.com stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching Domain mock-example.com under mock-team
+> Domain mock-example.com found under mock-team [<T>]
+
+  General
+
+    Name			mock-example.com
+    Registrar			Third Party
+    Expiration Date		-
+    Creator			mockuser
+    Created At			01 January 2024 00:00:00 [<T> ago]
+    Edge Network		yes
+    Renewal Price		-
+
+  Nameservers
+
+    Intended Nameservers    Current Nameservers         
+    ns1.vercel-dns.com      ns1.example-dns.com    ✘    
+    ns2.vercel-dns.com      ns2.example-dns.com    ✘    
+
+  Projects
+   
+    Project     Domains             
+    mock-app    mock-example.com    
+   
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains inspect > domains inspect mock-example.com stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains ls > domains ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v5/domains?limit=20&teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains ls > domains ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains ls > domains ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching Domains under mock-team
+> 1 Domain found under mock-team [<T>]
+ 
+  Domain              Registrar           Nameservers         Expiration Date    Creator     Age     
+  mock-example.com    Third Party         Third Party         -                  mockuser    <T>    
+ 
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > domains ls > domains ls stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env add > env add MOCK_API_TOKEN production --value supersecretvalue --yes endpoints 1`] = `
+[
+  "GET /projects/prj_mock000000000000000000000001/custom-environments?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001",
+  "GET /v10/projects/prj_mock000000000000000000000001/env?source=vercel-cli%3Aenv%3Aadd&teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+  "POST /v10/projects/prj_mock000000000000000000000001/env?teamId=team_mock0000000000000001 {"type":"sensitive","key":"MOCK_API_TOKEN","value":"supersecretvalue","target":["production"]}",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env add > env add MOCK_API_TOKEN production --value supersecretvalue --yes exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env add > env add MOCK_API_TOKEN production --value supersecretvalue --yes stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Retrieving project…
+Saving…
+
+✓ Added           MOCK_API_TOKEN
+  Project         mock-team/mock-app
+  Environments    Production
+  Type            Sensitive
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env add > env add MOCK_API_TOKEN production --value supersecretvalue --yes stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls > env ls endpoints 1`] = `
+[
+  "GET /projects/prj_mock000000000000000000000001/custom-environments?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001",
+  "GET /v10/projects/prj_mock000000000000000000000001/env?source=vercel-cli%3Aenv%3Als&teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls > env ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls > env ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Retrieving project…
+> Environment Variables found for mock-team/mock-app [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls > env ls stdout 1`] = `
+"
+ name                       value                       environments (git branch)           created     
+ DATABASE_URL               Encrypted                   Production, Preview, Development    <T> ago    
+ NEXT_PUBLIC_BASE_URL       https://mock-examp…         Production                          <T> ago    
+ PREVIEW_FLAG               Encrypted                   Preview (staging)                   <T> ago    
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls --format json > env ls --format json endpoints 1`] = `
+[
+  "GET /projects/prj_mock000000000000000000000001/custom-environments?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001",
+  "GET /v10/projects/prj_mock000000000000000000000001/env?source=vercel-cli%3Aenv%3Als&teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls --format json > env ls --format json exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls --format json > env ls --format json stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Retrieving project…
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls --format json > env ls --format json stdout 1`] = `
+"{
+  "envs": [
+    {
+      "key": "DATABASE_URL",
+      "type": "encrypted",
+      "target": [
+        "production",
+        "preview",
+        "development"
+      ],
+      "configurationId": null,
+      "createdAt": 1704067200000,
+      "updatedAt": 1704067200000
+    },
+    {
+      "key": "NEXT_PUBLIC_BASE_URL",
+      "value": "https://mock-example.com",
+      "type": "plain",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "createdAt": 1704070800000,
+      "updatedAt": 1704070800000
+    },
+    {
+      "key": "PREVIEW_FLAG",
+      "type": "encrypted",
+      "target": [
+        "preview"
+      ],
+      "gitBranch": "staging",
+      "configurationId": null,
+      "createdAt": 1704074400000,
+      "updatedAt": 1704074400000
+    }
+  ]
+}
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls production > env ls production endpoints 1`] = `
+[
+  "GET /projects/prj_mock000000000000000000000001/custom-environments?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001",
+  "GET /v10/projects/prj_mock000000000000000000000001/env?target=production&source=vercel-cli%3Aenv%3Als&teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls production > env ls production exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls production > env ls production stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Retrieving project…
+> Environment Variables found for mock-team/mock-app [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls production > env ls production stdout 1`] = `
+"
+ name                       value                       environments                        created     
+ DATABASE_URL               Encrypted                   Production, Preview, Development    <T> ago    
+ NEXT_PUBLIC_BASE_URL       https://mock-examp…         Production                          <T> ago    
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls without a linked project > env ls endpoints 1`] = `
+[
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls without a linked project > env ls exit 1`] = `1`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls without a linked project > env ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Error: Your codebase isn’t linked to a project on Vercel. Run \`vercel link\` to begin.
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env ls without a linked project > env ls stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env rm > env rm NEXT_PUBLIC_BASE_URL production --yes endpoints 1`] = `
+[
+  "DELETE /v10/projects/prj_mock000000000000000000000001/env/env_mock0000000000000000000002?teamId=team_mock0000000000000001",
+  "GET /projects/prj_mock000000000000000000000001/custom-environments?teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001",
+  "GET /v10/projects/prj_mock000000000000000000000001/env?target=production&source=vercel-cli%3Aenv%3Arm&teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env rm > env rm NEXT_PUBLIC_BASE_URL production --yes exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env rm > env rm NEXT_PUBLIC_BASE_URL production --yes stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Retrieving project…
+Removing
+Removed Environment Variable [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > env rm > env rm NEXT_PUBLIC_BASE_URL production --yes stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help > help endpoints 1`] = `[]`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help > help exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help > help stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+
+  ▲ vercel [options] <command | path>
+
+  For deploy command help, run \`vercel deploy --help\`
+
+  Commands:
+
+    Basic
+
+      deploy               [path]      Performs a deployment (default)
+      build                            Build the project locally into './vercel/output'
+      cache                [cmd]       Manages cache for your current Project
+      dev                              Start a local development server
+      env                              Manages the Environment Variables for your current Project
+      git                              Manage Git provider repository for your current Project
+      help                 [cmd]       Displays complete help for [cmd]
+      init                 [example]   Initialize an example project
+      inspect              [id]        Displays information related to a deployment
+      i | install          [name]      Install an integration from the Marketplace
+      integration          [cmd]       Manages your Marketplace integrations
+      ir | integration-resource [cmd]  Manages your Marketplace integration resources
+      link                 [path]      Link local directory to a Vercel Project
+      ls | list            [app]       Lists deployments
+      login                [email]     Logs into your account or creates a new one
+      logout                           Logs out of your account
+      open                             Opens the current project in the Vercel Dashboard
+      promote              [url|id]    Promote an existing deployment to current
+      pull                 [path]      Pull your Project Settings from the cloud
+      redeploy             [url|id]    Rebuild and deploy a previous deployment.
+      rollback             [url|id]    Quickly revert back to a previous deployment
+      switch               [scope]     Switches between different scopes
+
+    Advanced
+
+      activity                         List user activity events
+      agent                [init]      Generate AGENTS.md with Vercel best practices
+      ai-gateway           [cmd]       Manage AI Gateway resources
+      agent-runs           [cmd]       Inspect Agent Runs observability data
+      alerts                           List alerts for a project or team
+      alias                [cmd]       Manages your domain aliases
+      api                  [endpoint]  Make authenticated HTTP requests to the Vercel API [beta]
+      bisect                           Use binary search to find the deployment that introduced a bug
+      blob                 [cmd]       Manages your Blob stores and files
+      buy                  [cmd]       Purchase Vercel products for your team
+      certs                [cmd]       Manages your SSL certificates
+      connect              [cmd]       Manage connectors [beta]
+      contract                         Show contract information for billing periods
+      cron | crons         [cmd]       Manage cron jobs for a project [beta]
+      curl                 [path]      cURL requests to your linked project's deployment [beta]
+      deploy-hooks         [cmd]       Manage deploy hooks for Git-triggered builds
+      dns                  [name]      Manages your DNS records
+      domains              [name]      Manages your domain names
+      edge-config          [cmd]       Manage Edge Config stores
+      firewall             [cmd]       Manages Vercel Firewall configuration and custom rules
+      flags                [cmd]       Manage feature flags for a Vercel project
+      httpstat             path        Visualize HTTP timing statistics for deployments
+      logs                 [url]       Displays the logs for a deployment
+      metrics              <metric>    Queries observability metrics for your project or team
+      mcp                              Set up MCP agents and configuration
+      microfrontends                   Manages your microfrontends
+      oauth-apps           [cmd]       Register Vercel Apps (OAuth) and manage team installations
+      projects                         Manages your Projects
+      redirects            [cmd]       Manages redirects for your current Project
+      rm | remove          [id]        Removes a deployment
+      routes               [cmd]       Manages routing rules for your current Project
+      rr | rolling-release [cmd]       Manage rolling releases for gradual traffic shifting
+      sandbox                          Interact with Vercel Sandbox
+      skills               [query]     Discover agent skills relevant to your project
+      target               [cmd]       Manage custom environments for your Project
+      teams                            Manages your teams
+      telemetry            [cmd]       Enable or disable telemetry collection
+      tokens               [cmd]       Manage your personal Vercel authentication tokens
+      traces               [cmd]       Fetch and capture traces for your project's deployment
+      upgrade                          Upgrade the Vercel CLI to the latest version
+      usage                            Show billing usage for the current billing period
+      vcr                  [cmd]       Manages your Container Registry repositories and images
+      webhooks             [cmd]       Manages webhooks [beta]
+      whoami                           Shows the username of the currently logged in user
+
+  Global Options:
+
+    -h, --help                     Output usage information
+    -v, --version                  Output the version number
+    --cwd                          Current working directory
+    -A FILE, --local-config=FILE   Path to the local \`vercel.json\` file
+    -Q DIR, --global-config=DIR    Path to the global \`.vercel\` directory
+    -d, --debug                    Debug mode [off]
+    --no-color                     No color mode [off]
+    --non-interactive              Run without interactive prompts (default when agent detected)
+    -S, --scope                    Set a custom scope
+    -t TOKEN, --token=TOKEN        Login token
+
+  Examples:
+
+  – Deploy the current directory
+
+    $ vercel
+
+  – Deploy a custom path
+
+    $ vercel /usr/src/project
+
+  – Deploy with Environment Variables
+
+    $ vercel -e NODE_ENV=production
+
+  – Show the usage information for the sub command \`list\`
+
+    $ vercel help list
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help > help stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help alias > help alias endpoints 1`] = `
+[
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help alias > help alias exit 1`] = `2`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help alias > help alias stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+
+  ▲ vercel alias [command]
+
+  Interact with deployment aliases                                              
+
+  Commands:
+
+  list                     Show all aliases                                
+  remove  alias            Remove an alias using its hostname              
+  set     id-or-url alias  Create a new alias (default)                    
+
+
+  Global Options:
+
+       --cwd <DIR>            Sets the current working directory for a single   
+                              run of a command                                  
+  -d,  --debug                Debug mode (default off)                          
+  -Q,  --global-config <DIR>  Path to the global \`.vercel\` directory            
+  -h,  --help                 Output usage information                          
+  -A,  --local-config <FILE>  Path to the local \`vercel.json\` file              
+       --no-color             No color mode (default off)                       
+       --non-interactive      Run without interactive prompts; when an agent is 
+                              detected this is the default                      
+  -S,  --scope                Set a custom scope                                
+  -t,  --token <TOKEN>        Login token                                       
+  -v,  --version              Output the version number                         
+
+
+  Examples:
+
+  - Add a new alias to \`my-api.vercel.app\`
+
+    $ vercel alias set api-ownv3nc9f8.vercel.app my-api.vercel.app
+
+  - Custom domains work as alias targets
+
+    $ vercel alias set api-ownv3nc9f8.vercel.app my-api.com
+
+  - The subcommand \`set\` is the default and can be skipped. Protocols in the URLs are unneeded and ignored
+
+    $ vercel alias api-ownv3nc9f8.vercel.app my-api.com
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > help alias > help alias stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > inspect a deployment > inspect mock-app-abc123defg-mock-team.vercel.app endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v11/deployments/dpl_mock0000000000000000000000000001/builds?teamId=team_mock0000000000000001",
+  "GET /v13/deployments/mock-app-abc123defg-mock-team.vercel.app?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > inspect a deployment > inspect mock-app-abc123defg-mock-team.vercel.app exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > inspect a deployment > inspect mock-app-abc123defg-mock-team.vercel.app stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching deployment "mock-app-abc123defg-mock-team.vercel.app" in mock-team
+> Fetched deployment "mock-app-abc123defg-mock-team.vercel.app" in mock-team [<T>]
+
+  General
+
+    id		dpl_mock0000000000000000000000000001
+    name	mock-app
+    target	production
+    status	● Ready
+    url		https://mock-app-abc123defg-mock-team.vercel.app
+    created	Tue Jan 02 2024 00:00:00 GMT+0000 (Coordinated Universal Time) [<T> ago]
+
+
+  Aliases
+
+    ╶ https://mock-app.vercel.app
+    ╶ https://mock-example.com
+    
+
+  Builds
+
+    ┌ package.json        [<T>]
+    ├── λ api/index (1MB) [iad1]
+    └── index.html (2KB)
+    
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > inspect a deployment > inspect mock-app-abc123defg-mock-team.vercel.app stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > logs for a deployment over a fixed window > logs mock-app-abc123defg-mock-team.vercel.app --since 2024-01-01T00:00:00.000Z --until 2024-01-02T12:00:00.000Z endpoints 1`] = `
+[
+  "GET /api/logs/request-logs?projectId=prj_mock000000000000000000000001&ownerId=team_mock0000000000000001&page=0&startDate=1704067200000&endDate=1704196800000&deploymentId=dpl_mock0000000000000000000000000001&teamId=team_mock0000000000000001",
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v13/deployments/mock-app-abc123defg-mock-team.vercel.app?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects/prj_mock000000000000000000000001?teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > logs for a deployment over a fixed window > logs mock-app-abc123defg-mock-team.vercel.app --since 2024-01-01T00:00:00.000Z --until 2024-01-02T12:00:00.000Z exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > logs for a deployment over a fixed window > logs mock-app-abc123defg-mock-team.vercel.app --since 2024-01-01T00:00:00.000Z --until 2024-01-02T12:00:00.000Z stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Resolving deployment "mock-app-abc123defg-mock-team.vercel.app"
+Fetching project "prj_mock000000000000000000000001"
+Fetching logs...
+TIME         HOST                 LEVEL                           STATUS  MESSAGE                                       
+00:01:40.00  mock-app.vercel.app  info     ◇ GET /                200     (no message)                                  
+00:01:50.00  mock-app.vercel.app  error    λ GET /api/data        500     TypeError: Cannot read properties of undefine…
+00:02:00.00  mock-app.vercel.app  warning  λ POST /api/submit     202     payload missing optional field "tags"         
+Fetched 3 logs for mock-team/mock-app
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > logs for a deployment over a fixed window > logs mock-app-abc123defg-mock-team.vercel.app --since 2024-01-01T00:00:00.000Z --until 2024-01-02T12:00:00.000Z stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > ls (deployments) > ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v6/deployments?limit=20&teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > ls (deployments) > ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > ls (deployments) > ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching deployments in mock-team
+> Deployments under mock-team [<T>]
+
+  Age      Project                Deployment                                           Status      Environment     Duration     Username     
+  <T>     mock-team/mock-app     https://mock-app-abc123defg-mock-team.vercel.app     ● Ready     Production      <T>          mockuser     
+  <T>     mock-team/mock-app     https://mock-app-hij456klmn-mock-team.vercel.app     ● Error     Preview         ?            mockuser     
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > ls (deployments) > ls stdout 1`] = `
+"https://mock-app-abc123defg-mock-team.vercel.app
+https://mock-app-hij456klmn-mock-team.vercel.app
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project add > project add fresh-mock-project endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "POST /v1/projects {"name":"fresh-mock-project"}",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project add > project add fresh-mock-project exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project add > project add fresh-mock-project stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+> Success! Project fresh-mock-project added (mock-team) [<T>]
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project add > project add fresh-mock-project stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project ls > project ls endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+  "GET /v9/projects?limit=20&teamId=team_mock0000000000000001",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project ls > project ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project ls > project ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching projects in mock-team
+> Projects found under mock-team  [<T>]
+
+  Project Name   Latest Production URL   Updated   Node Version   
+  mock-app       --                      <T>      22.x           
+  static-site    --                      <T>      22.x           
+
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > project ls > project ls stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams ls > teams ls endpoints 1`] = `
+[
+  "GET /v2/teams?limit=20",
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams ls > teams ls exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams ls > teams ls stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching teams
+Fetching user information
+id              Team name       
+second-team     Second Team     
+mock-team       Mock Team       
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams ls > teams ls stdout 1`] = `
+"
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams switch > teams switch second-team endpoints 1`] = `
+[
+  "GET /v1/teams",
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams switch > teams switch second-team exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams switch > teams switch second-team stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Fetching teams information
+> Success! The team Second Team (second-team) is now active!
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > teams switch > teams switch second-team stdout 1`] = `""`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami > whoami endpoints 1`] = `
+[
+  "GET /teams/team_mock0000000000000001?teamId=team_mock0000000000000001",
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami > whoami exit 1`] = `0`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami > whoami stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami > whoami stdout 1`] = `
+"mockuser
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami with an invalid token > whoami endpoints 1`] = `
+[
+  "GET /v2/user",
+]
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami with an invalid token > whoami exit 1`] = `1`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami with an invalid token > whoami stderr 1`] = `
+"Vercel CLI 56.2.0 (Node.js <V>)
+Error: The token provided via VERCEL_TOKEN environment variable is not valid. Please provide a valid token.
+"
+`;
+
+exports[`vercel e2e (real CLI vs Node against the mock api) > whoami with an invalid token > whoami stdout 1`] = `""`;

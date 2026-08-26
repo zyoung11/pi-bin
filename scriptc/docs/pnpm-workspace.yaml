@@ -1,0 +1,6 @@
+# This file makes docs/ its own pnpm root: installs here stay standalone
+# instead of attaching to the repo workspace (whose globs are packages/*).
+packages: []
+
+overrides:
+  "postcss@<8.5.10": ">=8.5.10"

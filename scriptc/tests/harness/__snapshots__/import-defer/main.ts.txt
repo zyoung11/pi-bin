@@ -1,0 +1,6 @@
+import-defer/main.ts:4:1 - error SC1090: 'import.defer' (module-loader metadata has no equivalent in a compiled binary) is not supported yet
+
+  3 | // lowering — a named fence, never a crashed CLI.
+  4 | import.defer("./a.js").then((ns) => { ns.foo(); });
+    | ^~~~~~~~~~~~
+  5 | 

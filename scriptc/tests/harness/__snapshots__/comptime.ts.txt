@@ -1,0 +1,48 @@
+comptime.ts:5:33 - error SC1090: comptime callbacks referencing outer bindings ('limit' — the callback runs at compile time in an isolated context and must be self-contained) are not supported yet
+
+  4 | const limit = 4;
+  5 | const captured = comptime(() => limit * 2);
+    |                                 ^~~~~
+  6 | 
+
+comptime.ts:10:25 - error SC1090: comptime arguments other than inline function literals (write the callback directly in the call: comptime(() => ...)) are not supported yet
+
+   9 | }
+  10 | const viaRef = comptime(make);
+     |                         ^~~~
+  11 | 
+
+comptime.ts:12:25 - error SC1110: comptime evaluation failed: the callback threw: boom at compile time
+
+  11 | 
+  12 | const thrown = comptime((): number => {
+     |                         ^~~~~~~~~~~~~~~
+  13 |   throw "boom at compile time";
+
+comptime.ts:16:22 - error SC1110: comptime evaluation failed: expected 'number' at $, got NaN (only finite numbers can be written as literals)
+
+  15 | 
+  16 | const nan = comptime(() => 0 / 0);
+     |                      ^~~~~~~~~~~
+  17 | 
+
+comptime.ts:18:31 - error SC1090: comptime calls inside comptime callbacks (the callback already runs at compile time — compute the value directly) are not supported yet
+
+  17 | 
+  18 | const nested = comptime(() => comptime(() => 1));
+     |                               ^~~~~~~~
+  19 | 
+
+comptime.ts:20:29 - error SC1090: async or generator comptime callbacks are not supported yet
+
+  19 | 
+  20 | const eventually = comptime(async () => 1);
+     |                             ^~~~~~~~~~~~~
+  21 | 
+
+comptime.ts:22:23 - error SC1110: comptime evaluation failed: expected 'string' at $, got a number
+
+  21 | 
+  22 | const lied = comptime(() => 1 as unknown as string);
+     |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  23 | 

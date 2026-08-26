@@ -1,0 +1,25 @@
+{
+  "profile_format": 1,
+  "name": "conformance-contract-attest",
+  "entry": "lib.ts",
+  "emission": "llvm",
+  "abi": {
+    "prefix": "ka_",
+    "init_symbol": "ka_init",
+    "sink_register_symbol": "ka_set_panic_sink",
+    "collect_symbol": null,
+    "result_reset_symbol": null
+  },
+  "exports": [
+    { "export": "boot", "symbol": "ka_boot", "params": [], "returns": "f64" }
+  ],
+  "sidecar": {
+    "wire_version": 1,
+    "abi_version": 1,
+    "snapshot_format": 1,
+    "build_id_symbol": "ka_build_id",
+    "abi_version_symbol": "ka_abi_version",
+    "model": "Model",
+    "msg": "Msg"
+  }
+}

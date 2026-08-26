@@ -1,0 +1,5 @@
+cjs-esm-lexer-require-reached/mid.mjs:1:10 - error SC1013: a named import of a CommonJS export Node's lexer cannot detect, reached through require() of an ES module (Node throws its SyntaxError mid-evaluation at that require; import the CommonJS module's default and read members off it instead) is not supported yet
+
+  1 | import { a } from './table.cjs';
+    |          ^
+  2 | 

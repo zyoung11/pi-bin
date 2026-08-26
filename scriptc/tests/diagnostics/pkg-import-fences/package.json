@@ -1,0 +1,8 @@
+{
+  "name": "fences-pkg",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#types": "./only-types.d.ts"
+  }
+}

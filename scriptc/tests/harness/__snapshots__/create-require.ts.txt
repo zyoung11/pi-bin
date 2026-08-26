@@ -1,0 +1,26 @@
+create-require.ts:13:13 - error SC2020: 'module.createRequire' is part of the standard library types but has no scriptc lowering yet
+
+  12 | // The base names some OTHER file: unrecognized — the member fence.
+  13 | const req = createRequire("/tmp/parent.js");
+     |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  14 | console.log(String(req("./config.cjs")));
+
+  hint: the lowered shape is a const binding over createRequire(import.meta.url) (or __filename) whose require calls take STATIC string literals — builtins, relative .json documents, and installed npm packages (under --dynamic) resolve at build time; dynamic specifiers cannot exist in a compiled binary's fixed module graph
+
+create-require.ts:20:1 - error SC2020: 'createRequire's require with this argument shape' is part of the standard library types but has no scriptc lowering yet
+
+  19 | const which = "left" + "-pad";
+  20 | require(which);
+     | ^~~~~~~~~~~~~~
+  21 | 
+
+  hint: the compiled module graph is fixed at build time — the one lowered form is require("<static string literal>")
+
+create-require.ts:23:1 - error SC2020: 'createRequire's require of './helper.js'' is part of the standard library types but has no scriptc lowering yet
+
+  22 | // A relative non-.json target: program modules are static imports.
+  23 | require("./helper.js");
+     | ^~~~~~~~~~~~~~~~~~~~~~
+  24 | 
+
+  hint: relative requires lower for .json documents only — a program module is a static import

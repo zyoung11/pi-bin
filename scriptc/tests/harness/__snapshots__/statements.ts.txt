@@ -1,0 +1,27 @@
+statements.ts:6:19 - error SC1052: for-in over class instances (which keys exist on an instance depends on runtime property creation the class model does not track — for-in over records and arrays compiles) are not supported yet
+
+  5 | const w = new Widget();
+  6 | for (const key in w) {
+    |                   ^
+  7 |   console.log(key);
+
+statements.ts:9:6 - error SC1090: multi-declaration for-loop initializers are not supported yet
+
+   8 | }
+   9 | for (let i = 0, j = n; i < j; i = i + 1) {
+     |      ^~~~~~~~~~~~~~~~
+  10 |   console.log(i);
+
+statements.ts:12:1 - error SC1090: debugger statements are not supported yet
+
+  11 | }
+  12 | debugger;
+     | ^~~~~~~~~
+  13 | enum Color {
+
+statements.ts:19:5 - error SC1050: 'break pairs' targeting this statement form (the labeled statement lowers through a desugar that has no label point) is not supported yet
+
+  18 |   if (v > 0) {
+  19 |     break pairs;
+     |     ^~~~~~~~~~~~
+  20 |   }

@@ -1,0 +1,13 @@
+{
+  "name": "pkgimports-corpus",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#util": "./src/util.ts",
+    "#lib/*": "./src/*"
+  },
+  "exports": {
+    ".": "./main.ts",
+    "./greet": "./src/greet.ts"
+  }
+}

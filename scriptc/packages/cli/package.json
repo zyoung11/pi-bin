@@ -1,0 +1,30 @@
+{
+  "name": "scriptc",
+  "version": "0.0.35",
+  "description": "Compile ordinary TypeScript and JavaScript to small, fast native executables — no Node, no V8, no JavaScript engine in the binary",
+  "license": "Apache-2.0",
+  "homepage": "https://scriptc.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vercel-labs/scriptc.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "bin": {
+    "scriptc": "dist/bootstrap.js"
+  },
+  "files": [
+    "dist",
+    "scripts"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "postinstall": "node scripts/warm-cache.mjs"
+  },
+  "dependencies": {
+    "@scriptc/compiler": "workspace:*"
+  }
+}

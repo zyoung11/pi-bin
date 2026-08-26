@@ -1,0 +1,6 @@
+function-limits.ts:2:18 - error SC1090: string methods as values (call 'slice' directly) are not supported yet
+
+  1 | const s: string = "abc";
+  2 | const sliceRef = s.slice;
+    |                  ^~~~~~~
+  3 | const fns: (() => number)[] = [];
