@@ -73,14 +73,23 @@ const VIRTUAL_MODULES: Record<string, unknown> = {
 	"@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
 };
 
-const require = createRequire(import.meta.url);
-
-const isNodeSeaBinary =
-	("sea" in process.features && process.features.sea === true) ||
-	process.getBuiltinModule("node:sea")?.isSea() === true;
 declare const PI_BUNDLED_NODE: boolean;
-const isBundledNode = typeof PI_BUNDLED_NODE !== "undefined" && PI_BUNDLED_NODE;
-const isTypeScriptSourceRuntime = !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts";
+
+interface RuntimeFlags {
+	nodeSea: boolean;
+	bundledNode: boolean;
+	typeScriptSource: boolean;
+}
+
+function getRuntimeFlags(): RuntimeFlags {
+	return {
+		nodeSea:
+			("sea" in process.features && process.features.sea === true) ||
+			process.getBuiltinModule("node:sea")?.isSea() === true,
+		bundledNode: typeof PI_BUNDLED_NODE !== "undefined" && PI_BUNDLED_NODE,
+		typeScriptSource: !isBunBinary && path.extname(fileURLToPath(import.meta.url)) === ".ts",
+	};
+}
 
 /**
  * Get aliases for jiti (used in built Node.js mode).
@@ -91,6 +100,7 @@ let _aliases: Record<string, string> | null = null;
 function getAliases(): Record<string, string> {
 	if (_aliases) return _aliases;
 
+	const require = createRequire(import.meta.url);
 	const __dirname = path.dirname(fileURLToPath(import.meta.url));
 	const packageIndex = path.resolve(__dirname, "../..", "index.js");
 
@@ -495,14 +505,15 @@ async function loadExtensionModule(extensionPath: string, cacheToken?: Extension
 		}
 	}
 
+	const runtimeFlags = getRuntimeFlags();
 	const jiti = createJiti(import.meta.url, {
 		moduleCache: false,
 		// Compiled binaries and the bundled Node distribution use embedded modules.
 		// Source TypeScript reuses host modules and root tsconfig paths. Unbundled
 		// Node builds use dist aliases.
-		...(isBunBinary || isNodeSeaBinary || isBundledNode
+		...(isBunBinary || runtimeFlags.nodeSea || runtimeFlags.bundledNode
 			? { virtualModules: VIRTUAL_MODULES, tryNative: false }
-			: isTypeScriptSourceRuntime
+			: runtimeFlags.typeScriptSource
 				? { virtualModules: VIRTUAL_MODULES, tsconfigPaths: true }
 				: { alias: getAliases() }),
 	});

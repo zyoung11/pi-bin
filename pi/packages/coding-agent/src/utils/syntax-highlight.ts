@@ -1,3 +1,4 @@
+/// <reference path="./highlight-js.d.ts" />
 import hljs from "highlight.js/lib/core.js";
 import bash from "highlight.js/lib/languages/bash.js";
 import c from "highlight.js/lib/languages/c.js";
