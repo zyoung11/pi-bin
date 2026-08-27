@@ -177,6 +177,39 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 
 这不是退步：any 类型成员原先让 scriptc 跳过整段分析（any 是 dynamic-only 毒源，含 any 的 record/函数直接进 island 通道，内部与下游全不检查）。换成 Model<Api> 后这些代码路径进入静态分析，暴露其真实诊断。**416 是全图首次"完全可见"的状态**——此后每个修复都是净减少，不会再有大幅揭幕。SC2020 的新增主要是 node:child_process/process.stdin/stdout 系（spawn 选项、writableLength）、Math.max、Array.from、Object.hasOwn 等 stdlib 长尾。
 
+## 逐文件修复目录（416 → 0 的 grind 清单，每条均已定位到行号与修法）
+
+### 通用修法（按 SC 码）
+- SC1090 Set<Promise<T>>/.add/.delete/.size → `Promise<void>[]` 数组 + push/indexOf/splice
+- SC2020 createInterface + for await（读 JSONL）→ readFileSync(0/路径) + split("\n") 逐行解析
+- SC2020 Stats.mtime → 改读内容时间戳文件（同 mini-lockfile 手法）
+- SC1090 .find on union array → for 循环 + 显式判别收窄（union re-tag 不支持）
+- SC1090 'number' where 'string' → 检查读取点类型
+- SC2020 replaceAll → split/join；codePointAt → charCodeAt（若仅 BMP）或保留探查
+- SC2005 generic arrow inside function → 提升到模块作用域或类方法
+- SC2003 union re-tag（成功回调 () => Promise<void> 流入 (session) => … 槽）→ 改签名形参/调用点
+- SC2020 process.stdin/off/resume/setEncoding/writableLength → readFileSync(0) 或受支持事件面
+- SC2020 Math.max/Object.hasOwn/Array.from/entries() → 手写循环或立即展开
+- SC2020 fs.globSync → 递归 readdir + minimatch（package-manager 已做，可复制）
+- SC2002 record 精确形状 → 双跳 cast / 显式字段字面量 / width-coerce 方向调整
+
+### 文件清单（诊断数）
+- rpc-mode.ts(75)：session.subscribe/agent.subscribe 方法调用、generic arrow 'success'、unknownCommand union re-tag、process.stdin.off、optional-param function value
+- session-manager.ts(36)：Set<Promise> ×4、createInterface+for-await ×2、Stats.mtime、.find union、'number' where string、replaceAll、import()
+- main.ts(23)：interactiveMode.init/stop/run 级联（interactive-mode 类解锁后消）、sessionManager.getCwd、AgentSession.model、process.stdout/stderr.writableLength
+- package-manager.ts(20)：settings 动态键读 ×2、globSync、filter 谓词、Array.from ×2、entries()、child.stdout?.on ×2
+- markdown.ts(16)：renderInlineTokens union 收窄残余、SC1042 mixed ||
+- agent-session-runtime.ts(16)
+- latex.ts(13)：codePointAt ×4 等
+- settings-manager.ts(11)：SC2003 union re-tag（deepMerge）、catch binding、in 残余
+- theme.ts(12)、print-mode.ts(11)、config-selector(9)、config.ts(8)、credential-print(8)、auth-check(8)、version-check(7)
+- 其余 ≤6 的长尾
+
+### 关键提醒
+- 每修一批跑：tsgo --noEmit -p tsconfig.json（src 清零）+ coverage（确认净减）+ cli.ts -p 冒烟
+- 揭幕不会再大规模发生（any 已清，全图可见）
+- SC2004 级联：先修 SC1090/SC2002 根声明
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。
