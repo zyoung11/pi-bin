@@ -155,6 +155,8 @@
 - **output-guard.ts 重写**：stdout 猴子补丁（process.stdout.write 赋值）静态编译不可能 → 标志位 + 直接写 API（takeOverStdout/restoreStdout/isStdoutTakenOver/writeRawStdout/flushRawStdout 保留，waitForRawStdoutBackpressure 删除，2 个消费方清理）。行为差异：接管期间 console 写直通 stdout 不再重定向 stderr。
 - **settings-manager**：new Set(iterable) 两处改 copySet 循环拷贝；部分 catch 绑定/动态键读残余待修。
 
+## 收尾快照（本日末次提交）：327 reached；print 模式 + --list-models 真跑修复（moduleDirname 回退改 dirname(process.argv[1])，主题 dark.json 路径恢复）
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。
