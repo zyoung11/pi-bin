@@ -807,7 +807,7 @@ export class InteractiveMode {
 			this.switchTuiMode("regular", false, false);
 			this.renderer.renderNow();
 		}
-		this.ui.stop({ preserveScreen: this.renderer.mode === "fullscreen" });
+		this.ui.stopWithOptions({ preserveScreen: this.renderer.mode === "fullscreen" });
 	}
 
 	private switchTuiMode(mode: TuiMode, restoreProgress = true, startRenderer = true): boolean {
@@ -825,7 +825,7 @@ export class InteractiveMode {
 			this.mainScreenRenderState = previousUi.captureRenderState();
 		}
 
-		previousUi.stop({ preserveScreen: true });
+		previousUi.stopWithOptions({ preserveScreen: true });
 		previousUi.setFocus(null);
 		previousUi.clear();
 		if (TuiLayouts.isViewportTUI(previousUi)) previousUi.setLayoutRoot(undefined);
@@ -3741,7 +3741,7 @@ export class InteractiveMode {
 			clearInterval(suspendKeepAlive);
 			process.removeListener("SIGINT", ignoreSigint);
 			this.ui.start();
-			this.ui.requestRender(true);
+			this.ui.requestRenderForce(true);
 		});
 
 		try {
@@ -3891,7 +3891,7 @@ export class InteractiveMode {
 			}
 		} finally {
 			this.ui.start();
-			this.ui.requestRender(true);
+			this.ui.requestRenderForce(true);
 		}
 	}
 
@@ -5584,7 +5584,7 @@ export class InteractiveMode {
 		this.editorContainer.clear();
 		this.editorContainer.addChild(reloadBox);
 		this.ui.setFocus(reloadBox);
-		this.ui.requestRender(true);
+		this.ui.requestRenderForce(true);
 		await new Promise((resolve) => process.nextTick(resolve));
 
 		const dismissReloadBox = (editor: Component) => {

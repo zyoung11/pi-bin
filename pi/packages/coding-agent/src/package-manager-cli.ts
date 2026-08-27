@@ -758,6 +758,16 @@ async function createCommandSettingsManager(options: {
 	return { settingsManager, projectTrustWarnings };
 }
 
+let packageCommandExitCode: number | undefined;
+
+function setExitCode(code: number): void {
+	packageCommandExitCode = code;
+}
+
+export function getPackageCommandExitCode(): number | undefined {
+	return packageCommandExitCode;
+}
+
 export async function handleConfigCommand(
 	args: string[],
 ): Promise<boolean> {
@@ -783,12 +793,12 @@ export async function handleConfigCommand(
 		} else if (arg.startsWith("-")) {
 			console.error(chalk.red(`Unknown option ${arg} for "config".`));
 			console.error(chalk.dim(`Use "${APP_NAME} --help" or "${CONFIG_COMMAND_USAGE}".`));
-			process.exitCode = 1;
+			setExitCode(1);
 			return true;
 		} else {
 			console.error(chalk.red(`Unexpected argument ${arg}.`));
 			console.error(chalk.dim(`Usage: ${CONFIG_COMMAND_USAGE}`));
-			process.exitCode = 1;
+			setExitCode(1);
 			return true;
 		}
 	}
@@ -803,7 +813,7 @@ export async function handleConfigCommand(
 	reportProjectTrustWarnings(projectTrustWarnings);
 	if (local && !settingsManager.isProjectTrusted()) {
 		console.error(chalk.red("Project is not trusted. Use --approve to modify local resource config."));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 	reportSettingsErrors(settingsManager, "config command");
@@ -845,28 +855,28 @@ export async function handlePackageCommand(
 	if (options.invalidOption) {
 		console.error(chalk.red(`Unknown option ${options.invalidOption} for "${options.command}".`));
 		console.error(chalk.dim(`Use "${APP_NAME} --help" or "${getPackageCommandUsage(options.command)}".`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 
 	if (options.missingOptionValue) {
 		console.error(chalk.red(`Missing value for ${options.missingOptionValue}.`));
 		console.error(chalk.dim(`Usage: ${getPackageCommandUsage(options.command)}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 
 	if (options.invalidArgument) {
 		console.error(chalk.red(`Unexpected argument ${options.invalidArgument}.`));
 		console.error(chalk.dim(`Usage: ${getPackageCommandUsage(options.command)}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 
 	if (options.conflictingOptions) {
 		console.error(chalk.red(options.conflictingOptions));
 		console.error(chalk.dim(`Usage: ${getPackageCommandUsage(options.command)}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 
@@ -874,7 +884,7 @@ export async function handlePackageCommand(
 	if ((options.command === "install" || options.command === "remove") && !source) {
 		console.error(chalk.red(`Missing ${options.command} source.`));
 		console.error(chalk.dim(`Usage: ${getPackageCommandUsage(options.command)}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 
@@ -884,7 +894,7 @@ export async function handlePackageCommand(
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : "Unknown model catalog refresh error";
 			console.error(chalk.red(`Error: ${message}`));
-			process.exitCode = 1;
+			setExitCode(1);
 		}
 		return true;
 	}
@@ -901,7 +911,7 @@ export async function handlePackageCommand(
 	reportProjectTrustWarnings(projectTrustWarnings);
 	if (!settingsManager.isProjectTrusted() && writesProjectPackageConfig) {
 		console.error(chalk.red("Project is not trusted. Use --approve to modify local package config."));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 	reportSettingsErrors(settingsManager, "package command");
@@ -926,7 +936,7 @@ export async function handlePackageCommand(
 				const removed = await packageManager.removeAndPersist(source!, { local: options.local });
 				if (!removed) {
 					console.error(chalk.red(`No matching package found for ${source}`));
-					process.exitCode = 1;
+					setExitCode(1);
 					return true;
 				}
 				console.log(chalk.green(`Removed ${source}`));
@@ -993,7 +1003,7 @@ export async function handlePackageCommand(
 								`Managed ${APP_NAME} installations do not support --force; rerun the installer to repair this installation.`,
 							),
 						);
-						process.exitCode = 1;
+						setExitCode(1);
 						return true;
 					}
 					const selfUpdatePlan = await getSelfUpdatePlan(options.force);
@@ -1010,7 +1020,7 @@ export async function handlePackageCommand(
 						} catch (error: unknown) {
 							const message = error instanceof Error ? error.message : "Unknown managed update error";
 							console.error(chalk.red(`Error: ${message}`));
-							process.exitCode = 1;
+							setExitCode(1);
 							return true;
 						}
 						console.log(chalk.green(`Updated ${APP_NAME} from ${VERSION} to ${selfUpdatePlan.version}`));
@@ -1023,7 +1033,7 @@ export async function handlePackageCommand(
 							chalk.red(`${APP_NAME} self-update on Windows is only supported for npm and pnpm installs.`),
 						);
 						console.error(chalk.dim(`Detected install method: ${installMethod}. Update ${APP_NAME} manually.`));
-						process.exitCode = 1;
+						setExitCode(1);
 						return true;
 					}
 					const selfUpdateTarget = {
@@ -1033,7 +1043,7 @@ export async function handlePackageCommand(
 					const selfUpdateCommand = getSelfUpdateCommand(PACKAGE_NAME, selfUpdateNpmCommand, selfUpdateTarget);
 					if (!selfUpdateCommand) {
 						printSelfUpdateUnavailable(selfUpdateNpmCommand, selfUpdateTarget);
-						process.exitCode = 1;
+						setExitCode(1);
 						return true;
 					}
 					if (selfUpdatePlan.note) {
@@ -1051,7 +1061,7 @@ export async function handlePackageCommand(
 							printPnpmSelfUpdateMetadataHint();
 						}
 						printSelfUpdateFallback(selfUpdateCommand);
-						process.exitCode = 1;
+						setExitCode(1);
 						return true;
 					}
 					console.log(chalk.green(`Updated ${APP_NAME} from ${VERSION} to ${selfUpdatePlan.version}`));
@@ -1062,7 +1072,7 @@ export async function handlePackageCommand(
 	} catch (error: unknown) {
 		const message = error instanceof Error ? error.message : "Unknown package command error";
 		console.error(chalk.red(`Error: ${message}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 }

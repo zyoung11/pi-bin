@@ -325,9 +325,12 @@ export interface TUI {
 	hideOverlay(): void;
 	hasOverlay(): boolean;
 	start(): void;
-	stop(options?: TuiStopOptions): void;
-	renderNow(force?: boolean): void;
-	requestRender(force?: boolean): void;
+	stop(): void;
+	stopWithOptions(options: TuiStopOptions): void;
+	renderNow(): void;
+	renderNowForce(force: boolean): void;
+	requestRender(): void;
+	requestRenderForce(force: boolean): void;
 	addInputListener(listener: TuiInputListener): () => void;
 	removeInputListener(listener: TuiInputListener): void;
 	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void;
@@ -768,7 +771,11 @@ export abstract class TuiBase extends Container implements TUI {
 		this.terminal.write("\x1b[16t");
 	}
 
-	stop(options: TuiStopOptions = {}): void {
+	stop(): void {
+		this.stopWithOptions({});
+	}
+
+	stopWithOptions(options: TuiStopOptions): void {
 		this.stopped = true;
 		this.cancelRenderTimer();
 		if (this.terminalColorSchemeNotificationsEnabled) {
@@ -780,7 +787,11 @@ export abstract class TuiBase extends Container implements TUI {
 		this.afterTerminalStop(options);
 	}
 
-	renderNow(force = false): void {
+	renderNow(): void {
+		this.renderNowForce(false);
+	}
+
+	renderNowForce(force: boolean): void {
 		if (force) this.resetRenderState();
 		this.renderRequested = false;
 		this.cancelRenderTimer();
@@ -788,7 +799,11 @@ export abstract class TuiBase extends Container implements TUI {
 		this.doRender();
 	}
 
-	requestRender(force = false): void {
+	requestRender(): void {
+		this.requestRenderForce(false);
+	}
+
+	requestRenderForce(force: boolean): void {
 		if (force) {
 			this.resetRenderState();
 			this.requestImmediateRender();

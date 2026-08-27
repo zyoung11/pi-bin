@@ -62,7 +62,7 @@ import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/tru
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
-import { cleanupManagedInstall, handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
+import { cleanupManagedInstall, getPackageCommandExitCode, handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
 
@@ -581,7 +581,7 @@ export async function main(args: string[]) {
 	configureHttpDispatcher();
 
 	if (await handlePackageCommand(args)) {
-		const exitCode = processExitCode ?? 0;
+		const exitCode = getPackageCommandExitCode() ?? processExitCode ?? 0;
 		if (process.platform === "win32" && exitCode === 0 && args[0] === "update") {
 			// We normally prefer process.exit(0) for package commands so bad extensions cannot keep
 			// one-shot commands alive. On Windows, Node can assert after fetch() if process.exit(0)
