@@ -79,22 +79,20 @@ async function readPipedStdin(): Promise<string | undefined> {
 
 	return new Promise((resolve) => {
 		let data = "";
-		process.stdin.setEncoding("utf8");
-		process.stdin.on("data", (chunk) => {
-			data += chunk;
+		process.stdin.on("data", (chunk: Buffer) => {
+			data += chunk.toString();
 		});
-		process.stdin.on("end", () => {
+		process.stdin.once("end", () => {
 			resolve(data.trim() || undefined);
 		});
-		process.stdin.resume();
 	});
 }
 
 function reportDiagnostics(diagnostics: readonly AgentSessionRuntimeDiagnostic[]): void {
 	for (const diagnostic of diagnostics) {
-		const color = diagnostic.type === "error" ? chalk.red : diagnostic.type === "warning" ? chalk.yellow : chalk.dim;
 		const prefix = diagnostic.type === "error" ? "Error: " : diagnostic.type === "warning" ? "Warning: " : "";
-		console.error(color(`${prefix}${diagnostic.message}`));
+		const message = `${prefix}${diagnostic.message}`;
+		console.error(diagnostic.type === "error" ? chalk.red(message) : diagnostic.type === "warning" ? chalk.yellow(message) : chalk.dim(message));
 	}
 }
 
@@ -136,17 +134,17 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 	} catch (error) {
 		const message = error instanceof AuthCommandError ? error.message : "Failed to parse auth command";
 		console.error(chalk.red(`Error: ${message}`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 	if (!command) return false;
 
 	const parsed = parseArgs(command.args);
 	if (parsed.unknownFlags.size > 0) {
-		const option = parsed.unknownFlags.keys().next().value;
+		const option = [...parsed.unknownFlags.keys()][0];
 		console.error(chalk.red(`Unknown option --${option} for "${getAuthCommandName(command.kind)}".`));
 		console.error(chalk.dim(`Use "${APP_NAME} --help" or "${getAuthCommandUsage(command.kind)}".`));
-		process.exitCode = 1;
+		setExitCode(1);
 		return true;
 	}
 	try {
@@ -193,11 +191,11 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 			? JSON.stringify({ ...result, ...(credential ? { credentials: credential } : {}) })
 			: (credential ?? result.status);
 		process.stdout.write(`${output}\n`);
-		process.exitCode = result.status === "ready" ? 0 : result.status === "not_ready" ? 1 : 2;
+		setExitCode(result.status === "ready" ? 0 : result.status === "not_ready" ? 1 : 2);
 	} catch (error) {
 		const message = error instanceof AuthCommandError ? error.message : "Failed to resolve credential";
 		console.error(chalk.red(`Error: ${message}`));
-		process.exitCode = command.kind === "check" ? 2 : 1;
+		setExitCode(command.kind === "check" ? 2 : 1);
 	}
 	return true;
 }
@@ -550,6 +548,12 @@ async function promptForMissingSessionCwd(
 	]);
 }
 
+let processExitCode: number | undefined;
+
+function setExitCode(code: number): void {
+	processExitCode = code;
+}
+
 export async function main(args: string[]) {
 	resetTimings();
 	const offlineMode = args.includes("--offline") || isTruthyEnvFlag(process.env.PI_OFFLINE);
@@ -559,6 +563,9 @@ export async function main(args: string[]) {
 	}
 
 	if (await runAuthCommand(args)) {
+		if (processExitCode !== undefined && processExitCode !== 0) {
+			process.exit(processExitCode);
+		}
 		return;
 	}
 
@@ -574,7 +581,7 @@ export async function main(args: string[]) {
 	configureHttpDispatcher();
 
 	if (await handlePackageCommand(args)) {
-		const exitCode = process.exitCode ?? 0;
+		const exitCode = processExitCode ?? 0;
 		if (process.platform === "win32" && exitCode === 0 && args[0] === "update") {
 			// We normally prefer process.exit(0) for package commands so bad extensions cannot keep
 			// one-shot commands alive. On Windows, Node can assert after fetch() if process.exit(0)
@@ -942,7 +949,7 @@ export async function main(args: string[]) {
 		stopThemeWatcher();
 		restoreStdout();
 		if (exitCode !== 0) {
-			process.exitCode = exitCode;
+			process.exit(exitCode);
 		}
 		return;
 	}

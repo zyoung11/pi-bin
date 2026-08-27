@@ -967,13 +967,14 @@ function buildParams(
 	}
 
 	// OpenRouter provider routing preferences
-	if (model.compat?.openRouterRouting) {
-		(params as any).provider = model.compat.openRouterRouting;
+	const requestCompat = model.compat as OpenAICompletionsCompat | undefined;
+	if (requestCompat?.openRouterRouting) {
+		(params as any).provider = requestCompat.openRouterRouting;
 	}
 
 	// Vercel AI Gateway provider routing preferences
-	if (model.compat?.vercelGatewayRouting) {
-		const routing = model.compat.vercelGatewayRouting;
+	if (requestCompat?.vercelGatewayRouting) {
+		const routing = requestCompat.vercelGatewayRouting;
 		if (routing.only || routing.order) {
 			const gatewayOptions: Record<string, string[]> = {};
 			if (routing.only) gatewayOptions.only = routing.only;
@@ -1677,36 +1678,37 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
  */
 function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletionsCompat {
 	const detected = detectCompat(model);
-	if (!model.compat) return detected;
+	const overrides = model.compat as OpenAICompletionsCompat | undefined;
+	if (!overrides) return detected;
 
 	return {
-		supportsStore: model.compat.supportsStore ?? detected.supportsStore,
-		supportsDeveloperRole: model.compat.supportsDeveloperRole ?? detected.supportsDeveloperRole,
-		supportsReasoningEffort: model.compat.supportsReasoningEffort ?? detected.supportsReasoningEffort,
-		supportsUsageInStreaming: model.compat.supportsUsageInStreaming ?? detected.supportsUsageInStreaming,
-		supportsFinishReason: model.compat.supportsFinishReason ?? detected.supportsFinishReason,
-		maxTokensField: model.compat.maxTokensField ?? detected.maxTokensField,
-		requiresToolResultName: model.compat.requiresToolResultName ?? detected.requiresToolResultName,
+		supportsStore: overrides.supportsStore ?? detected.supportsStore,
+		supportsDeveloperRole: overrides.supportsDeveloperRole ?? detected.supportsDeveloperRole,
+		supportsReasoningEffort: overrides.supportsReasoningEffort ?? detected.supportsReasoningEffort,
+		supportsUsageInStreaming: overrides.supportsUsageInStreaming ?? detected.supportsUsageInStreaming,
+		supportsFinishReason: overrides.supportsFinishReason ?? detected.supportsFinishReason,
+		maxTokensField: overrides.maxTokensField ?? detected.maxTokensField,
+		requiresToolResultName: overrides.requiresToolResultName ?? detected.requiresToolResultName,
 		requiresAssistantAfterToolResult:
-			model.compat.requiresAssistantAfterToolResult ?? detected.requiresAssistantAfterToolResult,
-		requiresThinkingAsText: model.compat.requiresThinkingAsText ?? detected.requiresThinkingAsText,
+			overrides.requiresAssistantAfterToolResult ?? detected.requiresAssistantAfterToolResult,
+		requiresThinkingAsText: overrides.requiresThinkingAsText ?? detected.requiresThinkingAsText,
 		requiresReasoningContentOnAssistantMessages:
-			model.compat.requiresReasoningContentOnAssistantMessages ??
+			overrides.requiresReasoningContentOnAssistantMessages ??
 			detected.requiresReasoningContentOnAssistantMessages,
-		thinkingFormat: model.compat.thinkingFormat ?? detected.thinkingFormat,
-		openRouterRouting: model.compat.openRouterRouting ?? {},
-		vercelGatewayRouting: model.compat.vercelGatewayRouting ?? detected.vercelGatewayRouting,
-		chatTemplateKwargs: model.compat.chatTemplateKwargs ?? detected.chatTemplateKwargs,
-		chatTemplateArgs: model.compat.chatTemplateArgs ?? detected.chatTemplateArgs,
-		zaiToolStream: model.compat.zaiToolStream ?? detected.zaiToolStream,
-		supportsThinkingTokenBudget: model.compat.supportsThinkingTokenBudget ?? detected.supportsThinkingTokenBudget,
-		thinkingTokenBudgetField: model.compat.thinkingTokenBudgetField ?? detected.thinkingTokenBudgetField,
-		supportsStrictMode: model.compat.supportsStrictMode ?? detected.supportsStrictMode,
-		supportsOpenAIGrammarTools: model.compat.supportsOpenAIGrammarTools ?? detected.supportsOpenAIGrammarTools,
-		cacheControlFormat: model.compat.cacheControlFormat ?? detected.cacheControlFormat,
-		sendSessionAffinityHeaders: model.compat.sendSessionAffinityHeaders ?? detected.sendSessionAffinityHeaders,
-		deferredToolsMode: model.compat.deferredToolsMode ?? detected.deferredToolsMode,
-		sessionAffinityFormat: model.compat.sessionAffinityFormat ?? detected.sessionAffinityFormat,
-		supportsLongCacheRetention: model.compat.supportsLongCacheRetention ?? detected.supportsLongCacheRetention,
+		thinkingFormat: overrides.thinkingFormat ?? detected.thinkingFormat,
+		openRouterRouting: overrides.openRouterRouting ?? {},
+		vercelGatewayRouting: overrides.vercelGatewayRouting ?? detected.vercelGatewayRouting,
+		chatTemplateKwargs: overrides.chatTemplateKwargs ?? detected.chatTemplateKwargs,
+		chatTemplateArgs: overrides.chatTemplateArgs ?? detected.chatTemplateArgs,
+		zaiToolStream: overrides.zaiToolStream ?? detected.zaiToolStream,
+		supportsThinkingTokenBudget: overrides.supportsThinkingTokenBudget ?? detected.supportsThinkingTokenBudget,
+		thinkingTokenBudgetField: overrides.thinkingTokenBudgetField ?? detected.thinkingTokenBudgetField,
+		supportsStrictMode: overrides.supportsStrictMode ?? detected.supportsStrictMode,
+		supportsOpenAIGrammarTools: overrides.supportsOpenAIGrammarTools ?? detected.supportsOpenAIGrammarTools,
+		cacheControlFormat: overrides.cacheControlFormat ?? detected.cacheControlFormat,
+		sendSessionAffinityHeaders: overrides.sendSessionAffinityHeaders ?? detected.sendSessionAffinityHeaders,
+		deferredToolsMode: overrides.deferredToolsMode ?? detected.deferredToolsMode,
+		sessionAffinityFormat: overrides.sessionAffinityFormat ?? detected.sessionAffinityFormat,
+		supportsLongCacheRetention: overrides.supportsLongCacheRetention ?? detected.supportsLongCacheRetention,
 	};
 }

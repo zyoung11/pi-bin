@@ -18,6 +18,7 @@ import type {
 	AssistantMessage,
 	AssistantMessageEventStream,
 	Context,
+	KnownApi,
 	Model,
 	ProviderStreamOptions,
 	SimpleStreamOptions,
@@ -117,9 +118,9 @@ function clearApiProviders(): void {
 export function registerFauxProvider(options: RegisterFauxProviderOptions = {}): FauxProviderRegistration {
 	const core = createFauxCore(options);
 	const sourceId = `faux-provider-${Math.random().toString(36).slice(2, 10)}`;
-	registerApiProvider({ api: core.api, stream: core.stream, streamSimple: core.streamSimple }, sourceId);
+	registerApiProvider({ api: core.api as KnownApi, stream: core.stream, streamSimple: core.streamSimple }, sourceId);
 	return {
-		api: core.api,
+		api: core.api as KnownApi,
 		models: core.models,
 		getModel: core.getModel,
 		state: core.state,

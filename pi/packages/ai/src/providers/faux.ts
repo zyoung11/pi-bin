@@ -1,8 +1,10 @@
 import { createProvider, type Provider } from "../models.ts";
 import type {
+	Api,
 	AssistantMessage,
 	AssistantMessageEventStream,
 	Context,
+	KnownApi,
 	DeferredCancelOptions,
 	DeferredFetchOptions,
 	DeferredHandle,
@@ -108,7 +110,7 @@ export type FauxResponseFactory = (
 	context: Context,
 	options: SimpleStreamOptions | undefined,
 	state: FauxProviderState,
-	model: Model<string>,
+	model: Model<Api>,
 ) => AssistantMessage | Promise<AssistantMessage>;
 
 export type FauxResponseStep = AssistantMessage | FauxResponseFactory;
@@ -130,10 +132,10 @@ export interface RegisterFauxProviderOptions {
 }
 
 export interface FauxProviderRegistration {
-	api: string;
-	models: [Model<string>, ...Model<string>[]];
-	getModel(): Model<string>;
-	getModel(modelId: string): Model<string> | undefined;
+	api: KnownApi;
+	models: [Model<Api>, ...Model<Api>[]];
+	getModel(): Model<Api>;
+	getModel(modelId: string): Model<Api> | undefined;
 	state: FauxProviderState;
 	setResponses: (responses: FauxResponseStep[]) => void;
 	appendResponses: (responses: FauxResponseStep[]) => void;
@@ -143,10 +145,10 @@ export interface FauxProviderRegistration {
 
 export interface FauxProviderHandle {
 	provider: Provider;
-	api: string;
-	models: [Model<string>, ...Model<string>[]];
-	getModel(): Model<string>;
-	getModel(modelId: string): Model<string> | undefined;
+	api: KnownApi;
+	models: [Model<Api>, ...Model<Api>[]];
+	getModel(): Model<Api>;
+	getModel(modelId: string): Model<Api> | undefined;
 	state: FauxProviderState;
 	setResponses: (responses: FauxResponseStep[]) => void;
 	appendResponses: (responses: FauxResponseStep[]) => void;
@@ -290,7 +292,7 @@ function cloneMessage(message: AssistantMessage, api: string, provider: string, 
 	};
 }
 
-function createDeferredMessage(model: Model<string>, handle: DeferredHandle): AssistantMessage {
+function createDeferredMessage(model: Model<Api>, handle: DeferredHandle): AssistantMessage {
 	return {
 		role: "assistant",
 		content: [],
@@ -452,7 +454,7 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 			step: FauxResponseStep;
 			context: Context;
 			options: SimpleStreamOptions | undefined;
-			model: Model<string>;
+			model: Model<Api>;
 			pendingFetches: number;
 			cancelled: boolean;
 			final?: AssistantMessage;
@@ -483,13 +485,13 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 		cost: definition.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: definition.contextWindow ?? 128000,
 		maxTokens: definition.maxTokens ?? 16384,
-	})) as [Model<string>, ...Model<string>[]];
+	})) as [Model<Api>, ...Model<Api>[]];
 
 	const resolveResponse = async (
 		step: FauxResponseStep,
 		context: Context,
 		streamOptions: SimpleStreamOptions | undefined,
-		requestModel: Model<string>,
+		requestModel: Model<Api>,
 	): Promise<AssistantMessage> => {
 		const resolved = typeof step === "function" ? await step(context, streamOptions, state, requestModel) : step;
 		return withUsageEstimate(
@@ -565,7 +567,7 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 		stream(streamModel, context, streamOptions);
 
 	const fetchDeferred = (
-		requestModel: Model<string>,
+		requestModel: Model<Api>,
 		handle: DeferredHandle,
 		fetchOptions?: DeferredFetchOptions,
 	): AssistantMessageEventStream => {
@@ -631,7 +633,7 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 	};
 
 	const cancelDeferred = async (
-		requestModel: Model<string>,
+		requestModel: Model<Api>,
 		handle: DeferredHandle,
 		cancelOptions?: DeferredCancelOptions,
 	): Promise<void> => {
@@ -641,9 +643,9 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 		await cancelOptions?.onResponse?.({ status: 200, headers: {} }, requestModel);
 	};
 
-	function getModel(): Model<string>;
-	function getModel(requestedModelId: string): Model<string> | undefined;
-	function getModel(requestedModelId?: string): Model<string> | undefined {
+	function getModel(): Model<Api>;
+	function getModel(requestedModelId: string): Model<Api> | undefined;
+	function getModel(requestedModelId?: string): Model<Api> | undefined {
 		if (!requestedModelId) {
 			return models[0];
 		}
@@ -697,7 +699,7 @@ export function fauxProvider(options: RegisterFauxProviderOptions = {}): FauxPro
 	});
 	return {
 		provider,
-		api: core.api,
+		api: core.api as KnownApi,
 		models: core.models,
 		getModel: core.getModel,
 		state: core.state,

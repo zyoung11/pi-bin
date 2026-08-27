@@ -299,9 +299,9 @@ export class SettingsManager {
 	private settings: Settings;
 	private projectTrusted: boolean;
 	private modifiedFields = new Set<keyof Settings>(); // Track global fields modified during session
-	private modifiedNestedFields = new Map<keyof Settings, Set<string>>(); // Track global nested field modifications
+	private modifiedNestedFields = new Map<string, string[]>();
 	private modifiedProjectFields = new Set<keyof Settings>(); // Track project fields modified during session
-	private modifiedProjectNestedFields = new Map<keyof Settings, Set<string>>(); // Track project nested field modifications
+	private modifiedProjectNestedFields = new Map<string, string[]>();
 	private globalSettingsLoadError: Error | null = null; // Track if global settings file had parse errors
 	private projectSettingsLoadError: Error | null = null; // Track if project settings file had parse errors
 	private writeQueue: Promise<void> = Promise.resolve();
@@ -553,9 +553,10 @@ export class SettingsManager {
 		this.modifiedFields.add(field);
 		if (nestedKey) {
 			if (!this.modifiedNestedFields.has(field)) {
-				this.modifiedNestedFields.set(field, new Set());
+				this.modifiedNestedFields.set(field, []);
 			}
-			this.modifiedNestedFields.get(field)!.add(nestedKey);
+			const keys = this.modifiedNestedFields.get(field)!;
+			if (!keys.includes(nestedKey)) keys.push(nestedKey);
 		}
 	}
 
@@ -564,9 +565,10 @@ export class SettingsManager {
 		this.modifiedProjectFields.add(field);
 		if (nestedKey) {
 			if (!this.modifiedProjectNestedFields.has(field)) {
-				this.modifiedProjectNestedFields.set(field, new Set());
+				this.modifiedProjectNestedFields.set(field, []);
 			}
-			this.modifiedProjectNestedFields.get(field)!.add(nestedKey);
+			const keys = this.modifiedProjectNestedFields.get(field)!;
+			if (!keys.includes(nestedKey)) keys.push(nestedKey);
 		}
 	}
 
@@ -605,10 +607,10 @@ export class SettingsManager {
 			});
 	}
 
-	private cloneModifiedNestedFields(source: Map<keyof Settings, Set<string>>): Map<keyof Settings, Set<string>> {
-		const snapshot = new Map<keyof Settings, Set<string>>();
+	private cloneModifiedNestedFields(source: Map<string, string[]>): Map<string, string[]> {
+		const snapshot = new Map<string, string[]>();
 		for (const [key, value] of source.entries()) {
-			snapshot.set(key, new Set(value));
+			snapshot.set(key, [...value]);
 		}
 		return snapshot;
 	}
@@ -617,7 +619,7 @@ export class SettingsManager {
 		scope: SettingsScope,
 		snapshotSettings: Settings,
 		modifiedFields: Set<keyof Settings>,
-		modifiedNestedFields: Map<keyof Settings, Set<string>>,
+		modifiedNestedFields: Map<string, string[]>,
 	): void {
 		this.storage.withLock(scope, (current) => {
 			const currentFileSettings = current

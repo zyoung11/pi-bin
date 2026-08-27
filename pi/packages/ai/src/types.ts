@@ -14,14 +14,15 @@ export type KnownApi =
 	| "anthropic-messages"
 	| "bedrock-converse-stream"
 	| "google-generative-ai"
+	| "faux"
 	| "google-vertex"
 	| "pi-messages";
 
-export type Api = KnownApi | (string & {});
+export type Api = string;
 
 export type KnownImagesApi = "openrouter-images";
 
-export type ImagesApi = KnownImagesApi | (string & {});
+export type ImagesApi = string;
 
 export type KnownProvider =
 	| "amazon-bedrock"
@@ -820,15 +821,7 @@ export interface Model<TApi extends Api> {
 	samplingParams?: Record<string, unknown>;
 	headers?: Record<string, string>;
 	/** Compatibility overrides for OpenAI-compatible APIs. If not set, auto-detected from baseUrl. */
-	compat?: TApi extends "openai-completions"
-		? OpenAICompletionsCompat
-		: TApi extends "openai-responses" | "azure-openai-responses" | "openai-codex-responses"
-			? OpenAIResponsesCompat
-			: TApi extends "anthropic-messages"
-				? AnthropicMessagesCompat
-				: TApi extends "bedrock-converse-stream"
-					? BedrockCompat
-					: never;
+	compat?: OpenAICompletionsCompat | OpenAIResponsesCompat | AnthropicMessagesCompat | BedrockCompat;
 }
 
 export interface ImagesModel<TApi extends ImagesApi>

@@ -464,7 +464,7 @@ export function composeModelProvider(
 			if (base && supportsBaseApi(model)) {
 				return simple
 					? base.streamSimple(model, context, options as SimpleStreamOptions)
-					: base.stream(model, context, options);
+					: base.stream(model, context, options as (StreamOptions & Record<string, unknown>) | undefined);
 			}
 			const api = getApiProvider(model.api);
 			if (!api) throw new Error(`No API provider registered for api: ${model.api}`);
