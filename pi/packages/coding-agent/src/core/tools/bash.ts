@@ -1,9 +1,10 @@
 import { constants } from "node:fs";
 import { access as fsAccess } from "node:fs/promises";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Type } from "@earendil-works/pi-ai/schema";
 import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { spawn } from "child_process";
-import { type Static, Type } from "typebox";
+import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { truncateToVisualLines } from "../../modes/interactive/components/visual-truncate.ts";
 import { theme } from "../../modes/interactive/theme/theme.ts";
@@ -17,10 +18,10 @@ import {
 	untrackDetachedChildPid,
 } from "../../utils/shell.ts";
 import { getExperimentalToolSampling } from "../experimental.ts";
-import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
+import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from "./truncate.ts";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -356,7 +357,13 @@ export function createShellToolDefinition(
 			onUpdate?,
 		) {
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
-			const spawnContext = resolveSpawnContext(resolvedCommand, cwd, spawnHook, exposeSessionEnvironment, sessionEnvProvider);
+			const spawnContext = resolveSpawnContext(
+				resolvedCommand,
+				cwd,
+				spawnHook,
+				exposeSessionEnvironment,
+				sessionEnvProvider,
+			);
 			const output = new OutputAccumulator({ tempFilePrefix: config.tempFilePrefix });
 			let acceptingOutput = true;
 			let updateTimer: NodeJS.Timeout | undefined;

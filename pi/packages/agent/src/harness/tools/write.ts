@@ -1,4 +1,5 @@
-import { type Static, Type } from "typebox";
+import { Type } from "@earendil-works/pi-ai/schema";
+import type { Static } from "typebox";
 import type { AgentHarnessTool } from "../types.ts";
 import { getOrThrow } from "../types.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";

@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { Compile, Type } from "@earendil-works/pi-ai/schema";
 import {
 	type EditorTheme,
 	getCapabilities,
@@ -10,8 +11,7 @@ import {
 	type SettingsListTheme,
 } from "@earendil-works/pi-tui";
 import chalk from "chalk";
-import { type Static, Type } from "typebox";
-import { Compile } from "typebox/compile";
+import type { Static } from "typebox";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";

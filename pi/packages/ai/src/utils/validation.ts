@@ -1,10 +1,6 @@
-import { Compile } from "typebox/compile";
 import type { TLocalizedValidationError } from "typebox/error";
-import { Value } from "typebox/value";
+import { Compile, Value } from "../schema.ts";
 import type { Tool, ToolCall } from "../types.ts";
-
-const validatorCache = new WeakMap<object, ReturnType<typeof Compile>>();
-const TYPEBOX_KIND = Symbol.for("TypeBox.Kind");
 
 interface JsonSchemaObject {
 	type?: string | string[];
@@ -269,14 +265,7 @@ function normalizeOptionalNulls(value: unknown, schema: JsonSchemaObject): void 
 }
 
 function getValidator(schema: Tool["parameters"]): ReturnType<typeof Compile> {
-	const key = schema as object;
-	const cached = validatorCache.get(key);
-	if (cached) {
-		return cached;
-	}
-	const validator = Compile(schema);
-	validatorCache.set(key, validator);
-	return validator;
+	return Compile(schema);
 }
 
 function formatValidationPath(error: TLocalizedValidationError): string {
@@ -320,17 +309,15 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): any {
 	Value.Convert(tool.parameters, args);
 
 	const validator = getValidator(tool.parameters);
-	if (!Object.getOwnPropertySymbols(tool.parameters).includes(TYPEBOX_KIND)) {
-		const coerced = coerceWithJsonSchema(args, tool.parameters as JsonSchemaObject);
-		if (coerced !== args) {
-			if (typeof args === "object" && args !== null && typeof coerced === "object" && coerced !== null) {
-				for (const key of Object.keys(args)) {
-					delete args[key];
-				}
-				Object.assign(args, coerced);
-			} else {
-				return validator.Check(coerced) ? coerced : args;
+	const coercedArgs = coerceWithJsonSchema(args, tool.parameters as JsonSchemaObject);
+	if (coercedArgs !== args) {
+		if (typeof args === "object" && args !== null && typeof coercedArgs === "object" && coercedArgs !== null) {
+			for (const key of Object.keys(args)) {
+				delete args[key];
 			}
+			Object.assign(args, coercedArgs);
+		} else {
+			return validator.Check(coercedArgs) ? coercedArgs : args;
 		}
 	}
 

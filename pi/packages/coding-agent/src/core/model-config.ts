@@ -1,8 +1,8 @@
 /** Immutable, credential-blind models.json snapshot. */
 
 import { readFile } from "node:fs/promises";
-import { type Static, Type } from "typebox";
-import { Compile } from "typebox/compile";
+import { Compile, Type } from "@earendil-works/pi-ai/schema";
+import type { Static } from "typebox";
 import type { TLocalizedValidationError } from "typebox/error";
 import { stripJsonComments } from "../utils/json.ts";
 import { normalizePath } from "../utils/paths.ts";

@@ -1,14 +1,15 @@
 import { readdir as fsReaddir, stat as fsStat } from "node:fs/promises";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Type } from "@earendil-works/pi-ai/schema";
 import { Text } from "@earendil-works/pi-tui";
 import nodePath from "path";
-import { type Static, Type } from "typebox";
+import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
-import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { pathExists, resolveToCwd } from "./path-utils.ts";
 import { getTextOutput, renderToolPath, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
+import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { DEFAULT_MAX_BYTES, formatSize, type TruncationResult, truncateHead } from "./truncate.ts";
 
 const lsSchema = Type.Object({
@@ -108,12 +109,7 @@ export function createLsToolDefinition(
 		description: `List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles. Output is truncated to ${DEFAULT_LIMIT} entries or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first).`,
 		promptSnippet: lsToolSystemPromptContribution.snippet,
 		parameters: lsSchema,
-		async execute(
-			_toolCallId,
-			{ path, limit }: { path?: string; limit?: number },
-			signal?: AbortSignal,
-			_onUpdate?,
-		) {
+		async execute(_toolCallId, { path, limit }: { path?: string; limit?: number }, signal?: AbortSignal, _onUpdate?) {
 			return new Promise((resolve, reject) => {
 				if (signal?.aborted) {
 					reject(new Error("Operation aborted"));

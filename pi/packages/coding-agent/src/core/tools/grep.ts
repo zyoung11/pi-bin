@@ -1,17 +1,18 @@
 import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Type } from "@earendil-works/pi-ai/schema";
 import { Text } from "@earendil-works/pi-tui";
 import { spawn } from "child_process";
 import path from "path";
-import { type Static, Type } from "typebox";
+import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";
-import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { getTextOutput, invalidArgText, shortenPath, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
+import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import {
 	DEFAULT_MAX_BYTES,
 	formatSize,

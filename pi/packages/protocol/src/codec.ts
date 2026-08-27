@@ -1,4 +1,4 @@
-import { Check } from "typebox/value";
+import { Value } from "@earendil-works/pi-ai/schema";
 import { decodeCbor, encodeCbor } from "./cbor/index.ts";
 import {
 	assertCompleteFrame,
@@ -39,14 +39,14 @@ function isProtocolValue(value: unknown, optionalProperty = false, ancestors = n
 }
 
 export function parseClientMessage(value: unknown): ClientMessage {
-	if (!isProtocolValue(value) || !Check(ClientMessageSchema, value)) {
+	if (!isProtocolValue(value) || !Value.Check(ClientMessageSchema, value)) {
 		throw new ProtocolValidationError("Invalid client protocol message");
 	}
 	return value;
 }
 
 export function parseServerMessage(value: unknown): ServerMessage {
-	if (!isProtocolValue(value) || !Check(ServerMessageSchema, value)) {
+	if (!isProtocolValue(value) || !Value.Check(ServerMessageSchema, value)) {
 		throw new ProtocolValidationError("Invalid server protocol message");
 	}
 	return value;

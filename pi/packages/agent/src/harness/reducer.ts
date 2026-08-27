@@ -1,5 +1,5 @@
 import type { AssistantMessage, DeferredHandle, StopReason } from "@earendil-works/pi-ai";
-import { Guard } from "typebox/guard";
+import { Guard } from "@earendil-works/pi-ai/schema";
 import type { AgentMessage, AgentToolCall, ThinkingLevel } from "../types.ts";
 import type {
 	Entry,

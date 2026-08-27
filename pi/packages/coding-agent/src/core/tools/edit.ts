@@ -1,13 +1,13 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { Type } from "@earendil-works/pi-ai/schema";
 import { Box, Container, Spacer, Text } from "@earendil-works/pi-tui";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
-import { type Static, Type } from "typebox";
+import type { Static } from "typebox";
 import { renderDiff } from "../../modes/interactive/components/diff.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { splitBom } from "../../utils/text.ts";
 import { getExperimentalToolSampling } from "../experimental.ts";
-import type { ToolDefinition } from "./tool-types.ts";
 import {
 	applyEditsToNormalizedContent,
 	computeEditsDiff,
@@ -24,6 +24,7 @@ import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { renderToolPath, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
+import type { ToolDefinition } from "./tool-types.ts";
 
 type EditPreview = EditDiffResult | EditDiffError;
 
