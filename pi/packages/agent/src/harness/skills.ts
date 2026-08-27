@@ -217,8 +217,8 @@ async function addIgnoreRules(
 		}
 		const patterns = content.value
 			.split(/\r?\n/)
-			.map((line) => prefixIgnorePattern(line, prefix))
-			.filter((line): line is string => Boolean(line));
+			.map((line) => prefixIgnorePattern(line, prefix) ?? "")
+			.filter((line) => line !== "");
 		if (patterns.length > 0) ig.add(patterns);
 	}
 }

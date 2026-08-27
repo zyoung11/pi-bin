@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import {
 	chmodSync,
 	existsSync,
-	globSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -261,8 +260,8 @@ function addIgnoreRules(ig: IgnoreMatcher, dir: string, rootDir: string): void {
 			const content = readFileSync(ignorePath, "utf-8");
 			const patterns = content
 				.split(/\r?\n/)
-				.map((line) => prefixIgnorePattern(line, prefix))
-				.filter((line): line is string => Boolean(line));
+				.map((line) => prefixIgnorePattern(line, prefix) ?? "")
+				.filter((line) => line !== "");
 			if (patterns.length > 0) {
 				ig.add(patterns);
 			}
@@ -284,7 +283,20 @@ function hasGlobPattern(s: string): boolean {
 
 /** Glob entries discover visible paths; exact entries can target dot paths or symlinked trees. */
 function expandPackageGlob(pattern: string, root: string): string[] {
-	return globSync(pattern, { cwd: root })
+	const matches: string[] = [];
+	const walk = (dir: string): void => {
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const full = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+			} else if (entry.isFile()) {
+				matches.push(relative(root, full));
+			}
+		}
+	};
+	walk(root);
+	return matches
+		.filter((relativePath) => minimatch(relativePath, pattern))
 		.map((match) => resolve(root, match))
 		.filter((path) =>
 			relative(root, path)
@@ -2281,7 +2293,7 @@ export class DefaultPackageManager implements PackageManager {
 			const manifestPatterns = entries.filter(isOverridePattern);
 			const enabledByManifest =
 				manifestPatterns.length > 0 ? applyPatterns(allFiles, manifestPatterns, packageRoot) : new Set(allFiles);
-			return { allFiles: Array.from(enabledByManifest), enabledByManifest };
+			return { allFiles: [...enabledByManifest], enabledByManifest };
 		}
 
 		const conventionDir = join(packageRoot, resourceType);
@@ -2575,12 +2587,16 @@ export class DefaultPackageManager implements PackageManager {
 		const mapToResolved = (
 			entries: Map<string, { metadata: PathMetadata; enabled: boolean }>,
 		): ResolvedResource[] => {
-			const resolved = Array.from(entries.entries()).map(([path, { metadata, enabled }]) => ({
+			const resolved: ResolvedResource[] = [];
+		entries.forEach((value, path) => {
+			const { metadata, enabled } = value;
+			resolved.push({
 				path,
 				enabled,
 				metadata,
-			}));
-			resolved.sort((a, b) => resourcePrecedenceRank(a.metadata) - resourcePrecedenceRank(b.metadata));
+			});
+		});
+		resolved.sort((a, b) => resourcePrecedenceRank(a.metadata) - resourcePrecedenceRank(b.metadata));
 
 			const seen = new Set<string>();
 			return resolved.filter((entry) => {
