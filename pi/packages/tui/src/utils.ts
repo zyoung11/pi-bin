@@ -1,20 +1,20 @@
 import { eastAsianWidth } from "./east-asian-width.ts";
+import { TextSegmenter, type SegmentData } from "./segmenter.ts";
 
-// segmenters (shared instance)
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-const wordSegmenter = new Intl.Segmenter(undefined, { granularity: "word" });
+const graphemeSegmenter = new TextSegmenter("grapheme");
+const wordSegmenter = new TextSegmenter("word");
 
 /**
  * Get the shared grapheme segmenter instance.
  */
-export function getGraphemeSegmenter(): Intl.Segmenter {
+export function getGraphemeSegmenter(): TextSegmenter {
 	return graphemeSegmenter;
 }
 
 /**
  * Get the shared word segmenter instance.
  */
-export function getWordSegmenter(): Intl.Segmenter {
+export function getWordSegmenter(): TextSegmenter {
 	return wordSegmenter;
 }
 
@@ -37,15 +37,29 @@ function couldBeEmoji(segment: string): boolean {
 }
 
 // Regexes for character classification (same as string-width library)
-const zeroWidthRegex = /^(?:\p{Default_Ignorable_Code_Point}|\p{Control}|\p{Mark}|\p{Surrogate})+$/v;
-const leadingNonPrintingRegex = /^[\p{Default_Ignorable_Code_Point}\p{Control}\p{Format}\p{Mark}\p{Surrogate}]+/v;
-const nonPrintingCharRegex = /^(?:\p{Default_Ignorable_Code_Point}|\p{Control}|\p{Format}|\p{Mark}|\p{Surrogate})$/v;
-const markCharRegex = /^\p{Mark}$/v;
+const zeroWidthRegex = /^(?:\p{Default_Ignorable_Code_Point}|\p{Control}|\p{Mark}|\p{Surrogate})+$/u;
+const leadingNonPrintingRegex = /^[\p{Default_Ignorable_Code_Point}\p{Control}\p{Format}\p{Mark}\p{Surrogate}]+/u;
+const nonPrintingCharRegex = /^(?:\p{Default_Ignorable_Code_Point}|\p{Control}|\p{Format}|\p{Mark}|\p{Surrogate})$/u;
+const markCharRegex = /^\p{Mark}$/u;
 // Marks that terminals allocate cells for when attached to a base character.
 // This includes Unicode spacing marks and non-spacing exceptions in legacy wcwidth tables.
-const terminalSpacingMarkRegex =
-	/^(?:[\p{Spacing_Mark}--[\u1734\u302E\u302F]]|[\u065F\u0F7F\u102B\u102C\u1031\u1033-\u1035\u1038\u103A-\u103E])+$/v;
-const rgiEmojiRegex = /^\p{RGI_Emoji}$/v;
+const spacingMarkRegex = /^\p{Spacing_Mark}$/u;
+const excludedSpacingMarks: string[] = ["\u1734", "\u302E", "\u302F"];
+const extraTerminalSpacingMarks: string[] = [
+	"\u065F", "\u0F7F", "\u102B", "\u102C", "\u1031", "\u1033", "\u1034", "\u1035",
+	"\u1038", "\u103A", "\u103B", "\u103C", "\u103D", "\u103E",
+];
+
+function isTerminalSpacingMarkRun(text: string): boolean {
+	for (const char of text) {
+		if (excludedSpacingMarks.includes(char)) return false;
+		if (extraTerminalSpacingMarks.includes(char)) continue;
+		if (!spacingMarkRegex.test(char)) return false;
+	}
+	return text.length > 0;
+}
+
+const rgiEmojiApproximationRegex = /^\p{Extended_Pictographic}[\uFE0F\u200D\p{Extended_Pictographic}]*$/u;
 
 // Cache for non-ASCII strings
 const WIDTH_CACHE_SIZE = 512;
@@ -177,7 +191,7 @@ function graphemeWidth(segment: string): number {
 	}
 
 	// Some marks occupy cells even without a base character.
-	if (terminalSpacingMarkRegex.test(segment)) {
+	if (isTerminalSpacingMarkRun(segment)) {
 		return [...segment].length;
 	}
 
@@ -187,7 +201,7 @@ function graphemeWidth(segment: string): number {
 	}
 
 	// Emoji check with pre-filter
-	if (couldBeEmoji(segment) && rgiEmojiRegex.test(segment)) {
+	if (couldBeEmoji(segment) && rgiEmojiApproximationRegex.test(segment)) {
 		return 2;
 	}
 
@@ -214,7 +228,7 @@ function graphemeWidth(segment: string): number {
 	let followsMark = false;
 	const chars = [...base];
 	for (const char of chars.slice(1)) {
-		if (terminalSpacingMarkRegex.test(char)) {
+		if (isTerminalSpacingMarkRun(char)) {
 			width += 1;
 			followsMark = false;
 		} else if (markCharRegex.test(char)) {

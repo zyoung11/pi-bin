@@ -1,14 +1,15 @@
 import { getWordSegmenter, isWhitespaceChar, PUNCTUATION_REGEX } from "./utils.ts";
+import type { SegmentData } from "./segmenter.ts";
 
 const wordSegmenter = getWordSegmenter();
 
 /**
  * Options for word navigation functions.
- * When omitted, uses the default Intl.Segmenter word segmentation.
+ * When omitted, uses the default TextSegmenter word segmentation.
  */
 export interface WordNavigationOptions {
 	/** Custom segmenter returning word segments for the given text. */
-	segment?: (text: string) => Iterable<Intl.SegmentData>;
+	segment?: (text: string) => SegmentData[];
 	/** Predicate identifying atomic segments that should be treated as single units (e.g. paste markers). */
 	isAtomicSegment?: (segment: string) => boolean;
 }

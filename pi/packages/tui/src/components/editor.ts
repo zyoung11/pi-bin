@@ -12,6 +12,7 @@ import {
 	sliceByColumn,
 	visibleWidth,
 } from "../utils.ts";
+import { TextSegmenter, type SegmentData } from "../segmenter.ts";
 import { findWordBackward, findWordForward } from "../word-navigation.ts";
 import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
 
@@ -30,7 +31,7 @@ function isPasteMarker(segment: string): boolean {
 }
 
 /**
- * A segmenter that wraps Intl.Segmenter and merges graphemes that fall
+ * A segmenter that wraps TextSegmenter and merges graphemes that fall
  * within paste markers into single atomic segments.  This makes cursor
  * movement, deletion, word-wrap, etc. treat paste markers as single units.
  *
@@ -38,9 +39,9 @@ function isPasteMarker(segment: string): boolean {
  */
 function segmentWithMarkers(
 	text: string,
-	baseSegmenter: Intl.Segmenter,
+	baseSegmenter: TextSegmenter,
 	validIds: Set<number>,
-): Iterable<Intl.SegmentData> {
+): SegmentData[] {
 	// Fast path: no paste markers in the text or no valid IDs.
 	if (validIds.size === 0 || !text.includes("[paste #")) {
 		return baseSegmenter.segment(text);
@@ -59,7 +60,7 @@ function segmentWithMarkers(
 
 	// Build merged segment list.
 	const baseSegments = baseSegmenter.segment(text);
-	const result: Intl.SegmentData[] = [];
+	const result: SegmentData[] = [];
 	let markerIdx = 0;
 
 	for (const seg of baseSegments) {
@@ -78,7 +79,6 @@ function segmentWithMarkers(
 				result.push({
 					segment: markerText,
 					index: marker.start,
-					input: text,
 				});
 			}
 			// Otherwise skip (already merged into the first segment).
@@ -108,10 +108,10 @@ export interface TextChunk {
  * @param line - The text line to wrap
  * @param maxWidth - Maximum visible width per chunk
  * @param preSegmented - Optional pre-segmented graphemes (e.g. with paste-marker awareness).
- *                       When omitted the default Intl.Segmenter is used.
+ *                       When omitted the default TextSegmenter is used.
  * @returns Array of chunks with text and position information
  */
-export function wordWrapLine(line: string, maxWidth: number, preSegmented?: Intl.SegmentData[]): TextChunk[] {
+export function wordWrapLine(line: string, maxWidth: number, preSegmented?: SegmentData[]): TextChunk[] {
 	if (!line || maxWidth <= 0) {
 		return [{ text: "", startIndex: 0, endIndex: 0 }];
 	}
@@ -358,7 +358,7 @@ export class Editor implements Component, Focusable {
 	}
 
 	/** Segment text with paste-marker awareness, only merging markers with valid IDs. */
-	private segment(text: string, mode: "word" | "grapheme"): Iterable<Intl.SegmentData> {
+	private segment(text: string, mode: "word" | "grapheme"): SegmentData[] {
 		return segmentWithMarkers(text, mode === "word" ? wordSegmenter : graphemeSegmenter, this.validPasteIds());
 	}
 
