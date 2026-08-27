@@ -8,7 +8,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentMessage, AgentToolResult, ThinkingLevel } from "../../../../agent/src/index.ts";
-import type { AuthEvent, AuthPrompt } from "../../../../ai/src/index.ts";
+import type { Api,
+	AuthEvent, AuthPrompt
+} from "../../../../ai/src/index.ts"
 import type { AssistantMessage, ImageContent, Message, Model, Usage } from "../../../../ai/src/compat.ts";
 import type {
 	AutocompleteItem,
@@ -227,7 +229,7 @@ function isAnthropicSubscriptionAuthKey(apiKey: string | undefined): boolean {
 	return typeof apiKey === "string" && apiKey.startsWith("sk-ant-oat");
 }
 
-function isUnknownModel(model: Model<any> | undefined): boolean {
+function isUnknownModel(model: Model<Api> | undefined): boolean {
 	return !!model && model.provider === "unknown" && model.id === "unknown" && model.api === "unknown";
 }
 
@@ -4481,7 +4483,7 @@ export class InteractiveMode {
 		this.showModelSelector(searchTerm);
 	}
 
-	private async findExactModelMatch(searchTerm: string): Promise<Model<any> | undefined> {
+	private async findExactModelMatch(searchTerm: string): Promise<Model<Api> | undefined> {
 		const cachedModels =
 			this.session.scopedModels.length > 0
 				? this.session.scopedModels.map((scoped) => scoped.model)
@@ -4526,7 +4528,7 @@ export class InteractiveMode {
 	}
 
 	private async maybeWarnAboutAnthropicSubscriptionAuth(
-		model: Model<any> | undefined = this.session.model,
+		model: Model<Api> | undefined = this.session.model,
 	): Promise<void> {
 		if (this.settingsManager.getWarnings().anthropicExtraUsage === false) {
 			return;
@@ -4608,7 +4610,7 @@ export class InteractiveMode {
 
 	private showModelSelector(initialSearchInput?: string): void {
 		this.showSelector((done) => {
-			const selectModel = async (model: Model<any>, persist: boolean) => {
+			const selectModel = async (model: Model<Api>, persist: boolean) => {
 				try {
 					await this.session.setModel(model, { persist });
 					this.updateAvailableProviderCount();
@@ -4648,7 +4650,7 @@ export class InteractiveMode {
 		let availableModelIds = new Set(availableModels.map((model) => `${model.provider}/${model.id}`));
 		const configuredPatterns = this.settingsManager.getEnabledModels();
 		const sessionScopedModels = this.session.scopedModels;
-		const configuredEnabledIds = (models: readonly Model<any>[]): string[] | null => {
+		const configuredEnabledIds = (models: readonly Model<Api>[]): string[] | null => {
 			if (!configuredPatterns?.length) return null;
 			const resolved = resolveModelScopeFromModels(configuredPatterns, models);
 			const ids = resolved.scopedModels.map((scoped) => `${scoped.model.provider}/${scoped.model.id}`);
@@ -5289,11 +5291,11 @@ export class InteractiveMode {
 		providerId: string,
 		providerName: string,
 		authType: "oauth" | "api_key",
-		previousModel: Model<any> | undefined,
+		previousModel: Model<Api> | undefined,
 	): Promise<void> {
 		const actionLabel = authType === "oauth" ? `Logged in to ${providerName}` : `Saved API key for ${providerName}`;
 
-		let selectedModel: Model<any> | undefined;
+		let selectedModel: Model<Api> | undefined;
 		let selectionError: string | undefined;
 		if (isUnknownModel(previousModel)) {
 			const availableModels = this.session.modelRuntime.getAvailableSnapshot();

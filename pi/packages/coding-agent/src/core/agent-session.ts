@@ -1,3 +1,4 @@
+import type { Api } from "../../../ai/src/types.ts";
 /**
  * AgentSession - Core abstraction for agent lifecycle and session management.
  *
@@ -182,7 +183,7 @@ export interface AgentSessionConfig {
 	settingsManager: SettingsManager;
 	cwd: string;
 	/** Models to cycle through with Ctrl+P (from --models flag) */
-	scopedModels?: Array<{ model: Model<any>; thinkingLevel?: ThinkingLevel }>;
+	scopedModels?: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
 	/** Resource loader for extensions, skills, prompts, themes, context files, and system prompt */
 	resourceLoader: ResourceLoader;
 	/** Custom tools provided by the caller as static tool definitions. */
@@ -224,7 +225,7 @@ export interface ModelMutationOptions {
 
 /** Result from cycleModel() */
 export interface ModelCycleResult {
-	model: Model<any>;
+	model: Model<Api>;
 	thinkingLevel: ThinkingLevel;
 	/** Whether cycling through scoped models (--models flag) or all available */
 	isScoped: boolean;
@@ -305,7 +306,7 @@ export class AgentSession {
 	readonly sessionManager: SessionManager;
 	readonly settingsManager: SettingsManager;
 
-	private _scopedModels: Array<{ model: Model<any>; thinkingLevel?: ThinkingLevel }>;
+	private _scopedModels: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
 
 	// Event subscription state
 	private _unsubscribeAgent?: () => void;
@@ -390,8 +391,8 @@ export class AgentSession {
 		return this._modelRuntime;
 	}
 
-	private async _getRequiredRequestAuth(model: Model<any>): Promise<{
-		model: Model<any>;
+	private async _getRequiredRequestAuth(model: Model<Api>): Promise<{
+		model: Model<Api>;
 		apiKey?: string;
 		headers?: Record<string, string>;
 		env?: Record<string, string>;
@@ -427,8 +428,8 @@ export class AgentSession {
 		throw new Error(formatNoApiKeyFoundMessage(model.provider));
 	}
 
-	private async _getSummarizationRequestAuth(model: Model<any>): Promise<{
-		model: Model<any>;
+	private async _getSummarizationRequestAuth(model: Model<Api>): Promise<{
+		model: Model<Api>;
 		apiKey?: string;
 		headers?: Record<string, string>;
 		env?: Record<string, string>;
@@ -719,7 +720,7 @@ export class AgentSession {
 	}
 
 	/** Current model (may be undefined if not yet selected) */
-	get model(): Model<any> | undefined {
+	get model(): Model<Api> | undefined {
 		return this.agent.state.model;
 	}
 
@@ -836,12 +837,12 @@ export class AgentSession {
 	}
 
 	/** Scoped models for cycling (from --models flag) */
-	get scopedModels(): ReadonlyArray<{ model: Model<any>; thinkingLevel?: ThinkingLevel }> {
+	get scopedModels(): ReadonlyArray<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }> {
 		return this._scopedModels;
 	}
 
 	/** Update scoped models for cycling */
-	setScopedModels(scopedModels: Array<{ model: Model<any>; thinkingLevel?: ThinkingLevel }>): void {
+	setScopedModels(scopedModels: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>): void {
 		this._scopedModels = scopedModels;
 	}
 
@@ -1327,7 +1328,7 @@ export class AgentSession {
 	 * Persists to global defaults only when options.persist is true.
 	 * @throws Error if no auth is configured for the model
 	 */
-	async setModel(model: Model<any>, options: ModelMutationOptions = {}): Promise<void> {
+	async setModel(model: Model<Api>, options: ModelMutationOptions = {}): Promise<void> {
 		if (!(await this._modelRuntime.checkAuth(model.provider))) {
 			throw new Error(`No API key for ${model.provider}/${model.id}`);
 		}
@@ -1348,7 +1349,7 @@ export class AgentSession {
 
 	}
 
-	private _addPersistedDefaultToNonEmptyScope(model: Model<any>): void {
+	private _addPersistedDefaultToNonEmptyScope(model: Model<Api>): void {
 		if (this._scopedModels.length === 0) return;
 		if (this._scopedModels.some((scoped) => modelsAreEqual(scoped.model, model))) return;
 
@@ -1511,7 +1512,7 @@ export class AgentSession {
 		return !!this.model?.reasoning;
 	}
 
-	private _getThinkingLevelForModelSwitch(targetModel?: Model<any>, explicitLevel?: ThinkingLevel): ThinkingLevel {
+	private _getThinkingLevelForModelSwitch(targetModel?: Model<Api>, explicitLevel?: ThinkingLevel): ThinkingLevel {
 		if (explicitLevel !== undefined) {
 			return explicitLevel;
 		}
@@ -1563,7 +1564,7 @@ export class AgentSession {
 	/** Generate Pi's built-in compaction summary for manual and automatic compaction. */
 	private async _runDefaultCompaction(
 		preparation: CompactionPreparation,
-		requestModel: Model<any>,
+		requestModel: Model<Api>,
 		apiKey: string | undefined,
 		headers: Record<string, string> | undefined,
 		customInstructions: string | undefined,

@@ -1,6 +1,8 @@
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import type { ImageContent, Model, TextContent } from "../../../../ai/src/index.ts";
+import type { Api,
+	ImageContent, Model, TextContent
+} from "../../../../ai/src/index.ts"
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/index.ts";
 import { constants } from "fs";
@@ -67,7 +69,7 @@ export interface ReadToolOptions {
 	/** Custom operations for file reading. Default: local filesystem */
 	operations?: ReadOperations;
 	/** Provides the active model, used to note when it cannot consume images. */
-	modelProvider?: () => Model<any> | undefined;
+	modelProvider?: () => Model<Api> | undefined;
 }
 
 type ReadRenderArgs = { path?: string; file_path?: string; offset?: number; limit?: number };
@@ -92,7 +94,7 @@ function trimTrailingEmptyLines(lines: string[]): string[] {
 	return lines.slice(0, end);
 }
 
-function getNonVisionImageNote(model: Model<any> | undefined): string | undefined {
+function getNonVisionImageNote(model: Model<Api> | undefined): string | undefined {
 	if (!model || model.input.includes("image")) {
 		return undefined;
 	}

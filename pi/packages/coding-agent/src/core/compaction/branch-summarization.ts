@@ -6,7 +6,9 @@
  */
 
 import type { AgentMessage, StreamFn } from "../../../../agent/src/index.ts";
-import type { RetryCallbacks, RetryPolicy } from "../../../../ai/src/index.ts";
+import type { Api,
+	RetryCallbacks, RetryPolicy
+} from "../../../../ai/src/index.ts"
 import { contentText } from "../../../../ai/src/index.ts";
 import type { Model, SimpleStreamOptions, Usage } from "../../../../ai/src/compat.ts";
 import {
@@ -66,7 +68,7 @@ export interface CollectEntriesResult {
 
 export interface GenerateBranchSummaryOptions {
 	/** Model to use for summarization */
-	model: Model<any>;
+	model: Model<Api>;
 	/** API key for the model */
 	apiKey?: string;
 	/** Request headers for the model */

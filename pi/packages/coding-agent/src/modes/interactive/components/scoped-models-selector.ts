@@ -1,4 +1,6 @@
-import type { Model } from "../../../../../ai/src/index.ts";
+import type { Api,
+	Model
+} from "../../../../../ai/src/index.ts"
 import {
 	Container,
 	type Focusable,
@@ -67,12 +69,12 @@ function getSortedIds(enabledIds: EnabledIds, allIds: string[]): string[] {
 
 interface ModelItem {
 	fullId: string;
-	model: Model<any> | undefined;
+	model: Model<Api> | undefined;
 	enabled: boolean;
 }
 
 export interface ModelsConfig {
-	allModels: Model<any>[];
+	allModels: Model<Api>[];
 	enabledModelIds: string[] | null;
 	refreshStatus?: string;
 }
@@ -90,7 +92,7 @@ export interface ModelsCallbacks {
  * Changes are session-only until explicitly persisted with Ctrl+S.
  */
 export class ScopedModelsSelectorComponent extends Container implements Focusable {
-	private modelsById: Map<string, Model<any>> = new Map();
+	private modelsById: Map<string, Model<Api>> = new Map();
 	private allIds: string[] = [];
 	private enabledIds: EnabledIds = null;
 	private filteredItems: ModelItem[] = [];
@@ -157,7 +159,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		this.updateList();
 	}
 
-	updateModels(models: readonly Model<any>[], enabledModelIds?: string[] | null): void {
+	updateModels(models: readonly Model<Api>[], enabledModelIds?: string[] | null): void {
 		const selectedId = this.filteredItems[this.selectedIndex]?.fullId;
 		if (enabledModelIds !== undefined) this.enabledIds = enabledModelIds === null ? null : [...enabledModelIds];
 		this.modelsById.clear();

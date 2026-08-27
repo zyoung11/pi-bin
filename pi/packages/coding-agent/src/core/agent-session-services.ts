@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import type { Model } from "../../../ai/src/index.ts";
+import type { Api,
+	Model
+} from "../../../ai/src/index.ts"
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
 import type { ToolDefinition } from "./tools/tool-types.ts";
@@ -53,9 +55,9 @@ export interface CreateAgentSessionServicesOptions {
 export interface CreateAgentSessionFromServicesOptions {
 	services: AgentSessionServices;
 	sessionManager: SessionManager;
-	model?: Model<any>;
+	model?: Model<Api>;
 	thinkingLevel?: ThinkingLevel;
-	scopedModels?: Array<{ model: Model<any>; thinkingLevel?: ThinkingLevel }>;
+	scopedModels?: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
 	tools?: string[];
 	excludeTools?: CreateAgentSessionOptions["excludeTools"];
 	noTools?: CreateAgentSessionOptions["noTools"];

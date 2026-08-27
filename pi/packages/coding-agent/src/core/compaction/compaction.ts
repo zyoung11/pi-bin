@@ -1,3 +1,4 @@
+import type { Api } from "../../../../ai/src/types.ts";
 /**
  * Context compaction for long sessions.
  *
@@ -553,7 +554,7 @@ export function getSummarizationFailure(response: AssistantMessage, label: strin
 }
 
 function createSummarizationOptions(
-	model: Model<any>,
+	model: Model<Api>,
 	maxTokens: number,
 	apiKey: string | undefined,
 	headers: Record<string, string> | undefined,
@@ -577,7 +578,7 @@ function createSummarizationOptions(
  * immediately (see {@link retryAssistantCall}).
  */
 export async function completeSummarization(
-	model: Model<any>,
+	model: Model<Api>,
 	context: Context,
 	options: SimpleStreamOptions,
 	streamFn?: StreamFn,
@@ -604,7 +605,7 @@ export async function completeSummarization(
  */
 export async function generateSummary(
 	currentMessages: AgentMessage[],
-	model: Model<any>,
+	model: Model<Api>,
 	reserveTokens: number,
 	apiKey: string | undefined,
 	headers?: Record<string, string>,
@@ -655,7 +656,7 @@ function buildSummarizationContext(promptText: string): Context {
 /** Generate or update a conversation summary and return its provider usage. */
 export async function generateSummaryWithUsage(
 	currentMessages: AgentMessage[],
-	model: Model<any>,
+	model: Model<Api>,
 	reserveTokens: number,
 	apiKey: string | undefined,
 	headers?: Record<string, string>,
@@ -857,7 +858,7 @@ Be concise. Focus on what's needed to understand the kept suffix.`;
  */
 export async function compact(
 	preparation: CompactionPreparation,
-	model: Model<any>,
+	model: Model<Api>,
 	apiKey: string | undefined,
 	headers?: Record<string, string>,
 	customInstructions?: string,
@@ -968,7 +969,7 @@ export async function compact(
  */
 async function generateTurnPrefixSummary(
 	messages: AgentMessage[],
-	model: Model<any>,
+	model: Model<Api>,
 	reserveTokens: number,
 	apiKey: string | undefined,
 	headers?: Record<string, string>,

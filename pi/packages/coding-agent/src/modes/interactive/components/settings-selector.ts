@@ -1,3 +1,4 @@
+import type { Api } from "../../../../../ai/src/types.ts";
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
 import { getSupportedThinkingLevels, type Model, type Transport } from "../../../../../ai/src/index.ts";
 import {
@@ -49,8 +50,8 @@ const DEFAULT_PROJECT_TRUST_BY_LABEL = new Map(
 export interface SettingsConfig {
 	autoCompact: boolean;
 	defaultModel: string;
-	currentModel?: Model<any>;
-	availableDefaultModels: readonly Model<any>[];
+	currentModel?: Model<Api>;
+	availableDefaultModels: readonly Model<Api>[];
 	showImages: boolean;
 	imageWidthCells: number;
 	autoResizeImages: boolean;
@@ -170,11 +171,11 @@ class WarningSettingsSubmenu extends Container {
 
 const CLEAR_OVERRIDE_VALUE = "__clear__";
 
-function modelSettingKey(model: Model<any>): string {
+function modelSettingKey(model: Model<Api>): string {
 	return `${model.provider}/${model.id}`;
 }
 
-function modelDisplayLabel(model: Model<any>): string {
+function modelDisplayLabel(model: Model<Api>): string {
 	return `${model.id} [${model.provider}]`;
 }
 
@@ -184,7 +185,7 @@ function modelThinkingOverridesSummary(overrides: Record<string, ThinkingLevel>)
 	return `${count} configured`;
 }
 
-function modelItemLabel(model: Model<any>): string {
+function modelItemLabel(model: Model<Api>): string {
 	return `${model.id} ${theme.fg("muted", `[${model.provider}]`)}`;
 }
 

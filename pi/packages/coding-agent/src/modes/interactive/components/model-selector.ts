@@ -1,3 +1,4 @@
+import type { Api } from "../../../../../ai/src/types.ts";
 import { type Model, modelsAreEqual } from "../../../../../ai/src/index.ts";
 import {
 	Container,
@@ -20,11 +21,11 @@ import { keyHint } from "./keybinding-hints.ts";
 interface ModelItem {
 	provider: string;
 	id: string;
-	model: Model<any>;
+	model: Model<Api>;
 }
 
 interface ScopedModelItem {
-	model: Model<any>;
+	model: Model<Api>;
 	thinkingLevel?: string;
 }
 
@@ -56,10 +57,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private activeModels: ModelItem[] = [];
 	private filteredModels: ModelItem[] = [];
 	private selectedIndex: number = 0;
-	private currentModel?: Model<any>;
+	private currentModel?: Model<Api>;
 	private modelRuntime: ModelRuntime;
-	private onSelectCallback: (model: Model<any>) => void;
-	private onSelectAsDefaultCallback?: (model: Model<any>) => void;
+	private onSelectCallback: (model: Model<Api>) => void;
+	private onSelectAsDefaultCallback?: (model: Model<Api>) => void;
 	private onCancelCallback: () => void;
 	private errorMessage?: string;
 	private refreshStatusMessage = "Refreshing model catalogs…";
@@ -76,13 +77,13 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
 	constructor(
 		tui: TUI,
-		currentModel: Model<any> | undefined,
+		currentModel: Model<Api> | undefined,
 		modelRuntime: ModelRuntime,
 		scopedModels: ReadonlyArray<ScopedModelItem>,
-		onSelect: (model: Model<any>) => void,
+		onSelect: (model: Model<Api>) => void,
 		onCancel: () => void,
 		initialSearchInput?: string,
-		onSelectAsDefault?: (model: Model<any>) => void,
+		onSelectAsDefault?: (model: Model<Api>) => void,
 		defaultModel?: DefaultModelReference,
 	) {
 		super();
@@ -153,7 +154,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	}
 
 	private loadModelsFromSnapshot(): void {
-		const models = this.modelRuntime.getAvailableSnapshot().map((model: Model<any>) => ({
+		const models = this.modelRuntime.getAvailableSnapshot().map((model: Model<Api>) => ({
 			provider: model.provider,
 			id: model.id,
 			model,
@@ -249,7 +250,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		return keyHint("tui.input.tab", "scope") + theme.fg("muted", " (all/scoped)");
 	}
 
-	private isDefaultModel(model: Model<any>): boolean {
+	private isDefaultModel(model: Model<Api>): boolean {
 		return this.defaultModel?.provider === model.provider && this.defaultModel.id === model.id;
 	}
 
@@ -412,7 +413,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		}
 	}
 
-	private handleSelect(model: Model<any>): void {
+	private handleSelect(model: Model<Api>): void {
 		this.dispose();
 		this.onSelectCallback(model);
 	}
