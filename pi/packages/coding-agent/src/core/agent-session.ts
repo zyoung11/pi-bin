@@ -325,15 +325,15 @@ export class AgentSession {
 	private _pendingCustomMessages: CustomMessage[] = [];
 
 	// Compaction state
-	private _compactionAbortController: AbortController | undefined = undefined;
-	private _autoCompactionAbortController: AbortController | undefined = undefined;
+	private _compactionAbortController: AbortController | null = null;
+	private _autoCompactionAbortController: AbortController | null = null;
 	private _overflowRecoveryAttempted = false;
 
 	// Branch summarization state
-	private _branchSummaryAbortController: AbortController | undefined = undefined;
+	private _branchSummaryAbortController: AbortController | null = null;
 
 	// Retry state
-	private _retryAbortController: AbortController | undefined = undefined;
+	private _retryAbortController: AbortController | null = null;
 	private _retryAttempt = 0;
 
 	// Bash execution state
@@ -800,8 +800,8 @@ export class AgentSession {
 	/** Whether compaction or branch summarization is currently running */
 	get isCompacting(): boolean {
 		return (
-			this._autoCompactionAbortController !== undefined ||
-			this._compactionAbortController !== undefined ||
+			this._autoCompactionAbortController !== null ||
+			this._compactionAbortController !== null ||
 			this._branchSummaryAbortController !== undefined
 		);
 	}
@@ -974,7 +974,7 @@ export class AgentSession {
 		let messages: AgentMessage[] | undefined;
 
 		try {
-			if (this._compactionAbortController !== undefined) {
+			if (this._compactionAbortController !== null) {
 				throw new Error(
 					"Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.",
 				);
@@ -1669,7 +1669,7 @@ export class AgentSession {
 				details,
 			};
 			// compaction_end listeners may submit queued prompts, so expose idle state before notifying them.
-			this._compactionAbortController = undefined;
+			this._compactionAbortController = null;
 			this._emit({
 				type: "compaction_end",
 				reason: "manual",
@@ -1682,7 +1682,7 @@ export class AgentSession {
 			const message = error instanceof Error ? error.message : String(error);
 			const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
 			const errorMessage = aborted ? undefined : `Compaction failed: ${message}`;
-			this._compactionAbortController = undefined;
+			this._compactionAbortController = null;
 			this._emit({
 				type: "compaction_end",
 				reason: "manual",
@@ -1693,7 +1693,7 @@ export class AgentSession {
 			});
 			throw error;
 		} finally {
-			this._compactionAbortController = undefined;
+			this._compactionAbortController = null;
 		}
 	}
 
@@ -1947,7 +1947,7 @@ export class AgentSession {
 			}
 			return false;
 		} finally {
-			this._autoCompactionAbortController = undefined;
+			this._autoCompactionAbortController = null;
 		}
 	}
 
@@ -2202,7 +2202,7 @@ export class AgentSession {
 			});
 			return false;
 		} finally {
-			this._retryAbortController = undefined;
+			this._retryAbortController = null;
 		}
 
 		return true;
@@ -2514,7 +2514,7 @@ export class AgentSession {
 
 			return { editorText, cancelled: false, summaryEntry };
 		} finally {
-			this._branchSummaryAbortController = undefined;
+			this._branchSummaryAbortController = null;
 		}
 	}
 

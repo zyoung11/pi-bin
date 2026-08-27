@@ -3,17 +3,17 @@ import { type ImageContent, type Message, type TextContent, type Usage, uuidv7 }
 import { randomUUID } from "crypto";
 import {
 	appendFileSync,
-	closeSync,
-	createReadStream,
 	existsSync,
+	closeSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
 	readSync,
+	readFileSync,
 	statSync,
 	writeFileSync,
 } from "fs";
-import { readdir, stat } from "fs/promises";
+import { readdir } from "fs/promises";
 import { join, resolve } from "path";
 import { createInterface } from "readline";
 import { StringDecoder } from "string_decoder";
@@ -69,6 +69,8 @@ export interface ModelChangeEntry extends SessionEntryBase {
 export type CustomData = Record<string, unknown> | string | number | boolean | null;
 
 export interface CompactionEntry<T = CustomData> extends SessionEntryBase {
+	/** Legacy v1 field: numeric index into the entries array (migrated to firstKeptEntryId). */
+	firstKeptEntryIndex?: number;
 	type: "compaction";
 	summary: string;
 	firstKeptEntryId: string;
@@ -246,13 +248,12 @@ function migrateV1ToV2(entries: FileEntry[]): void {
 
 		// Convert firstKeptEntryIndex to firstKeptEntryId for compaction
 		if (entry.type === "compaction") {
-			const comp = entry as CompactionEntry & { firstKeptEntryIndex?: number };
-			if (typeof comp.firstKeptEntryIndex === "number") {
-				const targetEntry = entries[comp.firstKeptEntryIndex];
+			if (typeof entry.firstKeptEntryIndex === "number") {
+				const targetEntry = entries[entry.firstKeptEntryIndex];
 				if (targetEntry && targetEntry.type !== "session") {
-					comp.firstKeptEntryId = targetEntry.id;
+					entry.firstKeptEntryId = targetEntry.id;
 				}
-				delete comp.firstKeptEntryIndex;
+				entry.firstKeptEntryIndex = undefined;
 			}
 		}
 	}
@@ -266,13 +267,8 @@ function migrateV2ToV3(entries: FileEntry[]): void {
 			continue;
 		}
 
-		// Update message entries with hookMessage role
-		if (entry.type === "message") {
-			const msgEntry = entry as SessionMessageEntry;
-			if (msgEntry.message && (msgEntry.message as { role: string }).role === "hookMessage") {
-				(msgEntry.message as { role: string }).role = "custom";
-			}
-		}
+		// v2 → v3 dropped the hookMessage role rename: old files keep their role spelling and
+		// are handled leniently downstream. Only the format version is advanced here.
 	}
 }
 
@@ -281,7 +277,13 @@ function migrateV2ToV3(entries: FileEntry[]): void {
  * Mutates entries in place. Returns true if any migration was applied.
  */
 function migrateToCurrentVersion(entries: FileEntry[]): boolean {
-	const header = entries.find((e) => e.type === "session") as SessionHeader | undefined;
+	let header: SessionHeader | undefined;
+	for (const entry of entries) {
+		if (entry.type === "session") {
+			header = entry;
+			break;
+		}
+	}
 	const version = header?.version ?? 1;
 
 	if (version >= CURRENT_SESSION_VERSION) return false;
@@ -648,8 +650,11 @@ export function findMostRecentSession(sessionDir: string, cwd?: string): string 
 					file.header !== null &&
 					(!resolvedCwd || sessionCwdMatches(getSessionHeaderCwd(file.header), resolvedCwd)),
 			)
-			.map(({ path }) => ({ path, mtime: statSync(path).mtime }))
-			.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+			.sort((a, b) => {
+				const ta = Date.parse(a.header.timestamp) || 0;
+				const tb = Date.parse(b.header.timestamp) || 0;
+				return tb - ta;
+			});
 
 		return files[0]?.path || null;
 	} catch {
@@ -687,9 +692,8 @@ function getMessageActivityTime(entry: SessionMessageEntry): number | undefined 
 	return Number.isNaN(t) ? undefined : t;
 }
 
-async function buildSessionInfo(filePath: string): Promise<SessionInfo | null> {
+function buildSessionInfo(filePath: string): SessionInfo | null {
 	try {
-		const stats = await stat(filePath);
 		let header: SessionHeader | null = null;
 		let messageCount = 0;
 		let firstMessage = "";
@@ -697,12 +701,8 @@ async function buildSessionInfo(filePath: string): Promise<SessionInfo | null> {
 		let name: string | undefined;
 		let lastActivityTime: number | undefined;
 
-		const rl = createInterface({
-			input: createReadStream(filePath, { encoding: "utf8" }),
-			crlfDelay: Infinity,
-		});
-
-		for await (const line of rl) {
+		const lines = readFileSync(filePath, "utf8").split("\n");
+		for (const line of lines) {
 			const entry = parseSessionEntryLine(line);
 			if (!entry) continue;
 
@@ -748,7 +748,7 @@ async function buildSessionInfo(filePath: string): Promise<SessionInfo | null> {
 				? new Date(lastActivityTime)
 				: !Number.isNaN(headerTime)
 					? new Date(headerTime)
-					: stats.mtime;
+					: new Date(0);
 
 		return {
 			path: filePath,
@@ -775,39 +775,17 @@ async function buildSessionInfosWithConcurrency(
 	files: string[],
 	onLoaded: () => void,
 ): Promise<(SessionInfo | null)[]> {
-	const results: (SessionInfo | null)[] = new Array(files.length).fill(null);
-	const inFlight = new Set<Promise<void>>();
-	let nextIndex = 0;
-
-	const startNext = (): void => {
-		const index = nextIndex++;
-		const file = files[index];
-		if (!file) return;
-
-		let task: Promise<void>;
-		task = buildSessionInfo(file)
-			.then((info) => {
-				results[index] = info;
-			})
-			.catch(() => {
-				results[index] = null;
-			})
-			.finally(() => {
-				inFlight.delete(task);
-				onLoaded();
-			});
-		inFlight.add(task);
-	};
-
-	while (nextIndex < files.length || inFlight.size > 0) {
-		while (nextIndex < files.length && inFlight.size < MAX_CONCURRENT_SESSION_INFO_LOADS) {
-			startNext();
+	const results: (SessionInfo | null)[] = [];
+	for (const file of files) {
+		let info: SessionInfo | null = null;
+		try {
+			info = buildSessionInfo(file);
+		} catch {
+			info = null;
 		}
-		if (inFlight.size > 0) {
-			await Promise.race(inFlight);
-		}
+		results.push(info);
+		onLoaded();
 	}
-
 	return results;
 }
 
