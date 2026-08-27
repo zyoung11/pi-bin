@@ -3,7 +3,7 @@
  */
 
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import chalk from "chalk";
+import chalk from "../utils/mini-chalk.ts";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, ENV_SESSION_DIR } from "../config.ts";
 import type { TuiMode } from "../core/settings-manager.ts";
 

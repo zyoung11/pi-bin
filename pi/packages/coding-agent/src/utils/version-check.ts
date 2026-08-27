@@ -1,4 +1,4 @@
-import { compare, valid } from "semver";
+import { compare, valid } from "./mini-semver.ts";
 import { fetchWithRetry } from "./management-http.ts";
 import { getPiUserAgent } from "./pi-user-agent.ts";
 

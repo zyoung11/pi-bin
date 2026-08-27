@@ -4,7 +4,7 @@ import type { TuiMode as RendererTuiMode, ScrollViewScrollbar } from "../../../t
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-import lockfile from "proper-lockfile";
+import lockfile from "../utils/mini-lockfile.ts";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";

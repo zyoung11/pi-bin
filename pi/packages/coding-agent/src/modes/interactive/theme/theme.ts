@@ -10,7 +10,7 @@ import {
 	type SelectListTheme,
 	type SettingsListTheme,
 } from "../../../../../tui/src/index.ts";
-import chalk from "chalk";
+import chalk from "../../../utils/mini-chalk.ts";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";

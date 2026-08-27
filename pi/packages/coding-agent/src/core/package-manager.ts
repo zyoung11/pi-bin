@@ -1,4 +1,3 @@
-import type { ChildProcess, ChildProcessByStdio } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
 	chmodSync,
@@ -33,12 +32,11 @@ function getEnv(): NodeJS.ProcessEnv {
 }
 
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import type { Readable } from "node:stream";
 import ignore from "ignore";
-import { minimatch } from "minimatch";
-import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "semver";
+import { minimatch } from "../utils/mini-minimatch.ts";
+import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "../utils/mini-semver.ts";
 import { CONFIG_DIR_NAME } from "../config.ts";
-import { spawnProcess, spawnProcessSync } from "../utils/child-process.ts";
+import { spawnProcess, spawnProcessSync, waitForChildProcess, type ChildProcessHandle } from "../utils/child-process.ts";
 import { type GitSource, parseGitUrl } from "../utils/git.ts";
 import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
@@ -2601,7 +2599,7 @@ export class DefaultPackageManager implements PackageManager {
 		};
 	}
 
-	private spawnCommand(command: string, args: string[], options?: { cwd?: string }): ChildProcess {
+	private spawnCommand(command: string, args: string[], options?: { cwd?: string }): ChildProcessHandle {
 		const env = getEnv();
 		return spawnProcess(command, args, {
 			cwd: options?.cwd,
@@ -2614,7 +2612,7 @@ export class DefaultPackageManager implements PackageManager {
 		command: string,
 		args: string[],
 		options?: { cwd?: string; env?: Record<string, string> },
-	): ChildProcessByStdio<null, Readable, Readable> {
+	): ChildProcessHandle {
 		const baseEnv = getEnv();
 		const env = options?.env ? { ...baseEnv, ...options.env } : baseEnv;
 		return spawnProcess(command, args, {
@@ -2629,42 +2627,34 @@ export class DefaultPackageManager implements PackageManager {
 		args: string[],
 		options?: { cwd?: string; timeoutMs?: number; env?: Record<string, string> },
 	): Promise<string> {
-		return new Promise((resolvePromise, reject) => {
-			const child = this.spawnCaptureCommand(command, args, options);
-			let stdout = "";
-			let stderr = "";
-			let timedOut = false;
-			const timeout =
-				typeof options?.timeoutMs === "number"
-					? setTimeout(() => {
-							timedOut = true;
-							child.kill();
-						}, options.timeoutMs)
-					: undefined;
+		const child = this.spawnCaptureCommand(command, args, options);
+		let stdout = "";
+		let stderr = "";
+		let timedOut = false;
+		const timeout =
+			typeof options?.timeoutMs === "number"
+				? setTimeout(() => {
+						timedOut = true;
+						child.kill();
+					}, options.timeoutMs)
+				: undefined;
 
-			child.stdout?.on("data", (data) => {
-				stdout += data.toString();
-			});
-			child.stderr?.on("data", (data) => {
-				stderr += data.toString();
-			});
-			child.once("error", (error) => {
-				if (timeout) clearTimeout(timeout);
-				reject(error);
-			});
-			child.once("close", (code, signal) => {
-				if (timeout) clearTimeout(timeout);
-				if (timedOut) {
-					reject(new Error(`${command} ${args.join(" ")} timed out after ${options?.timeoutMs}ms`));
-					return;
-				}
-				if (code === 0) {
-					resolvePromise(stdout.trim());
-					return;
-				}
-				const exitStatus = code === null ? `signal ${signal ?? "unknown"}` : `code ${code}`;
-				reject(new Error(`${command} ${args.join(" ")} failed with ${exitStatus}: ${stderr || stdout}`));
-			});
+		child.stdout?.on("data", (data: Buffer) => {
+			stdout += data.toString();
+		});
+		child.stderr?.on("data", (data: Buffer) => {
+			stderr += data.toString();
+		});
+		return waitForChildProcess(child).then((code) => {
+			if (timeout) clearTimeout(timeout);
+			if (timedOut) {
+				throw new Error(`${command} ${args.join(" ")} timed out after ${options?.timeoutMs}ms`);
+			}
+			if (code === 0) {
+				return stdout.trim();
+			}
+			const exitStatus = code === null ? "terminated by signal" : `code ${code}`;
+			throw new Error(`${command} ${args.join(" ")} failed with ${exitStatus}: ${stderr || stdout}`);
 		});
 	}
 

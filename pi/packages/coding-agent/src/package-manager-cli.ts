@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { Markdown, type MarkdownTheme } from "../../tui/src/index.ts";
-import chalk from "chalk";
-import lockfile from "proper-lockfile";
+import chalk from "./utils/mini-chalk.ts";
+import lockfile from "./utils/mini-lockfile.ts";
 import { selectConfig } from "./cli/config-selector.ts";
 import { createProjectTrustContext } from "./cli/project-trust.ts";
 import {
@@ -690,23 +690,13 @@ async function getSelfUpdatePlan(force: boolean): Promise<SelfUpdatePlan> {
 async function runSelfUpdate(command: SelfUpdateCommand): Promise<void> {
 	console.log(chalk.dim(`Updating ${APP_NAME} with ${command.display}...`));
 	for (const step of command.steps ?? [command]) {
-		await new Promise<void>((resolve, reject) => {
-			const child = spawnProcess(step.command, step.args, {
-				stdio: "inherit",
-			});
-			child.on("error", (error) => {
-				reject(error);
-			});
-			child.on("close", (code, signal) => {
-				if (code === 0) {
-					resolve();
-				} else if (signal) {
-					reject(new Error(`${step.display} terminated by signal ${signal}`));
-				} else {
-					reject(new Error(`${step.display} exited with code ${code ?? "unknown"}`));
-				}
-			});
+		const child = spawnProcess(step.command, step.args, {
+			stdio: "inherit",
 		});
+		const code = await waitForChildProcess(child);
+		if (code !== 0) {
+			throw new Error(`${step.display} exited with code ${code ?? "unknown"}`);
+		}
 	}
 }
 

@@ -1,4 +1,4 @@
-import * as Diff from "diff";
+import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../../ai/src/utils/mini-diff.ts";
 import { theme } from "../theme/theme.ts";
 
 /**
@@ -24,7 +24,7 @@ function replaceTabs(text: string): string {
  * Strips leading whitespace from inverse to avoid highlighting indentation.
  */
 function renderIntraLineDiff(oldContent: string, newContent: string): { removedLine: string; addedLine: string } {
-	const wordDiff = Diff.diffWords(oldContent, newContent);
+	const wordDiff = diffWords(oldContent, newContent);
 
 	let removedLine = "";
 	let addedLine = "";

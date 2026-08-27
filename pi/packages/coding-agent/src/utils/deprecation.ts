@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import chalk from "../utils/mini-chalk.ts";
 
 const emittedDeprecationWarnings = new Set<string>();
 

@@ -1,4 +1,4 @@
-import { eastAsianWidth } from "get-east-asian-width";
+import { eastAsianWidth } from "./east-asian-width.ts";
 
 // segmenters (shared instance)
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });

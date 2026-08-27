@@ -2,7 +2,7 @@
  * Shared diff computation utilities for the edit and similar tools.
  */
 
-import * as Diff from "diff";
+import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
 
 export function detectLineEnding(content: string): "\r\n" | "\n" {
 	const crlfIdx = content.indexOf("\r\n");
@@ -364,9 +364,9 @@ export function applyEditsToNormalizedContent(
 
 /** Generate a standard unified patch. */
 export function generateUnifiedPatch(path: string, oldContent: string, newContent: string, contextLines = 4): string {
-	return Diff.createTwoFilesPatch(path, path, oldContent, newContent, undefined, undefined, {
+	return createTwoFilesPatch(path, path, oldContent, newContent, undefined, undefined, {
 		context: contextLines,
-		headerOptions: Diff.FILE_HEADERS_ONLY,
+		headerOptions: FILE_HEADERS_ONLY,
 	});
 }
 
@@ -379,7 +379,7 @@ export function generateDiffString(
 	newContent: string,
 	contextLines = 4,
 ): { diff: string; firstChangedLine: number | undefined } {
-	const parts = Diff.diffLines(oldContent, newContent);
+	const parts = diffLines(oldContent, newContent);
 	const output: string[] = [];
 
 	const oldLines = oldContent.split("\n");

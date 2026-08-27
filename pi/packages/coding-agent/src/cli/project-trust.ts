@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import chalk from "../utils/mini-chalk.ts";
 import type { AppMode, ProjectTrustContext } from "../core/project-trust.ts";
 import type { SettingsManager } from "../core/settings-manager.ts";
 import { showStartupInput, showStartupSelector } from "./startup-ui.ts";

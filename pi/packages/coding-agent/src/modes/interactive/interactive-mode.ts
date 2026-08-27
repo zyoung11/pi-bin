@@ -43,7 +43,7 @@ import {
 	TuiMainScreen,
 	visibleWidth,
 } from "../../../../tui/src/index.ts";
-import chalk from "chalk";
+import chalk from "../../utils/mini-chalk.ts";
 import { spawn } from "child_process";
 import {
 	APP_NAME,

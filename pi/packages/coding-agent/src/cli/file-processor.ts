@@ -4,7 +4,7 @@
 
 import { access, readFile, stat } from "node:fs/promises";
 import type { ImageContent } from "../../../ai/src/index.ts";
-import chalk from "chalk";
+import chalk from "../utils/mini-chalk.ts";
 import { resolve } from "path";
 import { resolveReadPath } from "../core/tools/path-utils.ts";
 import { processImage } from "../utils/image-process.ts";

@@ -2,7 +2,7 @@
  * One-time migrations that run on startup.
  */
 
-import chalk from "chalk";
+import chalk from "./utils/mini-chalk.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { CONFIG_DIR_NAME, getAgentDir, getBinDir } from "./config.ts";
