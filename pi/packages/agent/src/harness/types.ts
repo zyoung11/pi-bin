@@ -1,5 +1,6 @@
 import type { SimpleStreamOptions, Transport } from "../../../ai/src/index.ts";
-import type { Static, TSchema } from "typebox";
+import type { Static } from "typebox";
+import type { PiSchema as TSchema } from "../../../ai/src/schema.ts";
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "../types.ts";
 
 /** Result of a fallible operation. Expected failures are returned as `ok: false` instead of thrown. */

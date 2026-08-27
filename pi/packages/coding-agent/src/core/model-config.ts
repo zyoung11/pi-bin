@@ -1,9 +1,8 @@
 /** Immutable, credential-blind models.json snapshot. */
 
 import { readFile } from "node:fs/promises";
-import { Compile, Type } from "../../../ai/src/schema.ts";
+import { Compile, Type, type PiValidationError } from "../../../ai/src/schema.ts";
 import type { Static } from "typebox";
-import type { TLocalizedValidationError } from "typebox/error";
 import { stripJsonComments } from "../utils/json.ts";
 import { normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
@@ -216,7 +215,7 @@ export type ModelsJsonModelOverride = Static<typeof ModelOverrideSchema>;
 export type ModelsJsonProvider = Static<typeof ProviderConfigSchema>;
 type ModelsJson = Static<typeof ModelsConfigSchema>;
 
-function formatValidationPath(error: TLocalizedValidationError): string {
+function formatValidationPath(error: PiValidationError): string {
 	if (error.keyword === "required") {
 		const requiredProperties = (error.params as { requiredProperties?: string[] }).requiredProperties;
 		const requiredProperty = requiredProperties?.[0];

@@ -1,4 +1,5 @@
-import { type Static, Type } from "typebox";
+import { Type } from "../../../../ai/src/schema.ts";
+import type { Static } from "typebox";
 import type { AgentHarnessTool, FileError } from "../types.ts";
 import {
 	applyEditsToNormalizedContent,

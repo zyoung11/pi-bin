@@ -469,7 +469,7 @@ export interface AssistantImages {
 	timestamp: number; // Unix timestamp in milliseconds
 }
 
-import type { TSchema } from "typebox";
+import type { PiSchema } from "./schema.ts";
 
 /** OpenAI grammar variants for constrained sampling. */
 export type GrammarFormat = "openai_lark" | "openai_regex";
@@ -493,7 +493,7 @@ export type ConstrainedSamplingConfig =
 			variants: GrammarVariants;
 	  };
 
-export interface Tool<TParameters extends TSchema = TSchema> {
+export interface Tool<TParameters extends PiSchema = PiSchema> {
 	name: string;
 	description: string;
 	parameters: TParameters;

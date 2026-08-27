@@ -10,7 +10,8 @@ import {
 	type ExecutionToolContext,
 	type HarnessTool,
 } from "../../../agent/src/index.ts";
-import type { Static, TSchema } from "typebox";
+import type { Static } from "typebox";
+import type { PiSchema as TSchema } from "../../../ai/src/schema.ts";
 import { getExperimentalToolSampling } from "../core/experimental.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "../core/system-prompt.ts";
 import { bashToolSystemPromptContribution } from "../core/tools/bash.ts";

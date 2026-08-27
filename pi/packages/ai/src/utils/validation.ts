@@ -1,5 +1,4 @@
-import type { TLocalizedValidationError } from "typebox/error";
-import { Compile, Value } from "../schema.ts";
+import { Compile, Value, type PiValidationError } from "../schema.ts";
 import type { Tool, ToolCall } from "../types.ts";
 
 interface JsonSchemaObject {
@@ -268,7 +267,7 @@ function getValidator(schema: Tool["parameters"]): ReturnType<typeof Compile> {
 	return Compile(schema);
 }
 
-function formatValidationPath(error: TLocalizedValidationError): string {
+function formatValidationPath(error: PiValidationError): string {
 	if (error.keyword === "required") {
 		const requiredProperties = (error.params as { requiredProperties?: string[] }).requiredProperties;
 		const requiredProperty = requiredProperties?.[0];

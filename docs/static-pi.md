@@ -196,10 +196,41 @@
 
 **scriptc 新基线（全图直连后）**：691 个诊断 / 100 个文件 = SC2013×192（阶段 6 正主）+ 非 npm ×499。注意「613→1→691」的假象：中间那次 1 error 是 SC1016 循环在 preflight 阶段致命中止，隐藏了后续全部分析；循环修复后全图真实面才显现。密集文件 Top：package-manager-cli(96)、main.ts(87)、model-config(40，21×SC2011 any)、syntax-highlight(24)、theme(23)、session-selector(18，16×SC2002 record 形状)、first-time-setup(17×SC2002)、config-selector(18)、rpc-mode(16)、child-process(15，14×SC2020 node API)、tui/utils(13，6×SC1120 新码待查)。新增面：TUI 全源码、telemetry record 形状（SC2002×53）、ai/schema.ts 6 处（typebox 品牌类型溯源，决策 B 后需复测）。
 
+**基线复现与 typebox 残留清理（2026-08-27 夜）**：
+
+- 691 全量复现；逐码分布：SC2013×192、SC1090×177（综合码，变体见下）、SC2020×100、SC2004×62（声明级联，修根因即消）、SC2011×53、SC2002×53、SC2009×29、SC2003×9、SC2012×6（变量 specifier `import()`：ai/auth/context.ts + env-api-keys.ts，与静态编译原理冲突，待删/改）、SC1120×6（tui/utils 正则 v flag）、SC1100×2（unknown 传参需运行时校验 cast）、SC1063×1（catch 绑定）、SC1043×1（`!== null` 比较）
+- SC1090 消息变体实测：method calls like 'X' ×84、assignment to non-variables ×23（`process.exitCode = 1`）、calling a function value with N args where lowered signature takes M ×13、constructing through a class value ×7、narrowing ×5、reading ×4、generic method no object literal ×4、object spread ×3、symbol-keyed writes ×2 等长尾
+- 阶段 3 漏网最后一处 typebox **value** import：`agent/harness/tools/edit.ts`（16 个文件中唯一残留，其余均已切 mini）→ 换源 `ai/src/schema.ts`，-1 error。教训：当时“16 文件换源”没有全图 grep 收口
+
+**scriptc 静态表示边界实验（scratch 对照法，/tmp/scx t1–t22）**：
+
+- **npm d.ts 接口类型无 value 表示**：即使空接口，作为参数/返回类型即 SC2011/SC2013；该类型的值作实参传递同样被归罪“package X”；本地声明完全豁免。非导出内部 helper 里的 npm 类型不被检查（旧 schema.ts plainOptions(TSchemaOptions) 未被打标），但 exported 声明的签名必须全本地
+- **cast 全部受形状检查**：index-signature record → 精确 brand 即使 `as unknown as` 双跳也被 SC2002 拒绝（“source's index signature could hold it at runtime”）；同句字面量含目标显式字段再 cast 可过 → 通用 `withKind<T>(schema: Record): T` 形态不可行，builder 必须逐方法直返字面量
+- **record 存储的函数值丢失可选参数**：method shorthand/箭头带 `?` 参数一律 lower 成必填签名，零参调用 SC1090；**类方法**保留可选语义、泛型方法正确单态化、`export const Type = new Class()` 实例可表示 → builder 改类形态（调用点语法零变化）
+- index signature 类型不能作函数值参数/返回（纯 optional 字段接口 OK）；顶层函数声明（含可选参）、`unknown` 参、泛型函数声明、类型谓词值函数、rest `[...T]` 参数均支持
+- `Object.defineProperty` / `Object.hasOwn` 无 lowering；compiled 函数上的 `.call/.apply/.bind` 禁（SC1090，编译调用无 this/arguments 可重路由）；动态键读对异构字段精确 record 不可行、cast 成 Record 后 OK；`in` 运算符可用；`new RegExp(string)` 可用
+- 类体成员间**没有逗号**（对象字面量语法惯性踩坑，tsgo/esbuild/解析器三方一致拒绝）
+- tsgo（native-preview dev）偶发崩溃 `Target signature provides too few arguments` exit 2 无诊断输出，重跑即恢复，非代码问题
+
+**schema.ts 重写（本地品牌 + SchemaBuilders 类）**：
+
+- 本地镜像 PiString/PiNumber/PiInteger/PiBoolean/PiNull/PiUnknown/PiLiteral/PiObject/PiArray/PiUnion/PiOptional/PiRecord/PiRef/PiCyclic/PiUnsafe（字段形状与 typebox 1.x 严格一致，Static<> 按结构字段 XFromKeywords 匹配，解析结果同构）+ 无 index signature 的本地 options 接口（覆盖 pi 全部实传选项：description/minLength/maxLength/pattern/minimum/maximum/multipleOf/minItems/maxItems/additionalProperties）
+- 导出 `PiSchema` 空接口基类（TSchema 镜像）；ai/index.ts 以名字 `TSchema` 再导出本地类型，外部消费方零改动；Tool(ai/types)/AgentTool(agent/types)/harness types/tool-types/create-harness 的泛型 bound+default 切本地 PiSchema；`TLocalizedValidationError` → 本地 `PiValidationError`（validation.ts + model-config.ts 换源）
+- **类型层等价验证踩坑**：① required 字段必须是**元组**（TRequiredArray 语义）——非元组数组使 Static 静默退化（纯必填对象全变 optional；XStaticAnyOf 只匹配 `[infer L, ...R]` 元组模式，union 塌 never）；② Union 参数必须保留 `[...Types]` rest 形态，去掉则推断退化成联合数组 → protocol ClientMessage/ServerMessage Static 塌 never、client.ts 全红。Eq 对照（mixed/plain/all-opt 三形状）全 true
+- typebox `TRequiredArray` 本身不可用：types-only import 照样被 scriptc 溯源 npm alias 判“does not compile”（SC2009）；自制本地 PiUnionToTuple 版又被 tsgo 以 TS2589 深度爆炸拒于 protocol/client → **未破**（见下墙 2）
+- 验证状态：`tsgo --noEmit` 非 test 清零（test/ 604 行遗留不动）；`node packages/coding-agent/src/cli.ts --list-models` 运行时正常（llamacpp 4 模型，models.json 校验走新 Compile.Check）。当前工作区为 checkpoint 状态：类型层/运行时达标，scriptc 尚红（712，schema.ts 自身 99）
+- scriptc：691→712——typebox 归罪的 37 SC2013 + 此前被短路隐藏的面消失，schema.ts 自身暴露 99 个新诊断（SC2020 defineProperty×1、SC2002 withKind cast×47、SC1090 泛型 Properties 动态键读×17、SC2009 条件类型成员×28）；新分布：SC1090×199、SC2013×157(npm)、SC2020×100、SC2002×100、SC2004×60、SC2009×56、SC2011×15、SC2003×9、SC2012×6、SC1120×6、SC1100×2、SC1063×1、SC1043×1
+
+**三堵未破的墙（下一步正题）**：
+
+1. **非枚举标记保不住**：defineProperty 无 lowering → ~kind/~optional/~unsafe 改可枚举普通赋值 + 序列化出口 `getJsonSchemaToolParameters` clone 时剥离 `~*`/`__piCompiledValidator` 键（wire JSON 相对上游多键，行为偏差待用户确认；strict 路径 structuredClone 保留自有属性不受影响）。备选：彻底不存 ~kind（运行时唯一读者是 Object builder 的 ~optional 探测），只留 ~optional
+2. **泛型单态化后条件类型 alias 成员保持未求值**（SC2009）：PiLiteral.type 的条件字段与 PiObject.required 双双中招；required 的本地元组机制须同时满足 tsgo 深度预算（TS2589）与 scriptc 可求值性，张力未解。实验确认非泛型上下文里本地条件 alias 成员可编译 → Literal 或可改非泛型重载形态规避，待验证
+3. **builder cast 模式重构**：弃通用 withKind，每 builder 改“显式字段字面量 + spread options + 单 cast”（t18 v2/v3 已验证）；Optional/Unsafe/Cyclic 的 cloneOwn 路径须在此形态下重做（clone 结果回 brand 的 cast 如何过 SC2002 待实验）
+
 **待办（顺序）**：
 
-1. 阶段 5 正题：499 个非 npm 诊断逐项修（any→unknown、SC2020 node API 替代、record 形状对齐、SC1120/SC2003/SC2012 逐码排查）
-2. pi-tui 三个 node:module 文件的程序内局部修复（原生加速器加载在 Linux 目标是死代码，注入缝 + no-op 默认）
-3. ai/schema.ts 的 typebox 品牌类型若被溯源怪罪到 typebox 包 → d.ts 返回类型改本地 interface（保持 TSchema 结构兼容）
+1. schema.ts 三墙攻坚（上节 1–3）：标记可枚举化 + 出口剥离、builder 字面量直返重构、required/Literal 的条件类型成员形态定案；目标 schema.ts 自身 scriptc 清零
+2. 阶段 5 正题：其余非 npm 诊断批量修（any→unknown、SC2020 node API 替代、record 形状对齐、SC1120 v flag 降 u flag、SC2003/SC2012 逐点）——注意修一处声明会消 SC2004 级联，按根因文件排批
+3. pi-tui 三个 node:module 文件的程序内局部修复（原生加速器加载在 Linux 目标是死代码，注入缝 + no-op 默认）
 4. 阶段 6：--npm-static 第三方逐个上墙验证，撞墙的自研 mini 实现或砍功能
 5. 构建脚本正式拆除 + 全量构建 + 冒烟（阶段 7）
