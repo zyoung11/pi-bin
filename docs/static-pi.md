@@ -173,6 +173,10 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - **能力确认**：index-signature record 支持（string/number 键；值域含 unknown/函数/Maps/Sets/嵌套 record/RegExp——SC2006 注释）；`string & {}` 键按 string；union 臂逐个映射、unmappable 臂毒化整个 union（除非 jsval/dyn 吸收）；SC2005 泛型签名/SC2007 重载/SC2008 交叉各自有专属 fence
 - **调试方法**：改 src 后 `cd scriptc/packages/compiler && node node_modules/typescript5/bin/tsc -p tsconfig.json` 重建 dist（CLI 走 dist，src 补丁必须重建才生效）；在 mapType/union/record 失败点插 `if (process.env.SC_DEBUG_FAIL) console.error(...)` + `SC_DEBUG_FAIL=1` 运行。**严禁**以 `return null;` 文本匹配批量插桩——会命中模板字符串内的文本破坏语法（本次事故：type-mapper 三处语法错，已还原 897df06 干净版）
 
+## 揭幕完成（关键节点）：Model<any> → Model<Api> 后 320→416
+
+这不是退步：any 类型成员原先让 scriptc 跳过整段分析（any 是 dynamic-only 毒源，含 any 的 record/函数直接进 island 通道，内部与下游全不检查）。换成 Model<Api> 后这些代码路径进入静态分析，暴露其真实诊断。**416 是全图首次"完全可见"的状态**——此后每个修复都是净减少，不会再有大幅揭幕。SC2020 的新增主要是 node:child_process/process.stdin/stdout 系（spawn 选项、writableLength）、Math.max、Array.from、Object.hasOwn 等 stdlib 长尾。
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。
