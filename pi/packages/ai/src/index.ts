@@ -1,4 +1,4 @@
-export type { Static } from "typebox";
+export type { Static } from "./schema.ts";
 export type { PiSchema as TSchema } from "./schema.ts";
 // Core only, side-effect free: no generated catalogs, no provider factories,
 // no api-registry, no OAuth implementations, no compat. Provider factories

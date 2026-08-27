@@ -1,11 +1,10 @@
 import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import { Type } from "../../../../ai/src/schema.ts";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/index.ts";
 import { spawn } from "child_process";
 import path from "path";
-import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";

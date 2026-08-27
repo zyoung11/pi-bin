@@ -1,5 +1,5 @@
 import Type from "../../ai/src/schema.ts";
-import type { Static } from "typebox";
+import type { Static } from "../../ai/src/schema.ts";
 
 export const PROTOCOL_VERSION = 1 as const;
 

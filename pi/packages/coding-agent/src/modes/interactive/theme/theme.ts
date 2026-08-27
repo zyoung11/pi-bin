@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
-import { Compile, Type } from "../../../../../ai/src/schema.ts";
+import { type Static, Compile, Type } from "../../../../../ai/src/schema.ts";
 import {
 	type EditorTheme,
 	getCapabilities,
@@ -11,7 +11,6 @@ import {
 	type SettingsListTheme,
 } from "../../../../../tui/src/index.ts";
 import chalk from "chalk";
-import type { Static } from "typebox";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";

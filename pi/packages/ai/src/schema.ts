@@ -1,15 +1,16 @@
 /**
- * Minimal JSON Schema builder, validator and converter with the same runtime representation as
- * typebox 1.x: plain objects carrying non-enumerable "~kind"/"~optional"/"~unsafe" marker
- * properties. Schemas serialize to clean JSON.
+ * Minimal JSON Schema builder, validator and converter producing typebox-1.x-compatible wire
+ * shapes: plain objects whose JSON serialization is byte-identical to the typebox originals
+ * (marker properties never reach the output).
  *
- * Brand types are local structural mirrors of the typebox 1.x brands so that `Static<typeof schema>`
- * resolution through typebox's Static<> machinery stays identical to the typebox original, while every
- * value in this module remains statically representable (scriptc has no representation for values typed
- * by npm package declarations, and record-stored function values lose optional parameters).
+ * Brands are local structural mirrors. Their members carry the runtime shape (records, arrays,
+ * plain strings) plus every option field that must survive scriptc's width-coerce casts, while
+ * type precision flows through the generic parameters; the local `Static` machinery resolves
+ * `Static<typeof schema>` from those parameters, keeping results identical to typebox's Static
+ * without importing any npm type.
  */
 
-import type { Static, TRequiredArray } from "typebox";
+export type PiLiteralValue = string | number | boolean;
 
 export interface PiSchema {}
 
@@ -47,148 +48,202 @@ export interface PiObjectOptions extends PiSchemaOptions {
 }
 
 export interface PiString {
-	"~kind": "String";
 	type: "string";
+	description?: string;
+	minLength?: number;
+	maxLength?: number;
+	pattern?: string;
 }
 
 export interface PiNumber {
-	"~kind": "Number";
 	type: "number";
+	description?: string;
+	minimum?: number;
+	maximum?: number;
+	multipleOf?: number;
 }
 
 export interface PiInteger {
-	"~kind": "Integer";
 	type: "integer";
+	description?: string;
+	minimum?: number;
+	maximum?: number;
+	multipleOf?: number;
 }
 
 export interface PiBoolean {
-	"~kind": "Boolean";
 	type: "boolean";
+	description?: string;
 }
 
 export interface PiNull {
-	"~kind": "Null";
 	type: "null";
+	description?: string;
 }
 
 export interface PiUnknown {
-	"~kind": "Unknown";
+	description?: string;
 }
 
-export type PiLiteralValue = string | number | boolean;
-
-type PiLiteralTypeName<Value extends PiLiteralValue> = Value extends boolean
-	? "boolean"
-	: Value extends number
-		? "number"
-		: "string";
-
-export interface PiLiteral<Value extends PiLiteralValue> {
-	"~kind": "Literal";
-	type: PiLiteralTypeName<Value>;
+export interface PiLiteral<Value extends PiLiteralValue = PiLiteralValue> {
+	type: string;
 	const: Value;
+	description?: string;
+}
+
+export interface PiOptional<Sub extends PiSchema = PiSchema> {
+	"~optional": Sub;
 }
 
 export interface PiObject<Properties extends Record<string, PiSchema> = Record<string, PiSchema>> {
-	"~kind": "Object";
 	type: "object";
-	properties: Properties;
-	required: TRequiredArray<Properties>;
+	properties: Record<string, PiSchema>;
+	required?: string[];
+	description?: string;
+	additionalProperties?: boolean | Record<string, unknown>;
 }
 
 export interface PiArray<Items extends PiSchema = PiSchema> {
-	"~kind": "Array";
 	type: "array";
-	items: Items;
+	items: PiSchema;
+	description?: string;
+	minItems?: number;
+	maxItems?: number;
 }
 
 export interface PiUnion<Types extends PiSchema[] = PiSchema[]> {
-	"~kind": "Union";
-	anyOf: Types;
+	anyOf: PiSchema[];
+	description?: string;
 }
 
-export type PiOptional<Sub extends PiSchema> = Sub & { "~optional": true };
-
-export interface PiRecord<Key extends string, Value extends PiSchema> {
-	"~kind": "Record";
+export interface PiRecord<Key extends PiSchema = PiSchema, Value extends PiSchema = PiSchema> {
 	type: "object";
-	patternProperties: { [Pattern in Key]: Value };
+	patternProperties: { "^.*$": Value };
+	description?: string;
+	additionalProperties?: boolean | Record<string, unknown>;
 }
 
-export interface PiRef<Name extends string> {
-	"~kind": "Ref";
+export interface PiRef<Name extends string = string> {
 	$ref: Name;
+	description?: string;
 }
 
-export interface PiCyclic<Defs extends Record<string, PiSchema>, Ref extends string> {
-	"~kind": "Cyclic";
-	$defs: Defs;
+export interface PiCyclic<Defs extends Record<string, PiSchema> = Record<string, PiSchema>, Ref extends string = string> {
+	$defs: Record<string, PiSchema>;
 	$ref: Ref;
+	description?: string;
 }
 
-export interface PiUnsafe<Type extends unknown = unknown> {
-	"~unsafe": Type;
-}
+export interface PiUnsafe<Type extends unknown = unknown> {}
 
-const KIND_KEY = "~kind";
+export type Static<S> = StaticOf<S, StaticDefs>;
+
+type StaticDefs = Record<string, unknown>;
+
+type StaticOf<S, Defs extends StaticDefs> = [S] extends [PiOptional<infer Sub>]
+	? StaticOf<Sub, Defs> | undefined
+	: [S] extends [PiCyclic<infer Defs2, infer Ref>]
+		? StaticCyclicRef<Defs2, Ref>
+		: [S] extends [PiRef<infer Name>]
+			? StaticRef<Name, Defs>
+			: [S] extends [PiObject<infer Properties>]
+				? StaticObjectOf<Properties, Defs>
+				: [S] extends [PiRecord<infer _RecordKey, infer Value>]
+					? { [key: string]: StaticOf<Value, Defs> }
+					: [S] extends [PiArray<infer Items>]
+						? StaticOf<Items, Defs>[]
+						: [S] extends [PiUnion<infer Types>]
+							? StaticUnionOf<Types, Defs>
+							: [S] extends [PiLiteral<infer Value>]
+								? Value
+								: [S] extends [PiString]
+									? string
+									: [S] extends [PiNumber]
+										? number
+										: [S] extends [PiInteger]
+											? number
+											: [S] extends [PiBoolean]
+												? boolean
+												: [S] extends [PiNull]
+													? null
+													: [S] extends [PiUnsafe<infer Type>]
+														? Type
+														: unknown;
+
+type StaticCyclicRef<Defs, Ref extends string> = [Defs] extends [Record<string, PiSchema>]
+	? [Ref] extends [keyof Defs & string]
+		? StaticOf<Defs[Ref], Defs>
+		: unknown
+	: unknown;
+
+type StaticRef<Name extends string, Defs extends StaticDefs> = [Name] extends [keyof Defs & string]
+	? StaticOf<Defs[Name], Defs>
+	: unknown;
+
+type IsOptionalProp<P> = [P] extends [PiOptional<PiSchema>] ? true : false;
+
+type StaticOptionalInner<S, Defs extends StaticDefs> = [S] extends [PiOptional<infer Sub>]
+	? StaticOf<Sub, Defs>
+	: unknown;
+
+type StaticObjectOf<Properties, Defs extends StaticDefs> = {
+	[K in keyof Properties as IsOptionalProp<Properties[K]> extends true ? never : K]: StaticOf<Properties[K], Defs>;
+} & {
+	[K in keyof Properties as IsOptionalProp<Properties[K]> extends true ? K : never]?: StaticOptionalInner<
+		Properties[K],
+		Defs
+	>;
+};
+
+type StaticUnionOf<Types, Defs extends StaticDefs> = Types extends [infer Left, ...infer Rest]
+	? StaticOf<Left, Defs> | StaticUnionOf<Rest, Defs>
+	: never;
+
 const OPTIONAL_KEY = "~optional";
-const UNSAFE_KEY = "~unsafe";
-const VALIDATOR_KEY = "__piCompiledValidator";
 
 type SchemaObject = Record<string, unknown>;
 
-function defineHidden(target: SchemaObject, key: string, value: unknown): void {
-	Object.defineProperty(target, key, { configurable: true, enumerable: false, writable: true, value });
-}
-
-function withKind<Brand>(kind: string, schema: SchemaObject): Brand {
-	defineHidden(schema, KIND_KEY, kind);
-	return schema as unknown as Brand;
-}
-
-function cloneOwn(source: SchemaObject): SchemaObject {
-	const out: SchemaObject = {};
-	for (const key of Object.keys(source)) {
-		out[key] = source[key];
-	}
-	if (KIND_KEY in source) defineHidden(out, KIND_KEY, source[KIND_KEY]);
-	if (OPTIONAL_KEY in source) defineHidden(out, OPTIONAL_KEY, source[OPTIONAL_KEY]);
-	if (UNSAFE_KEY in source) defineHidden(out, UNSAFE_KEY, source[UNSAFE_KEY]);
-	return out;
-}
-
-function plainOptions(options?: unknown): SchemaObject {
-	const out: SchemaObject = {};
-	if (!options || typeof options !== "object") return out;
-	for (const key of Object.keys(options)) {
-		out[key] = (options as Record<string, unknown>)[key];
-	}
-	return out;
-}
-
 class SchemaBuilders {
 	String(options?: PiStringOptions): PiString {
-		return withKind<PiString>("String", { type: "string", ...plainOptions(options) });
+		return {
+			type: "string",
+			description: options?.description,
+			minLength: options?.minLength,
+			maxLength: options?.maxLength,
+			pattern: options?.pattern,
+		} as PiString;
 	}
 
 	Number(options?: PiNumberOptions): PiNumber {
-		return withKind<PiNumber>("Number", { type: "number", ...plainOptions(options) });
+		return {
+			type: "number",
+			description: options?.description,
+			minimum: options?.minimum,
+			maximum: options?.maximum,
+			multipleOf: options?.multipleOf,
+		} as PiNumber;
 	}
 
 	Integer(options?: PiNumberOptions): PiInteger {
-		return withKind<PiInteger>("Integer", { type: "integer", ...plainOptions(options) });
+		return {
+			type: "integer",
+			description: options?.description,
+			minimum: options?.minimum,
+			maximum: options?.maximum,
+			multipleOf: options?.multipleOf,
+		} as PiInteger;
 	}
 
 	Boolean(options?: PiSchemaOptions): PiBoolean {
-		return withKind<PiBoolean>("Boolean", { type: "boolean", ...plainOptions(options) });
+		return { type: "boolean", description: options?.description } as PiBoolean;
 	}
 
 	Null(options?: PiSchemaOptions): PiNull {
-		return withKind<PiNull>("Null", { type: "null", ...plainOptions(options) });
+		return { type: "null", description: options?.description } as PiNull;
 	}
 
 	Unknown(options?: PiSchemaOptions): PiUnknown {
-		return withKind<PiUnknown>("Unknown", plainOptions(options));
+		return { description: options?.description } as PiUnknown;
 	}
 
 	Literal<Value extends PiLiteralValue>(value: Value, options?: PiSchemaOptions): PiLiteral<Value> {
@@ -196,54 +251,70 @@ class SchemaBuilders {
 			throw new Error("typebox Literal supports string, number and boolean values");
 		}
 		const typeName = typeof value === "string" ? "string" : typeof value === "boolean" ? "boolean" : "number";
-		return withKind<PiLiteral<Value>>("Literal", { type: typeName, const: value, ...plainOptions(options) });
+		return { type: typeName, const: value, description: options?.description } as PiLiteral<Value>;
 	}
 
 	Object<Properties extends Record<string, PiSchema>>(
 		properties: Properties,
 		options?: PiObjectOptions,
 	): PiObject<Properties> {
+		const props: Record<string, PiSchema> = properties;
 		const required: string[] = [];
-		for (const key of Object.keys(properties)) {
-			if ((properties[key] as SchemaObject)[OPTIONAL_KEY] !== true) required.push(key);
+		const clean: Record<string, PiSchema> = {};
+		for (const key of Object.keys(props)) {
+			const prop = props[key];
+			if (OPTIONAL_KEY in prop) {
+				clean[key] = (prop as PiOptional<PiSchema>)["~optional"];
+			} else {
+				clean[key] = prop;
+				required.push(key);
+			}
 		}
-		const schema: SchemaObject = { type: "object" };
-		if (required.length > 0) schema.required = required;
-		schema.properties = properties;
-		return withKind<PiObject<Properties>>("Object", { ...schema, ...plainOptions(options) });
+		const additional = options?.additionalProperties as boolean | Record<string, unknown> | undefined;
+		return {
+			type: "object",
+			required: required.length > 0 ? required : undefined,
+			properties: clean,
+			description: options?.description,
+			additionalProperties: additional,
+		} as PiObject<Properties>;
 	}
 
 	Array<Items extends PiSchema>(items: Items, options?: PiArrayOptions): PiArray<Items> {
-		return withKind<PiArray<Items>>("Array", { type: "array", items, ...plainOptions(options) });
+		return {
+			type: "array",
+			items,
+			description: options?.description,
+			minItems: options?.minItems,
+			maxItems: options?.maxItems,
+		} as PiArray<Items>;
 	}
 
 	Union<Types extends PiSchema[]>(anyOf: [...Types], options?: PiSchemaOptions): PiUnion<Types> {
-		return withKind<PiUnion<Types>>("Union", { anyOf, ...plainOptions(options) });
+		const list: PiSchema[] = anyOf;
+		return { anyOf: list, description: options?.description } as PiUnion<Types>;
 	}
 
 	Optional<Sub extends PiSchema>(type: Sub): PiOptional<Sub> {
-		const clone = cloneOwn(type as unknown as SchemaObject);
-		defineHidden(clone, OPTIONAL_KEY, true);
-		return clone as unknown as PiOptional<Sub>;
+		return { "~optional": type } as PiOptional<Sub>;
 	}
 
 	Record<Key extends PiSchema, Value extends PiSchema>(
 		key: Key,
 		value: Value,
 		options?: PiObjectOptions,
-	): PiRecord<"^.*$", Value> {
-		if ((key as SchemaObject).type !== "string") {
-			throw new Error("mini schema Record supports string keys only");
-		}
-		return withKind<PiRecord<"^.*$", Value>>("Record", {
+	): PiRecord<Key, Value> {
+		const additional = options?.additionalProperties as boolean | Record<string, unknown> | undefined;
+		return {
 			type: "object",
 			patternProperties: { "^.*$": value },
-			...plainOptions(options),
-		});
+			description: options?.description,
+			additionalProperties: additional,
+		} as PiRecord<Key, Value>;
 	}
 
 	Ref<Name extends string>(ref: Name, options?: PiSchemaOptions): PiRef<Name> {
-		return withKind<PiRef<Name>>("Ref", { $ref: ref, ...plainOptions(options) });
+		return { $ref: ref, description: options?.description } as PiRef<Name>;
 	}
 
 	Cyclic<Defs extends Record<string, PiSchema>, Ref extends string>(
@@ -251,23 +322,34 @@ class SchemaBuilders {
 		$ref: Ref,
 		options?: PiSchemaOptions,
 	): PiCyclic<Defs, Ref> {
-		const defs: SchemaObject = {};
-		for (const key of Object.keys($defs)) {
-			defs[key] = { ...cloneOwn($defs[key] as unknown as SchemaObject), $id: key };
+		const inputDefs: Record<string, PiSchema> = $defs;
+		const defs: Record<string, PiSchema> = {};
+		for (const key of Object.keys(inputDefs)) {
+			defs[key] = { ...(inputDefs[key] as SchemaObject), $id: key } as PiSchema;
 		}
-		return withKind<PiCyclic<Defs, Ref>>("Cyclic", { $defs: defs, $ref, ...plainOptions(options) });
+		return { $defs: defs, $ref, description: options?.description } as PiCyclic<Defs, Ref>;
 	}
 
 	Unsafe<Type>(schema: PiSchema): PiUnsafe<Type> {
-		const clone = cloneOwn(schema as unknown as SchemaObject);
-		defineHidden(clone, UNSAFE_KEY, null);
-		return clone as unknown as PiUnsafe<Type>;
+		return schema as PiUnsafe<Type>;
 	}
 }
 
 export const Type = new SchemaBuilders();
 
 export default Type;
+
+export interface CompiledSchema {
+	Check(value: unknown): boolean;
+	Errors(value: unknown): PiValidationError[];
+}
+
+interface ValidatorCacheEntry {
+	schema: SchemaObject;
+	compiled: CompiledSchema;
+}
+
+const validatorCache: ValidatorCacheEntry[] = [];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -289,16 +371,11 @@ function deepEqual(left: unknown, right: unknown): boolean {
 	const b = right as Record<string, unknown>;
 	const aKeys = Object.keys(a);
 	if (aKeys.length !== Object.keys(b).length) return false;
-	for (const key of aKeys) {
-		if (!(key in b)) return false;
-		if (!deepEqual(a[key], b[key])) return false;
+	for (const aKey of aKeys) {
+		if (!(aKey in b)) return false;
+		if (!deepEqual(a[aKey], b[aKey])) return false;
 	}
 	return true;
-}
-
-export interface CompiledSchema {
-	Check(value: unknown): boolean;
-	Errors(value: unknown): PiValidationError[];
 }
 
 interface ValidatorContext {
@@ -681,13 +758,12 @@ function createCompiled(schema: SchemaObject): CompiledSchema {
 }
 
 export function Compile(schema: PiSchema): CompiledSchema {
-	const object = schema as unknown as SchemaObject;
-	if (isPlainObject(object)) {
-		const cached = object[VALIDATOR_KEY] as CompiledSchema | undefined;
-		if (cached && typeof cached.Check === "function") return cached;
+	const object = schema as SchemaObject;
+	for (const entry of validatorCache) {
+		if (entry.schema === object) return entry.compiled;
 	}
 	const compiled = createCompiled(object);
-	if (isPlainObject(object)) defineHidden(object, VALIDATOR_KEY, compiled);
+	validatorCache.push({ schema: object, compiled });
 	return compiled;
 }
 
@@ -743,7 +819,7 @@ export const Value = {
 	},
 
 	Convert(schema: PiSchema, value: unknown): void {
-		const root = schema as unknown as SchemaObject;
+		const root = schema as SchemaObject;
 		const defs: Record<string, SchemaObject> = {};
 		collectDefs(root, defs);
 		convertNodeWithContext(root, defs, value);

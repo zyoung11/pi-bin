@@ -13,8 +13,7 @@ import type {
 	ToolResultMessage,
 	Usage,
 } from "../../ai/src/index.ts";
-import type { Static } from "typebox";
-import type { PiSchema as TSchema } from "../../ai/src/schema.ts";
+import type { Static,  PiSchema as TSchema } from "../../ai/src/schema.ts";
 
 /**
  * Stream function used by the agent loop. `Models.streamSimple` satisfies

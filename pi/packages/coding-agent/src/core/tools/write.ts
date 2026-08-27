@@ -1,9 +1,8 @@
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import { Type } from "../../../../ai/src/schema.ts";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Container, Text } from "../../../../tui/src/index.ts";
 import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
 import { dirname } from "path";
-import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";
 import { getExperimentalToolSampling } from "../experimental.ts";

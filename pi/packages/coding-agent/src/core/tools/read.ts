@@ -1,11 +1,10 @@
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import type { ImageContent, Model, TextContent } from "../../../../ai/src/index.ts";
-import { Type } from "../../../../ai/src/schema.ts";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/index.ts";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile } from "fs/promises";
-import type { Static } from "typebox";
 import { getReadmePath } from "../../config.ts";
 import { keyHint, keyText } from "../../modes/interactive/components/keybinding-hints.ts";
 import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";

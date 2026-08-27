@@ -1,9 +1,8 @@
 import { readdir as fsReaddir, stat as fsStat } from "node:fs/promises";
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import { Type } from "../../../../ai/src/schema.ts";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/index.ts";
 import nodePath from "path";
-import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { pathExists, resolveToCwd } from "./path-utils.ts";

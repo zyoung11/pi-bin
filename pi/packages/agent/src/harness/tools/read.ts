@@ -1,6 +1,5 @@
 import type { ImageContent, TextContent } from "../../../../ai/src/index.ts";
-import { Type } from "../../../../ai/src/schema.ts";
-import type { Static } from "typebox";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import type { AgentHarnessTool } from "../types.ts";
 import { getOrThrow } from "../types.ts";
 import {

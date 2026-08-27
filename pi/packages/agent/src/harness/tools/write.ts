@@ -1,5 +1,4 @@
-import { Type } from "../../../../ai/src/schema.ts";
-import type { Static } from "typebox";
+import { Type, type Static } from "../../../../ai/src/schema.ts";
 import type { AgentHarnessTool } from "../types.ts";
 import { getOrThrow } from "../types.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
