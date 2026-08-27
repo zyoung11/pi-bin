@@ -1,5 +1,5 @@
 import ignore from "ignore";
-import { parse } from "yaml";
+import { parse } from "../../../ai/src/utils/mini-yaml.ts";
 import { type ExecutionEnv, type FileInfo, type Result, type Skill, toError } from "./types.ts";
 
 const MAX_NAME_LENGTH = 64;

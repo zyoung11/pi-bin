@@ -67,7 +67,6 @@ export interface SettingsConfig {
 	terminalTheme: TerminalTheme;
 	availableThemes: string[];
 	hideThinkingBlock: boolean;
-	mermaidRenderingMode: MermaidRenderingMode;
 	showCacheMissNotices: boolean;
 	collapseChangelog: boolean;
 	enableInstallTelemetry: boolean;
@@ -496,13 +495,6 @@ export class SettingsSelectorComponent extends Container {
 				description: "Hide thinking blocks in assistant responses",
 				currentValue: config.hideThinkingBlock ? "true" : "false",
 				values: ["true", "false"],
-			},
-			{
-				id: "mermaid-rendering",
-				label: "Mermaid diagrams",
-				description: "Render Mermaid code blocks as Unicode diagrams",
-				currentValue: config.mermaidRenderingMode,
-				values: ["off", "final", "streaming"],
 			},
 			{
 				id: "cache-miss-notices",
