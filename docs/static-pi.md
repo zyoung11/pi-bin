@@ -149,8 +149,12 @@
 - [x] `packages/ai/src/api/openai-http.ts`：streamOpenAIChatCompletions（fetch POST + 用户 signal/timeout 组合中止 + 非 2xx 错误形状对齐 SDK）+ sseJsonLines（TextDecoder stream:true、行状态机、多行 data join、[DONE]）
 - [x] openai-completions.ts 换源：`import OpenAI from "openai"` → `import type`（namespace 类型 `OpenAI.Chat.Completions.*` 仍可用，tsgo 验证通过），createClient → createHttpTransport 产 `{url, apiKey, headers}`，请求调用切到 streamOpenAIChatCompletions（重试层零改动）
 - [x] 验证：mock 端点 15 项断言全过（LF/CRLF 混用、comment 行、坏 JSON 帧跳过、400 错误形状 status/Headers/error/message、timeout、用户 abort）；**llamacpp 真跑**：print 模式对话往返 OK + bash tool_call 流式执行 OK
+- [x] 内置 provider 文件删除（121 个文件，见下清单）+ compat.ts 瘦身为仅 openai-completions api-registry + faux + env-api-key 注入版
 
-**接下来**：
+**当前 checkpoint 状态（半成品！）**：删除已完成但消费方适配未完成，tsgo 会红。待办按顺序：
 
-1. 内置 provider 清零：providers/all.ts（MODELS={}）、compat.ts / legacy-api-aliases.ts 只留 openai-completions、model-runtime.ts 适配（radius 调用点等）、删除孤儿 provider/api/images 文件 + index/package.json exports 同步
-2. `--list-models` 只剩 models.json 条目验证，llamacpp print 模式往返复验
+1. coding-agent/core/model-runtime.ts：删 `builtinProviderCatalog` import/用法（L39/L182-187/L227 radiusProvider）、configureRadiusProviders 调用与方法、withRemoteCatalog 映射行 → providers 传空列表
+2. ai/src/index.ts：删对已删文件的 re-export（api/anthropic-messages|azure|bedrock|google*|mistral|openai-codex|openai-responses|pi-messages 的 type 导出、images-models、compat/extension-oauth-types OAuth 类型）
+3. ai/package.json：删 `./bedrock-provider`/`./bun-oauth`/`./oauth` exports、sideEffects 里 images/register-builtins 条目、`bin: pi-ai`（cli.ts 已删）；确认 ./compat 仍在
+4. tsgo --noEmit 修残余引用（预期：types.ts 的 Api 联合保留不动，只动 import）→ 全链构建 → `--list-models` 只剩 models.json + llamacpp 真跑复验
+5. 已删清单备忘：providers/ 下除 faux.ts 外全部（含 data/、images/）、api/ 下除 constrained-sampling|github-copilot-headers|lazy|openai-completions(.lazy)|openai-http|openai-prompt-cache|simple-options|transform-messages 外全部、根级 cli.ts(OAuth 登录 CLI)/oauth.ts/bun-oauth.ts/bedrock-provider.ts/images*.ts(4)/image-models.generated.ts/models.generated.ts/legacy-api-aliases.ts
