@@ -1,4 +1,4 @@
-import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens } from "../mini-markdown.ts";
+import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import type { Component } from "../tui.ts";
@@ -615,7 +615,7 @@ export class Markdown implements Component {
 
 			case "html":
 				// Render HTML as plain text (escaped for terminal)
-				if ("raw" in token && typeof token.raw === "string") {
+				if (typeof token.raw === "string") {
 					lines.push(this.applyDefaultStyle(token.raw.trim()));
 				}
 				break;
@@ -627,8 +627,9 @@ export class Markdown implements Component {
 
 			default:
 				// Handle any other token types as plain text
-				if ("text" in token && typeof token.text === "string") {
-					lines.push(token.text);
+				const genericText = (token as TokensGeneric).text;
+				if (typeof genericText === "string") {
+					lines.push(genericText);
 				}
 		}
 
@@ -725,16 +726,17 @@ export class Markdown implements Component {
 
 				case "html":
 					// Render inline HTML as plain text
-					if ("raw" in token && typeof token.raw === "string") {
+					if (typeof token.raw === "string") {
 						result += applyTextWithNewlines(token.raw);
 					}
 					break;
 
 				default:
 					// Handle any other inline token types as plain text
-					if ("text" in token && typeof token.text === "string") {
-						result += applyTextWithNewlines(token.text);
-					}
+					const genericText = (token as TokensGeneric).text;
+						if (typeof genericText === "string") {
+							result += applyTextWithNewlines(genericText);
+						}
 			}
 		}
 
@@ -883,9 +885,9 @@ export class Markdown implements Component {
 		for (const row of token.rows) {
 			for (let i = 0; i < row.length; i++) {
 				const cellText = this.renderInlineTokens(row[i].tokens || [], styleContext);
-				naturalWidths[i] = Math.max(naturalWidths[i] || 0, visibleWidth(cellText));
+				naturalWidths[i] = Math.max(naturalWidths[i] ?? 0, visibleWidth(cellText));
 				minWordWidths[i] = Math.max(
-					minWordWidths[i] || 1,
+					minWordWidths[i] ?? 1,
 					this.getLongestWordWidth(cellText, maxUnbrokenWordWidth),
 				);
 			}
@@ -895,7 +897,8 @@ export class Markdown implements Component {
 		let minCellsWidth = minColumnWidths.reduce((a, b) => a + b, 0);
 
 		if (minCellsWidth > availableForCells) {
-			minColumnWidths = new Array(numCols).fill(1);
+			minColumnWidths = [];
+			for (let fillIdx = 0; fillIdx < numCols; fillIdx++) minColumnWidths.push(1);
 			const remaining = availableForCells - numCols;
 
 			if (remaining > 0) {
@@ -906,13 +909,13 @@ export class Markdown implements Component {
 				});
 
 				for (let i = 0; i < numCols; i++) {
-					minColumnWidths[i] += growth[i] ?? 0;
+					minColumnWidths[i] = minColumnWidths[i] + (growth[i] ?? 0);
 				}
 
 				const allocated = growth.reduce((total, width) => total + width, 0);
 				let leftover = remaining - allocated;
 				for (let i = 0; leftover > 0 && i < numCols; i++) {
-					minColumnWidths[i]++;
+					minColumnWidths[i] = minColumnWidths[i] + 1;
 					leftover--;
 				}
 			}
@@ -950,7 +953,7 @@ export class Markdown implements Component {
 				let grew = false;
 				for (let i = 0; i < numCols && remaining > 0; i++) {
 					if (columnWidths[i] < naturalWidths[i]) {
-						columnWidths[i]++;
+						columnWidths[i] = columnWidths[i] + 1;
 						remaining--;
 						grew = true;
 					}
@@ -974,7 +977,7 @@ export class Markdown implements Component {
 
 		for (let lineIdx = 0; lineIdx < headerLineCount; lineIdx++) {
 			const rowParts = headerCellLines.map((cellLines, colIdx) => {
-				const text = cellLines[lineIdx] || "";
+				const text = cellLines[lineIdx] ?? "";
 				const padded = text + " ".repeat(Math.max(0, columnWidths[colIdx] - visibleWidth(text)));
 				return this.theme.bold(padded);
 			});
@@ -997,7 +1000,7 @@ export class Markdown implements Component {
 
 			for (let lineIdx = 0; lineIdx < rowLineCount; lineIdx++) {
 				const rowParts = rowCellLines.map((cellLines, colIdx) => {
-					const text = cellLines[lineIdx] || "";
+					const text = cellLines[lineIdx] ?? "";
 					return text + " ".repeat(Math.max(0, columnWidths[colIdx] - visibleWidth(text)));
 				});
 				lines.push(`│ ${rowParts.join(" │ ")} │`);
