@@ -322,7 +322,18 @@ export interface CustomAgentMessages {
  * This abstraction allows apps to add custom message types while maintaining
  * type safety and compatibility with the base LLM messages.
  */
-export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessages];
+import type {
+	BashExecutionMessage,
+	BranchSummaryMessage,
+	CompactionSummaryMessage,
+	CustomMessage,
+} from "./harness/messages.ts";
+export type AgentMessage =
+	| Message
+	| BashExecutionMessage
+	| CustomMessage
+	| BranchSummaryMessage
+	| CompactionSummaryMessage;
 
 /**
  * Public agent state.
