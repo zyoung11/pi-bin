@@ -66,7 +66,9 @@ export interface ModelChangeEntry extends SessionEntryBase {
 	modelId: string;
 }
 
-export interface CompactionEntry<T = unknown> extends SessionEntryBase {
+export type CustomData = Record<string, unknown> | string | number | boolean | null;
+
+export interface CompactionEntry<T = CustomData> extends SessionEntryBase {
 	type: "compaction";
 	summary: string;
 	firstKeptEntryId: string;
@@ -101,7 +103,7 @@ export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
  * Does NOT participate in LLM context (ignored by buildSessionContext).
  * For injecting content into context, see CustomMessageEntry.
  */
-export interface CustomEntry<T = unknown> extends SessionEntryBase {
+export interface CustomEntry<T = CustomData> extends SessionEntryBase {
 	type: "custom";
 	customType: string;
 	data?: T;
@@ -132,7 +134,7 @@ export interface SessionInfoEntry extends SessionEntryBase {
  * - false: hidden entirely
  * - true: rendered with distinct styling (different from user messages)
  */
-export interface CustomMessageEntry<T = unknown> extends SessionEntryBase {
+export interface CustomMessageEntry<T = CustomData> extends SessionEntryBase {
 	type: "custom_message";
 	customType: string;
 	content: string | (TextContent | ImageContent)[];
@@ -1095,15 +1097,15 @@ export class SessionManager {
 	}
 
 	/** Append a compaction summary as child of current leaf, then advance leaf. Returns entry id. */
-	appendCompaction<T = unknown>(
+	appendCompaction(
 		summary: string,
 		firstKeptEntryId: string,
 		tokensBefore: number,
-		details?: T,
+		details?: CustomData,
 		fromHook?: boolean,
 		usage?: Usage,
 	): string {
-		const entry: CompactionEntry<T> = {
+		const entry: CompactionEntry = {
 			type: "compaction",
 			id: generateId(this.byId),
 			parentId: this.leafId,
@@ -1124,7 +1126,7 @@ export class SessionManager {
 		const entry: CustomEntry = {
 			type: "custom",
 			customType,
-			data,
+			data: data as CustomData,
 			id: generateId(this.byId),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
@@ -1169,13 +1171,13 @@ export class SessionManager {
 	 * @param details Optional extension-specific metadata (not sent to LLM)
 	 * @returns Entry id
 	 */
-	appendCustomMessageEntry<T = unknown>(
+	appendCustomMessageEntry(
 		customType: string,
 		content: string | (TextContent | ImageContent)[],
 		display: boolean,
-		details?: T,
+		details?: CustomData,
 	): string {
-		const entry: CustomMessageEntry<T> = {
+		const entry: CustomMessageEntry = {
 			type: "custom_message",
 			customType,
 			content,

@@ -51,7 +51,7 @@ function extractFileOperations(
 		const prevCompaction = entries[prevCompactionIndex] as CompactionEntry;
 		if (!prevCompaction.fromHook && prevCompaction.details) {
 			// fromHook field kept for session file compatibility
-			const details = prevCompaction.details as CompactionDetails;
+			const details = prevCompaction.details as unknown as CompactionDetails;
 			if (Array.isArray(details.readFiles)) {
 				for (const f of details.readFiles) fileOps.read.add(f);
 			}

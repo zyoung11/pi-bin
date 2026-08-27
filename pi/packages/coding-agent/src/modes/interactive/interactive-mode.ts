@@ -7,7 +7,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
+import type { AgentMessage, AgentToolResult, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AuthEvent, AuthPrompt } from "../../../../ai/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, Usage } from "../../../../ai/src/compat.ts";
 import type {
@@ -3039,7 +3039,7 @@ export class InteractiveMode {
 			case "tool_execution_update": {
 				const component = this.pendingTools.get(event.toolCallId);
 				if (component) {
-					component.updateResult({ ...event.partialResult, isError: false }, true);
+					component.updateResult({ ...(event.partialResult as AgentToolResult), isError: false }, true);
 					this.ui.requestRender();
 				}
 				break;
@@ -3048,7 +3048,7 @@ export class InteractiveMode {
 			case "tool_execution_end": {
 				const component = this.pendingTools.get(event.toolCallId);
 				if (component) {
-					component.updateResult({ ...event.result, isError: event.isError });
+					component.updateResult({ ...(event.result as AgentToolResult), isError: event.isError });
 					this.pendingTools.delete(event.toolCallId);
 					this.ui.requestRender();
 				}

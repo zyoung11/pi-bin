@@ -174,7 +174,7 @@ export class ToolExecutionComponent extends Container {
 	updateResult(
 		result: {
 			content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-			details?: any;
+			details?: unknown;
 			isError: boolean;
 		},
 		isPartial = false,

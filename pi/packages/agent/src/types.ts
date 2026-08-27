@@ -380,10 +380,10 @@ export interface AgentToolResult<T = unknown> {
  * The callback is scoped to the current `execute()` invocation. Calls made after
  * the tool promise settles are ignored.
  */
-export type AgentToolUpdateCallback<T = any> = (partialResult: AgentToolResult<T>) => void;
+export type AgentToolUpdateCallback<T = unknown> = (partialResult: AgentToolResult<T>) => void;
 
 /** Tool definition used by the agent runtime. */
-export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> extends Tool<TParameters> {
+export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unknown> extends Tool<TParameters> {
 	/** Human-readable label for UI display. */
 	label: string;
 	/**
@@ -438,6 +438,6 @@ export type AgentEvent =
 	| { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
 	| { type: "message_end"; message: AgentMessage }
 	// Tool execution lifecycle
-	| { type: "tool_execution_start"; toolCallId: string; toolName: string; args: any }
-	| { type: "tool_execution_update"; toolCallId: string; toolName: string; args: any; partialResult: any }
-	| { type: "tool_execution_end"; toolCallId: string; toolName: string; result: any; isError: boolean };
+	| { type: "tool_execution_start"; toolCallId: string; toolName: string; args: Record<string, unknown> }
+	| { type: "tool_execution_update"; toolCallId: string; toolName: string; args: Record<string, unknown>; partialResult: unknown }
+	| { type: "tool_execution_end"; toolCallId: string; toolName: string; result: unknown; isError: boolean };

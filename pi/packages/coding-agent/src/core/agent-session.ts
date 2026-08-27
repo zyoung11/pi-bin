@@ -74,7 +74,13 @@ import type { ModelRuntime } from "./model-runtime.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
 import { exportSessionToJsonl } from "./session-export.ts";
-import type { BranchSummaryEntry, CompactionEntry, SessionEntry, SessionManager } from "./session-manager.ts";
+import type {
+	BranchSummaryEntry,
+	CompactionEntry,
+	CustomData,
+	SessionEntry,
+	SessionManager,
+} from "./session-manager.ts";
 import { getLatestCompactionEntry } from "./session-manager.ts";
 import type { SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
@@ -570,7 +576,7 @@ export class AgentSession {
 					event.message.customType,
 					event.message.content,
 					event.message.display,
-					event.message.details,
+					event.message.details as CustomData | undefined,
 				);
 			} else if (
 				event.message.role === "user" ||
@@ -1202,7 +1208,7 @@ export class AgentSession {
 			appMessage.customType,
 			appMessage.content,
 			appMessage.display,
-			appMessage.details,
+			appMessage.details as CustomData | undefined,
 		);
 		this._emit({ type: "message_start", message: appMessage });
 		this._emit({ type: "message_end", message: appMessage });
@@ -1647,7 +1653,7 @@ export class AgentSession {
 				throw new Error("Compaction cancelled");
 			}
 
-			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, false, usage);
+			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details as CustomData | undefined, false, usage);
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
@@ -1890,7 +1896,7 @@ export class AgentSession {
 				return false;
 			}
 
-			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details, false, usage);
+			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details as CustomData | undefined, false, usage);
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
