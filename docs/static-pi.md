@@ -148,6 +148,13 @@
 - **markdown.ts 第二波揭幕清零**：TokensGeneric（索引签名）从 Token union 移出（毒化判别式收窄）→ TokenizerExtension.tokenizer 返回放宽 `Token | TokensGeneric`；TokensLatex 入 union；剩余 `||` → `??`；typeof 守卫删除。
 - 当前基线 365：SC1090×157、SC2020×87、SC2011×23、SC2004×36、SC2009×17、SC2002×19、SC2003×8、SC2012×11、SC1100×3、杂项×6。
 
+## 阶段 5/6 第三轮记录续（2026-08-28 夜：365 → 327）
+
+- **mini partial-JSON**（ai/src/utils/partial-json.ts）：替代 partial-json npm 包（其 dist 内部 string-indexing 不可编译）——开括号栈扫描补全 + 部分字面量（true/false/null/NaN）补全 + 悬空键丢弃 + 有界截断重试；对照真包 11/12 等价（空输入 THROW 差异被 pi 调用方守卫+catch 覆盖）；json-parse.ts 切换，npm-static 降为仅 string_decoder。
+- **SC2012/ImportMeta 清零**：auth/context.ts 与 env-api-keys.ts 的动态 node 导入改静态（浏览器兼容随静态目标失效）；paths.ts replaceAll 改 split/join；config.ts import.meta.url 改 `typeof __dirname` 守卫 + process.cwd() 回退（注意 TDZ：不能在模块里声明 const __dirname 又在函数里引用——t33 教训）。
+- **output-guard.ts 重写**：stdout 猴子补丁（process.stdout.write 赋值）静态编译不可能 → 标志位 + 直接写 API（takeOverStdout/restoreStdout/isStdoutTakenOver/writeRawStdout/flushRawStdout 保留，waitForRawStdoutBackpressure 删除，2 个消费方清理）。行为差异：接管期间 console 写直通 stdout 不再重定向 stderr。
+- **settings-manager**：new Set(iterable) 两处改 copySet 循环拷贝；部分 catch 绑定/动态键读残余待修。
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。

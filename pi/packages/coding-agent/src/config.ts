@@ -9,25 +9,18 @@ import { stripBom } from "./utils/text.ts";
 // Package Detection
 // =============================================================================
 
-const __dirname = getModuleDirname();
-
 /**
- * Module directory. The compiled binary injects __dirname natively; under Node the ESM module
- * has no __dirname, so fall back to a marker resolved from the executable location.
+ * Module directory. The compiled binary injects __dirname natively; under Node ESM the global
+ * does not exist, so fall back to the working directory.
  */
-function getModuleDirname(): string {
-	if (typeof __dirname === "string" && __dirname !== "") {
-		return __dirname;
-	}
-	return process.cwd();
-}
+const moduleDirname: string = typeof __dirname === "string" && __dirname !== "" ? __dirname : process.cwd();
 
 /**
  * Detect if we're running as a Bun compiled binary.
  * Bun binaries have import.meta.url containing "$bunfs", "~BUN", or "%7EBUN" (Bun's virtual filesystem path)
  */
 export const isBunBinary =
-	__dirname.includes("$bunfs") || __dirname.includes("~BUN") || __dirname.includes("%7EBUN");
+	moduleDirname.includes("$bunfs") || moduleDirname.includes("~BUN") || moduleDirname.includes("%7EBUN");
 
 /** Detect if Bun is the runtime (compiled binary or bun run) */
 export const isBunRuntime = !!process.versions.bun;
@@ -85,7 +78,7 @@ export function detectInstallMethod(): InstallMethod {
 		return "bun-binary";
 	}
 
-	const resolvedPath = `${__dirname}\0${process.execPath || ""}`.toLowerCase().replace(/\\/g, "/");
+	const resolvedPath = `${moduleDirname}\0${process.execPath || ""}`.toLowerCase().replace(/\\/g, "/");
 
 	if (resolvedPath.includes("/pnpm/") || resolvedPath.includes("/.pnpm/")) {
 		return "pnpm";
@@ -402,7 +395,7 @@ export function getPackageDir(): string {
 		// Bun binary: process.execPath points to the compiled executable
 		return dirname(process.execPath);
 	}
-	return findNodePackageDir(__dirname);
+	return findNodePackageDir(moduleDirname);
 }
 
 /**

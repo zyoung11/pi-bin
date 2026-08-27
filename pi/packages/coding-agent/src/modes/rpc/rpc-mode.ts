@@ -15,7 +15,6 @@ import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import {
 	flushRawStdout,
 	takeOverStdout,
-	waitForRawStdoutBackpressure,
 	writeRawStdout,
 } from "../../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
@@ -85,8 +84,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			output(toJsonEvent(event));
 		});
 		unsubscribeBackpressure = session.agent.subscribe(async () => {
-			await waitForRawStdoutBackpressure();
-		});
+					});
 	};
 
 	const registerSignalHandlers = (): void => {
@@ -457,8 +455,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					`Failed to parse command: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
 				),
 			);
-			await waitForRawStdoutBackpressure();
-			return;
+						return;
 		}
 
 		const command = parsed as RpcCommand;
@@ -466,8 +463,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			const response = await handleCommand(command);
 			if (response) {
 				output(response);
-				await waitForRawStdoutBackpressure();
-			}
+							}
 		} catch (commandError: unknown) {
 			output(
 				error(
@@ -476,8 +472,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					commandError instanceof Error ? commandError.message : String(commandError),
 				),
 			);
-			await waitForRawStdoutBackpressure();
-		}
+					}
 	};
 
 	const onInputEnd = () => {

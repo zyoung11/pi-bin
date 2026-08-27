@@ -292,6 +292,12 @@ export class InMemorySettingsStorage implements SettingsStorage {
 	}
 }
 
+function copySet<T extends string>(source: Set<T>): Set<T> {
+	const copy = new Set<T>();
+	for (const item of source) copy.add(item);
+	return copy;
+}
+
 export class SettingsManager {
 	private storage: SettingsStorage;
 	private globalSettings: Settings;
@@ -654,7 +660,7 @@ export class SettingsManager {
 		}
 
 		const snapshotGlobalSettings = structuredClone(this.globalSettings);
-		const modifiedFields = new Set(this.modifiedFields);
+		const modifiedFields = copySet(this.modifiedFields);
 		const modifiedNestedFields = this.cloneModifiedNestedFields(this.modifiedNestedFields);
 
 		this.enqueueWrite("global", () => {
@@ -672,7 +678,7 @@ export class SettingsManager {
 		}
 
 		const snapshotProjectSettings = structuredClone(this.projectSettings);
-		const modifiedFields = new Set(this.modifiedProjectFields);
+		const modifiedFields = copySet(this.modifiedProjectFields);
 		const modifiedNestedFields = this.cloneModifiedNestedFields(this.modifiedProjectNestedFields);
 		this.enqueueWrite("project", () => {
 			this.persistScopedSettings("project", snapshotProjectSettings, modifiedFields, modifiedNestedFields);

@@ -8,7 +8,7 @@
 
 import type { AssistantMessage, ImageContent } from "../../../ai/src/index.ts";
 import type { AgentSessionRuntime } from "../core/agent-session-runtime.ts";
-import { flushRawStdout, waitForRawStdoutBackpressure, writeRawStdout } from "../core/output-guard.ts";
+import { flushRawStdout, writeRawStdout } from "../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../utils/shell.ts";
 import { toJsonEvent } from "./json-event.ts";
 
@@ -84,8 +84,7 @@ export async function runPrintMode(runtimeHost: AgentSessionRuntime, options: Pr
 		unsubscribeBackpressure =
 			mode === "json"
 				? session.agent.subscribe(async () => {
-						await waitForRawStdoutBackpressure();
-					})
+											})
 				: undefined;
 	};
 
