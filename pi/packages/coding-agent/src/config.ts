@@ -13,7 +13,10 @@ import { stripBom } from "./utils/text.ts";
  * Module directory. The compiled binary injects __dirname natively; under Node ESM the global
  * does not exist, so fall back to the working directory.
  */
-const moduleDirname: string = typeof __dirname === "string" && __dirname !== "" ? __dirname : process.cwd();
+const moduleDirname: string =
+	typeof __dirname === "string" && __dirname !== ""
+		? __dirname
+		: dirname(process.argv[1] ?? process.cwd());
 
 /**
  * Detect if we're running as a Bun compiled binary.
