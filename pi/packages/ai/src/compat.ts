@@ -11,7 +11,6 @@ export * from "./index.ts";
 
 import { openAICompletionsApi } from "./api/openai-completions.lazy.ts";
 import { getEnvApiKey } from "./env-api-keys.ts";
-import type { ModelsApiStreamOptions } from "./models.ts";
 import { createFauxCore, type FauxProviderRegistration, type RegisterFauxProviderOptions } from "./providers/faux.ts";
 import type {
 	Api,
@@ -202,7 +201,7 @@ export function streamSimple<TApi extends Api>(
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
 	const provider = resolveApiProvider(model.api);
-	return provider.streamSimple(model, context, withEnvApiKey(model, options) as ModelsApiStreamOptions<TApi>);
+	return provider.streamSimple(model, context, withEnvApiKey(model, options));
 }
 
 export async function completeSimple<TApi extends Api>(

@@ -79,7 +79,7 @@
 - [x] 两处分析性小改：syntax-highlight.ts 加 `/// <reference>`；extensions/loader.ts 顶层探测延迟求值
 - [x] 阶段 2 扩展系统移除（src 类型检查清零，build:offline 通过，llamacpp 真跑对话 OK）
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
-- [ ] 阶段 4 openai-completions fetch 化
+- [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [ ] 阶段 5 诊断清单批量修复
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
@@ -131,7 +131,7 @@
 - pi 上游持续演进（tsgo、supply-chain 约束），本分支按"冻结一个版本做静态化"的思路进行
 - mini schema 的 Convert 是自研实现（对齐 pi 现有双强制转换流的行为），不是 typebox 完整 Convert 的移植；若未来引入依赖 typebox Convert 高级行为（refine/codec/format）的工具 schema，需要回头补
 
-## 阶段 4 进行中记录（openai-completions fetch 化 + 内置 provider 清零）
+## 阶段 4 记录（openai-completions fetch 化 + 内置 provider 清零）
 
 **范围变更（2026-08-27 用户确认）**：模型来源从"deepseek/xiaomi/models.json 三个"简化为**只保留 models.json**，内置 provider 全部移除。当前 `~/.pi/agent/models.json` 只有 llamacpp（本地 OpenAI 兼容端点）；之前 --list-models 里的 deepseek/xiaomi/zai 都来自内置注册表数据（MODELS catalog），裁剪后只剩 models.json 条目。
 
@@ -151,10 +151,22 @@
 - [x] 验证：mock 端点 15 项断言全过（LF/CRLF 混用、comment 行、坏 JSON 帧跳过、400 错误形状 status/Headers/error/message、timeout、用户 abort）；**llamacpp 真跑**：print 模式对话往返 OK + bash tool_call 流式执行 OK
 - [x] 内置 provider 文件删除（121 个文件，见下清单）+ compat.ts 瘦身为仅 openai-completions api-registry + faux + env-api-key 注入版
 
-**当前 checkpoint 状态（半成品！）**：删除已完成但消费方适配未完成，tsgo 会红。待办按顺序：
+**已删清单备忘**：providers/ 下除 faux.ts 外全部（含 data/、images/）、api/ 下除 constrained-sampling|github-copilot-headers|lazy|openai-completions(.lazy)|openai-http|openai-prompt-cache|simple-options|transform-messages 外全部、根级 cli.ts(OAuth 登录 CLI)/oauth.ts/bun-oauth.ts/bedrock-provider.ts/images*.ts(4)/image-models.generated.ts/models.generated.ts/legacy-api-aliases.ts
 
-1. coding-agent/core/model-runtime.ts：删 `builtinProviderCatalog` import/用法（L39/L182-187/L227 radiusProvider）、configureRadiusProviders 调用与方法、withRemoteCatalog 映射行 → providers 传空列表
-2. ai/src/index.ts：删对已删文件的 re-export（api/anthropic-messages|azure|bedrock|google*|mistral|openai-codex|openai-responses|pi-messages 的 type 导出、images-models、compat/extension-oauth-types OAuth 类型）
-3. ai/package.json：删 `./bedrock-provider`/`./bun-oauth`/`./oauth` exports、sideEffects 里 images/register-builtins 条目、`bin: pi-ai`（cli.ts 已删）；确认 ./compat 仍在
-4. tsgo --noEmit 修残余引用（预期：types.ts 的 Api 联合保留不动，只动 import）→ 全链构建 → `--list-models` 只剩 models.json + llamacpp 真跑复验
-5. 已删清单备忘：providers/ 下除 faux.ts 外全部（含 data/、images/）、api/ 下除 constrained-sampling|github-copilot-headers|lazy|openai-completions(.lazy)|openai-http|openai-prompt-cache|simple-options|transform-messages 外全部、根级 cli.ts(OAuth 登录 CLI)/oauth.ts/bun-oauth.ts/bedrock-provider.ts/images*.ts(4)/image-models.generated.ts/models.generated.ts/legacy-api-aliases.ts
+**Checkpoint 收尾完成（2026-08-27）**，消费方适配与连带清理：
+
+- model-runtime.ts：删 builtinProviderCatalog import、withRemoteCatalog 映射、configureRadiusProviders（create/refresh 两处调用 + 方法）、catalogBaseUrl option；providers 传空列表
+- ai/src/index.ts：删 9 个已删 api 模块的 type re-export、images-models re-export、compat/extension-oauth-types OAuth 类型块
+- types.ts：KnownApi/Api 联合保留不动（models.json 数据兼容）；删 9 个 option import，ApiOptionsMap 收窄到仅 `"openai-completions"`（未命中 api 回退 `StreamOptions & Record<string, unknown>`）
+- compat.ts：streamSimple 里多余的 `as ModelsApiStreamOptions<TApi>` cast 删除——缺模块期间 typebox 之外的 import 失败把这些 option 类型 any 化，掩盖了 assignability 问题；修复 import 后浮出。参数本来就是 SimpleStreamOptions，直接传
+- OAuth 类型迁移：extension-oauth-types 的 6 个类型（OAuthPrompt/OAuthAuthInfo/OAuthDeviceCodeInfo/OAuthSelectOption/OAuthSelectPrompt/OAuthLoginCallbacks）并入 auth/types.ts 经根入口导出，provider-composer 零改动；compat/ 子目录删除
+- **额外连带清理**（checkpoint 计划外、tsgo 逼出来或同批孤儿）：
+  - `ai/src/auth/oauth/` 全目录 11 文件（anthropic/radius/github-copilot/openai-codex/openrouter/kimi-coding/xai 流程 + load/pkce/oauth-page/device-code）：零活引用（load*/createRadiusOAuth 无人调用），且变量 specifier 动态 import 与 scriptc 静态编译原理冲突，「其他待删」清单里的 OAuth 流程提前在此清掉
+  - `coding-agent/src/bun/`（cli/register-bedrock/restore-sandbox-env）+ package.json build:binary/copy-binary-assets 脚本：bun 二进制入口唯一职责是注册 bun-oauth + bedrock，均已不存在；原脚本还引用已删的 image-resize-worker.ts 与 photon wasm，本来就编不过
+  - `coding-agent/src/core/remote-catalog-provider.ts`（pi.dev catalog overlay，孤儿）与 `core/radius.ts`（RADIUS_PROVIDER_ID 单行常量，零引用）
+  - bundle 脚本 build-coding-agent-bundle.mjs：删 bedrock/oauth lazy 双构建机制（8 个 lazy 入口 + findContainingOutput 定位）；bundle 从 47 文件 6.6MiB 降到 **10 文件 3.7MiB**
+  - ai/package.json：build/build:offline 改纯 `tsgo -p tsconfig.build.json`（原脚本跑 generate-models/check:model-data/cp providers/data，会重新生成已删的 models.generated.ts + providers/data 或直接失败）
+- examples/sdk/12-full-control.ts：compat `getModel` → `modelRuntime.getModel(provider, modelId)`（models.json 驱动，MY_MODEL_PROVIDER/MY_MODEL_ID 环境变量可选覆盖）
+- 根 tsconfig.json：删指向已删 src/oauth.ts 的 `@earendil-works/pi-ai/oauth` paths 条目
+- **验证**：tsgo --noEmit 非 test 错误清零（test/ 599 行遗留不动）；根 build:offline 全链通过（tui→telemetry→ai→agent→sqlite-node→protocol→client→server→coding-agent）；`--list-models` 只剩 models.json 的 llamacpp 4 模型（Qwen3.8-27B/Qwen3.8-27B-MTP/Gemma-4-12B/Ornith-1.5-9B）；llamacpp Qwen3.8-27B print 模式真跑：对话往返 + bash tool_call 流式执行 OK
+- **遗留提示（用户侧配置）**：`~/.pi/agent/settings.json` 的 enabledModels/modelThinkingLevels 仍引用已删内置 provider（deepseek/xiaomi/zai），启动会打 5 条 "No models match pattern" warning——属用户配置，未代改

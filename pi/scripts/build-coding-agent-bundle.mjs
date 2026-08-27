@@ -9,7 +9,6 @@ import { build } from "esbuild";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 const codingAgentDir = join(repoRoot, "packages", "coding-agent");
-const aiDistDir = join(repoRoot, "packages", "ai", "dist");
 const codingAgentDistDir = join(codingAgentDir, "dist");
 const bundleDir = join(codingAgentDistDir, "bundle");
 const banner = {
@@ -94,16 +93,6 @@ function validateExternalImports(metafiles) {
 	}
 }
 
-function findContainingOutput(metafile, inputSuffix) {
-	const normalizedSuffix = inputSuffix.replaceAll("\\", "/");
-	for (const [outputPath, output] of Object.entries(metafile.outputs)) {
-		if (Object.keys(output.inputs).some((inputPath) => inputPath.replaceAll("\\", "/").endsWith(normalizedSuffix))) {
-			return resolve(repoRoot, outputPath);
-		}
-	}
-	throw new Error(`Could not locate bundled output containing ${inputSuffix}`);
-}
-
 function outputBytes(metafiles) {
 	return metafiles.reduce(
 		(total, metafile) => total + Object.values(metafile.outputs).reduce((subtotal, output) => subtotal + output.bytes, 0),
@@ -116,8 +105,6 @@ for (const entry of [
 	join(codingAgentDistDir, "index.js"),
 	join(codingAgentDistDir, "rpc-entry.js"),
 	join(codingAgentDistDir, "client", "index.js"),
-	join(aiDistDir, "api", "bedrock-converse-stream.js"),
-	join(aiDistDir, "auth", "oauth", "anthropic.js"),
 ]) {
 	if (!existsSync(entry)) {
 		throw new Error(`Bundle input is missing: ${relative(repoRoot, entry)}. Build the workspace packages first.`);
@@ -141,36 +128,10 @@ const mainResult = await build({
 	splitting: true,
 });
 
-const bedrockLoaderOutput = findContainingOutput(mainResult.metafile, "packages/ai/dist/api/bedrock-converse-stream.lazy.js");
-const oauthLoaderOutput = findContainingOutput(mainResult.metafile, "packages/ai/dist/auth/oauth/load.js");
-if (dirname(bedrockLoaderOutput) !== dirname(oauthLoaderOutput)) {
-	throw new Error("Bedrock and OAuth lazy loaders were emitted into different directories");
-}
-
-// These implementations are reached through variable-specifier imports or a
-// worker URL, so the main bundle cannot follow them. Emit one self-contained
-// file per implementation beside the code that resolves it.
-const lazyResult = await build({
-	...commonBuildOptions(),
-	entryNames: "[name]",
-	entryPoints: {
-		anthropic: join(aiDistDir, "auth", "oauth", "anthropic.js"),
-		"bedrock-converse-stream": join(aiDistDir, "api", "bedrock-converse-stream.js"),
-		"github-copilot": join(aiDistDir, "auth", "oauth", "github-copilot.js"),
-			"kimi-coding": join(aiDistDir, "auth", "oauth", "kimi-coding.js"),
-		"openai-codex": join(aiDistDir, "auth", "oauth", "openai-codex.js"),
-		openrouter: join(aiDistDir, "auth", "oauth", "openrouter.js"),
-		radius: join(aiDistDir, "auth", "oauth", "radius.js"),
-		xai: join(aiDistDir, "auth", "oauth", "xai.js"),
-	},
-	outdir: dirname(bedrockLoaderOutput),
-	splitting: false,
-});
-
-validateExternalImports([mainResult.metafile, lazyResult.metafile]);
+validateExternalImports([mainResult.metafile]);
 chmodSync(join(bundleDir, "cli.js"), 0o755);
 chmodSync(join(bundleDir, "rpc-entry.js"), 0o755);
 
-const files = new Set([...Object.keys(mainResult.metafile.outputs), ...Object.keys(lazyResult.metafile.outputs)]).size;
-const mib = outputBytes([mainResult.metafile, lazyResult.metafile]) / (1024 * 1024);
+const files = Object.keys(mainResult.metafile.outputs).length;
+const mib = outputBytes([mainResult.metafile]) / (1024 * 1024);
 console.log(`Built ${relative(repoRoot, bundleDir)} (${files} files, ${mib.toFixed(1)} MiB)`);

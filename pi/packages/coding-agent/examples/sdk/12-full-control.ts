@@ -4,7 +4,6 @@
  * Replace everything - no discovery, explicit configuration.
  */
 
-import { getModel } from "@earendil-works/pi-ai/compat";
 import {
 	createAgentSession,
 	ModelRuntime,
@@ -21,8 +20,10 @@ if (process.env.MY_ANTHROPIC_KEY) {
 	await modelRuntime.setRuntimeApiKey("anthropic", process.env.MY_ANTHROPIC_KEY);
 }
 
-const model = getModel("anthropic", "claude-sonnet-4-5");
-if (!model) throw new Error("Model not found");
+const provider = process.env.MY_MODEL_PROVIDER ?? "anthropic";
+const modelId = process.env.MY_MODEL_ID ?? "claude-sonnet-4-5";
+const model = modelRuntime.getModel(provider, modelId);
+if (!model) throw new Error(`Model not found: ${provider}/${modelId}`);
 
 // In-memory settings with overrides
 const settingsManager = SettingsManager.inMemory({
