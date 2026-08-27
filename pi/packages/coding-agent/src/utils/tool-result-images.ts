@@ -1,4 +1,4 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type { ImageContent, TextContent } from "../../../ai/src/index.ts";
 import { processImage } from "./image-process.ts";
 
 export type ToolResultContent = TextContent | ImageContent;

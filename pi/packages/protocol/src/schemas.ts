@@ -1,4 +1,4 @@
-import Type from "@earendil-works/pi-ai/schema";
+import Type from "../../ai/src/schema.ts";
 import type { Static } from "typebox";
 
 export const PROTOCOL_VERSION = 1 as const;

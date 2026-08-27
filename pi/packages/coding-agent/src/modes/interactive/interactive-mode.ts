@@ -7,9 +7,9 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
-import type { AssistantMessage, ImageContent, Message, Model, Usage } from "@earendil-works/pi-ai/compat";
+import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
+import type { AuthEvent, AuthPrompt } from "../../../../ai/src/index.ts";
+import type { AssistantMessage, ImageContent, Message, Model, Usage } from "../../../../ai/src/compat.ts";
 import type {
 	AutocompleteItem,
 	AutocompleteProvider,
@@ -22,8 +22,8 @@ import type {
 	SlashCommand,
 	Terminal,
 	TuiMainScreenRenderState,
-} from "@earendil-works/pi-tui";
-import * as TuiLayouts from "@earendil-works/pi-tui";
+} from "../../../../tui/src/index.ts";
+import * as TuiLayouts from "../../../../tui/src/index.ts";
 import {
 	CombinedAutocompleteProvider,
 	type Component,
@@ -42,7 +42,7 @@ import {
 	TuiAltScreen,
 	TuiMainScreen,
 	visibleWidth,
-} from "@earendil-works/pi-tui";
+} from "../../../../tui/src/index.ts";
 import chalk from "chalk";
 import { spawn } from "child_process";
 import {

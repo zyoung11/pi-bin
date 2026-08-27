@@ -1,4 +1,4 @@
-import { fuzzyMatch } from "@earendil-works/pi-tui";
+import { fuzzyMatch } from "../../../../../tui/src/index.ts";
 import type { SessionInfo } from "../../../core/session-manager.ts";
 
 export type SortMode = "threaded" | "recent" | "relevance";

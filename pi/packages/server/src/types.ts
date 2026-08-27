@@ -7,7 +7,7 @@ import type {
 	SessionSnapshot,
 	ThinkingLevel,
 	TranscriptProgress,
-} from "@earendil-works/pi-protocol";
+} from "../../protocol/src/index.ts";
 import type { PiServerError } from "./errors.ts";
 import type { PiServerListener } from "./listener.ts";
 

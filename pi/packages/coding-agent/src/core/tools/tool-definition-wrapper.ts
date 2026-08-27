@@ -1,4 +1,4 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentTool } from "../../../../agent/src/index.ts";
 import type { ToolDefinition } from "./tool-types.ts";
 
 /** Wrap a ToolDefinition into an AgentTool for the core runtime. */

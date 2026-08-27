@@ -2,9 +2,9 @@
  * Tool definition types shared by built-in tools and renderers.
  */
 
-import type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode } from "@earendil-works/pi-agent-core";
-import type { ConstrainedSamplingConfig } from "@earendil-works/pi-ai";
-import type { Component } from "@earendil-works/pi-tui";
+import type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode } from "../../../../agent/src/index.ts";
+import type { ConstrainedSamplingConfig } from "../../../../ai/src/index.ts";
+import type { Component } from "../../../../tui/src/index.ts";
 import type { Static, TSchema } from "typebox";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 

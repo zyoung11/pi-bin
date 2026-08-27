@@ -1,5 +1,5 @@
-import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { getSupportedThinkingLevels, type Model, type Transport } from "@earendil-works/pi-ai";
+import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
+import { getSupportedThinkingLevels, type Model, type Transport } from "../../../../../ai/src/index.ts";
 import {
 	type Component,
 	Container,
@@ -10,7 +10,7 @@ import {
 	SettingsList,
 	Spacer,
 	Text,
-} from "@earendil-works/pi-tui";
+} from "../../../../../tui/src/index.ts";
 import { formatHttpIdleTimeoutMs, HTTP_IDLE_TIMEOUT_CHOICES } from "../../../core/http-dispatcher.ts";
 import type {
 	DefaultProjectTrust,

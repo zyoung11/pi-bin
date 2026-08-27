@@ -1,4 +1,4 @@
-import { Value } from "@earendil-works/pi-ai/schema";
+import { Value } from "../../ai/src/schema.ts";
 import { decodeCbor, encodeCbor } from "./cbor/index.ts";
 import {
 	assertCompleteFrame,

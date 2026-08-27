@@ -90,19 +90,23 @@ export { DefaultResourceLoader, loadProjectContextFiles } from "./core/resource-
 // SDK for programmatic usage
 export {
 	AgentSessionRuntime,
+	type CreateAgentSessionRuntimeFactory,
+	type CreateAgentSessionRuntimeResult,
+	createAgentSessionRuntime,
+} from "./core/agent-session-runtime.ts";
+export {
 	type AgentSessionRuntimeDiagnostic,
 	type AgentSessionServices,
 	type CreateAgentSessionFromServicesOptions,
+	type CreateAgentSessionServicesOptions,
+	createAgentSessionFromServices,
+	createAgentSessionServices,
+} from "./core/agent-session-services.ts";
+export {
 	type CreateAgentSessionOptions,
 	type CreateAgentSessionResult,
-	type CreateAgentSessionRuntimeFactory,
-	type CreateAgentSessionRuntimeResult,
-	type CreateAgentSessionServicesOptions,
 	// Factory
 	createAgentSession,
-	createAgentSessionFromServices,
-	createAgentSessionRuntime,
-	createAgentSessionServices,
 	createBashTool,
 	// Tool factories (for custom cwd)
 	createCodingTools,

@@ -4,8 +4,8 @@ import type {
 	SessionSearch,
 	SessionSearchHit,
 	SessionSearchOptions,
-} from "@earendil-works/pi-agent-core";
-import { SessionError } from "@earendil-works/pi-agent-core";
+} from "../../../../agent/src/index.ts";
+import { SessionError } from "../../../../agent/src/index.ts";
 import { applyMigrations } from "./migrations.ts";
 import { sql } from "./sql.ts";
 import { decodeSessionMetadata, type SessionRow } from "./storage/sessions.ts";

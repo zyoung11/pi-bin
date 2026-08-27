@@ -80,7 +80,8 @@
 - [x] 阶段 2 扩展系统移除（src 类型检查清零，build:offline 通过，llamacpp 真跑对话 OK）
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
-- [ ] 阶段 5 诊断清单批量修复
+- [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
+- [ ] 阶段 5 诊断清单批量修复（进行中，新基线 691 个诊断见下方记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 
@@ -170,3 +171,35 @@
 - 根 tsconfig.json：删指向已删 src/oauth.ts 的 `@earendil-works/pi-ai/oauth` paths 条目
 - **验证**：tsgo --noEmit 非 test 错误清零（test/ 599 行遗留不动）；根 build:offline 全链通过（tui→telemetry→ai→agent→sqlite-node→protocol→client→server→coding-agent）；`--list-models` 只剩 models.json 的 llamacpp 4 模型（Qwen3.8-27B/Qwen3.8-27B-MTP/Gemma-4-12B/Ornith-1.5-9B）；llamacpp Qwen3.8-27B print 模式真跑：对话往返 + bash tool_call 流式执行 OK
 - **遗留提示（用户侧配置）**：`~/.pi/agent/settings.json` 的 enabledModels/modelThinkingLevels 仍引用已删内置 provider（deepseek/xiaomi/zai），启动会打 5 条 "No models match pattern" warning——属用户配置，未代改
+
+## 阶段 5 进行中记录（决策 B：跨包相对路径迁移 + 新诊断基线）
+
+**预调查结论（全量 --npm-static 实验）**：
+
+- npm 静态编译实测：highlight.js / yaml / ignore / marked / string_decoder ✅ 通过；墙：diff、semver（CJS require 序围栏 SC1013）、proper-lockfile（→graceful-fs）、minimatch（→brace-expansion）、chalk（`#ansi-styles` imports 子路径缺失）、typebox（SC1013 namespace re-export，阶段 3 已证）、grok-mermaid（surface 推断断 → 按既定策略砍 mermaid）
+- **workspace 包走 --npm-static 是死路**（沙箱实验证实）：opt-in 包的所有导入（含 `import type`）都被解析到 shipped JS（types stripped，resolve.ts 的 JS_ONLY_CONDITIONS），具名类型导出无法跨包边界传递——pi-ai 挂掉的 147 个导入点全是 Model/Api/Context 这类数据模型类型，拆成两条 import 也无效
+- pi-tui preflight 整包拒绝：包内任一文件 import `node:module` 即退回 island（native-modifiers/native-module-path/terminal 三处 darwin/win32 原生加速器加载）
+
+**决策 B（用户确认 2026-08-27）**：跨包裸导入改相对路径直指 src，workspace 变成同一个程序。已实施：
+
+- 168 个文件 241 处 specifier 改写（全部包的 src + coding-agent examples），含 `declare module` 增强（TS 接受相对路径模块增强，tsgo 验证通过）；目标表 = 根 tsconfig paths 同构（pi-ai/compat/schema 等子路径逐一映射）
+- 脚本误伤 6 处已修复：OFFICIAL_PACKAGE_NAME、PACKAGE_NAME（config.ts fallback）、TUI_PACKAGE_NAME（tui 包名常量）、vitest alias key ×2（client/server）、ai/index.ts 注释。教训：批量改写 import 必须排除非导入上下文的数据字符串
+- session-share.ts radius 残留清理：`DEFAULT_RADIUS_GATEWAY` 导入指向已删文件却因 **stale dist**（旧 d.ts 未清，build 不 clean）被 tsgo 静默解析；改为 `provider.baseUrl`（models.json 驱动，getProvider("radius") 无 baseUrl 时直接 return false）
+- SC1016 循环切断：agent-session-runtime → agent-session-services → sdk.ts →（`export * from "./agent-session-runtime.ts"`）→ 回环。删 sdk.ts 该行 re-export，index.ts 的 4 个 runtime 名 + 6 个 services 名改为从声明文件直接导入（其余内部消费方本就直接导入源文件）
+- 全部 dist 目录已清（陈旧 d.ts 会掩盖失效导入，是类型检查陷阱）
+
+**构建链简化（已验证部分）**：
+
+- Node v26 type stripping 可直跑 `node packages/coding-agent/src/cli.ts`（--list-models 通过；全图无 enum/namespace 等非擦除语法）——冒烟不再需要 dist
+- esbuild bundle 可直接吃 src（tsconfigRaw:{} 已配，无 rootDir 限制）
+- per-package `tsgo -p tsconfig.build.json` emit 管线待正式拆除（根 build/build:offline 链 + 各包 package.json main/exports 指向），随阶段收尾一起做
+
+**scriptc 新基线（全图直连后）**：691 个诊断 / 100 个文件 = SC2013×192（阶段 6 正主）+ 非 npm ×499。注意「613→1→691」的假象：中间那次 1 error 是 SC1016 循环在 preflight 阶段致命中止，隐藏了后续全部分析；循环修复后全图真实面才显现。密集文件 Top：package-manager-cli(96)、main.ts(87)、model-config(40，21×SC2011 any)、syntax-highlight(24)、theme(23)、session-selector(18，16×SC2002 record 形状)、first-time-setup(17×SC2002)、config-selector(18)、rpc-mode(16)、child-process(15，14×SC2020 node API)、tui/utils(13，6×SC1120 新码待查)。新增面：TUI 全源码、telemetry record 形状（SC2002×53）、ai/schema.ts 6 处（typebox 品牌类型溯源，决策 B 后需复测）。
+
+**待办（顺序）**：
+
+1. 阶段 5 正题：499 个非 npm 诊断逐项修（any→unknown、SC2020 node API 替代、record 形状对齐、SC1120/SC2003/SC2012 逐码排查）
+2. pi-tui 三个 node:module 文件的程序内局部修复（原生加速器加载在 Linux 目标是死代码，注入缝 + no-op 默认）
+3. ai/schema.ts 的 typebox 品牌类型若被溯源怪罪到 typebox 包 → d.ts 返回类型改本地 interface（保持 TSchema 结构兼容）
+4. 阶段 6：--npm-static 第三方逐个上墙验证，撞墙的自研 mini 实现或砍功能
+5. 构建脚本正式拆除 + 全量构建 + 冒烟（阶段 7）

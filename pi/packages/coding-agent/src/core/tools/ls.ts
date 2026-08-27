@@ -1,7 +1,7 @@
 import { readdir as fsReaddir, stat as fsStat } from "node:fs/promises";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { Type } from "@earendil-works/pi-ai/schema";
-import { Text } from "@earendil-works/pi-tui";
+import type { AgentTool } from "../../../../agent/src/index.ts";
+import { Type } from "../../../../ai/src/schema.ts";
+import { Text } from "../../../../tui/src/index.ts";
 import nodePath from "path";
 import type { Static } from "typebox";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";

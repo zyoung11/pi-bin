@@ -1,4 +1,4 @@
-import { Marked, type Token } from "@earendil-works/pi-tui";
+import { Marked, type Token } from "../../../../../tui/src/index.ts";
 import { type MermaidArt, render, type Span } from "grok-mermaid";
 import type { MarkdownTransformer } from "./markdown-transform.ts";
 import type { MermaidRenderingMode } from "../../../core/settings-manager.ts";

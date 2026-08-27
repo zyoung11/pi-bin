@@ -1,5 +1,5 @@
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import { Type } from "@earendil-works/pi-ai/schema";
+import type { ImageContent, TextContent } from "../../../../ai/src/index.ts";
+import { Type } from "../../../../ai/src/schema.ts";
 import type { Static } from "typebox";
 import type { AgentHarnessTool } from "../types.ts";
 import { getOrThrow } from "../types.ts";

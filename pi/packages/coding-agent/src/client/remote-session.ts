@@ -4,7 +4,7 @@ import type {
 	PiClient,
 	SessionLease,
 	Unsubscribe,
-} from "@earendil-works/pi-client";
+} from "../../../client/src/index.ts";
 import type {
 	ModelMetadata,
 	ModelRef,
@@ -14,7 +14,7 @@ import type {
 	SessionSnapshot,
 	ThinkingLevel,
 	TranscriptItem,
-} from "@earendil-works/pi-protocol";
+} from "../../../protocol/src/index.ts";
 import {
 	applyTranscriptProgress,
 	applyTranscriptSnapshot,

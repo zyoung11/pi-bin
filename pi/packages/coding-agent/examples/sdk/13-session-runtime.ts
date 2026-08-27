@@ -15,7 +15,7 @@ import {
 	createAgentSessionServices,
 	getAgentDir,
 	SessionManager,
-} from "@earendil-works/pi-coding-agent";
+} from "../../src/index.ts";
 
 const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager }) => {
 	const services = await createAgentSessionServices({ cwd });

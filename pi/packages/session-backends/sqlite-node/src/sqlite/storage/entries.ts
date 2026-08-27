@@ -1,4 +1,4 @@
-import type { Entry, EntryOrder } from "@earendil-works/pi-agent-core";
+import type { Entry, EntryOrder } from "../../../../../agent/src/index.ts";
 import { sql } from "../sql.ts";
 import type { SqliteDatabase } from "../types.ts";
 

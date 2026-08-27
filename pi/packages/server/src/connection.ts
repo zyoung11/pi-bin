@@ -1,4 +1,4 @@
-import type { ClientMessageDecoder } from "@earendil-works/pi-protocol";
+import type { ClientMessageDecoder } from "../../protocol/src/index.ts";
 
 import type { MaybePromise } from "./types.ts";
 

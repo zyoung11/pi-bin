@@ -14,7 +14,7 @@ import {
 	type ServerHello,
 	type ServerHelloError,
 	type ServerMessage,
-} from "@earendil-works/pi-protocol";
+} from "../../protocol/src/index.ts";
 import {
 	type ByteConnection,
 	type ByteConnectionHandler,

@@ -1,4 +1,4 @@
-import { SessionError } from "@earendil-works/pi-agent-core";
+import { SessionError } from "../../../../../agent/src/index.ts";
 import { sql } from "../sql.ts";
 import type { SqliteDatabase } from "../types.ts";
 

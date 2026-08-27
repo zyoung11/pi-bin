@@ -12,7 +12,7 @@ import type {
 	Tool,
 	ToolResultMessage,
 	Usage,
-} from "@earendil-works/pi-ai";
+} from "../../ai/src/index.ts";
 import type { Static, TSchema } from "typebox";
 
 /**

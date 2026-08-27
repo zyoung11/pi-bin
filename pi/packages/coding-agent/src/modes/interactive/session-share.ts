@@ -3,8 +3,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { DEFAULT_RADIUS_GATEWAY } from "@earendil-works/pi-ai/providers/radius-config";
-import { type Container, type EditorComponent, hyperlink, type TUI } from "@earendil-works/pi-tui";
+import { type Container, type EditorComponent, hyperlink, type TUI } from "../../../../tui/src/index.ts";
 import { getAuthCredential } from "../../cli/auth-command.ts";
 import { getShareViewerUrl } from "../../config.ts";
 import type { AgentSession } from "../../core/agent-session.ts";
@@ -90,7 +89,7 @@ export async function shareSession(context: SessionShareContext): Promise<void> 
 
 async function tryShareViaRadius(tmpFile: string, context: SessionShareContext): Promise<boolean> {
 	const provider = context.session.modelRuntime.getProvider("radius");
-	if (!provider) return false;
+	if (!provider?.baseUrl) return false;
 
 	const token = getAuthCredential(
 		await context.session.modelRuntime.getAuth("radius", { minOAuthValidityMs: 5 * 60_000 }),
@@ -109,7 +108,7 @@ async function tryShareViaRadius(tmpFile: string, context: SessionShareContext):
 
 	try {
 		const body = fs.readFileSync(tmpFile);
-		const url = new URL("/v1/artifacts", DEFAULT_RADIUS_GATEWAY);
+		const url = new URL("/v1/artifacts", provider.baseUrl);
 		url.searchParams.set("visibility", "organization");
 		url.searchParams.set("title", "Pi session");
 		const response = await fetch(url, {

@@ -1,6 +1,6 @@
 // Core Agent
 
-export { uuidv7 } from "@earendil-works/pi-ai";
+export { uuidv7 } from "../../ai/src/index.ts";
 export type {
 	AttributeValue,
 	ExactTelemetryAttributes,
@@ -33,13 +33,13 @@ export type {
 	TelemetrySpanDefinition,
 	TelemetryStartAttributeDefinition,
 	TypedSpanStarter,
-} from "@earendil-works/pi-telemetry";
+} from "../../telemetry/src/index.ts";
 export {
 	createTypedSpanStarter,
 	defineTelemetrySchema,
 	InMemoryTelemetryContext,
 	NOOP_TELEMETRY_CONTEXT,
-} from "@earendil-works/pi-telemetry";
+} from "../../telemetry/src/index.ts";
 export * from "./agent.ts";
 // Loop functions
 export * from "./agent-loop.ts";

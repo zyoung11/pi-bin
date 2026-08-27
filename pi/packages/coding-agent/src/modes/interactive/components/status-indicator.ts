@@ -1,4 +1,4 @@
-import { type Component, Loader, type TUI } from "@earendil-works/pi-tui";
+import { type Component, Loader, type TUI } from "../../../../../tui/src/index.ts";
 /** Working indicator configuration for the interactive streaming loader. */
 export interface WorkingIndicatorOptions {
 	frames?: string[];
