@@ -186,8 +186,8 @@ export interface SettingsManagerCreateOptions {
 	projectTrusted?: boolean;
 }
 
-export interface SettingsStorage {
-	withLock(scope: SettingsScope, fn: (current: string | undefined) => string | undefined): void;
+export abstract class SettingsStorage {
+	abstract withLock(scope: SettingsScope, fn: (current: string | undefined) => string | undefined): void;
 }
 
 export interface SettingsError {
@@ -206,11 +206,12 @@ function toSettingsError(scope: SettingsScope, error: unknown, path?: string): S
 	};
 }
 
-export class FileSettingsStorage implements SettingsStorage {
+export class FileSettingsStorage extends SettingsStorage {
 	private globalSettingsPath: string;
 	private projectSettingsPath: string;
 
 	constructor(cwd: string, agentDir: string) {
+		super();
 		const resolvedCwd = resolvePath(cwd);
 		const resolvedAgentDir = resolvePath(agentDir);
 		this.globalSettingsPath = join(resolvedAgentDir, "settings.json");
@@ -275,7 +276,7 @@ export class FileSettingsStorage implements SettingsStorage {
 	}
 }
 
-export class InMemorySettingsStorage implements SettingsStorage {
+export class InMemorySettingsStorage extends SettingsStorage {
 	private global: string | undefined;
 	private project: string | undefined;
 
@@ -425,20 +426,20 @@ export class SettingsManager {
 	/** Migrate old settings format to new format */
 	private static migrateSettings(settings: Record<string, unknown>): Settings {
 		// Migrate queueMode -> steeringMode
-		if ("queueMode" in settings && !("steeringMode" in settings)) {
+		if (settings.queueMode !== undefined && settings.steeringMode === undefined) {
 			settings.steeringMode = settings.queueMode;
 			delete settings.queueMode;
 		}
 
 		// Migrate legacy websockets boolean -> transport enum
-		if (!("transport" in settings) && typeof settings.websockets === "boolean") {
+		if (settings.transport === undefined && typeof settings.websockets === "boolean") {
 			settings.transport = settings.websockets ? "websocket" : "sse";
 			delete settings.websockets;
 		}
 
 		// Migrate old skills object format to new array format
 		if (
-			"skills" in settings &&
+			settings.skills !== undefined &&
 			typeof settings.skills === "object" &&
 			settings.skills !== null &&
 			!Array.isArray(settings.skills)
@@ -459,7 +460,7 @@ export class SettingsManager {
 
 		// Migrate retry.maxDelayMs -> retry.provider.maxRetryDelayMs
 		if (
-			"retry" in settings &&
+			settings.retry !== undefined &&
 			typeof settings.retry === "object" &&
 			settings.retry !== null &&
 			!Array.isArray(settings.retry)
@@ -481,7 +482,7 @@ export class SettingsManager {
 			delete retrySettings.maxDelayMs;
 		}
 
-		return settings as Settings;
+		return settings as unknown as Settings;
 	}
 
 	getGlobalSettings(): Settings {
