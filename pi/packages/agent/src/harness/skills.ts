@@ -1,4 +1,4 @@
-import ignore from "ignore";
+import ignore from "../../../ai/src/utils/mini-ignore.ts";
 import { parse } from "../../../ai/src/utils/mini-yaml.ts";
 import { type ExecutionEnv, type FileInfo, type Result, type Skill, toError } from "./types.ts";
 

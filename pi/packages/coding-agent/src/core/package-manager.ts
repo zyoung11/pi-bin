@@ -32,7 +32,7 @@ function getEnv(): NodeJS.ProcessEnv {
 }
 
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import ignore from "ignore";
+import ignore from "../../../ai/src/utils/mini-ignore.ts";
 import { minimatch } from "../utils/mini-minimatch.ts";
 import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "../utils/mini-semver.ts";
 import { CONFIG_DIR_NAME } from "../config.ts";
