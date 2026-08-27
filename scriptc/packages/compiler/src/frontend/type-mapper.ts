@@ -2630,6 +2630,8 @@ function mapTypeInner(type: ts.Type, ctx: TypeMapperCtx): IrType | null {
         // (jsvalIn's boundary message).
         if (mapped?.kind === "jsval") return JSVAL;
         if (!mapped) {
+          if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] union-arm-fail: ${ctx.checker.typeToString(part)} (parent ${ctx.checker.typeToString(widened)})`);
+        if (!mapped) {
           // Before failing the whole union, let a LATER jsval part absorb.
           for (const rest of ts.constituentTypes(widened)) {
             if (mapType(rest, ctx)?.kind === "jsval") return JSVAL;
@@ -2703,6 +2705,7 @@ function mapTypeInner(type: ts.Type, ctx: TypeMapperCtx): IrType | null {
             (a.kind === "promise" && !arms.every((b) => b === a || isUnitType(b))),
         )
       ) {
+        if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] tagged-union-reject: parent=${ctx.checker.typeToString(widened)} arms=${arms.map((a) => a.kind).join(",")}`);
         return null;
       }
       arms.sort((a, b) => (typeKey(a) < typeKey(b) ? -1 : 1));
@@ -3238,7 +3241,10 @@ function mapRecordType(widened: ts.Type, ctx: TypeMapperCtx): IrType | null {
   const sensitivityAtEntry = contextResolutions;
   try {
     const inner = mapRecordTypeInner(widened, ctx);
-    if (inner === null) return null; // a pending placeholder, if minted, stays unfinalized (prunes as unreachable)
+    if (inner === null) {
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-inner-fail: ${ctx.checker.typeToString(widened)}`);
+      return null; // a pending placeholder, if minted, stays unfinalized (prunes as unreachable)
+    }
     if (!("fields" in inner)) {
       // A whole-type answer (the jsval/dyn absorbs, the header-family
       // canonical shape). If a back-reference minted a placeholder for
@@ -3266,7 +3272,9 @@ function mapRecordType(widened: ts.Type, ctx: TypeMapperCtx): IrType | null {
 function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | RecordShapeParts | null {
   const { checker, shapes } = ctx;
   if (checker.getConstructSignatures(widened).length > 0) return null;
+  if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3274`);
   if (checker.isTupleType(widened) || checker.isArrayLikeType(widened)) return null;
+  if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3275`);
   // ENUM OBJECTS (`typeof e` — the enum used as a first-class value) look
   // exactly like a number-keyed hybrid (member fields + the reverse-map
   // index signature), but the VALUE has no lowering: an enum identifier in
@@ -3275,6 +3283,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
   // names the construct.
   const widenedSym = widened.getSymbol();
   if (widenedSym !== undefined && (widenedSym.flags & ts.SymbolFlags.Enum) !== 0) return null;
+  if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3283`);
   // An index signature maps to a hybrid shape: declared fields keep
   // struct slots, undeclared keys ride the shape's overflow map, valued
   // uniformly by the signature's value type (`unknown` → dyn — a model-pricing table's
@@ -3309,9 +3318,11 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
               checker.getIndexInfosOfType(p).length === 0),
         ));
     if (indexInfos.length > 2) return null;
+    if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3317`);
     let v: IrType | null = null;
     for (const info of indexInfos) {
       if (!stringKey(info.keyType) && !(info.keyType.flags & ts.TypeFlags.Number)) return null;
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3320`);
       const iv = mapType(info.valueType, ctx);
       // A jsval-valued signature absorbs the shape: `Record<string,
       // JSONValue>` (a package's own JSON alias) and `Record<string, any>`
@@ -3319,7 +3330,9 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
       // island objects hold arbitrary engine values natively.
       if (iv?.kind === "jsval") return JSVAL;
       if (!iv || !isSupportedIndexValue(iv)) return null;
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3327`);
       if (v !== null && !typeEquals(v, iv)) return null;
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3328`);
       v = iv;
     }
     indexValue = v!;
@@ -3384,6 +3397,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
     indexValue === undefined &&
     checker.getPropertiesOfType(widened).length === 0;
   if (!recordProvenanceOk(widened, ctx) && !pureIndexShape && !anonymousEmpty) return null;
+  if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3392`);
   // Checker-computed shapes (no user declaration) need two extra fences in
   // the member walk below; see the comments there.
   const computed = widened.isIntersectionType() || isMappedShape(widened);
@@ -3396,6 +3410,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
     // An INDEX-SIGNATURE shape is exempt: `Record<string, T>` legitimately
     // has zero declared members — the signature is the shape.
     if (computed && props.length === 0 && !indexValue) return null;
+    if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3404`);
     // A DECLARED empty object type — `{}` (spelled or the checker's shared
     // intrinsic), `interface Empty {}` — is tsc's TOP type over non-nullish
     // values: every number, string, record, array, function, or class
@@ -3449,28 +3464,35 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
               !isJsSourceFile(d.getSourceFile()),
           );
         if (!accessorOwned || (!getDecl && !setDecl)) return null;
+        if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3457`);
         // Symbol-keyed accessors have no foldable literal name to fill at
         // the literal — no slot to make.
         if (p.name.startsWith("__@")) return null;
+        if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3460`);
         // An index-signature shape stores accessor NAMES nowhere the keyed
         // read/walk machinery can answer (the overflow would miss where
         // Node dispatches the getter) — those shapes stay unmapped.
         if (indexValue !== undefined) return null;
+        if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3464`);
         let readT: IrType | null = null;
         if (getDecl) {
           readT = mapType(checker.getTypeOfSymbol(p), ctx);
           if (readT === null || readT.kind === "jsval") return null;
+          if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3468`);
         }
         let writeT: IrType | null = null;
         if (setDecl) {
           const param = (setDecl as ts.SetAccessorDeclaration).parameters[0];
           if (!param) return null;
+          if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3473`);
           writeT = mapType(checker.getTypeAtLocation(param), ctx);
           // A void/unit-typed write slot has no value form; DIVERGENT
           // getter/setter types stay out too (one property, one type —
           // the class-accessor stance).
           if (writeT === null || writeT.kind === "void" || writeT.kind === "jsval" || isUnitType(writeT)) return null;
+          if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3478`);
           if (readT !== null && typeKey(readT) !== typeKey(writeT)) return null;
+          if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3479`);
         }
         if (readT !== null || getDecl) fields.push({ name: `%get:${p.name}`, type: funcOf([], readT ?? VOID) });
         if (writeT !== null) fields.push({ name: `%set:${p.name}`, type: funcOf([writeT], VOID) });
@@ -3488,6 +3510,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
         })
       ) {
         return null;
+        if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3496`);
       }
       const fieldTs = checker.getTypeOfSymbol(p);
       // GENERIC-callable members leave the shape (no single closure slot
@@ -3496,6 +3519,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
       // site against the defining object literal's declaration.
       if (isGenericCallableMemberType(fieldTs, checker)) continue;
       let pt = mapType(fieldTs, ctx);
+      if (process.env.SC_DEBUG_FAIL && pt === null) console.error(`[SCDBG] member-fail: ${ctx.checker.typeToString(fieldTs)} on ${ctx.checker.typeToString(widened)}.${p.name}`);
       // tsgo PANICS computing `readonly []` through the symbol-type query
       // (the TupleType conversion — the facade's panic fence answers
       // `any`), which would absorb the whole shape into the dynamic tier.
@@ -3517,10 +3541,12 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
       // way in, same checked casts on the way out. (JSON.stringify of a
       // dyn-field-bearing shape keeps its fence: jsonSafe stays false.)
       if (!pt || pt.kind === "void") return null;
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3526`);
       // A DATA property spelled like a reserved accessor slot (`{ "%get:x":
       // v }` — a string-literal key): mapping it would collide with the
       // accessor dispatch, so the shape stays unmapped.
       if (accessorSlotProp(p.name) !== null) return null;
+      if (process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] record-null@L3530`);
       // A bare jsval FIELD absorbs the record: shapes have no handle slot
       // (the IR forbids jsval fields — no JSON story), while an island
       // OBJECT holds engine values natively — `{ model: gateway(id),

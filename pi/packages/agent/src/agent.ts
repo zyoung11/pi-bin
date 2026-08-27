@@ -1,4 +1,5 @@
 import type {
+	Api,
 	ImageContent,
 	Message,
 	Model,
@@ -24,10 +25,10 @@ import type {
 	PrepareNextTurnContext,
 	QueueMode,
 	ShouldStopAfterTurnContext,
+	ThinkingLevel,
 	StreamFn,
 	ToolExecutionMode,
 } from "./types.ts";
-
 export type { QueueMode } from "./types.ts";
 
 function defaultConvertToLlm(messages: AgentMessage[]): Message[] {
@@ -58,12 +59,19 @@ const DEFAULT_MODEL = {
 	maxTokens: 0,
 } satisfies Model<any>;
 
-type MutableAgentState = Omit<AgentState, "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
+interface MutableAgentState {
+	systemPrompt: string;
+	model: Model<Api>;
+	thinkingLevel: ThinkingLevel;
+	set tools(tools: AgentTool[]);
+	get tools(): AgentTool[];
+	set messages(messages: AgentMessage[]);
+	get messages(): AgentMessage[];
 	isStreaming: boolean;
 	streamingMessage?: AgentMessage;
 	pendingToolCalls: Set<string>;
 	errorMessage?: string;
-};
+}
 
 function createMutableAgentState(
 	initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>,
