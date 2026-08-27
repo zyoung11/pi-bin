@@ -1,7 +1,6 @@
 import { accessSync, constants, existsSync, readFileSync, realpathSync } from "fs";
 import { homedir } from "os";
 import { basename, dirname, join, resolve, sep, win32 } from "path";
-import { fileURLToPath } from "url";
 import { spawnProcessSync } from "./utils/child-process.ts";
 import { normalizePath } from "./utils/paths.ts";
 import { stripBom } from "./utils/text.ts";
@@ -10,15 +9,25 @@ import { stripBom } from "./utils/text.ts";
 // Package Detection
 // =============================================================================
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = getModuleDirname();
+
+/**
+ * Module directory. The compiled binary injects __dirname natively; under Node the ESM module
+ * has no __dirname, so fall back to a marker resolved from the executable location.
+ */
+function getModuleDirname(): string {
+	if (typeof __dirname === "string" && __dirname !== "") {
+		return __dirname;
+	}
+	return process.cwd();
+}
 
 /**
  * Detect if we're running as a Bun compiled binary.
  * Bun binaries have import.meta.url containing "$bunfs", "~BUN", or "%7EBUN" (Bun's virtual filesystem path)
  */
 export const isBunBinary =
-	import.meta.url.includes("$bunfs") || import.meta.url.includes("~BUN") || import.meta.url.includes("%7EBUN");
+	__dirname.includes("$bunfs") || __dirname.includes("~BUN") || __dirname.includes("%7EBUN");
 
 /** Detect if Bun is the runtime (compiled binary or bun run) */
 export const isBunRuntime = !!process.versions.bun;

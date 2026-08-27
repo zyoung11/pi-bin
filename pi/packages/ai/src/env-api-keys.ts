@@ -1,27 +1,6 @@
-// NEVER convert to top-level imports - breaks browser/Vite builds
-let _existsSync: typeof import("node:fs").existsSync | null = null;
-let _homedir: typeof import("node:os").homedir | null = null;
-let _join: typeof import("node:path").join | null = null;
-
-type DynamicImport = (specifier: string) => Promise<unknown>;
-
-const dynamicImport: DynamicImport = (specifier) => import(specifier);
-const NODE_FS_SPECIFIER = "node:" + "fs";
-const NODE_OS_SPECIFIER = "node:" + "os";
-const NODE_PATH_SPECIFIER = "node:" + "path";
-
-// Eagerly load in Node.js/Bun environment only
-if (typeof process !== "undefined" && (process.versions?.node || process.versions?.bun)) {
-	dynamicImport(NODE_FS_SPECIFIER).then((m) => {
-		_existsSync = (m as typeof import("node:fs")).existsSync;
-	});
-	dynamicImport(NODE_OS_SPECIFIER).then((m) => {
-		_homedir = (m as typeof import("node:os")).homedir;
-	});
-	dynamicImport(NODE_PATH_SPECIFIER).then((m) => {
-		_join = (m as typeof import("node:path")).join;
-	});
-}
+import { existsSync as _existsSync } from "node:fs";
+import { homedir as _homedir } from "node:os";
+import { join as _join } from "node:path";
 
 import type { KnownProvider, ProviderEnv } from "./types.ts";
 import { getProviderEnvValue } from "./utils/provider-env.ts";
@@ -39,18 +18,6 @@ function hasVertexAdcCredentials(env?: ProviderEnv): boolean {
 	}
 
 	if (cachedVertexAdcCredentialsExists === null) {
-		// If node modules haven't loaded yet (async import race at startup),
-		// return false WITHOUT caching so the next call retries once they're ready.
-		// Only cache false permanently in a browser environment where fs is never available.
-		if (!_existsSync || !_homedir || !_join) {
-			const isNode = typeof process !== "undefined" && (process.versions?.node || process.versions?.bun);
-			if (!isNode) {
-				// Definitively in a browser — safe to cache false permanently
-				cachedVertexAdcCredentialsExists = false;
-			}
-			return false;
-		}
-
 		// Check GOOGLE_APPLICATION_CREDENTIALS env var first (standard way)
 		const gacPath = getProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env);
 		if (gacPath) {

@@ -68,7 +68,7 @@ export function normalizeWindowsShellPath(filePath: string): string {
 	if (!filePath.startsWith("/") || filePath.startsWith("//") || filePath.includes("\\")) return filePath;
 	const match = filePath.match(/^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i);
 	if (!match) return filePath;
-	const suffix = match[2]?.replaceAll("/", "\\");
+	const suffix = match[2]?.split("/").join("\\");
 	return `${match[1].toUpperCase()}:\\${suffix ?? ""}`;
 }
 

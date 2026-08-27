@@ -537,7 +537,7 @@ function validateNode(
 		}
 	}
 
-	if ("const" in target && !deepEqual(value, target.const)) {
+	if (target.const !== undefined && !deepEqual(value, target.const)) {
 		errors.push({
 			keyword: "const",
 			schemaPath: "#",
@@ -549,11 +549,12 @@ function validateNode(
 
 	const enumValues = target.enum;
 	if (Array.isArray(enumValues) && !enumValues.some((item) => deepEqual(item, value))) {
+		const allowedValues = enumValues as string[];
 		errors.push({
 			keyword: "enum",
 			schemaPath: "#",
 			instancePath: path,
-			params: { allowedValues: enumValues },
+			params: { allowedValues },
 			message: "must be equal to one of the allowed values",
 		});
 	}
@@ -675,7 +676,7 @@ function validateNode(
 
 	if (isPlainObject(value)) {
 		const properties = target.properties;
-		const propertyNames = isPlainObject(properties) ? Object.keys(properties) : [];
+		const propertyNames: string[] = isPlainObject(properties) ? Object.keys(properties) : [];
 		const requiredList = Array.isArray(target.required)
 			? (target.required as unknown[]).filter((item): item is string => typeof item === "string")
 			: [];
@@ -871,7 +872,7 @@ function convertNodeWithContext(node: SchemaObject, defs: Record<string, SchemaO
 		}
 		const additionalProperties = target.additionalProperties;
 		if (isPlainObject(additionalProperties)) {
-			const propertyNames = isPlainObject(properties) ? Object.keys(properties) : [];
+			const propertyNames: string[] = isPlainObject(properties) ? Object.keys(properties) : [];
 			for (const name of Object.keys(value)) {
 				if (propertyNames.includes(name)) continue;
 				value[name] = convertNodeWithContext(additionalProperties, defs, value[name]);
