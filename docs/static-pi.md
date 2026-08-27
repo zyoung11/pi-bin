@@ -70,6 +70,78 @@
 6. **`--npm-static` 收尾**：yaml/markd/chalk/diff/ignore/minimatch/semver/get-east-asian-width/highlight.js 等逐包验证，外围功能（mermaid/高亮）撞墙即砍
 7. **全量构建 + 冒烟**：TUI 交互、bash 工具流式输出、三个模型真跑对话；`scriptc build` 零诊断
 
+## 基线口径（2026-08-28 确认）
+
+- 基线数字 = `scriptc coverage packages/coding-agent/src/cli.ts` 输出中 **reached 段** 的实例数（诊断行有 ×N 聚合前缀，需按实例累加；unreached 段永不导致 build 失败，不计入）。712 基线已用该口径精确复现（SC1090×199、SC2013×157、SC2020×100、SC2002×100、SC2004×60、SC2009×56、SC2011×15、SC2003×9、SC2012×6、SC1120×6、SC1100×2、SC1063×1、SC1043×1）。
+- 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
+- ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
+
+## 阶段 5/6 记录（2026-08-28：三墙突破 + 七个 mini 库 + 两个砍除）
+
+**schema.ts 三墙突破（全部解决，712→614，schema.ts 自身 99→0）**：
+
+- 墙 1+2+3 的统一解法：**精度走泛型参数、成员走运行时形状**。品牌接口成员全部退化为 record/数组/原始值（`properties: Record<string, PiSchema>`、`required?: string[]`、`anyOf: PiSchema[]`），`Static` 类型机制改走品牌泛型推断（`[S] extends [PiObject<infer P>]`）——record 成员与 record 源精确匹配，SC2002 cast 墙消失；required 条件类型成员删除，SC2009 消失。
+- 空接口品牌（PiUnsafe/PiUnknown）在条件分支里必须排在**所有有成员品牌之后**（空接口匹配一切）。
+- 标记整体消失：~kind/~unsafe 运行时零读者（grep 全图验证）→ 不存；~optional 改瞬时包装字段 `{"~optional": Sub}`，Object 构造时解包进干净 record——最终 schema JSON 与 typebox 逐字节一致，无需出口剥离、无需 defineProperty。
+- width-coerce cast 是**逐字段拷贝**：品牌未声明的成员会被丢弃（description 曾消失）——品牌必须声明全部需存活字段；显式 undefined 成员（`description: options?.description`）JSON.stringify 自动跳过且键序与 typebox 一致；spread-after-explicit 在泛型实例化下被禁。
+- 泛型动态键读被禁 → 注解中间变量 `const props: Record<string, PiSchema> = properties` 后按 record 读；`PiRecord<infer Value>` 单参推断错位（类型参数按位置绑定）→ 双 infer。
+- 本地 Static 机制：品牌推断 + Defs 上下文穿透（Cyclic/Ref）+ StaticObjectOf 的 mapped-as 双向拆分（required/optional 两个 mapped 交集）；9 组 Eq 对照真 typebox Static 全 true；TS2589 未再出现。
+- 验证器缓存从 defineHidden 非枚举属性改模块级数组（引用等值匹配）。
+- 21 个消费文件 Static 导入切本地 schema；typebox-helpers 去 as any；src 全图 typebox import 清零。
+
+**utils/child-process.ts 重写（scriptc 运行时实验 t27c 驱动）**：
+
+- 运行时事实：spawn stdio 管道 data（Buffer→toString）/end/exit 触发；**close 事件不存在**（类型与运行时双重确认）；data 监听参数必须 Buffer 类型（或 Buffer-armed union）；`typeof x === "string"` 对 Buffer|string union 被禁。
+- cross-spawn 移除（win32 分支目标平台死代码）；@types/node 签名类型换本地 ChildProcessHandle/ChildProcessStream/SpawnProcessOptions/SpawnSyncResult；removeListener/close 改 once+settled 守卫；waitForChildProcess 保留 exit+流空闲宽限语义（#5303）。
+- bash.ts 改走 spawnProcess 并删除 WSL stdin transport 死代码分支（scriptc 禁止向子进程 stdin 写，静态围栏不管运行时可达性）。
+
+**npm 墙归因实验（--npm-static 逐包 coverage）**：
+
+- `ignore`（-21）、`string_decoder`+`partial-json`（-16）→ 走 --npm-static ✓（构建 flag：`--npm-static ignore,string_decoder,partial-json`）。
+- `marked,highlight.js`（+20）、`yaml`（+315）→ 不可行：marked 的 lib/marked.esm.js 是压缩单文件（77 行超长行、单字符变量）被 preflight「非压缩 JS」判据拒绝；yaml 内部 schema 文件爆炸。
+- ⚠️ --npm-static 集成会让 npm 包类型值流入 pi 代码并揭幕下游诊断（全量 6 包实验 532→902），不要盲目全开。
+
+**七个 mini 库**：
+
+- mini-chalk（coding-agent/src/utils）：10 样式 + NO_COLOR/FORCE_COLOR/TERM/isTTY 级别检测；12 文件切换。注意 scriptc cast 是逐字段拷贝：品牌未声明成员会被静默丢弃。
+- mini-semver：valid/validRange/compare/gt/rcompare/satisfies/maxSatisfying（^/~/比较符/x-range/连字符/prerelease 排序）。
+- mini-minimatch：*/**/?/[]/{}/nocase，段级递归匹配 + 模块级 regex 缓存。
+- mini-lockfile：lockSync/lock + ELOCKED（LockError class 带 code 字段）+ stale 窃取（mtime 文件），类实例默认导出（record 存函数值丢可选参数语义）。
+- mini-diff（ai/src/utils）：LCS（前后缀裁剪 + 9M cell 上限兜底）+ diffLines/diffWords/createTwoFilesPatch；与 jsdiff 8.0.4 输出**逐字节等价 8/8**（含 \ No newline at end of file、@@ -0,0 头、parts 键序 count 在前）。
+- mini-yaml（ai/src/utils）：frontmatter 子集（块映射/块与 flow 列表/list-of-maps 归一化/字面块 | 与折叠 >/引号/注释），对照真 yaml 10/10 等价。
+- mini-hosted-git-info：fromUrl 四字段（domain/user/project/committish），已知 host 列表 + scp/shorthand/web 形态。
+- east-asian-width（tui）：宽字符区间表，签名收窄为 codePoint: number（调用点本就传码点）。
+
+**砍除（按既定外围策略）**：
+
+- highlight.js：syntax-highlight.ts 改 no-op（API 表面保留，supportsLanguage 恒 false → highlightCode 走既有主题纯色路径，消费方零改动）。
+- grok-mermaid：components/mermaid.ts 删除、interactive-mode transformer 列表清空、settings-selector 移除条目；settings-manager 的 MermaidRenderingMode 类型保留做用户配置兼容。
+- http-dispatcher.ts 去 undici：设置常量与 parse/format/applyHttpProxySettings 保留，configureHttpDispatcher 退化为校验 no-op（原生 fetch 接管；HTTP_PROXY 环境变量语义变化已备注）。
+
+**tui Segmenter（Intl.Segmenter 无 lowering）**：
+
+- tui/src/segmenter.ts：TextSegmenter + SegmentData{segment,index,isWordLike}，grapheme 走 UAX#29 实用子集（RI 对/Hangul Jamo/Mark+VS16/ZWJ/CRLF），word 按字母数字 run；真跑验证组合字符/emoji ZWJ 序列/国旗对/索引偏移全对。
+- utils.ts 6 个 v-flag 正则清零：4 个直转 u-flag；`[\p{Spacing_Mark}--[᜴〮〯]]` 集合差改 isTerminalSpacingMarkRun 逐字符判定；`\p{RGI_Emoji}`（v-flag 专属属性）改 Extended_Pictographic 近似。
+- editor/word-navigation 的 Intl 类型引用与 Iterable<SegmentData> 签名全切本地。
+
+**marked 替代（mini-markdown，tui/src/mini-markdown.ts）**：
+
+- marked v18 的 lib/marked.esm.js 压缩形态被 preflight 拒绝（不可修复）→ 自研 Lexer：块级（heading/fence 含流式未闭合/嵌套 list/task checkbox/表格/blockquote/hr/html/缩进代码）+ InlineLexer（strong/em/del/codespan/link/image/autolink/escape/html/br）+ Tokenizer 子类钩子（StrictStrikethrough del 覆盖）+ 块级扩展（latex）+ setOptions/use API。
+- 对照真 marked v18：17/17 场景 token 结构逐字段等价；关键语义锚点：list_item.tokens 走 blockTokens + paragraph→text 映射（top=false 语义）、task checkbox token 前置、autolink 无 title、尾部 space 抑制、流式部分 fence 保留（#5825 的 trimPartialClosingFences 依赖）。
+- markdown.ts 12 处依赖 marked any 宽松类型的访问改显式收窄；mini-markdown 自身 scriptc 诊断 0。
+
+**当前基线（--npm-static ignore,string_decoder,partial-json）**：492 → 539（markdown 组件揭幕 +47，mini-markdown 自身 0）。剩余 539 的构成：SC1090×263（类方法级联 + record 形状）、SC2020×99（node API 长尾：Set/Map 迭代、Object.entries/keys 特殊形态、process.stdin 系列、path.win32 等）、SC2002×58（record 形状：TUI handleInput 系列 ×~20、keybindings、theme）、SC2009×30、SC2004×43（级联，随根因消）、SC2011×15、SC2012×11（变量 specifier import()：ai/auth/context.ts + env-api-keys.ts；.toString() on numbers）、SC2003×10、SC1100×3（JSON.parse cast 需运行时校验）、SC1101×1、SC1043/SC1063/SC1042 杂项。
+
+## 阶段 5/6 剩余工作清单（按优先级）
+
+1. TUI handleInput record 形状 ×~20（焦点系统的 record with function members）——先做实验确定 record 内函数成员的可行表示
+2. Set/Map 非基元元素（Set<TuiInputListener>/Set<SessionResourceCleanup>/Map<Api,…>/Map<keyof Settings,Set<string>>）→ 数组或 string 键 Map
+3. runWithConcurrency（new Array(count)/Array.from/(()=>Promise<T>)[].length）泛型工具重写
+4. keybindings/theme record 形状（expected '{ clear: string; copy: string; …}'——精确键 record）
+5. SC2012：ai/auth/context.ts + env-api-keys.ts 变量 specifier import() 删除/改静态
+6. settings-manager/session-manager/model-runtime 类方法级联（找类声明自身诊断）
+7. node:module 三文件注入缝（pi-tui preflight），phase-6 收尾 + 构建脚本拆除 + 全量构建 + 冒烟（阶段 7）
+
 ## 当前进度
 
 - [x] scriptc 环境搭建（pnpm install + pnpm -r build），hello world 编译链验证
