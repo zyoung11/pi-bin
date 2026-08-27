@@ -1,4 +1,4 @@
-import { type Component, Loader, type TUI } from "../../../../../tui/src/index.ts";
+import { Component, Loader, type TUI } from "../../../../../tui/src/index.ts";
 /** Working indicator configuration for the interactive streaming loader. */
 export interface WorkingIndicatorOptions {
 	frames?: string[];
@@ -107,7 +107,7 @@ export class BranchSummaryStatusIndicator extends StatusIndicator {
 	}
 }
 
-export class IdleStatus implements Component {
+export class IdleStatus extends Component {
 	invalidate(): void {
 		// No cached state to invalidate.
 	}

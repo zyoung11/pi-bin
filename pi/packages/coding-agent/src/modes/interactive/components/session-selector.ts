@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import * as os from "node:os";
 import {
-	type Component,
+	Component,
 	Container,
 	type Focusable,
 	getKeybindings,
@@ -53,7 +53,7 @@ function canonicalizePath(path: string | undefined): string | undefined {
 	return _canonicalizePath(path);
 }
 
-class SessionSelectorHeader implements Component {
+class SessionSelectorHeader extends Component {
 	private scope: SessionScope;
 	private sortMode: SortMode;
 	private nameFilter: NameFilter;
@@ -67,6 +67,7 @@ class SessionSelectorHeader implements Component {
 	private showRenameHint = false;
 
 	constructor(scope: SessionScope, sortMode: SortMode, nameFilter: NameFilter, requestRender: () => void) {
+		super();
 		this.scope = scope;
 		this.sortMode = sortMode;
 		this.nameFilter = nameFilter;
@@ -280,7 +281,7 @@ function flattenSessionTree(roots: SessionTreeNode[]): FlatSessionNode[] {
 /**
  * Custom session list component with multi-line items and search
  */
-class SessionList implements Component, Focusable {
+class SessionList extends Component implements Focusable {
 	public getSelectedSessionPath(): string | undefined {
 		const selected = this.filteredSessions[this.selectedIndex];
 		return selected?.session.path;
@@ -327,6 +328,7 @@ class SessionList implements Component, Focusable {
 		keybindings: KeybindingsManager,
 		currentSessionFilePath?: string,
 	) {
+		super();
 		this.allSessions = sessions;
 		this.filteredSessions = [];
 		this.searchInput = new Input();

@@ -1,7 +1,7 @@
 import { getKeybindings } from "../keybindings.ts";
 import { decodeKittyPrintable } from "../keys.ts";
 import { KillRing } from "../kill-ring.ts";
-import { type Component, CURSOR_MARKER, type Focusable } from "../tui.ts";
+import { Component, CURSOR_MARKER, type Focusable } from "../tui.ts";
 import { UndoStack } from "../undo-stack.ts";
 import { getGraphemeSegmenter, isWhitespaceChar, sliceByColumn, visibleWidth } from "../utils.ts";
 import { findWordBackward, findWordForward } from "../word-navigation.ts";
@@ -16,14 +16,11 @@ interface InputState {
 /**
  * Input component - single-line text input with horizontal scrolling
  */
-export class Input implements Component, Focusable {
+export class Input extends Component implements Focusable {
 	private value: string = "";
 	private cursor: number = 0; // Cursor position in the value
 	public onSubmit?: (value: string) => void;
 	public onEscape?: () => void;
-
-	/** Focusable interface - set by TUI when focus changes */
-	focused: boolean = false;
 
 	// Bracketed paste mode buffering
 	private pasteBuffer: string = "";

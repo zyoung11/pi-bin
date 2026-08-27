@@ -1,5 +1,5 @@
 import { Input } from "./components/input.ts";
-import type { Component, Focusable } from "./tui.ts";
+import { Component, type Focusable } from "./tui.ts";
 import { getGraphemeSegmenter, stripTerminalSequences, truncateToWidth, visibleWidth } from "./utils.ts";
 
 const segmenter = getGraphemeSegmenter();
@@ -102,7 +102,7 @@ export function getAltScreenSearchMatchKey(match: AltScreenSearchMatch): string 
 	return first && last ? `${first.row}:${first.startCol}:${last.row}:${last.endCol}` : "";
 }
 
-export class AltScreenSearchComponent implements Component, Focusable {
+export class AltScreenSearchComponent extends Component implements Focusable {
 	private readonly input = new Input();
 	private readonly onQueryChange: (query: string) => void;
 	private resultCount = 0;
@@ -110,6 +110,7 @@ export class AltScreenSearchComponent implements Component, Focusable {
 	private _focused = false;
 
 	constructor(onQueryChange: (query: string) => void) {
+		super();
 		this.onQueryChange = onQueryChange;
 	}
 

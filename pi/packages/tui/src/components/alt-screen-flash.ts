@@ -1,4 +1,4 @@
-import type { Component } from "../tui.ts";
+import { Component } from "../tui.ts";
 import { truncateToWidth } from "../utils.ts";
 
 const DEFAULT_DURATION_MS = 1000;
@@ -10,12 +10,13 @@ interface FlashEntry {
 }
 
 /** Transient messages composited by the alternate-screen renderer. */
-export class AltScreenFlashContainer implements Component {
+export class AltScreenFlashContainer extends Component {
 	private readonly entries: FlashEntry[] = [];
 	private nextId = 0;
 	private readonly requestRender: () => void;
 
 	constructor(requestRender: () => void) {
+		super();
 		this.requestRender = requestRender;
 	}
 

@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { type Component, truncateToWidth, visibleWidth } from "../../../../../tui/src/index.ts";
+import { Component, truncateToWidth, visibleWidth } from "../../../../../tui/src/index.ts";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
@@ -47,12 +47,13 @@ export function formatCwdForFooter(cwd: string, home: string | undefined): strin
  * Footer component that shows pwd, token stats, and context usage.
  * Computes token/context stats from session, gets git branch and extension statuses from provider.
  */
-export class FooterComponent implements Component {
+export class FooterComponent extends Component {
 	private autoCompactEnabled = true;
 	private session: AgentSession;
 	private footerData: ReadonlyFooterDataProvider;
 
 	constructor(session: AgentSession, footerData: ReadonlyFooterDataProvider) {
+		super();
 		this.session = session;
 		this.footerData = footerData;
 	}

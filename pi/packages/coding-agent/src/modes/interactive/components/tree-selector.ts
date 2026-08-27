@@ -1,5 +1,5 @@
 import {
-	type Component,
+	Component,
 	Container,
 	type Focusable,
 	getKeybindings,
@@ -103,7 +103,7 @@ interface ToolCallInfo {
 	arguments: Record<string, unknown>;
 }
 
-class TreeList implements Component {
+class TreeList extends Component {
 	private flatNodes: FlatNode[] = [];
 	private filteredNodes: FlatNode[] = [];
 	private selectedIndex = 0;
@@ -132,6 +132,7 @@ class TreeList implements Component {
 		initialSelectedId?: string,
 		initialFilterMode?: FilterMode,
 	) {
+		super();
 		this.currentLeafId = currentLeafId;
 		this.maxVisibleLines = maxVisibleLines;
 		this.filterMode = initialFilterMode ?? "default";
@@ -1154,10 +1155,11 @@ class TreeList implements Component {
 }
 
 /** Component that displays the current search query */
-class SearchLine implements Component {
+class SearchLine extends Component {
 	private treeList: TreeList;
 
 	constructor(treeList: TreeList) {
+		super();
 		this.treeList = treeList;
 	}
 
@@ -1175,7 +1177,7 @@ class SearchLine implements Component {
 }
 
 /** Component that renders tree help as semantic rows with chunk-aware wrapping */
-class TreeHelp implements Component {
+class TreeHelp extends Component {
 	invalidate(): void {}
 
 	render(width: number): string[] {
@@ -1268,7 +1270,7 @@ function compactRawKeys(keys: string[]): string {
 }
 
 /** Label input component shown when editing a label */
-class LabelInput implements Component, Focusable {
+class LabelInput extends Component implements Focusable {
 	private input: Input;
 	private entryId: string;
 	public onSubmit?: (entryId: string, label: string | undefined) => void;
@@ -1285,6 +1287,7 @@ class LabelInput implements Component, Focusable {
 	}
 
 	constructor(entryId: string, currentLabel: string | undefined) {
+		super();
 		this.entryId = entryId;
 		this.input = new Input();
 		if (currentLabel) {

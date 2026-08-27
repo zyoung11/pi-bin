@@ -1,12 +1,13 @@
-import type { Component } from "../tui.ts";
+import { Component } from "../tui.ts";
 
 /**
  * Spacer component that renders empty lines
  */
-export class Spacer implements Component {
+export class Spacer extends Component {
 	private lines: number;
 
 	constructor(lines: number = 1) {
+		super();
 		this.lines = lines;
 	}
 

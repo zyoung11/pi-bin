@@ -1,4 +1,4 @@
-import { type Component, Container, getKeybindings, Spacer, Text, truncateToWidth } from "../../../../../tui/src/index.ts";
+import { Component, Container, getKeybindings, Spacer, Text, truncateToWidth } from "../../../../../tui/src/index.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 
@@ -11,7 +11,7 @@ interface UserMessageItem {
 /**
  * Custom user message list component with selection
  */
-class UserMessageList implements Component {
+class UserMessageList extends Component {
 	private messages: UserMessageItem[] = [];
 	private selectedIndex: number = 0;
 	public onSelect?: (entryId: string) => void;
@@ -19,6 +19,7 @@ class UserMessageList implements Component {
 	private maxVisible: number = 10; // Max messages visible
 
 	constructor(messages: UserMessageItem[], initialSelectedId?: string) {
+		super();
 		// Store messages in chronological order (oldest to newest)
 		this.messages = messages;
 		const initialIndex = initialSelectedId ? messages.findIndex((message) => message.id === initialSelectedId) : -1;

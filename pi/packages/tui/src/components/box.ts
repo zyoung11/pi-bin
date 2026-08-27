@@ -1,4 +1,4 @@
-import type { Component } from "../tui.ts";
+import { Component } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth } from "../utils.ts";
 
 type RenderCache = {
@@ -11,7 +11,7 @@ type RenderCache = {
 /**
  * Box component - a container that applies padding and background to all children
  */
-export class Box implements Component {
+export class Box extends Component {
 	children: Component[] = [];
 	private paddingX: number;
 	private paddingY: number;
@@ -21,6 +21,7 @@ export class Box implements Component {
 	private cache?: RenderCache;
 
 	constructor(paddingX = 1, paddingY = 1, bgFn?: (text: string) => string) {
+		super();
 		this.paddingX = paddingX;
 		this.paddingY = paddingY;
 		this.bgFn = bgFn;

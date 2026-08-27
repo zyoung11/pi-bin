@@ -5,7 +5,7 @@
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import {
-	type Component,
+	Component,
 	Container,
 	type Focusable,
 	getKeybindings,
@@ -184,11 +184,12 @@ type FlatEntry =
 	| { type: "subgroup"; subgroup: ResourceSubgroup; group: ResourceGroup }
 	| { type: "item"; item: ResourceItem };
 
-class ConfigSelectorHeader implements Component {
+class ConfigSelectorHeader extends Component {
 	private writeScope: ConfigWriteScope;
 	private projectModeAvailable: boolean;
 
 	constructor(writeScope: ConfigWriteScope, projectModeAvailable: boolean) {
+		super();
 		this.writeScope = writeScope;
 		this.projectModeAvailable = projectModeAvailable;
 	}
@@ -219,7 +220,7 @@ class ConfigSelectorHeader implements Component {
 	}
 }
 
-class ResourceList implements Component, Focusable {
+class ResourceList extends Component implements Focusable {
 	private groupsByScope: Record<ConfigWriteScope, ResourceGroup[]>;
 	private flatItems: FlatEntry[] = [];
 	private filteredItems: FlatEntry[] = [];
@@ -254,6 +255,7 @@ class ResourceList implements Component, Focusable {
 		terminalHeight?: number,
 		writeScope: ConfigWriteScope = "global",
 	) {
+		super();
 		this.groupsByScope = groupsByScope;
 		this.settingsManager = settingsManager;
 		this.cwd = cwd;

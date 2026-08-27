@@ -2,7 +2,7 @@ import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocompl
 import { getKeybindings } from "../keybindings.ts";
 import { decodePrintableKey, matchesKey } from "../keys.ts";
 import { KillRing } from "../kill-ring.ts";
-import { type Component, CURSOR_MARKER, type Focusable, type TUI } from "../tui.ts";
+import { Component, CURSOR_MARKER, type Focusable, type TUI } from "../tui.ts";
 import { UndoStack } from "../undo-stack.ts";
 import {
 	cjkBreakRegex,
@@ -267,7 +267,7 @@ function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, w
 	return sliceByColumn(indicator, 0, indicatorWidth, true) + ellipsis;
 }
 
-export class Editor implements Component, Focusable {
+export class Editor extends Component implements Focusable {
 	private state: EditorState = {
 		lines: [""],
 		cursorLine: 0,
@@ -275,7 +275,6 @@ export class Editor implements Component, Focusable {
 	};
 
 	/** Focusable interface - set by TUI when focus changes */
-	focused: boolean = false;
 
 	protected tui: TUI;
 	private theme: EditorTheme;
@@ -343,6 +342,7 @@ export class Editor implements Component, Focusable {
 	public disableSubmit: boolean = false;
 
 	constructor(tui: TUI, theme: EditorTheme, options: EditorOptions = {}) {
+		super();
 		this.tui = tui;
 		this.theme = theme;
 		this.borderColor = theme.borderColor;

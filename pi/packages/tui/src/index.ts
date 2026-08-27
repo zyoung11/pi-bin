@@ -114,7 +114,7 @@ export {
 	type TerminalCapabilities,
 } from "./terminal-image.ts";
 export {
-	type Component,
+	Component,
 	Container,
 	CURSOR_MARKER,
 	compositeTuiLine,

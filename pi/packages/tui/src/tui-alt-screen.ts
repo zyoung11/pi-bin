@@ -29,7 +29,7 @@ import {
 	type TerminalCapabilities,
 } from "./terminal-image.ts";
 import {
-	type Component,
+	Component,
 	CURSOR_MARKER,
 	compositeTuiLine,
 	type OverlayHandle,
@@ -164,6 +164,25 @@ export interface TuiAltScreenOptions {
 }
 
 /** Alternate-screen TUI with a scrollable, application-owned viewport. */
+class ImplicitDocumentComponent extends Component {
+	private renderFn: (width: number) => string[];
+	private invalidateFn: () => void;
+
+	constructor(renderFn: (width: number) => string[], invalidateFn: () => void) {
+		super();
+		this.renderFn = renderFn;
+		this.invalidateFn = invalidateFn;
+	}
+
+	render(width: number): string[] {
+		return this.renderFn(width);
+	}
+
+	invalidate(): void {
+		this.invalidateFn();
+	}
+}
+
 export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	readonly mode = "fullscreen" as const;
 	readonly [VIEWPORT_TUI] = true as const;
@@ -209,12 +228,12 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		options: TuiAltScreenOptions = {},
 	) {
 		super(terminal, showHardwareCursor, logDirectory);
-		this.implicitDocument = {
-			render: (width) => super.render(width),
-			invalidate: () => {
+		this.implicitDocument = new ImplicitDocumentComponent(
+			(width) => super.render(width),
+			() => {
 				for (const child of this.children) child.invalidate();
 			},
-		};
+		);
 		this.implicitScrollView = new ScrollView(this.implicitDocument, { follow: "end", primary: true });
 		this.flashes = new AltScreenFlashContainer(() => this.requestRender());
 		this.wheelScrollLines = Math.max(1, Math.floor(options.wheelScrollLines ?? 1));

@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { access as fsAccess } from "node:fs/promises";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
-import { Container, Text, truncateToWidth } from "../../../../tui/src/index.ts";
+import { Component, Container, Text, truncateToWidth } from "../../../../tui/src/index.ts";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { truncateToVisualLines } from "../../modes/interactive/components/visual-truncate.ts";
 import { theme } from "../../modes/interactive/theme/theme.ts";
@@ -77,6 +77,39 @@ export interface BashOperations {
 			env?: NodeJS.ProcessEnv;
 		},
 	) => Promise<{ exitCode: number | null }>;
+}
+
+class BashPreviewComponent extends Component {
+	private styledOutput: string;
+	private state: { cachedLines?: string[]; cachedWidth?: number; cachedSkipped?: number };
+
+	constructor(styledOutput: string, state: { cachedLines?: string[]; cachedWidth?: number; cachedSkipped?: number }) {
+		super();
+		this.styledOutput = styledOutput;
+		this.state = state;
+	}
+
+	render(width: number): string[] {
+		if (this.state.cachedLines === undefined || this.state.cachedWidth !== width) {
+			const preview = truncateToVisualLines(this.styledOutput, BASH_PREVIEW_LINES, width);
+			this.state.cachedLines = preview.visualLines;
+			this.state.cachedSkipped = preview.skippedCount;
+			this.state.cachedWidth = width;
+		}
+		if (this.state.cachedSkipped && this.state.cachedSkipped > 0) {
+			const hint =
+				theme.fg("muted", `... (${this.state.cachedSkipped} earlier lines,`) +
+				` ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
+			return ["", truncateToWidth(hint, width, "..."), ...(this.state.cachedLines ?? [])];
+		}
+		return ["", ...(this.state.cachedLines ?? [])];
+	}
+
+	invalidate(): void {
+		this.state.cachedWidth = undefined;
+		this.state.cachedLines = undefined;
+		this.state.cachedSkipped = undefined;
+	}
 }
 
 /** Shared process execution used by the built-in shell tools. */
@@ -266,28 +299,8 @@ function rebuildBashResultRenderComponent(
 		if (options.expanded) {
 			component.addChild(new Text(`\n${styledOutput}`, 0, 0));
 		} else {
-			component.addChild({
-				render: (width: number) => {
-					if (state.cachedLines === undefined || state.cachedWidth !== width) {
-						const preview = truncateToVisualLines(styledOutput, BASH_PREVIEW_LINES, width);
-						state.cachedLines = preview.visualLines;
-						state.cachedSkipped = preview.skippedCount;
-						state.cachedWidth = width;
-					}
-					if (state.cachedSkipped && state.cachedSkipped > 0) {
-						const hint =
-							theme.fg("muted", `... (${state.cachedSkipped} earlier lines,`) +
-							` ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
-						return ["", truncateToWidth(hint, width, "..."), ...(state.cachedLines ?? [])];
-					}
-					return ["", ...(state.cachedLines ?? [])];
-				},
-				invalidate: () => {
-					state.cachedWidth = undefined;
-					state.cachedLines = undefined;
-					state.cachedSkipped = undefined;
-				},
-			});
+			const adHoc = new BashPreviewComponent(styledOutput, state);
+			component.addChild(adHoc);
 		}
 	}
 

@@ -2,7 +2,7 @@
  * Armin says hi! A fun easter egg with animated XBM art.
  */
 
-import type { Component, TUI } from "../../../../../tui/src/index.ts";
+import { Component, type TUI } from "../../../../../tui/src/index.ts";
 import { theme } from "../theme/theme.ts";
 
 // XBM image: 31x36 pixels, LSB first, 1=background, 0=foreground
@@ -57,7 +57,7 @@ function buildFinalGrid(): string[][] {
 	return grid;
 }
 
-export class ArminComponent implements Component {
+export class ArminComponent extends Component {
 	private ui: TUI;
 	private interval: ReturnType<typeof setInterval> | null = null;
 	private effect: Effect;
@@ -70,6 +70,7 @@ export class ArminComponent implements Component {
 	private cachedVersion = -1;
 
 	constructor(ui: TUI) {
+		super();
 		this.ui = ui;
 		this.effect = EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
 		this.finalGrid = buildFinalGrid();

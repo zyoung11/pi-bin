@@ -4,7 +4,7 @@
  * A heartfelt tribute to dax (@thdxr) for providing free Kimi K2.5 access via OpenCode.
  */
 
-import type { Component, TUI } from "../../../../../tui/src/index.ts";
+import { Component, type TUI } from "../../../../../tui/src/index.ts";
 import { theme } from "../theme/theme.ts";
 
 // 32x32 RGB image of dax, hex encoded (3 bytes per pixel)
@@ -54,7 +54,7 @@ function buildImage(): string[] {
 	return lines;
 }
 
-export class DaxnutsComponent implements Component {
+export class DaxnutsComponent extends Component {
 	private ui: TUI;
 	private image: string[];
 	private interval: ReturnType<typeof setInterval> | null = null;
@@ -65,6 +65,7 @@ export class DaxnutsComponent implements Component {
 	private cachedTick = -1;
 
 	constructor(ui: TUI) {
+		super();
 		this.ui = ui;
 		this.image = buildImage();
 		this.startAnimation();

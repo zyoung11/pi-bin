@@ -1,7 +1,7 @@
 import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
-import type { Component } from "../tui.ts";
+import { Component } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
 
 const STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
@@ -237,7 +237,7 @@ interface InlineStyleContext {
 	stylePrefix: string;
 }
 
-export class Markdown implements Component {
+export class Markdown extends Component {
 	private text: string;
 	private paddingX: number; // Left/right padding
 	private paddingY: number; // Top/bottom padding
@@ -259,6 +259,7 @@ export class Markdown implements Component {
 		defaultTextStyle?: DefaultTextStyle,
 		options?: MarkdownOptions,
 	) {
+		super();
 		this.text = text;
 		this.paddingX = paddingX;
 		this.paddingY = paddingY;

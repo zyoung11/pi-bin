@@ -18,32 +18,47 @@ import { getCapabilities, isImageLine, setCellDimensions } from "./terminal-imag
 import { extractSegments, normalizeTerminalOutput, sliceByColumn, sliceWithWidth, visibleWidth } from "./utils.ts";
 
 /**
- * Component interface - all components must implement this
+ * Component base class - all components must extend this
  */
-export interface Component {
+export abstract class Component {
 	/**
-	 * Render the component to lines for the given viewport width
-	 * @param width - Current viewport width
-	 * @returns Array of strings, each representing a line
+	 * Set by TUI when focus changes (see Focusable). Components emit the hardware
+	 * cursor marker in their render output when focused.
 	 */
-	render(width: number): string[];
+	private _baseFocused: boolean = false;
 
-	/**
-	 * Optional handler for keyboard input when component has focus
-	 */
-	handleInput?(data: string): void;
+	get focused(): boolean {
+		return this._baseFocused;
+	}
+
+	set focused(value: boolean) {
+		this._baseFocused = value;
+	}
 
 	/**
 	 * If true, component receives key release events (Kitty protocol).
 	 * Default is false - release events are filtered out.
 	 */
-	wantsKeyRelease?: boolean;
+	wantsKeyRelease: boolean = false;
+
+	/**
+	 * Render the component to lines for the given viewport width
+	 * @param width - Current viewport width
+	 * @returns Array of strings, each representing a line
+	 */
+	abstract render(width: number): string[];
 
 	/**
 	 * Invalidate any cached rendering state.
 	 * Called when theme changes or when component needs to re-render from scratch.
 	 */
-	invalidate(): void;
+	abstract invalidate(): void;
+
+	/**
+	 * Optional handler for keyboard input when component has focus.
+	 * The base implementation is a no-op; focused components override it.
+	 */
+	handleInput(_data: string): void {}
 }
 
 export type TuiInputListenerResult = { consume?: boolean; data?: string } | undefined;
@@ -67,7 +82,7 @@ export interface Focusable {
 
 /** Type guard to check if a component implements Focusable */
 export function isFocusable(component: Component | null): component is Component & Focusable {
-	return component !== null && "focused" in component;
+	return component !== null;
 }
 
 /**
@@ -208,7 +223,7 @@ type OverlayFocusRestorePolicy = "clear" | "preserve";
 /**
  * Container - a component that contains other components
  */
-export class Container implements Component {
+export class Container extends Component {
 	children: Component[] = [];
 
 	addChild(component: Component): void {
@@ -288,7 +303,11 @@ export interface TuiStopOptions {
 	preserveScreen?: boolean;
 }
 
-export interface TUI extends Component {
+export interface TUI {
+	render(width: number): string[];
+	handleInput(data: string): void;
+	wantsKeyRelease: boolean;
+	invalidate(): void;
 	readonly mode: TuiMode;
 	children: Component[];
 	terminal: Terminal;
@@ -889,7 +908,7 @@ export abstract class TuiBase extends Container implements TUI {
 
 		// Pass input to focused component (including Ctrl+C)
 		// The focused component can decide how to handle Ctrl+C
-		if (this.focusedComponent?.handleInput) {
+		if (this.focusedComponent) {
 			// Filter out key release events unless component opts in
 			if (isKeyRelease(data) && !this.focusedComponent.wantsKeyRelease) {
 				return;

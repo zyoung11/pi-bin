@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import {
-	type Component,
+	Component,
 	Container,
 	Input,
 	matchesKey,
@@ -69,7 +69,7 @@ interface ExtensionUIRequest {
 // Output log: accumulates styled lines, renders the tail that fits
 // ============================================================================
 
-class OutputLog implements Component {
+class OutputLog extends Component {
 	private lines: string[] = [];
 	private maxLines = 1000;
 	private visibleLines = 0;
@@ -106,7 +106,7 @@ class OutputLog implements Component {
 // Loading indicator: "Agent: Working." -> ".." -> "..." -> "."
 // ============================================================================
 
-class LoadingIndicator implements Component {
+class LoadingIndicator extends Component {
 	private dots = 1;
 	private intervalId: NodeJS.Timeout | null = null;
 	private tui: TUI | null = null;
@@ -138,11 +138,12 @@ class LoadingIndicator implements Component {
 // Prompt input: label + single-line input
 // ============================================================================
 
-class PromptInput implements Component {
+class PromptInput extends Component {
 	readonly input: Input;
 	onCtrlD?: () => void;
 
 	constructor() {
+		super();
 		this.input = new Input();
 	}
 
@@ -167,13 +168,14 @@ class PromptInput implements Component {
 // Dialog components: replace the prompt input during interactive requests
 // ============================================================================
 
-class SelectDialog implements Component {
+class SelectDialog extends Component {
 	private list: SelectList;
 	private title: string;
 	onSelect?: (value: string) => void;
 	onCancel?: () => void;
 
 	constructor(title: string, options: string[]) {
+		super();
 		this.title = title;
 		const items = options.map((o) => ({ value: o, label: o }));
 		this.list = new SelectList(items, Math.min(items.length, 8), {
@@ -204,12 +206,13 @@ class SelectDialog implements Component {
 	}
 }
 
-class InputDialog implements Component {
+class InputDialog extends Component {
 	private dialogInput: Input;
 	private title: string;
 	onCtrlD?: () => void;
 
 	constructor(title: string, prefill?: string) {
+		super();
 		this.title = title;
 		this.dialogInput = new Input();
 		if (prefill) this.dialogInput.setValue(prefill);
