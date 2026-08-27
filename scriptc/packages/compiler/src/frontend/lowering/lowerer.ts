@@ -3338,6 +3338,32 @@ export class Lowerer {
       !(widened.flags & ts.TypeFlags.Any) &&
       mapType(widened, { ...this.typeCtx, dynamic: true }) !== null
     ) {
+      if (process.env.SC_DEBUG_FAIL) {
+        const describe = (t: ts.Type, depth: number): string => {
+          const pad = "  ".repeat(depth);
+          const text = this.checker.typeToString(t);
+          if (mapType(t, { ...this.typeCtx }) !== null) return `${pad}OK   ${text}`;
+          const refArgs = this.checker.getTypeArguments(t as ts.TypeReference) as readonly ts.Type[] | undefined;
+          if (refArgs && refArgs.length > 0 && depth < 5) {
+            return `${pad}FAIL ${text}\n${refArgs.map((a: ts.Type) => describe(a, depth + 1)).join("\n")}`;
+          }
+          if (t.isUnionType() && depth < 5) {
+            return `${pad}FAIL ${text}\n${ts.constituentTypes(t).map((c) => describe(c, depth + 1)).join("\n")}`;
+          }
+          const dbgProps = this.checker.getPropertiesOfType(t);
+          if (dbgProps.length > 0 && depth < 5) {
+            const parts: string[] = [];
+            for (const dbgP of dbgProps) {
+              const dbgT = this.checker.getTypeOfSymbol(dbgP);
+              parts.push(`${pad}  .${String(dbgP.name)}:\n` + describe(dbgT, depth + 1));
+            }
+            return `${pad}FAIL ${text}\n` + parts.join("\n");
+          }
+          return `${pad}FAIL ${text}`;
+        };
+        console.error(`[SCDBG] dynamic-only: ${this.checker.typeToString(type)}`);
+        console.error(describe(widened, 1));
+      }
       this.pushDiag(requiresDynamicTypeDiag(this.checker.typeToString(type), locOf(node)));
       throw new PoisonError();
     }

@@ -157,6 +157,14 @@
 
 ## 收尾快照（续三）：326→320。AgentMessage 索引访问 union（CustomAgentMessages[keyof ...]）拍平为显式 5 臂 union（类型-only 环 types.ts↔harness/messages.ts 安全）——但探针二分发现诡异现象：**内联同构 5 臂 union 数组通过、AgentMessage 别名数组仍报 no static representation**（臂各自 p14-p18 全过）——别名解析/组合怪癖待下轮专查。SessionManager 单文件 standalone build 已 0 诊断。新增已验证模式：filter 类型谓词不可用 → `map(?? "")` + 布尔过滤；`Array.from(Set/Map.entries)` → 立即展开 / forEach+push；fs.globSync → 递归 readdir + mini-minimatch；precise→record 动态键读 → `as unknown as Record<string, unknown>` 双跳（t34 验证）；`in` on index-signature record 也不可用（改 `!== undefined`）。新增模式：`.filter((line): line is string => ...)` 类型谓词不可用 → `map(x ?? "")` + 布尔过滤；`Array.from(Set/Map.entries)` → 立即展开 / forEach+push；fs.globSync → 递归 readdir + mini-minimatch。package-manager 根因批次清完（24→长尾）。新增模式：**precise→record 双跳 cast**（`x as unknown as Record<string, unknown>` 解锁动态键读——单跳被拒、双跳可行且运行时正确 t34）；SettingsStorage 接口→抽象基类（类→接口参数墙同 TUI）；`in` over index-signature 不可用（连 index-signature record 也不行，改 `!== undefined` 读）；`migrateSettings` 返回 double-jump。settings-manager 剩 1 个 SC2003 union re-tag（deepMerge 复杂 union）+ 记录残余；print 模式 + --list-models 真跑健康。__dirname 在 scriptc ESM 目标被全面禁用（typeof 守卫也无效）→ moduleDirname 统一 dirname(process.argv[1])。消息树 any 第二波清扫（ToolResultMessage/AgentTool 默认 TDetails=unknown、tool_execution 事件精确类型）。session-manager 自身 standalone build 已通过（FileEntry[] 的'unknown 值'毒源随 CustomData 收口消除）；全图 SessionManager.open ×5 级联待复查（可能为图上下文差异）
 
+## 调试技术备忘：instrumented compiler（已落地，SC_DEBUG_FAIL=1 启用）
+
+lowerer.ts 的 SC2011 触发点已内置 describe 分解树探针（env 门控、生产零开销）：对 dynamic-only 类型递归打印 OK/FAIL 树——数组下钻元素、union 下钻臂、record 下钻成员（`.name:`）。用法：
+```
+cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/cli/dist/bootstrap.js build packages/coding-agent/src/cli.ts --npm-static string_decoder --out /tmp/pi-out 2>&1 | grep -A25 "SCDBG.*dynamic-only: <类型名>"
+```
+注意 scriptc/packages/compiler 的 dist 必须与 src 同步（改 src 后 `cd scriptc/packages/compiler && node node_modules/typescript5/bin/tsc -p tsconfig.json`）。
+
 ## 调试技术备忘：instrumented compiler（下轮首选）
 
 黑盒试探低效；scriptc 编译器源码在 scriptc/packages/compiler/src，关键位置：
