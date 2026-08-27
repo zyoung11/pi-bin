@@ -141,6 +141,13 @@
 - markdown.ts 揭幕诊断清零（表格渲染复合赋值/in 守卫/mixed ||）。
 - 注意：`erasableSyntaxOnly` 项目配置禁止构造器参数属性（TS1294）。
 
+## 阶段 5/6 第三轮记录（2026-08-28 续二：401 → 365）
+
+- **any 清扫第一波（类型声明层）**：`ToolCall.arguments: Record<string, any>` → unknown（毒化 AssistantMessage → 全图消息类型）；`AgentToolResult<T>` 加 `= unknown` 默认；17 个文件的 `Model<any>` → `Model<Api>`（Api=string 下结构等价）、`AgentTool<any>` → `AgentTool`（默认 TSchema 参数）——tsgo 零破坏。
+- **mini-ignore 落地**（ai/src/utils）：gitignore 子集（否定/目录限定/根锚定/双星/字符类）；关键语义：**祖先链短路**（任一祖先目录被忽略即整路径忽略，深层否定无法翻盘——对照真 ignore 包 10/10 等价）；真包 `add(): this` 返回类型无法 lowering 是替代根因。3 个消费文件切换，npm-static 降为 string_decoder,partial-json，**SC2013 全码清零**。
+- **markdown.ts 第二波揭幕清零**：TokensGeneric（索引签名）从 Token union 移出（毒化判别式收窄）→ TokenizerExtension.tokenizer 返回放宽 `Token | TokensGeneric`；TokensLatex 入 union；剩余 `||` → `??`；typeof 守卫删除。
+- 当前基线 365：SC1090×157、SC2020×87、SC2011×23、SC2004×36、SC2009×17、SC2002×19、SC2003×8、SC2012×11、SC1100×3、杂项×6。
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。

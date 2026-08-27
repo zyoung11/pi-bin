@@ -17,7 +17,7 @@ export function wrapToolDefinition<TDetails = unknown>(definition: ToolDefinitio
 }
 
 /** Wrap multiple ToolDefinitions into AgentTools for the core runtime. */
-export function wrapToolDefinitions(definitions: ToolDefinition[]): AgentTool<any>[] {
+export function wrapToolDefinitions(definitions: ToolDefinition[]): AgentTool[] {
 	return definitions.map((definition) => wrapToolDefinition(definition));
 }
 
@@ -27,7 +27,7 @@ export function wrapToolDefinitions(definitions: ToolDefinition[]): AgentTool<an
  * This keeps AgentSession's internal registry definition-first even when a caller
  * provides plain AgentTool overrides that do not include prompt metadata or renderers.
  */
-export function createToolDefinitionFromAgentTool(tool: AgentTool<any>): ToolDefinition<any, unknown> {
+export function createToolDefinitionFromAgentTool(tool: AgentTool): ToolDefinition<any, unknown> {
 	return {
 		name: tool.name,
 		label: tool.label,

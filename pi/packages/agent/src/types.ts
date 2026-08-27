@@ -115,7 +115,7 @@ export interface AfterToolCallContext {
 	/** Validated tool arguments for the target tool schema. */
 	args: unknown;
 	/** The executed tool result before any `afterToolCall` overrides are applied. */
-	result: AgentToolResult<any>;
+	result: AgentToolResult;
 	/** Whether the executed tool result is currently treated as an error. */
 	isError: boolean;
 	/** Current agent context at the time the tool call is finalized. */
@@ -139,7 +139,7 @@ export interface AgentLoopTurnUpdate {
 	/** Context for the next provider request. */
 	context?: AgentContext;
 	/** Model for the next provider request. */
-	model?: Model<any>;
+	model?: Model<Api>;
 	/** Thinking level for the next provider request. */
 	thinkingLevel?: ThinkingLevel;
 }
@@ -147,7 +147,7 @@ export interface AgentLoopTurnUpdate {
 export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {}
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
-	model: Model<any>;
+	model: Model<Api>;
 
 	/**
 	 * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.
@@ -334,12 +334,12 @@ export interface AgentState {
 	/** System prompt sent with each model request. */
 	systemPrompt: string;
 	/** Active model used for future turns. */
-	model: Model<any>;
+	model: Model<Api>;
 	/** Requested reasoning level for future turns. */
 	thinkingLevel: ThinkingLevel;
 	/** Available tools. Assigning a new array copies the top-level array. */
-	set tools(tools: AgentTool<any>[]);
-	get tools(): AgentTool<any>[];
+	set tools(tools: AgentTool[]);
+	get tools(): AgentTool[];
 	/** Conversation transcript. Assigning a new array copies the top-level array. */
 	set messages(messages: AgentMessage[]);
 	get messages(): AgentMessage[];
@@ -358,7 +358,7 @@ export interface AgentState {
 }
 
 /** Final or partial result produced by a tool. */
-export interface AgentToolResult<T> {
+export interface AgentToolResult<T = unknown> {
 	/** Text or image content returned to the model. */
 	content: (TextContent | ImageContent)[];
 	/** Arbitrary structured details for logs or UI rendering. */
@@ -415,7 +415,7 @@ export interface AgentContext {
 	/** Transcript visible to the model. */
 	messages: AgentMessage[];
 	/** Tools available for this run. */
-	tools?: AgentTool<any>[];
+	tools?: AgentTool[];
 }
 
 /**

@@ -90,7 +90,7 @@ import { createPowerShellTool, createPowerShellToolDefinition, type PowerShellTo
 import { createReadTool, createReadToolDefinition, type ReadToolOptions } from "./read.ts";
 import { createWriteTool, createWriteToolDefinition, type WriteToolOptions } from "./write.ts";
 
-export type Tool = AgentTool<any>;
+export type Tool = AgentTool;
 export type ToolDef = ToolDefinition<any, any>;
 export type ToolName = "read" | "bash" | "powershell" | "edit" | "write" | "grep" | "find" | "ls";
 export const allToolNames: Set<ToolName> = new Set([

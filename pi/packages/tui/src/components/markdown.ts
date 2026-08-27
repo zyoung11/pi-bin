@@ -484,7 +484,7 @@ export class Markdown extends Component {
 					stylePrefix: this.getStylePrefix(headingStyleFn),
 				};
 
-				const headingText = this.renderInlineTokens(token.tokens || [], headingStyleContext);
+				const headingText = this.renderInlineTokens(token.tokens ?? [], headingStyleContext);
 				const styledHeading = headingLevel >= 3 ? headingStyleFn(headingPrefix) + headingText : headingText;
 				lines.push(styledHeading);
 				if (nextTokenType && nextTokenType !== "space") {
@@ -494,7 +494,7 @@ export class Markdown extends Component {
 			}
 
 			case "paragraph": {
-				const paragraphText = this.renderInlineTokens(token.tokens || [], styleContext);
+				const paragraphText = this.renderInlineTokens(token.tokens ?? [], styleContext);
 				lines.push(paragraphText);
 				// Don't add spacing if next token is space or list
 				if (nextTokenType && nextTokenType !== "list" && nextTokenType !== "space") {
@@ -524,7 +524,7 @@ export class Markdown extends Component {
 
 			case "code": {
 				const indent = this.theme.codeBlockIndent ?? "  ";
-				lines.push(this.theme.codeBlockBorder(`\`\`\`${token.lang || ""}`));
+				lines.push(this.theme.codeBlockBorder(`\`\`\`${token.lang ?? ""}`));
 				if (this.theme.highlightCode) {
 					const highlightedLines = this.theme.highlightCode((token as Tokens.Code).text ?? "", (token as Tokens.Code).lang);
 					for (const hlLine of highlightedLines) {
@@ -579,7 +579,7 @@ export class Markdown extends Component {
 					applyText: (text: string) => text,
 					stylePrefix: quoteStylePrefix,
 				};
-				const quoteTokens = token.tokens || [];
+				const quoteTokens = token.tokens ?? [];
 				const renderedQuoteLines: string[] = [];
 				for (let i = 0; i < quoteTokens.length; i++) {
 					const quoteToken = quoteTokens[i];
@@ -673,17 +673,17 @@ export class Markdown extends Component {
 
 				case "paragraph":
 					// Paragraph tokens contain nested inline tokens
-					result += this.renderInlineTokens(token.tokens || [], resolvedStyleContext);
+					result += this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
 					break;
 
 				case "strong": {
-					const boldContent = this.renderInlineTokens(token.tokens || [], resolvedStyleContext);
+					const boldContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
 					result += this.theme.bold(boldContent) + stylePrefix;
 					break;
 				}
 
 				case "em": {
-					const italicContent = this.renderInlineTokens(token.tokens || [], resolvedStyleContext);
+					const italicContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
 					result += this.theme.italic(italicContent) + stylePrefix;
 					break;
 				}
@@ -693,7 +693,7 @@ export class Markdown extends Component {
 					break;
 
 				case "link": {
-					const linkText = this.renderInlineTokens(token.tokens || [], resolvedStyleContext);
+					const linkText = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
 					const styledLink = this.theme.link(this.theme.underline(linkText));
 					if (getCapabilities().hyperlinks) {
 						// OSC 8: render as a clickable hyperlink. The URL is not printed inline,
@@ -720,16 +720,14 @@ export class Markdown extends Component {
 					break;
 
 				case "del": {
-					const delContent = this.renderInlineTokens(token.tokens || [], resolvedStyleContext);
+					const delContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
 					result += this.theme.strikethrough(delContent) + stylePrefix;
 					break;
 				}
 
 				case "html":
 					// Render inline HTML as plain text
-					if (typeof token.raw === "string") {
-						result += applyTextWithNewlines(token.raw);
-					}
+					result += applyTextWithNewlines(token.raw);
 					break;
 
 				default:
@@ -879,13 +877,13 @@ export class Markdown extends Component {
 		const naturalWidths: number[] = [];
 		const minWordWidths: number[] = [];
 		for (let i = 0; i < numCols; i++) {
-			const headerText = this.renderInlineTokens(token.header[i].tokens || [], styleContext);
+			const headerText = this.renderInlineTokens(token.header[i].tokens ?? [], styleContext);
 			naturalWidths[i] = visibleWidth(headerText);
 			minWordWidths[i] = Math.max(1, this.getLongestWordWidth(headerText, maxUnbrokenWordWidth));
 		}
 		for (const row of token.rows) {
 			for (let i = 0; i < row.length; i++) {
-				const cellText = this.renderInlineTokens(row[i].tokens || [], styleContext);
+				const cellText = this.renderInlineTokens(row[i].tokens ?? [], styleContext);
 				naturalWidths[i] = Math.max(naturalWidths[i] ?? 0, visibleWidth(cellText));
 				minWordWidths[i] = Math.max(
 					minWordWidths[i] ?? 1,
@@ -971,7 +969,7 @@ export class Markdown extends Component {
 
 		// Render header with wrapping
 		const headerCellLines: string[][] = token.header.map((cell, i) => {
-			const text = this.renderInlineTokens(cell.tokens || [], styleContext);
+			const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
 			return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
 		});
 		const headerLineCount = Math.max(...headerCellLines.map((c) => c.length));
@@ -994,7 +992,7 @@ export class Markdown extends Component {
 		for (let rowIndex = 0; rowIndex < token.rows.length; rowIndex++) {
 			const row = token.rows[rowIndex];
 			const rowCellLines: string[][] = row.map((cell, i) => {
-				const text = this.renderInlineTokens(cell.tokens || [], styleContext);
+				const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
 				return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
 			});
 			const rowLineCount = Math.max(...rowCellLines.map((c) => c.length));

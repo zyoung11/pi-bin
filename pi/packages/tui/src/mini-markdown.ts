@@ -154,11 +154,18 @@ export interface TokensImage extends TokenBase {
 	href: string;
 	title?: string | null;
 	text: string;
+	tokens?: Token[];
 }
 
 export interface TokensBr extends TokenBase {
 	type: "br";
 	raw: string;
+}
+
+export interface TokensLatex extends TokenBase {
+	type: "latex" | "latexBlock";
+	text?: string;
+	pending?: boolean;
 }
 
 export type Token =
@@ -182,7 +189,7 @@ export type Token =
 	| TokensLink
 	| TokensImage
 	| TokensBr
-	| TokensGeneric;
+	| TokensLatex;
 
 export namespace Tokens {
 	export type Generic = TokensGeneric;
@@ -204,7 +211,7 @@ export interface TokenizerExtension {
 	name: string;
 	level: "block" | "inline";
 	start?: (source: string) => number | undefined;
-	tokenizer: (this: Tokenizer, source: string, tokens: Token[]) => Token | undefined;
+	tokenizer: (this: Tokenizer, source: string, tokens: Token[]) => Token | TokensGeneric | undefined;
 }
 
 export interface MarkedExtension {
@@ -311,7 +318,7 @@ class InlineLexer {
 				const produced = extension.tokenizer.call(wrapTokenizer(this.customTokenizer, this.lexerRef), rest, tokens);
 				if (produced) {
 					flushPlain();
-					tokens.push(produced);
+					tokens.push(produced as Token);
 					position += produced.raw.length;
 					handled = true;
 					break;
@@ -637,7 +644,7 @@ export class Lexer {
 			const produced = extension.tokenizer.call(wrapTokenizer(this.customTokenizer, this), rest, []);
 			if (produced) {
 				const consumedLines = produced.raw.endsWith("\n") ? produced.raw.split("\n").length - 1 : produced.raw.split("\n").length;
-				return { token: produced, next: index + Math.max(1, consumedLines) };
+				return { token: produced as Token, next: index + Math.max(1, consumedLines) };
 			}
 		}
 		return undefined;
