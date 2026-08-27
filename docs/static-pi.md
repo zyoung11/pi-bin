@@ -155,7 +155,7 @@
 - **output-guard.ts 重写**：stdout 猴子补丁（process.stdout.write 赋值）静态编译不可能 → 标志位 + 直接写 API（takeOverStdout/restoreStdout/isStdoutTakenOver/writeRawStdout/flushRawStdout 保留，waitForRawStdoutBackpressure 删除，2 个消费方清理）。行为差异：接管期间 console 写直通 stdout 不再重定向 stderr。
 - **settings-manager**：new Set(iterable) 两处改 copySet 循环拷贝；部分 catch 绑定/动态键读残余待修。
 
-## 收尾快照（本日末次提交）：327 reached；print 模式 + --list-models 真跑修复（moduleDirname 回退改 dirname(process.argv[1])，主题 dark.json 路径恢复）
+## 收尾快照（本日末次提交）：326 reached；print 模式 + --list-models 真跑健康。__dirname 在 scriptc ESM 目标被全面禁用（typeof 守卫也无效）→ moduleDirname 统一 dirname(process.argv[1])。消息树 any 第二波清扫（ToolResultMessage/AgentTool 默认 TDetails=unknown、tool_execution 事件精确类型）。session-manager 自身 standalone build 已通过（FileEntry[] 的'unknown 值'毒源随 CustomData 收口消除）；全图 SessionManager.open ×5 级联待复查（可能为图上下文差异）
 
 ## 阶段 5/6 剩余工作清单（按优先级）
 
