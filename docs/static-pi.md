@@ -132,6 +132,15 @@
 
 **当前基线（--npm-static ignore,string_decoder,partial-json）**：492 → 539（markdown 组件揭幕 +47，mini-markdown 自身 0）。剩余 539 的构成：SC1090×263（类方法级联 + record 形状）、SC2020×99（node API 长尾：Set/Map 迭代、Object.entries/keys 特殊形态、process.stdin 系列、path.win32 等）、SC2002×58（record 形状：TUI handleInput 系列 ×~20、keybindings、theme）、SC2009×30、SC2004×43（级联，随根因消）、SC2011×15、SC2012×11（变量 specifier import()：ai/auth/context.ts + env-api-keys.ts；.toString() on numbers）、SC2003×10、SC1100×3（JSON.parse cast 需运行时校验）、SC1101×1、SC1043/SC1063/SC1042 杂项。
 
+## 阶段 5/6 第二轮记录（2026-08-28 续：539 → 401）
+
+- **TUI Component 抽象基类重构落地**：`abstract class Component`（focused/wantsKeyRelease 具体字段、handleInput 空实现方法——基类字段与子类方法override 会 SC0001 冲突，必须用方法；同类型字段可重声明，不同类型被禁）、isFocusable 去 in、TUI 接口内联成员 + 方法拆分（stop/stopWithOptions、requestRender/requestRenderForce、renderNow/renderNowForce——record 通道丢可选参数，0 参调用者爆）。26+ 组件类 extends、字面量组件转真类（bash.ts/ bash-execution.ts/tui-alt-screen.ts）。
+- **Api 类型解交叉**：`(string & {})` 不可编译（Model.api 根因）→ `Api = string` + `Model.compat` 条件类型解构为 union；faux 随机 api 串边界 cast。
+- **SettingsManager 解锁**：Map<keyof, Set<string>> → Map<string, string[]>。
+- **main.ts/package-manager-cli.ts exitCode 全清**（process.exit 无 lowering 替代 → 模块级变量 + 显式 process.exit，t29 验证 exit 码与 stdout 刷新）。
+- markdown.ts 揭幕诊断清零（表格渲染复合赋值/in 守卫/mixed ||）。
+- 注意：`erasableSyntaxOnly` 项目配置禁止构造器参数属性（TS1294）。
+
 ## 阶段 5/6 剩余工作清单（按优先级）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。
