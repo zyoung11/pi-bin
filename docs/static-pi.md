@@ -8,10 +8,7 @@
 
 - **TUI 交互模式为最高优先级**，print / RPC / JSON event 模式保留，除非实现起来非常麻烦
 - **扩展系统完全移除**（不需要任何运行时插件加载能力）
-- **模型来源只有三个**，全部走 `openai-completions` API：
-  - DeepSeek（`DEEPSEEK_API_KEY`，api.deepseek.com）
-  - Xiaomi-MIMO Token Plan CN（`XIAOMI_TOKEN_PLAN_CN_API_KEY`，token-plan-cn.xiaomimimo.com/v1）
-  - `~/.pi/agent/models.json` 手动配置（当前是本地 llama.cpp OpenAI 兼容端点）
+- **模型来源只有 `~/.pi/agent/models.json`**（2026-08-27 用户简化：不再内置 deepseek/mimo 等任何 provider），条目全部走 `openai-completions` API；当前配置里是本地 llama.cpp OpenAI 兼容端点
 - **不要图片支持**（photon / terminal image / clipboard image 全砍）
 
 ## 分析发现
@@ -51,7 +48,7 @@
    - 不启用时 pi 自己的 `Type.Object({...})` 泛型调用撞 SC1090（只有对象字面量里带实现的方法能多态化；typebox builder 是函数声明经 namespace 链导出）
    - 对照实验证明跨模块普通函数、`NS.f()` 形式都能编译，墙就是 typebox 的发布形态
    - **对策（已确认）**：pi 内部写 mini schema 库（builder + JSON-Schema validator，对象字面量方法形态），替换 value 层；typebox 保留为 types-only 依赖（`import type` 不产生运行时边）
-3. **provider SDK**：openai/@anthropic-ai/sdk/@google/genai/@aws-sdk 全部砍掉（三个模型来源全走 openai-completions）。`openai-completions.ts` 里对 `openai` SDK 的实际使用只有一处 `client.chat.completions.create(params).withResponse()`，替换为裸 fetch + SSE 解析（~100 行核心改动）
+3. **provider SDK**：openai/@anthropic-ai/sdk/@google/genai/@aws-sdk 全部砍掉（模型只从 models.json 来，全走 openai-completions）。`openai-completions.ts` 里对 `openai` SDK 的**运行时**使用只有两处：`new OpenAI({apiKey, baseURL, fetch, defaultHeaders})` + `client.chat.completions.create(params, requestOptions).withResponse()`，其余全是 `import type`（ChatCompletionChunk/MessageParam 等，保留为 types-only 依赖）。替换为自研 transport（fetch + SSE 行解码，~150 行）。**不用隔壁的 llmstream**：它的归一化事件模型丢掉 reasoning_content、cache token usage、tool_call 原始片段透传，错误语义（yield error 事件而非 throw）会断掉 pi 的 duck-typed 重试链；要用它保功能等于 fork 重写。只参考其 parser.ts 的分帧行为
 4. **图片管线**：photon.ts 用 monkey-patch fs.readFileSync 加载 WASM → 与静态编译原理冲突，连同 image-resize/worker、terminal-image、clipboard-image 一起移除
 5. **其他待删**：undici dispatcher（http-dispatcher.ts，原生 fetch 替代）、node:sqlite backend、bedrock/bun 入口、OAuth 流程、jiti
 
@@ -68,7 +65,7 @@
 1. **基线分析** ✅ 完成（本文档 + 上方数字）
 2. **移除扩展系统**：删 `core/extensions/`、`src/extensions/`；把内置工具依赖的共享类型（ToolDefinition/ToolRenderContext/ToolRenderResultOptions/defineTool，去掉 ctx 参数）迁到 `core/tools/tool-types.ts`；清理 ~37 个引用文件
 3. **mini schema 库**：新模块提供 Type.* builder + Compile/Value 等价物（含 `Symbol.for("TypeBox.Kind")` 元数据兼容），替换 14 个文件 373 处 builder 调用及 validation/model-config/reducer 的 value 层依赖；跨包共享方式待实现时定（倾向放 pi-ai，protocol 单独处理）
-4. **openai-completions fetch 化**：砍掉 openai SDK，裸 fetch + SSE 解析（delta/tool_call/usage），provider 注册表裁剪到 deepseek / xiaomi-token-plan-cn / models.json
+4. **openai-completions fetch 化 + 内置 provider 清零**：砍掉 openai SDK → 自研 transport；`providers/all.ts` 内置注册表清零，只留 models.json 动态源
 5. **按 build 诊断清单批量修复**：any → unknown、WeakMap/Set 形状、process.title 赋值删除、import.meta.url → __dirname、fs/promises.access 替换、TUI 的 Segmenter/v-flag/replaceAll、keybindings record 形状等
 6. **`--npm-static` 收尾**：yaml/markd/chalk/diff/ignore/minimatch/semver/get-east-asian-width/highlight.js 等逐包验证，外围功能（mermaid/高亮）撞墙即砍
 7. **全量构建 + 冒烟**：TUI 交互、bash 工具流式输出、三个模型真跑对话；`scriptc build` 零诊断
@@ -134,7 +131,26 @@
 - pi 上游持续演进（tsgo、supply-chain 约束），本分支按"冻结一个版本做静态化"的思路进行
 - mini schema 的 Convert 是自研实现（对齐 pi 现有双强制转换流的行为），不是 typebox 完整 Convert 的移植；若未来引入依赖 typebox Convert 高级行为（refine/codec/format）的工具 schema，需要回头补
 
-## 下一步（阶段 4：openai-completions fetch 化）
+## 阶段 4 进行中记录（openai-completions fetch 化 + 内置 provider 清零）
 
-- 砍 openai SDK（@anthropic-ai/sdk/@google/genai/@aws-sdk 一并），`openai-completions.ts` 里唯一的 `client.chat.completions.create(params).withResponse()` 换成裸 fetch + SSE 解析（delta/tool_call/usage，~100 行核心改动）
-- provider 注册表裁剪到 deepseek / xiaomi-token-plan-cn / models.json 三个来源
+**范围变更（2026-08-27 用户确认）**：模型来源从"deepseek/xiaomi/models.json 三个"简化为**只保留 models.json**，内置 provider 全部移除。当前 `~/.pi/agent/models.json` 只有 llamacpp（本地 OpenAI 兼容端点）；之前 --list-models 里的 deepseek/xiaomi/zai 都来自内置注册表数据（MODELS catalog），裁剪后只剩 models.json 条目。
+
+**决定：裸 fetch + 自研 SSE，不用 llmstream**。对比结论：llmstream（v0.1.1，零依赖）的 LLMEvent 模型丢 reasoning_content（thinking 流式是 pi 核心特性）、usage 无 cache token（成本显示依赖它）、tool_call 内部累积不透传原始片段（pi 需要增量 partial-args + custom grammar buffer）、非 2xx 转 error 事件会断掉 retryProviderRequest 的 throw/duck-typed 重试链；保功能使用 = fork 重写。llmstream/parser.ts 仅作分帧行为参照。
+
+**关键发现（SDK 语义对齐依据）**：
+
+- openai SDK `buildURL`：`baseURL` 去尾斜杠 + `/chat/completions`
+- 非 2xx → APIError：`{status, headers(Headers), error: body.error 解析对象, message: "${status} ${msg}"}`；pi 的 retryProviderRequest 只 duck-typed 探测（`"status" in error && headers instanceof Headers`，含 x-should-retry/retry-after-ms 解析），normalizeProviderError 只探测 `statusCode/status/body/error` 字段 → 自研错误对象带这三样即可全链零改动
+- SSE 解码（SDK core/streaming.mjs）：按行切分、去尾 \r、空行派发事件、多行 data: 用 \n join、"data:" 前缀剥离一个空格、`[DONE]` 终止
+- provider 接线图：`providers/all.ts` ← ai/cli.ts（--list-models）、ai/compat.ts、coding-agent/core/model-runtime.ts（含 radiusProvider 调用点）；models.json 条目经 `getApiProvider`（compat.ts，聚合全部 api lazy wrapper）按 api 名字解析实现；每个内置 provider .ts 引用自己的 `.lazy.ts` → 动态 import（scriptc 静态解析进图）
+
+**已完成**：
+
+- [x] `packages/ai/src/api/openai-http.ts`：streamOpenAIChatCompletions（fetch POST + 用户 signal/timeout 组合中止 + 非 2xx 错误形状对齐 SDK）+ sseJsonLines（TextDecoder stream:true、行状态机、多行 data join、[DONE]）
+- [x] openai-completions.ts 换源：`import OpenAI from "openai"` → `import type`（namespace 类型 `OpenAI.Chat.Completions.*` 仍可用，tsgo 验证通过），createClient → createHttpTransport 产 `{url, apiKey, headers}`，请求调用切到 streamOpenAIChatCompletions（重试层零改动）
+- [x] 验证：mock 端点 15 项断言全过（LF/CRLF 混用、comment 行、坏 JSON 帧跳过、400 错误形状 status/Headers/error/message、timeout、用户 abort）；**llamacpp 真跑**：print 模式对话往返 OK + bash tool_call 流式执行 OK
+
+**接下来**：
+
+1. 内置 provider 清零：providers/all.ts（MODELS={}）、compat.ts / legacy-api-aliases.ts 只留 openai-completions、model-runtime.ts 适配（radius 调用点等）、删除孤儿 provider/api/images 文件 + index/package.json exports 同步
+2. `--list-models` 只剩 models.json 条目验证，llamacpp print 模式往返复验
