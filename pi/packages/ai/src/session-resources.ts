@@ -1,11 +1,12 @@
 export type SessionResourceCleanup = (sessionId?: string) => void;
 
-const sessionResourceCleanups = new Set<SessionResourceCleanup>();
+const sessionResourceCleanups: SessionResourceCleanup[] = [];
 
 export function registerSessionResourceCleanup(cleanup: SessionResourceCleanup): () => void {
-	sessionResourceCleanups.add(cleanup);
+	sessionResourceCleanups.push(cleanup);
 	return () => {
-		sessionResourceCleanups.delete(cleanup);
+		const index = sessionResourceCleanups.indexOf(cleanup);
+		if (index !== -1) sessionResourceCleanups.splice(index, 1);
 	};
 }
 
