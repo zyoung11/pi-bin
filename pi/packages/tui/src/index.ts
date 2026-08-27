@@ -1,6 +1,6 @@
 // Core TUI interfaces and classes
 
-export { Marked, type Token, type Tokens } from "marked";
+export { Marked, type Token, type Tokens } from "./mini-markdown.ts";
 // Autocomplete support
 export {
 	type AutocompleteItem,

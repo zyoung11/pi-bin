@@ -1,4 +1,4 @@
-import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens } from "marked";
+import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import type { Component } from "../tui.ts";
@@ -13,12 +13,12 @@ class StrictStrikethroughTokenizer extends Tokenizer {
 			return undefined;
 		}
 
-		const text = match[2];
+		const text = match[2] ?? "";
 		return {
 			type: "del",
 			raw: match[0],
 			text,
-			tokens: this.lexer.inlineTokens(text),
+			tokens: this.lexer?.inlineTokens(text) ?? [],
 		};
 	}
 }
@@ -146,7 +146,9 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 function trimPartialClosingFences(tokens: readonly Token[]): void {
 	const token = tokens[tokens.length - 1];
 	if (token?.type === "list") {
-		trimPartialClosingFences(token.items[token.items.length - 1]?.tokens ?? []);
+		const listToken = token as Tokens.List;
+		const lastItem = listToken.items[listToken.items.length - 1];
+		trimPartialClosingFences(lastItem?.tokens ?? []);
 		return;
 	}
 	if (token?.type === "blockquote") {
@@ -165,7 +167,9 @@ function trimPartialClosingFences(tokens: readonly Token[]): void {
 		return;
 	}
 
-	token.text = token.text.slice(0, -lastLine.length).replace(/\n$/, "");
+	if (token.text !== undefined) {
+		token.text = token.text.slice(0, -lastLine.length).replace(/\n$/, "");
+	}
 }
 
 const markdownParser = new Marked();
@@ -461,7 +465,7 @@ export class Markdown implements Component {
 
 		switch (token.type) {
 			case "heading": {
-				const headingLevel = token.depth;
+				const headingLevel = (token as Tokens.Heading).depth ?? 1;
 				const headingPrefix = `${"#".repeat(headingLevel)} `;
 
 				// Build a heading-specific style context so inline tokens (codespan, bold, etc.)
@@ -521,13 +525,13 @@ export class Markdown implements Component {
 				const indent = this.theme.codeBlockIndent ?? "  ";
 				lines.push(this.theme.codeBlockBorder(`\`\`\`${token.lang || ""}`));
 				if (this.theme.highlightCode) {
-					const highlightedLines = this.theme.highlightCode(token.text, token.lang);
+					const highlightedLines = this.theme.highlightCode((token as Tokens.Code).text ?? "", (token as Tokens.Code).lang);
 					for (const hlLine of highlightedLines) {
 						lines.push(`${indent}${hlLine}`);
 					}
 				} else {
 					// Split code by newlines and style each line
-					const codeLines = token.text.split("\n");
+					const codeLines = ((token as Tokens.Code).text ?? "").split("\n");
 					for (const codeLine of codeLines) {
 						lines.push(`${indent}${this.theme.codeBlock(codeLine)}`);
 					}
@@ -653,7 +657,7 @@ export class Markdown implements Component {
 				}
 
 				case "escape":
-					result += applyTextWithNewlines(this.options.preserveBackslashEscapes ? token.raw : token.text);
+					result += applyTextWithNewlines(this.options.preserveBackslashEscapes ? token.raw : (token.text ?? ""));
 					break;
 
 				case "text":
@@ -661,7 +665,7 @@ export class Markdown implements Component {
 					if (token.tokens && token.tokens.length > 0) {
 						result += this.renderInlineTokens(token.tokens, resolvedStyleContext);
 					} else {
-						result += applyTextWithNewlines(token.text);
+						result += applyTextWithNewlines(token.text ?? "");
 					}
 					break;
 
@@ -683,7 +687,7 @@ export class Markdown implements Component {
 				}
 
 				case "codespan":
-					result += this.theme.code(token.text) + stylePrefix;
+					result += this.theme.code((token as Tokens.Codespan).text ?? "") + stylePrefix;
 					break;
 
 				case "link": {
@@ -692,17 +696,18 @@ export class Markdown implements Component {
 					if (getCapabilities().hyperlinks) {
 						// OSC 8: render as a clickable hyperlink. The URL is not printed inline,
 						// so we always show only the link text regardless of whether it matches href.
-						result += hyperlink(styledLink, token.href) + stylePrefix;
+						result += hyperlink(styledLink, (token as Tokens.Link).href) + stylePrefix;
 					} else {
 						// Fallback: print URL in parentheses when text differs from href.
 						// Compare raw token.text (not styled) against href for the equality check.
 						// For mailto: links strip the prefix (autolinked emails use text="foo@bar.com"
 						// but href="mailto:foo@bar.com").
-						const hrefForComparison = token.href.startsWith("mailto:") ? token.href.slice(7) : token.href;
-						if (token.text === token.href || token.text === hrefForComparison) {
+						const linkToken = token as Tokens.Link;
+						const hrefForComparison = linkToken.href.startsWith("mailto:") ? linkToken.href.slice(7) : linkToken.href;
+						if (linkToken.text === linkToken.href || linkToken.text === hrefForComparison) {
 							result += styledLink + stylePrefix;
 						} else {
-							result += styledLink + this.theme.linkUrl(` (${token.href})`) + stylePrefix;
+							result += styledLink + this.theme.linkUrl(` (${linkToken.href})`) + stylePrefix;
 						}
 					}
 					break;
