@@ -774,7 +774,7 @@ export function prepareCompaction(
 	}
 	const boundaryEnd = pathEntries.length;
 
-	const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries).messages).tokens;
+	const tokensBefore = estimateContextTokens(buildSessionContext(pathEntries, null, new Map()).messages).tokens;
 
 	const cutPoint = findCutPoint(pathEntries, boundaryStart, boundaryEnd, settings.keepRecentTokens);
 

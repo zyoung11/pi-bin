@@ -1,5 +1,13 @@
 import type { AgentMessage } from "../../../agent/src/index.ts";
-import { type ImageContent, type Message, type TextContent, type Usage, uuidv7 } from "../../../ai/src/index.ts";
+import {
+	type ImageContent,
+	type Message,
+	type TextContent,
+	type ThinkingContent,
+	type ToolCall,
+	type Usage,
+	uuidv7,
+} from "../../../ai/src/index.ts";
 import { randomUUID } from "crypto";
 import {
 	appendFileSync,
@@ -240,7 +248,7 @@ function cloneEntryWithParent(entry: SessionEntry, parentId: string | null): Ses
 	return { ...entry, parentId };
 }
 
-function generateId(existingIds: Map<string, unknown>): string {
+function generateId(existingIds: Map<string, boolean>): string {
 	for (let i = 0; i < 100; i++) {
 		const id = randomUUID().slice(0, 8);
 		if (!existingIds.has(id)) return id;
@@ -251,7 +259,7 @@ function generateId(existingIds: Map<string, unknown>): string {
 
 /** Migrate v1 → v2: add id/parentId tree structure. Mutates in place. */
 function migrateV1ToV2(entries: FileEntry[]): void {
-	const ids = new Map<string, SessionEntry>();
+	const ids = new Map<string, boolean>();
 	let prevId: string | null = null;
 
 	for (let index = 0; index < entries.length; index++) {
@@ -347,11 +355,8 @@ export function getLatestCompactionEntry(entries: SessionEntry[]): CompactionEnt
 
 const EMPTY_ENTRY_INDEX: Map<string, SessionEntry> = new Map<string, SessionEntry>();
 
-function buildEntryIndex(
-	entries: SessionEntry[],
-	byId: Map<string, SessionEntry> = EMPTY_ENTRY_INDEX,
-): Map<string, SessionEntry> {
-	if (byId.size > 0) return byId;
+function buildEntryIndex(entries: SessionEntry[], byId: Map<string, SessionEntry>): Map<string, SessionEntry> {
+	if (byId !== undefined && byId.size > 0) return byId;
 	const index = new Map<string, SessionEntry>();
 	for (const entry of entries) {
 		index.set(entry.id, entry);
@@ -361,8 +366,8 @@ function buildEntryIndex(
 
 function buildSessionPath(
 	entries: SessionEntry[],
-	leafId?: string | null,
-	byId: Map<string, SessionEntry> = EMPTY_ENTRY_INDEX,
+	leafId: string | null | undefined,
+	byId: Map<string, SessionEntry>,
 ): SessionEntry[] {
 	const index = buildEntryIndex(entries, byId);
 	let leaf: SessionEntry | undefined;
@@ -381,7 +386,8 @@ function buildSessionPath(
 	let current: SessionEntry | undefined = leaf;
 	while (current) {
 		path.push(current);
-		current = current.parentId ? index.get(current.parentId) : undefined;
+		const currentParentId: string | null = (current as unknown as { parentId: string | null }).parentId;
+		current = currentParentId ? index.get(currentParentId) : undefined;
 	}
 	path.reverse();
 	return path;
@@ -414,15 +420,24 @@ export function sessionEntryToContextMessages(entry: SessionEntry): AgentMessage
 		// Session files are parsed without validation; old versions, forks, or
 		// hand-edited files can contain messages with null/missing content.
 		if (message.role === "user") {
-			if (message.content == null) return [{ ...message, content: [] as TextContent[] }];
+			if (message.content == null) {
+				const emptyBlocks: TextContent[] = [];
+				return [{ ...message, content: emptyBlocks }];
+			}
 			return [message];
 		}
 		if (message.role === "assistant") {
-			if (message.content == null) return [{ ...message, content: [] as TextContent[] }];
+			if (message.content == null) {
+				const emptyAssistantBlocks: (TextContent | ThinkingContent | ToolCall)[] = [];
+				return [{ ...message, content: emptyAssistantBlocks }];
+			}
 			return [message];
 		}
 		if (message.role === "toolResult") {
-			if (message.content == null) return [{ ...message, content: [] as TextContent[] }];
+			if (message.content == null) {
+				const emptyResultBlocks: (TextContent | ImageContent)[] = [];
+				return [{ ...message, content: emptyResultBlocks }];
+			}
 			return [message];
 		}
 		return [message];
@@ -454,7 +469,8 @@ export function buildContextEntries(
 	leafId?: string | null,
 	byId: Map<string, SessionEntry> = EMPTY_ENTRY_INDEX,
 ): SessionEntry[] {
-	const path = buildSessionPath(entries, leafId, byId);
+	const entryIndex = byId ?? EMPTY_ENTRY_INDEX;
+	const path = buildSessionPath(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
 	let compaction: CompactionEntry | null = null;
 
 	for (const entry of path) {
@@ -494,12 +510,15 @@ export function buildContextEntries(
  */
 export function buildSessionContext(
 	entries: SessionEntry[],
-	leafId?: string | null,
-	byId: Map<string, SessionEntry> = EMPTY_ENTRY_INDEX,
+	leafId: string | null | undefined,
+	byId: Map<string, SessionEntry>,
 ): SessionContext {
-	const path = buildSessionPath(entries, leafId, byId);
+	const entryIndex = byId;
+	const path = buildSessionPath(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
 	const { thinkingLevel, model } = getSessionContextSettings(path);
-	const messages = buildContextEntries(entries, leafId, byId).flatMap(sessionEntryToContextMessages);
+	const messages = buildContextEntries(entries, leafId, byId ?? EMPTY_ENTRY_INDEX).flatMap(
+		sessionEntryToContextMessages,
+	);
 	return { messages, thinkingLevel, model };
 }
 
@@ -698,20 +717,25 @@ function isMessageWithContent(message: AgentMessage): boolean {
 	return message.role === "user" || message.role === "assistant" || message.role === "toolResult";
 }
 
-function contentBlocksToText(blocks: Array<{ type: string; text?: string }>): string {
-	const texts: string[] = [];
-	for (const block of blocks) {
-		if (block.type === "text" && typeof block.text === "string") texts.push(block.text);
-	}
-	return texts.join(" ");
-}
-
 function extractTextContent(message: Message): string {
+	const texts: string[] = [];
 	if (message.role === "user") {
 		if (typeof message.content === "string") return message.content;
-		return contentBlocksToText(message.content);
+		for (const block of message.content) {
+			if (block.type === "text" && typeof block.text === "string") texts.push(block.text);
+		}
+		return texts.join(" ");
 	}
-	return contentBlocksToText(message.content);
+	if (message.role === "assistant") {
+		for (const block of message.content) {
+			if (block.type === "text") texts.push(block.text);
+		}
+		return texts.join(" ");
+	}
+	for (const block of message.content) {
+		if (block.type === "text") texts.push(block.text);
+	}
+	return texts.join(" ");
 }
 
 function getMessageActivityTime(entry: SessionMessageEntry): number | undefined {
@@ -719,7 +743,7 @@ function getMessageActivityTime(entry: SessionMessageEntry): number | undefined 
 	if (!isMessageWithContent(message)) return undefined;
 	if (message.role !== "user" && message.role !== "assistant") return undefined;
 
-	const msgTimestamp = (message as { timestamp?: number }).timestamp;
+	const msgTimestamp = (message as unknown as { timestamp?: number }).timestamp;
 	if (typeof msgTimestamp === "number") {
 		return msgTimestamp;
 	}
@@ -878,6 +902,7 @@ export class SessionManager {
 	private flushed: boolean = false;
 	private fileEntries: FileEntry[] = [];
 	private byId: Map<string, SessionEntry> = new Map();
+	private idClaims: Map<string, boolean> = new Map();
 	private labelsById: Map<string, string> = new Map();
 	private labelTimestampsById: Map<string, string> = new Map();
 	private leafId: string | null = null;
@@ -977,12 +1002,15 @@ export class SessionManager {
 
 	private _buildIndex(): void {
 		this.byId.clear();
+		this.idClaims.clear();
 		this.labelsById.clear();
 		this.labelTimestampsById.clear();
 		this.leafId = null;
 		for (const entry of this.fileEntries) {
 			if (entry.type === "session") continue;
 			this.byId.set(entry.id, entry);
+		this.idClaims.set(entry.id, true);
+			this.idClaims.set(entry.id, true);
 			this.leafId = entry.id;
 			if (entry.type === "label") {
 				if (entry.label) {
@@ -1058,6 +1086,7 @@ export class SessionManager {
 	private _appendEntry(entry: SessionEntry): void {
 		this.fileEntries.push(entry);
 		this.byId.set(entry.id, entry);
+		this.idClaims.set(entry.id, true);
 		this.leafId = entry.id;
 		this._persist(entry);
 	}
@@ -1071,7 +1100,7 @@ export class SessionManager {
 	appendMessage(message: Message | CustomMessage | BashExecutionMessage): string {
 		const entry: SessionMessageEntry = {
 			type: "message",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			message,
@@ -1084,7 +1113,7 @@ export class SessionManager {
 	appendThinkingLevelChange(thinkingLevel: string): string {
 		const entry: ThinkingLevelChangeEntry = {
 			type: "thinking_level_change",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			thinkingLevel,
@@ -1097,7 +1126,7 @@ export class SessionManager {
 	appendModelChange(provider: string, modelId: string): string {
 		const entry: ModelChangeEntry = {
 			type: "model_change",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			provider,
@@ -1118,7 +1147,7 @@ export class SessionManager {
 	): string {
 		const entry: CompactionEntry = {
 			type: "compaction",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			summary,
@@ -1138,7 +1167,7 @@ export class SessionManager {
 			type: "custom",
 			customType,
 			data: data as CustomData,
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 		};
@@ -1151,7 +1180,7 @@ export class SessionManager {
 		const sanitizedName = name.replace(/[\r\n]+/g, " ").trim();
 		const entry: SessionInfoEntry = {
 			type: "session_info",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			name: sanitizedName,
@@ -1194,7 +1223,7 @@ export class SessionManager {
 			content,
 			display,
 			details,
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 		};
@@ -1249,7 +1278,7 @@ export class SessionManager {
 		}
 		const entry: LabelEntry = {
 			type: "label",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: this.leafId,
 			timestamp: new Date().toISOString(),
 			targetId,
@@ -1277,7 +1306,7 @@ export class SessionManager {
 		let current = startId ? this.byId.get(startId) : undefined;
 		while (current) {
 			path.push(current);
-			const currentParentId = (current as unknown as { parentId: string | null }).parentId;
+			const currentParentId: string | null = (current as unknown as { parentId: string | null }).parentId;
 			current = currentParentId ? this.byId.get(currentParentId) : undefined;
 		}
 		path.reverse();
@@ -1418,7 +1447,7 @@ export class SessionManager {
 		this.leafId = branchFromId;
 		const entry: BranchSummaryEntry = {
 			type: "branch_summary",
-			id: generateId(this.byId),
+			id: generateId(this.idClaims),
 			parentId: branchFromId,
 			timestamp: new Date().toISOString(),
 			fromId,
