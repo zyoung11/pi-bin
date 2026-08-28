@@ -22,14 +22,18 @@ export class RuntimeCredentials implements CredentialStore {
 	}
 
 	async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
-		options?.signal?.throwIfAborted();
+		const signal = options?.signal;
+		if (signal) signal.throwIfAborted();
 		const override = this.overrides.get(providerId);
-		return override ? { type: "api_key", key: override } : this.store.read(providerId, options);
+		if (override) return { type: "api_key", key: override };
+		return this.store.read(providerId, options);
 	}
 
 	async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
-		const entries = new Map((await this.store.list(options)).map((entry) => [entry.providerId, entry]));
-		options?.signal?.throwIfAborted();
+		const signal = options?.signal;
+		const entries = new Map<string, CredentialInfo>();
+		for (const entry of await this.store.list(options)) entries.set(entry.providerId, entry);
+		if (signal) signal.throwIfAborted();
 		for (const providerId of this.overrides.keys()) {
 			entries.set(providerId, { providerId, type: "api_key" });
 		}

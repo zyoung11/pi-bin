@@ -97,9 +97,10 @@ export class CredentialSynchronizationError extends Error {
 		providerId: string,
 		operation: CredentialSynchronizationOperation,
 		credential: Credential | undefined,
-		options: ErrorOptions,
+		cause?: unknown,
 	) {
-		super(`Credential ${operation} committed for ${providerId}, but local synchronization failed`, options);
+		super(`Credential ${operation} committed for ${providerId}, but local synchronization failed`);
+		if (cause !== undefined) this.cause = cause;
 		this.name = "CredentialSynchronizationError";
 		this.providerId = providerId;
 		this.operation = operation;
@@ -111,14 +112,25 @@ function mergeHeaders(
 	base: ProviderHeaders | undefined,
 	override: ProviderHeaders | undefined,
 ): ProviderHeaders | undefined {
-	if (!base && !override) return undefined;
-	const merged = { ...base };
-	for (const [name, value] of Object.entries(override ?? {})) {
-		const lowerName = name.toLowerCase();
-		for (const existingName of Object.keys(merged)) {
-			if (existingName.toLowerCase() === lowerName) delete merged[existingName];
+	const overridden = new Map<string, boolean>();
+	if (override) {
+		for (const name of Object.keys(override)) overridden.set(name.toLowerCase(), true);
+	}
+	const merged: ProviderHeaders = {};
+	if (base) {
+		for (const name of Object.keys(base)) {
+			const value = base[name];
+			if (value === null || value === undefined) continue;
+			if (overridden.has(name.toLowerCase())) continue;
+			merged[name] = value;
 		}
-		merged[name] = value;
+	}
+	if (override) {
+		for (const name of Object.keys(override)) {
+			const value = override[name];
+			if (value === null || value === undefined) continue;
+			merged[name] = value;
+		}
 	}
 	return merged;
 }
@@ -146,7 +158,7 @@ export class ModelRuntime implements Models {
 	private availabilityErrorSeq = 0;
 	private readonly providerAvailabilitySeq = new Map<string, number>();
 	private availabilityError: string | undefined;
-	private readonly credentialOperations = new Map<string, Promise<unknown>>();
+	private readonly credentialOperations = new Map<string, Promise<void>>();
 
 	private constructor(
 		credentials: RuntimeCredentials,
@@ -171,11 +183,11 @@ export class ModelRuntime implements Models {
 		const modelsPath =
 			options.modelsPath === null ? undefined : (options.modelsPath ?? join(getAgentDir(), "models.json"));
 		const config = await ModelConfig.load(modelsPath);
-		const modelsStore =
+		const modelsStore: ModelsStore =
 			options.modelsStore ??
 			(modelsPath
-				? new FileModelsStore(options.modelsStorePath ?? join(dirname(modelsPath), "models-store.json"))
-				: new InMemoryCodingAgentModelsStore());
+				? (new FileModelsStore(options.modelsStorePath ?? join(dirname(modelsPath), "models-store.json")) as ModelsStore)
+				: (new InMemoryCodingAgentModelsStore() as ModelsStore));
 		const runtime = new ModelRuntime(
 			credentials,
 			config,
@@ -186,9 +198,14 @@ export class ModelRuntime implements Models {
 		);
 		runtime.rebuildProviders();
 		const refreshFromNetwork = runtime.modelNetworkEnabled && options.allowModelNetwork === true;
-		const controller =
-			refreshFromNetwork && options.modelRefreshTimeoutMs !== undefined ? new AbortController() : undefined;
-		const timeout = controller ? setTimeout(() => controller.abort(), options.modelRefreshTimeoutMs) : undefined;
+		const refreshTimeoutMs = options.modelRefreshTimeoutMs;
+		const controller = refreshFromNetwork && refreshTimeoutMs !== undefined ? new AbortController() : undefined;
+		const timeout =
+			refreshTimeoutMs !== undefined && controller
+				? setTimeout(() => {
+						if (controller) controller.abort();
+					}, refreshTimeoutMs)
+				: undefined;
 		const signal = controller
 			? options.signal
 				? AbortSignal.any([options.signal, controller.signal])
@@ -245,7 +262,7 @@ export class ModelRuntime implements Models {
 	}
 
 	private updateModelSnapshot(): void {
-		const all = [...this.models.getModels()];
+		const all = [...this.models.getModels(undefined)];
 		this.snapshot = {
 			...this.snapshot,
 			all,
@@ -255,30 +272,26 @@ export class ModelRuntime implements Models {
 
 	private async runAvailabilityRefresh(seq: number, errorSeq: number, signal: AbortSignal): Promise<void> {
 		const providers = this.models.getProviders();
-		const [available, checks, credentials] = await Promise.all([
-			this.models.getAvailable(undefined, { signal }),
-			Promise.all(
-				providers.map(
-					async (provider): Promise<[string, AuthCheck | undefined]> => [
-						provider.id,
-						await this.models.checkAuth(provider.id, { signal }),
-					],
-				),
-			),
-			this.credentials.list({ signal }),
-		]);
+		const available = await this.models.getAvailable(undefined, { signal });
+		const checks: [string, AuthCheck | undefined][] = [];
+		for (const provider of providers) {
+			checks.push([provider.id, await this.models.checkAuth(provider.id, { signal })]);
+		}
+		const credentials = await this.credentials.list({ signal });
 		if (seq !== this.availabilityRefreshSeq) return;
-		const auth = new Map(checks);
-		const configuredProviders = new Set(
-			checks
-				.filter((entry) => entry[1] !== undefined)
-				.map(([providerId]) => providerId),
-		);
+		const auth = new Map<string, AuthCheck>();
+		const configuredProviders = new Set<string>();
+		for (const entry of checks) {
+			if (entry[1] !== undefined) auth.set(entry[0], entry[1]);
+			if (entry[1] !== undefined) configuredProviders.add(entry[0]);
+		}
+		const storedProviderIds = new Set<string>();
+		for (const entry of credentials) storedProviderIds.add(entry.providerId);
 		this.snapshot = {
-			all: [...this.models.getModels()],
+			all: [...this.models.getModels(undefined)],
 			available: [...available],
 			configuredProviders,
-			storedProviders: new Set(credentials.map((entry) => entry.providerId)),
+			storedProviders: storedProviderIds,
 			auth,
 		};
 		if (errorSeq === this.availabilityErrorSeq) this.availabilityError = undefined;
@@ -306,16 +319,20 @@ export class ModelRuntime implements Models {
 		this.providerAvailabilitySeq.set(providerId, providerSeq);
 		const errorSeq = ++this.availabilityErrorSeq;
 		try {
-			const [available, auth, credential] = await Promise.all([
-				this.models.getAvailable(providerId, { signal }),
-				this.models.checkAuth(providerId, { signal }),
-				this.credentials.read(providerId, { signal }),
-			]);
+			const available = await this.models.getAvailable(providerId, { signal });
+			const auth = await this.models.checkAuth(providerId, { signal });
+			const credential = await this.credentials.read(providerId, { signal });
 			signal.throwIfAborted();
 			if (this.providerAvailabilitySeq.get(providerId) !== providerSeq) return;
-			const configuredProviders = new Set(this.snapshot.configuredProviders);
-			const storedProviders = new Set(this.snapshot.storedProviders);
-			const authByProvider = new Map(this.snapshot.auth);
+			const configuredProviders = new Set<string>();
+			for (const provider of this.snapshot.configuredProviders) configuredProviders.add(provider);
+			const storedProviders = new Set<string>();
+			for (const provider of this.snapshot.storedProviders) storedProviders.add(provider);
+			const authByProvider = new Map<string, AuthCheck>();
+			for (const key of this.snapshot.auth.keys()) {
+				const value = this.snapshot.auth.get(key);
+				if (value !== undefined) authByProvider.set(key, value);
+			}
 			if (auth) {
 				configuredProviders.add(providerId);
 				authByProvider.set(providerId, auth);
@@ -325,16 +342,20 @@ export class ModelRuntime implements Models {
 			}
 			if (credential) storedProviders.add(providerId);
 			else storedProviders.delete(providerId);
-			const all = [...this.models.getModels()];
-			const availableById = new Map(
-				[...this.snapshot.available.filter((model) => model.provider !== providerId), ...available].map((model) => [
-					`${model.provider}\0${model.id}`,
-					model,
-				]),
-			);
+			const all = [...this.models.getModels(undefined)];
+			const availableById = new Map<string, Model<Api>>();
+			const survivingSnapshot = this.snapshot.available.filter((model) => model.provider !== providerId);
+			for (const model of [...survivingSnapshot, ...available]) {
+				availableById.set(`${model.provider}\0${model.id}`, model);
+			}
+			const availableModels: Model<Api>[] = [];
+			for (const model of all) {
+				const found = availableById.get(`${model.provider}\0${model.id}`);
+				if (found) availableModels.push(found);
+			}
 			this.snapshot = {
 				all,
-				available: all.flatMap((model) => availableById.get(`${model.provider}\0${model.id}`) ?? []),
+				available: availableModels,
 				configuredProviders,
 				storedProviders,
 				auth: authByProvider,
@@ -462,18 +483,30 @@ export class ModelRuntime implements Models {
 	}
 
 	private enqueueCredentialOperation<T>(providerId: string, signal: AbortSignal, task: () => Promise<T>): Promise<T> {
-		const previous = this.credentialOperations.get(providerId) ?? Promise.resolve();
+		const previous = this.credentialOperations.get(providerId);
 		let markStarted: (() => void) | undefined;
 		const started = new Promise<void>((resolve) => {
 			markStarted = resolve;
 		});
 		const operation = (async () => {
-			await previous.catch(() => {});
+			if (previous) {
+				try {
+					await previous;
+				} catch {
+					// previous failures do not block the next operation
+				}
+			}
 			signal.throwIfAborted();
 			markStarted?.();
 			return task();
 		})();
-		const tail = operation.catch(() => {});
+		const tail: Promise<void> = (async () => {
+			try {
+				await operation;
+			} catch {
+				// errors are observed by the operation caller
+			}
+		})();
 		this.credentialOperations.set(providerId, tail);
 		void tail.then(() => {
 			if (this.credentialOperations.get(providerId) === tail) this.credentialOperations.delete(providerId);
@@ -499,7 +532,7 @@ export class ModelRuntime implements Models {
 			this.updateModelSnapshot();
 			await this.refreshProviderAvailability(providerId, signal);
 		} catch (cause) {
-			throw new CredentialSynchronizationError(providerId, operation, credential, { cause });
+			throw new CredentialSynchronizationError(providerId, operation, credential, cause);
 		}
 	}
 
@@ -675,7 +708,11 @@ export class ModelRuntime implements Models {
 			aborted: refreshOptions.signal?.aborted ?? false,
 			errors: new Map<string, string>(),
 		};
-		const errors = new Map<string, string>(result.errors);
+		const errors = new Map<string, string>();
+		for (const providerId of result.errors.keys()) {
+			const message = result.errors.get(providerId);
+			if (message !== undefined) errors.set(providerId, message);
+		}
 		this.updateModelSnapshot();
 		if (options.providers) {
 			await Promise.all(
