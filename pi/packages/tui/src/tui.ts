@@ -354,7 +354,7 @@ export abstract class TuiBase extends Container implements TUI {
 	abstract readonly mode: TuiMode;
 	public terminal: Terminal;
 	private focusedComponent: Component | null = null;
-	private inputListeners = new Set<TuiInputListener>();
+	private inputListeners: TuiInputListener[] = [];
 
 	/** Global callback for debug key (Shift+Ctrl+D). Called before input is forwarded to focused component. */
 	public onDebug?: () => void;
@@ -369,7 +369,7 @@ export abstract class TuiBase extends Container implements TUI {
 	protected stopped = false;
 	private pendingOsc11BackgroundReplies = 0;
 	private pendingOsc11BackgroundQueries: PendingOsc11BackgroundQuery[] = [];
-	private terminalColorSchemeListeners = new Set<(scheme: TerminalColorScheme) => void>();
+	private terminalColorSchemeListeners: Array<(scheme: TerminalColorScheme) => void> = [];
 	private terminalColorSchemeNotificationsEnabled = false;
 	protected readonly logDirectory: string;
 
@@ -734,20 +734,23 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 
 	addInputListener(listener: TuiInputListener): () => void {
-		this.inputListeners.add(listener);
+		this.inputListeners.push(listener);
 		return () => {
-			this.inputListeners.delete(listener);
+			const listenerIndex = this.inputListeners.indexOf(listener);
+			if (listenerIndex >= 0) this.inputListeners.splice(listenerIndex, 1);
 		};
 	}
 
 	removeInputListener(listener: TuiInputListener): void {
-		this.inputListeners.delete(listener);
+		const removeIdx = this.inputListeners.indexOf(listener);
+		if (removeIdx >= 0) this.inputListeners.splice(removeIdx, 1);
 	}
 
 	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void {
-		this.terminalColorSchemeListeners.add(listener);
+		this.terminalColorSchemeListeners.push(listener);
 		return () => {
-			this.terminalColorSchemeListeners.delete(listener);
+			const schemeIndex = this.terminalColorSchemeListeners.indexOf(listener);
+			if (schemeIndex >= 0) this.terminalColorSchemeListeners.splice(schemeIndex, 1);
 		};
 	}
 
@@ -865,7 +868,7 @@ export abstract class TuiBase extends Container implements TUI {
 			return;
 		}
 
-		if (this.inputListeners.size > 0) {
+		if (this.inputListeners.length > 0) {
 			let current = data;
 			for (const listener of this.inputListeners) {
 				const result = listener(current);

@@ -23,6 +23,13 @@ import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, rawKeyHint } from "./keybinding-hints.ts";
 
+function refIncludes<T>(items: readonly T[], value: T): boolean {
+	for (const item of items) {
+		if (item === value) return true;
+	}
+	return false;
+}
+
 type ResourceType = "extensions" | "skills" | "prompts" | "themes";
 type ConfigWriteScope = "global" | "project";
 type SettingsScope = "user" | "project";
@@ -156,7 +163,8 @@ function buildGroups(resolved: ResolvedPaths, agentDir: string): ResourceGroup[]
 	addToGroup(resolved.themes, "themes");
 
 	// Sort groups: packages first, then top-level; user before project
-	const groups = Array.from(groupMap.values());
+	const groups: ResourceGroup[] = [];
+	for (const group of groupMap.values()) groups.push(group);
 	groups.sort((a, b) => {
 		if (a.origin !== b.origin) {
 			return a.origin === "package" ? -1 : 1;
@@ -327,9 +335,9 @@ class ResourceList extends Component implements Focusable {
 		}
 
 		const lowerQuery = query.toLowerCase();
-		const matchingItems = new Set<ResourceItem>();
-		const matchingSubgroups = new Set<ResourceSubgroup>();
-		const matchingGroups = new Set<ResourceGroup>();
+		const matchingItems: ResourceItem[] = [];
+		const matchingSubgroups: ResourceSubgroup[] = [];
+		const matchingGroups: ResourceGroup[] = [];
 
 		for (const entry of this.flatItems) {
 			if (entry.type === "item") {
@@ -339,7 +347,7 @@ class ResourceList extends Component implements Focusable {
 					item.resourceType.toLowerCase().includes(lowerQuery) ||
 					item.path.toLowerCase().includes(lowerQuery)
 				) {
-					matchingItems.add(item);
+					matchingItems.push(item);
 				}
 			}
 		}
@@ -348,9 +356,9 @@ class ResourceList extends Component implements Focusable {
 		for (const group of this.groups) {
 			for (const subgroup of group.subgroups) {
 				for (const item of subgroup.items) {
-					if (matchingItems.has(item)) {
-						matchingSubgroups.add(subgroup);
-						matchingGroups.add(group);
+					if (refIncludes(matchingItems, item)) {
+						if (!refIncludes(matchingSubgroups, subgroup)) matchingSubgroups.push(subgroup);
+						if (!refIncludes(matchingGroups, group)) matchingGroups.push(group);
 					}
 				}
 			}
@@ -358,11 +366,11 @@ class ResourceList extends Component implements Focusable {
 
 		this.filteredItems = [];
 		for (const entry of this.flatItems) {
-			if (entry.type === "group" && matchingGroups.has(entry.group)) {
+			if (entry.type === "group" && refIncludes(matchingGroups, entry.group)) {
 				this.filteredItems.push(entry);
-			} else if (entry.type === "subgroup" && matchingSubgroups.has(entry.subgroup)) {
+			} else if (entry.type === "subgroup" && refIncludes(matchingSubgroups, entry.subgroup)) {
 				this.filteredItems.push(entry);
-			} else if (entry.type === "item" && matchingItems.has(entry.item)) {
+			} else if (entry.type === "item" && refIncludes(matchingItems, entry.item)) {
 				this.filteredItems.push(entry);
 			}
 		}
@@ -742,17 +750,18 @@ class ResourceList extends Component implements Focusable {
 		if (this.writeScope !== "project") return "inherit";
 		if (item.metadata.origin === "top-level") {
 			return this.getOverrideStateFromEntries(
-				(this.settingsManager.getProjectSettings()[item.resourceType] ?? []) as string[],
+				((this.settingsManager.getProjectSettings() as unknown as Record<string, unknown>)[item.resourceType] ??
+					[]) as string[],
 				this.getTopLevelOverridePatterns(item, "project"),
 				false,
 			);
 		}
 		const pkg = this.findMatchingPackageSource(item, "project");
 		if (typeof pkg !== "object") return "inherit";
-		const entries = pkg[item.resourceType];
+		const entries = (pkg as unknown as Record<string, unknown>)[item.resourceType];
 		if (entries === undefined) return "inherit";
 		return this.getOverrideStateFromEntries(
-			entries,
+			entries as string[],
 			new Set([this.getPackageResourcePattern(item)]),
 			pkg.autoload !== false,
 		);
