@@ -78,6 +78,21 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三轮记录（2026-08-29 深夜：479→425，两大文件全清 + 规则库扩充）
+
+**全清文件**：session-manager(36→0，后揭幕的 14 也已再清)、model-runtime(30→~5)、runtime-credentials(3→0)、package-manager(15→0)。
+
+**新确认规则（本轮实战）**：
+- **Map 参数禁默认值也禁可选**（`byId?: Map` 与 `= EMPTY` 都报错）；常量引用默认在部分场景可用但不可靠——Map 类参数一律 required，调用点显式传
+- **泛型方法在类内不单态化**（`private runWithConcurrency<TIn,TOut>` 实例化 TOut[] 报 SC2009）→ 委托模块级泛型函数
+- **循环携带变量的双跳 cast 需显式注解**：`const p: string | null = (x as unknown as {...}).parentId`——否则循环推断成环报 SC0001（tsgo 同样报）
+- **JSON.stringify(union) 部分现场 as unknown 后仍报**——注意排查是否是同函数内其他 blocker 的连带报告（先修已知根再复测）
+- **interface 方法可选参降为必参**：`getModels(provider?: string)` 调用点需显式传 `undefined`
+- **void | Promise<void> 全局清零完成**（14 处）；**可选属性二次读值提升局部变量**（17 处）
+- **tsgo 与 scriptc 预检配置差异**：scriptc 用自身固定 compilerOptions，某些 keyof 合并/严格度不同——以 scriptc 预检为准逐个消
+
+**剩余 425 的分布（下轮工作台账）**：agent-session(28)、provider-composer(21)、latex(13)、theme/config-selector/main(各12)、settings-manager/agent(11)、footer(10)、git/rpc-mode(9)、markdown/tool-renderer/export-html/bash-executor/config(各8)、session(8)、child-process/package-manager-cli/migrations/sdk/keybindings(各7) 及长尾。主要模式：agent-session 的 SessionEntry/AgentMessage 联合读值与 union re-tag 簇、各文件 codePointAt/replaceAll/Math.max spread/entries()/.values().next()/Promise.all 形态/类型谓词 filter/child.stdout?.on 提升等 stdlib 长尾。
+
 ## 里程碑：毒源清零（2026-08-29 夜：479，全部叶子）
 
 SC_DEBUG 探针日志的 member-map-null + dynamic-only **唯一根降至 0**。剩余 479 个诊断全部为叶子（SC2020 stdlib 长尾×121、逐行 SC1090/SC2002/SC2003、SC2004 级联等），此后每修一个诊断就是净减一个，揭幕时代结束。本轮新增拆掉的毒源与确认的两条新规则：
