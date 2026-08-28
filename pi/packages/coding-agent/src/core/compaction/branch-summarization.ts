@@ -322,7 +322,7 @@ export async function generateBranchSummary(
 
 	// Transform to LLM-compatible messages, then serialize to text
 	// Serialization prevents the model from treating it as a conversation to continue
-	const llmMessages = convertToLlm(messages);
+	const llmMessages = await convertToLlm(messages);
 	const conversationText = serializeConversation(llmMessages);
 
 	// Build prompt

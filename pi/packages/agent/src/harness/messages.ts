@@ -121,7 +121,7 @@ export function createCustomMessage(
 	};
 }
 
-export function convertToLlm(messages: AgentMessage[]): Message[] {
+export async function convertToLlm(messages: AgentMessage[]): Promise<Message[]> {
 	return messages
 		.map((m): Message | undefined => {
 			switch (m.role) {

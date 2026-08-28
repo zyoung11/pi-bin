@@ -227,7 +227,7 @@ export async function generateBranchSummary(
 	if (messages.length === 0) {
 		return ok({ summary: "No content to summarize", readFiles: [], modifiedFiles: [] });
 	}
-	const llmMessages = convertToLlm(messages);
+	const llmMessages = await convertToLlm(messages);
 	const conversationText = serializeConversation(llmMessages);
 	let instructions: string;
 	if (replaceInstructions && customInstructions) {

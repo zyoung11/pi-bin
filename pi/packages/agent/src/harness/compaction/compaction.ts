@@ -546,7 +546,7 @@ export async function generateSummaryWithUsage(
 	if (customInstructions) {
 		basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
 	}
-	const llmMessages = convertToLlm(currentMessages);
+	const llmMessages = await convertToLlm(currentMessages);
 	const conversationText = serializeConversation(llmMessages);
 	let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
 	if (previousSummary) {
@@ -806,7 +806,7 @@ async function generateTurnPrefixSummary(
 		Math.floor(0.5 * reserveTokens),
 		model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY,
 	);
-	const llmMessages = convertToLlm(messages);
+	const llmMessages = await convertToLlm(messages);
 	const conversationText = serializeConversation(llmMessages);
 	const promptText = `<conversation>\n${conversationText}\n</conversation>\n\n${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
 	const summarizationMessages = [

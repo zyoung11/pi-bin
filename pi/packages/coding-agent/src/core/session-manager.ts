@@ -896,7 +896,10 @@ export class SessionManager {
 				return;
 			}
 
-			const header = this.fileEntries.find((e) => e.type === "session") as SessionHeader | undefined;
+			let header: SessionHeader | undefined;
+		for (const e of this.fileEntries) {
+			if (e.type === "session") { header = e; break; }
+		}
 			this.sessionId = header?.id ?? createSessionId();
 
 			if (migrateToCurrentVersion(this.fileEntries)) {

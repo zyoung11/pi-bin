@@ -176,7 +176,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * })
 	 * ```
 	 */
-	convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
+	convertToLlm: (messages: AgentMessage[]) => Promise<Message[]>;
 
 	/**
 	 * Optional transform applied to the context before `convertToLlm`.

@@ -31,7 +31,7 @@ import type {
 } from "./types.ts";
 export type { QueueMode } from "./types.ts";
 
-function defaultConvertToLlm(messages: AgentMessage[]): Message[] {
+async function defaultConvertToLlm(messages: AgentMessage[]): Promise<Message[]> {
 	return messages.filter(
 		(message) => message.role === "user" || message.role === "assistant" || message.role === "toolResult",
 	);
@@ -105,7 +105,7 @@ function createMutableAgentState(
 /** Options for constructing an {@link Agent}. */
 export interface AgentOptions {
 	initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
-	convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
+	convertToLlm?: (messages: AgentMessage[]) => Promise<Message[]>;
 	transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
 	streamFn: StreamFn;
 	getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
@@ -184,7 +184,7 @@ export class Agent {
 	private readonly steeringQueue: PendingMessageQueue;
 	private readonly followUpQueue: PendingMessageQueue;
 
-	public convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
+	public convertToLlm: (messages: AgentMessage[]) => Promise<Message[]>;
 	public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
 	public streamFunction: StreamFn;
 	public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;

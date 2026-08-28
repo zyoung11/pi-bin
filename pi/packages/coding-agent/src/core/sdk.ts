@@ -253,7 +253,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	let agent: Agent;
 
 	// Create convertToLlm wrapper that filters images if blockImages is enabled (defense-in-depth)
-	const convertToLlmWithBlockImages = (messages: AgentMessage[]): Message[] => {
+	const convertToLlmWithBlockImages = async (messages: AgentMessage[]): Promise<Message[]> => {
 		const converted = convertToLlm(messages);
 		// Check setting dynamically so mid-session changes take effect
 		if (!settingsManager.getBlockImages()) {
