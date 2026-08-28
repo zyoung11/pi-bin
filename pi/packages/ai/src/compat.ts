@@ -196,11 +196,11 @@ export async function complete<TApi extends Api>(
 	return s.result();
 }
 
-export function streamSimple<TApi extends Api>(
+export async function streamSimple<TApi extends Api>(
 	model: Model<TApi>,
 	context: Context,
 	options?: SimpleStreamOptions,
-): AssistantMessageEventStream {
+): Promise<AssistantMessageEventStream> {
 	const provider = resolveApiProvider(model.api);
 	return provider.streamSimple(model, context, withEnvApiKey(model, options));
 }
@@ -210,6 +210,6 @@ export async function completeSimple<TApi extends Api>(
 	context: Context,
 	options?: SimpleStreamOptions,
 ): Promise<AssistantMessage> {
-	const s = streamSimple(model, context, options);
+	const s = await streamSimple(model, context, options);
 	return s.result();
 }

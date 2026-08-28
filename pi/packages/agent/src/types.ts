@@ -30,7 +30,7 @@ export type StreamFn = (
 	model: Model<Api>,
 	context: Context,
 	options?: SimpleStreamOptions,
-) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
+) => Promise<AssistantMessageEventStream>;
 
 /**
  * Configuration for how tool calls from a single assistant message are executed.

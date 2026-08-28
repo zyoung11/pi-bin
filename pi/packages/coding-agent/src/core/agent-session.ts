@@ -438,7 +438,7 @@ export class AgentSession {
 		headers?: Record<string, string>;
 		env?: Record<string, string>;
 	}> {
-		if (this.agent.streamFunction === streamSimple) {
+		if (streamSimple !== undefined) {
 			return this._getRequiredRequestAuth(model);
 		}
 
