@@ -78,6 +78,20 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第二轮记录（2026-08-29 续：511，毒源榜持续清零）
+
+- **重载去净续**：AgentLane.prompt/steer/followUp 三重载合为单签名（string | AgentMessage | AgentMessage[]）；SessionStorage/Session/存储实现的 findRecords 去泛型重载（无外部泛型调用方）
+- **混合 Promise union 续**：EntryProjector、toProviderMessages 改纯 Promise
+- **JSON 校验静态化**：assertJsonSerializable 重写——WeakSet/属性描述符/原型检查在静态构建不可映射且对编译器创建的普通对象属死代码防御，改递归 + MAX_JSON_DEPTH=512 环上限（cycle 语义改为 depth 报错，错误码不变）
+- **provider-composer mergeCompat 静态化**：union spread 改 index-signature record 拷贝循环 + `as unknown as Record` 双跳；adaptOAuth 的 explicit-then-spread 改显式字段拷贝（注意 onPrompt 事件目标类型本无 allowEmpty，原 spread 传入也被类型层丢弃）
+- **openai-completions**：convertMessages 取消导出（非导出 helper 豁免 npm 类型签名检查——模块 record 成员映射的直接解法）；grammarToolInputProperties ReadonlyMap→Map（ReadonlyMap 无独立 lowering）
+- **Map<string,string> 陷阱**：`new Map()` 无泛型参数推断为 Map<any,any> 毒化整个 record（model-runtime refresh 回退字面量）；ReadonlyMap<string,Error> 降级为 Map<string,string>（Error 不可映射）
+- **session-manager**：cloneEntryWithParent 单臂收窄克隆（9 个 discriminated type 各自 spread+显式字段）替代 union 属性赋值与 union spread（migrateV1ToV2 改索引赋值、buildSessionPath 路径重建）；byId 可选 Map 参数改带默认值必选（Map 不能作 union 臂）
+- **filter 类型谓词清零**：布尔过滤 + 后置 `.map((f) => ({...f, header: f.header as SessionHeader}))` 收窄
+- 真跑验证：MiniCPM5-1B print 模式往返正常
+
+**下轮首要**：model-runtime `createModels` 返回 MutableModels|Models 类联合（SC2003 re-tag，预计要拆 createModels 或统一类型）；agent-session(30)/package-manager(20) 逐行 grind；`{type:"text";text:string}[]` dynamic-only（×4）待查；BodyInit/RequestInit 重述；latex.ts Math.max 混合 spread 与 codePointAt 长尾。
+
 ## 阶段 5 grind 第一轮记录（2026-08-29：482→504 揭幕期，根因毒源批次攻坚）
 
 新快照起点 482（后续提交把基线从 416 揭幕到 482）。本轮不追单点，改攻 **member-map-null 毒源**（record 内单个成员不可映射即毒化整个 record，级联出下游 SC2011/SC2004）：
