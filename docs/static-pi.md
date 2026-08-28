@@ -84,6 +84,13 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第十七轮记录（2026-08-31 深夜终二：294→298，openai SDK 类型移除揭幕）
+
+- **openai SDK type import 全部移除**：`import type OpenAI from "openai"` 及 `openai/resources/chat/completions.js` 的 10 个类型全部移除
+- **本地类型替代**：`ChatCompletionTool` 改双臂联合（function/custom），`ChatCompletionCreateParams` 改 `Record<string, unknown>`
+- 揭幕至 +24 个新诊断（ChatCompletionTool 双臂类型展开、convertTools 返回类型、custom tool 字段等）
+- **下轮继续**：openai-completions 剩余 openai 类型引用的本地化（ChatCompletionChunk/MessageParam/ToolCall 等需要本地定义）
+
 ## 阶段 5 grind 第十六轮记录（2026-08-31 深夜终：274，openai-completions 回调化 + 揭幕）
 
 - **openai-http.ts 整体重写**：OpenAIStreamResult 改为 `{ response, processChunks }` 回调模式（不再返回迭代器/AsyncGenerator），sseJsonLines 移除，SSE 解析嵌入 processChunks 回调内
