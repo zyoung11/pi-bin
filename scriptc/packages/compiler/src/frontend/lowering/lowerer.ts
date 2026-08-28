@@ -3344,14 +3344,14 @@ export class Lowerer {
           const text = this.checker.typeToString(t);
           if (mapType(t, { ...this.typeCtx }) !== null) return `${pad}OK   ${text}`;
           const refArgs = this.checker.getTypeArguments(t as ts.TypeReference) as readonly ts.Type[] | undefined;
-          if (refArgs && refArgs.length > 0 && depth < 5) {
+          if (refArgs && refArgs.length > 0 && depth < 12) {
             return `${pad}FAIL ${text}\n${refArgs.map((a: ts.Type) => describe(a, depth + 1)).join("\n")}`;
           }
-          if (t.isUnionType() && depth < 5) {
+          if (t.isUnionType() && depth < 12) {
             return `${pad}FAIL ${text}\n${ts.constituentTypes(t).map((c) => describe(c, depth + 1)).join("\n")}`;
           }
           const dbgProps = this.checker.getPropertiesOfType(t);
-          if (dbgProps.length > 0 && depth < 5) {
+          if (dbgProps.length > 0 && depth < 12) {
             const parts: string[] = [];
             for (const dbgP of dbgProps) {
               const dbgT = this.checker.getTypeOfSymbol(dbgP);

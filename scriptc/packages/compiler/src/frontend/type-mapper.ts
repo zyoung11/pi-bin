@@ -3516,6 +3516,7 @@ function mapRecordTypeInner(widened: ts.Type, ctx: TypeMapperCtx): IrType | Reco
       // overflow entry — same RC adapters, same dynFrom conversion on the
       // way in, same checked casts on the way out. (JSON.stringify of a
       // dyn-field-bearing shape keeps its fence: jsonSafe stays false.)
+      if (pt === null && process.env.SC_DEBUG_FAIL) console.error(`[SCDBG] member-map-null: ${ctx.checker.typeToString(fieldTs)} on ${ctx.checker.typeToString(widened)}.${p.name}`);
       if (!pt || pt.kind === "void") return null;
       // A DATA property spelled like a reserved accessor slot (`{ "%get:x":
       // v }` — a string-literal key): mapping it would collide with the

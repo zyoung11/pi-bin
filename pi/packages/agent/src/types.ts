@@ -406,12 +406,12 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 	 */
 	prepareArguments?: (args: unknown) => Static<TParameters>;
 	/** Execute the tool call. Throw on failure instead of encoding errors in `content`. */
-	execute: (
+	execute(
 		toolCallId: string,
 		params: Static<TParameters>,
 		signal?: AbortSignal,
 		onUpdate?: AgentToolUpdateCallback<TDetails>,
-	) => Promise<AgentToolResult<TDetails>>;
+	): Promise<AgentToolResult<TDetails>>;
 	/**
 	 * Per-tool execution mode override.
 	 * - "sequential": this tool must execute one at a time with other tool calls.
