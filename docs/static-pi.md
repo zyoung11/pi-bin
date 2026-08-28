@@ -84,6 +84,13 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第十六轮记录（2026-08-31 深夜终：274，openai-completions 回调化 + 揭幕）
+
+- **openai-http.ts 整体重写**：OpenAIStreamResult 改为 `{ response, processChunks }` 回调模式（不再返回迭代器/AsyncGenerator），sseJsonLines 移除，SSE 解析嵌入 processChunks 回调内
+- **openai-completions.ts**：for-await→processChunks 回调（continue→return）；choice 判空 return；toHttpError 简化
+- **揭开 openai-completions 18 个内部诊断**：buildParams 级联（已修默认参但还要检查调用点）、delete×4→重建、catch instanceof、spread→循环、indexOf union→循环、StreamingToolCallBlock 工厂、headers 值域、SC2013 openai SDK 类型残留
+- **新规则**：Map 值不能是 any/unknown（→Record 动态键读写）；generic 合并形状数组不能 re-tag 到精确联合数组→逐元素转换
+
 ## 阶段 5 grind 第十五轮记录（2026-08-31 深夜终：274→294 揭幕至 openai-completions 内部迭代器）
 
 - **buildParams 默认参提升**、**sseJsonLines async generator→next() 对象**（openai-http.ts）、**for-await→while+next**（openai-completions.ts）
