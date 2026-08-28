@@ -47,7 +47,7 @@ export interface ToolRenderContext<TState = any, TArgs = any> {
 }
 
 /** A tool definition registering an LLM-callable tool with rendering hooks. */
-export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown, TState = any> {
+export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown, TState = unknown> {
 	/** Tool name (used in LLM tool calls) */
 	name: string;
 	/** Human-readable label for UI */
@@ -86,18 +86,22 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	): Promise<AgentToolResult<TDetails>>;
 
 	/** Custom rendering for tool call display */
-	renderCall?: (args: Static<TParams>, theme: Theme, context: ToolRenderContext<TState, Static<TParams>>) => Component;
+	renderCall?(
+		args: Static<TParams>,
+		theme: Theme,
+		context: ToolRenderContext<TState, Static<TParams>>,
+	): Component;
 
 	/** Custom rendering for tool result display */
-	renderResult?: (
+	renderResult?(
 		result: AgentToolResult<TDetails>,
 		options: ToolRenderResultOptions,
 		theme: Theme,
 		context: ToolRenderContext<TState, Static<TParams>>,
-	) => Component;
+	): Component;
 }
 
-type AnyToolDefinition = ToolDefinition<any, any, any>;
+type AnyToolDefinition = ToolDefinition<TSchema, unknown, unknown>;
 
 /**
  * Preserve parameter inference for standalone tool definitions.
