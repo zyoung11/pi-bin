@@ -813,6 +813,35 @@ function applyAutoloadDisabledPatterns(allPaths: string[], patterns: string[], b
 	return result;
 }
 
+async function runTasksWithConcurrency<TIn, TOut>(
+	inputs: TIn[],
+	limit: number,
+	task: (input: TIn) => Promise<TOut>,
+): Promise<TOut[]> {
+	if (inputs.length === 0) {
+		return [];
+	}
+
+	const results: TOut[] = [];
+	let nextIndex = 0;
+	const workerCount = Math.max(1, Math.min(limit, inputs.length));
+
+	const runWorker = async (): Promise<void> => {
+		while (nextIndex < inputs.length) {
+			const input = inputs[nextIndex];
+			nextIndex += 1;
+			results.push(await task(input));
+		}
+	};
+
+	const workers: Promise<void>[] = [];
+	for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+		workers.push(runWorker());
+	}
+	await Promise.all(workers);
+	return results;
+}
+
 export class DefaultPackageManager implements PackageManager {
 	private cwd: string;
 	private agentDir: string;
@@ -942,8 +971,8 @@ export class DefaultPackageManager implements PackageManager {
 
 		for (const resourceType of RESOURCE_TYPES) {
 			const target = this.getTargetMap(accumulator, resourceType);
-			const globalEntries = (globalSettings[resourceType] ?? []) as string[];
-			const projectEntries = (projectSettings[resourceType] ?? []) as string[];
+			const globalEntries = ((globalSettings as unknown as Record<string, unknown>)[resourceType] ?? []) as string[];
+			const projectEntries = ((projectSettings as unknown as Record<string, unknown>)[resourceType] ?? []) as string[];
 			this.resolveLocalEntries(
 				projectEntries,
 				resourceType,
@@ -1434,7 +1463,12 @@ export class DefaultPackageManager implements PackageManager {
 			}
 		}
 
-		return suggestions.values().next().value;
+		let firstSuggestion: string | undefined;
+		for (const suggestion of suggestions) {
+			firstSuggestion = suggestion;
+			break;
+		}
+		return firstSuggestion;
 	}
 
 	private packageSourcesMatch(existing: PackageSource, inputSource: string, scope: SourceScope): boolean {
@@ -1670,28 +1704,7 @@ export class DefaultPackageManager implements PackageManager {
 		limit: number,
 		task: (input: TIn) => Promise<TOut>,
 	): Promise<TOut[]> {
-		if (inputs.length === 0) {
-			return [];
-		}
-
-		const results: TOut[] = [];
-		let nextIndex = 0;
-		const workerCount = Math.max(1, Math.min(limit, inputs.length));
-
-		const runWorker = async (): Promise<void> => {
-			while (nextIndex < inputs.length) {
-				const input = inputs[nextIndex];
-				nextIndex += 1;
-				results.push(await task(input));
-			}
-		};
-
-		const workers: Promise<void>[] = [];
-		for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-			workers.push(runWorker());
-		}
-		await Promise.all(workers);
-		return results;
+		return runTasksWithConcurrency(inputs, limit, task);
 	}
 
 	/**
@@ -1909,11 +1922,13 @@ export class DefaultPackageManager implements PackageManager {
 			}
 
 			const nodeModulesDir = resolve(targetDir, "node_modules");
-			return Object.keys(manifest.dependencies).some((name) => {
+			let hasMissingDependency = false;
+			for (const name of Object.keys(manifest.dependencies)) {
 				const dependencyPath = resolve(nodeModulesDir, name);
-				if (!dependencyPath.startsWith(`${nodeModulesDir}${sep}`)) return false;
-				return !existsSync(dependencyPath);
-			});
+				if (!dependencyPath.startsWith(`${nodeModulesDir}${sep}`)) continue;
+				if (!existsSync(dependencyPath)) hasMissingDependency = true;
+			}
+			return hasMissingDependency;
 		} catch {
 			return false;
 		}
