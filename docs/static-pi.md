@@ -78,6 +78,19 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 里程碑：毒源清零（2026-08-29 夜：479，全部叶子）
+
+SC_DEBUG 探针日志的 member-map-null + dynamic-only **唯一根降至 0**。剩余 479 个诊断全部为叶子（SC2020 stdlib 长尾×121、逐行 SC1090/SC2002/SC2003、SC2004 级联等），此后每修一个诊断就是净减一个，揭幕时代结束。本轮新增拆掉的毒源与确认的两条新规则：
+
+- **void 臂同样禁止入 union**：`void | Promise<void>` 全部不可映射（与混合 Promise union 同罪）。全局清扫 14 处：回调返回值一律改 `=> void`（TS 中 Promise 返回可赋给 void 返回，await 语义不变）；需要返回值的（telemetry startSpan 回调、ToolContextSource）改纯 Promise。
+- **可选属性二次读值（runtime-optional capture）**：`if (obj.optFn) obj.optFn(x)` 的第二次属性读值是运行时可选捕获→整个函数值 dynamic-only。修法 = 提升到局部变量（`const f = obj.optFn; if (f) f(x)`，即 t31 已验证模式的推广）。本轮清扫 17 处。
+- **函数值数组不可作值**：`(() => Promise<T>)[]` 整体无表示（单个函数值可以，装进数组不行）。runWithConcurrency 重写为 `(inputs: TIn[], limit, task: (input: TIn) => Promise<TOut>)`——数据数组 + 单任务函数。
+- **ReadonlyMap 无独立 lowering**（降级 Map<any,any>）；`new Map()` 不带泛型参数推断为 Map<any,any> 毒化整个字面量 record——Map 构造必须显式 `<K,V>`。
+- 其余：convertMessages 取消导出（非导出 helper 豁免 npm 类型签名检查）；management-http 的 RequestInit 改本地窄接口 FetchRetryInit；provider-composer mergeCompat 静态化（index-signature 拷贝循环替代 union spread）；AgentLane prompt/steer/followUp/nextRun 四重载全合；assertJsonSerializable 重写（WeakSet/属性描述符/原型检查为静态死代码防御，环检测改 MAX_JSON_DEPTH=512 深度上限，错误码不变）。
+- 调试方法论升级：SC2011 报在函数类型上 ≠ 该类型不可映射（instrumented 分解树单独测全 OK）——真根是宿主 record 失败或运行时可选捕获。用「agent 包内最小探针 entry」可隔离验证类型本身是否可映射（注意：非 cli 入口的探针会碰 keyof 合并预检 SC0001 假阳性，探针要放在目标包内）。
+
+**剩余 479 的构成（下轮起纯 grind）**：SC2020×121（codePointAt/replaceAll/Math.max spread/Promise.all 形态/fs 长尾）、SC1090×~190（逐行形状）、SC2004×47 级联、SC2003/SC2002/SC2009 逐行残余、SC2012×15（replaceAll/Number.parseInt）。按文件：session-manager(36)/agent-session(30)/model-runtime(30)/latex(13)/theme(12)/config-selector(12)/main(12)。
+
 ## 阶段 5 grind 第二轮记录（2026-08-29 续：511，毒源榜持续清零）
 
 - **重载去净续**：AgentLane.prompt/steer/followUp 三重载合为单签名（string | AgentMessage | AgentMessage[]）；SessionStorage/Session/存储实现的 findRecords 去泛型重载（无外部泛型调用方）
