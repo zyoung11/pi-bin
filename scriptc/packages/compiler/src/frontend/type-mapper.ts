@@ -27,6 +27,8 @@ export const ISLAND_AMBIENT_TYPES = [
   "AbortController",
   "AbortSignal",
   "Headers",
+  "Request",
+  "URL",
   "ReadableStream",
   "ReadableStreamDefaultReader",
   "ReadableStreamDefaultController",
@@ -3079,11 +3081,16 @@ export function withUndefinedArm(t: IrType, unions: UnionRegistry): IrType | nul
     arms.sort((a, b) => (typeKey(a) < typeKey(b) ? -1 : 1));
     return { kind: "union", unionId: unions.intern(arms) };
   }
-  if (
-    t.kind === "void" || t.kind === "map" || t.kind === "date" || t.kind === "dyn" ||
-    // A bare unit field type cannot occur (units live only inside unions),
-    // but guard against constructing a single-arm union from one.
-    isUnitType(t)
+  // A DYN param already admits undefined — no arm to add, just return it
+  // (the optional marker is satisfied: the value is either a real dynamic
+  // value or undefined, both represented by the dyn slot).
+  // DYN already represents any value including undefined — the optional
+  // marker is satisfied with no extra arm.
+  if (t.kind === "dyn") return t;
+  if (t.kind === "void" || t.kind === "map" || t.kind === "date" ||
+      // A bare unit field type cannot occur (units live only inside unions),
+      // but guard against constructing a single-arm union from one.
+      isUnitType(t)
   ) {
     return null;
   }
