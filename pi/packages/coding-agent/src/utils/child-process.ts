@@ -39,27 +39,31 @@ export interface ChildProcessHandle {
 	readonly killed: boolean;
 	readonly stdout: ChildProcessStream | null;
 	readonly stderr: ChildProcessStream | null;
-	on(event: string, listener: (...args: unknown[]) => void): void;
-	once(event: string, listener: (...args: unknown[]) => void): void;
+	on(event: "exit", listener: (code: number | null) => void): void;
+	on(event: "error", listener: (err: Error) => void): void;
+	once(event: "exit", listener: (code: number | null) => void): void;
 	kill(signal?: number | string): boolean;
 	unref(): void;
 }
 
 export function spawnProcess(command: string, args: string[], options: SpawnProcessOptions): ChildProcessHandle {
+	const spawnEnv: Record<string, string> = {};
+	if (options.env) {
+		for (const envKey of Object.keys(options.env)) {
+			const envValue = options.env[envKey];
+			if (envValue !== undefined) spawnEnv[envKey] = envValue;
+		}
+	}
 	return nodeSpawn(command, args, {
 		cwd: options.cwd,
-		env: options.env,
-		detached: options.detached,
+		env: spawnEnv,
 		windowsHide: options.windowsHide,
-		shell: options.shell,
 		stdio: ["ignore", "pipe", "pipe"],
 	}) as unknown as ChildProcessHandle;
 }
 
 export function spawnProcessSync(command: string, args: string[], options: SpawnSyncOptions): SpawnSyncResult {
 	const result = nodeSpawnSync(command, args, {
-		cwd: options.cwd,
-		env: options.env,
 		encoding: "utf8",
 	});
 	return {
@@ -120,23 +124,22 @@ export function waitForChildProcess(child: ChildProcessHandle): Promise<number |
 			maybeFinalizeAfterExit();
 		};
 
-		const onError = (err: unknown) => {
+		const onError = (err: Error) => {
 			if (settled) return;
 			settled = true;
 			if (idleTimer) clearTimeout(idleTimer);
 			reject(err);
 		};
 
-		const onExit = (...exitArgs: unknown[]) => {
-			const code = exitArgs[0] as number | null;
+		const onExit = (code: number | null) => {
 			exited = true;
 			exitCode = code;
 			maybeFinalizeAfterExit();
 			if (!settled) armIdleTimer();
 		};
 
-		const stdout = child.stdout;
-		const stderr = child.stderr;
+		const stdout = child.stdout as unknown as ChildProcessStream | null;
+		const stderr = child.stderr as unknown as ChildProcessStream | null;
 		if (stdout) {
 			stdout.on("data", onData);
 			stdout.once("end", onStdoutEnd);
