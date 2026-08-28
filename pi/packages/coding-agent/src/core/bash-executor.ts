@@ -71,11 +71,11 @@ export async function executeBashWithOperations(
 		writeFileSync(tempFilePath, existing);
 	};
 
-	const onData = (data: Buffer) => {
+	const onData = (data: Uint8Array) => {
 		totalBytes += data.length;
 
 		// Sanitize: strip ANSI, replace binary garbage, normalize newlines
-		const text = sanitizeBinaryOutput(stripAnsi(data.toString())).replace(/\r/g, "");
+		const text = sanitizeBinaryOutput(stripAnsi(Buffer.from(data).toString())).replace(/\r/g, "");
 
 		// Start writing to temp file if exceeds threshold
 		if (totalBytes > DEFAULT_MAX_BYTES) {

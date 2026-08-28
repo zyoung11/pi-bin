@@ -71,7 +71,7 @@ export interface BashOperations {
 		command: string,
 		cwd: string,
 		options: {
-			onData: (data: Buffer) => void;
+			onData: (data: Uint8Array) => void;
 			signal?: AbortSignal;
 			timeout?: number;
 			env?: NodeJS.ProcessEnv;
@@ -150,8 +150,8 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 					}, timeoutMs);
 				}
 				// Stream stdout and stderr.
-				child.stdout?.on("data", onData);
-				child.stderr?.on("data", onData);
+				child.stdout?.on("data", onData as (chunk: Uint8Array) => void);
+				child.stderr?.on("data", onData as (chunk: Uint8Array) => void);
 				// Handle abort signal by killing the entire process tree.
 				if (signal) {
 					if (signal.aborted) onAbort();
@@ -416,9 +416,9 @@ export function createShellToolDefinition(
 				onUpdate({ content: [], details: undefined });
 			}
 
-			const handleData = (data: Buffer) => {
+			const handleData = (data: Uint8Array) => {
 				if (!acceptingOutput) return;
-				output.append(data);
+				output.append(Buffer.from(data));
 				scheduleOutputUpdate();
 			};
 

@@ -28,31 +28,40 @@ export interface SpawnSyncResult {
 }
 
 export interface ChildProcessStream {
-	on(event: "data", listener: (chunk: Buffer) => void): void;
-	once(event: "data" | "end", listener: (chunk: Buffer) => void): void;
+	on(event: string, listener: (chunk: Uint8Array) => void): void;
+	once(event: string, listener: (chunk: Uint8Array) => void): void;
 	destroy(): void;
 }
 
 export interface ChildProcessHandle {
-	pid?: number;
-	exitCode: number | null;
-	killed: boolean;
-	stdout: ChildProcessStream | null;
-	stderr: ChildProcessStream | null;
-	on(event: "exit", listener: (code: number | null) => void): void;
-	on(event: "error", listener: (err: Error) => void): void;
-	once(event: "exit", listener: (code: number | null) => void): void;
-	once(event: "error", listener: (err: Error) => void): void;
+	readonly pid?: number | undefined;
+	readonly exitCode: number | null;
+	readonly killed: boolean;
+	readonly stdout: ChildProcessStream | null;
+	readonly stderr: ChildProcessStream | null;
+	on(event: string, listener: (...args: unknown[]) => void): void;
+	once(event: string, listener: (...args: unknown[]) => void): void;
 	kill(signal?: number | string): boolean;
 	unref(): void;
 }
 
 export function spawnProcess(command: string, args: string[], options: SpawnProcessOptions): ChildProcessHandle {
-	return nodeSpawn(command, args, options);
+	return nodeSpawn(command, args, {
+		cwd: options.cwd,
+		env: options.env,
+		detached: options.detached,
+		windowsHide: options.windowsHide,
+		shell: options.shell,
+		stdio: ["ignore", "pipe", "pipe"],
+	}) as unknown as ChildProcessHandle;
 }
 
 export function spawnProcessSync(command: string, args: string[], options: SpawnSyncOptions): SpawnSyncResult {
-	const result = nodeSpawnSync(command, args, options);
+	const result = nodeSpawnSync(command, args, {
+		cwd: options.cwd,
+		env: options.env,
+		encoding: "utf8",
+	});
 	return {
 		status: result.status,
 		stdout: result.stdout as string,
@@ -111,24 +120,31 @@ export function waitForChildProcess(child: ChildProcessHandle): Promise<number |
 			maybeFinalizeAfterExit();
 		};
 
-		const onError = (err: Error) => {
+		const onError = (err: unknown) => {
 			if (settled) return;
 			settled = true;
 			if (idleTimer) clearTimeout(idleTimer);
 			reject(err);
 		};
 
-		const onExit = (code: number | null) => {
+		const onExit = (...exitArgs: unknown[]) => {
+			const code = exitArgs[0] as number | null;
 			exited = true;
 			exitCode = code;
 			maybeFinalizeAfterExit();
 			if (!settled) armIdleTimer();
 		};
 
-		child.stdout?.on("data", onData);
-		child.stderr?.on("data", onData);
-		child.stdout?.once("end", onStdoutEnd);
-		child.stderr?.once("end", onStderrEnd);
+		const stdout = child.stdout;
+		const stderr = child.stderr;
+		if (stdout) {
+			stdout.on("data", onData);
+			stdout.once("end", onStdoutEnd);
+		}
+		if (stderr) {
+			stderr.on("data", onData);
+			stderr.once("end", onStderrEnd);
+		}
 		child.on("error", onError);
 		child.on("exit", onExit);
 	});

@@ -2678,13 +2678,13 @@ export class DefaultPackageManager implements PackageManager {
 
 		const stdoutStream = child.stdout as ChildProcessStream | undefined;
 		if (stdoutStream) {
-			stdoutStream.on("data", (data: Buffer) => {
+			stdoutStream.on("data", (data: Uint8Array) => {
 				stdout += data.toString();
 			});
 		}
 		const stderrStream = child.stderr as ChildProcessStream | undefined;
 		if (stderrStream) {
-			stderrStream.on("data", (data: Buffer) => {
+			stderrStream.on("data", (data: Uint8Array) => {
 				stderr += data.toString();
 			});
 		}
