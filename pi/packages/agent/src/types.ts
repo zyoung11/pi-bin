@@ -5,12 +5,13 @@ import type {
 	AssistantMessageEventStream,
 	Context,
 	ImageContent,
+	ToolResultMessage,
+	UserMessage,
 	Message,
 	Model,
 	SimpleStreamOptions,
 	TextContent,
 	Tool,
-	ToolResultMessage,
 	Usage,
 } from "../../ai/src/index.ts";
 import type { Static,  PiSchema as TSchema } from "../../ai/src/schema.ts";
@@ -329,7 +330,9 @@ import type {
 	CustomMessage,
 } from "./harness/messages.ts";
 export type AgentMessage =
-	| Message
+	| UserMessage
+	| AssistantMessage
+	| ToolResultMessage
 	| BashExecutionMessage
 	| CustomMessage
 	| BranchSummaryMessage
