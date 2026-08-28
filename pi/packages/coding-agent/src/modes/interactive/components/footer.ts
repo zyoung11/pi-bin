@@ -3,6 +3,7 @@ import { Component, truncateToWidth, visibleWidth } from "../../../../../tui/src
 import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
+import type { Usage } from "../../../../../ai/src/index.ts";
 import { addUsageToTotals, createUsageTotals } from "../../../core/usage-totals.ts";
 import { theme } from "../theme/theme.ts";
 
@@ -99,8 +100,11 @@ export class FooterComponent extends Component {
 					latestPromptTokens > 0 ? (entry.message.usage.cacheRead / latestPromptTokens) * 100 : undefined;
 			} else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage) {
 				addUsageToTotals(usageTotals, entry.message.usage);
-			} else if ((entry.type === "branch_summary" || entry.type === "compaction") && entry.usage) {
-				addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "compaction") {
+				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "branch_summary") {
+				const summaryUsage = (entry as unknown as { usage?: Usage }).usage;
+				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
 			}
 		}
 
@@ -127,7 +131,7 @@ export class FooterComponent extends Component {
 		}
 
 		// Build stats line
-		const statsParts = [];
+		const statsParts: string[] = [];
 		if (usageTotals.input) statsParts.push(`↑${formatTokens(usageTotals.input)}`);
 		if (usageTotals.output) statsParts.push(`↓${formatTokens(usageTotals.output)}`);
 		if (usageTotals.cacheRead) statsParts.push(`R${formatTokens(usageTotals.cacheRead)}`);
@@ -233,9 +237,12 @@ export class FooterComponent extends Component {
 		// Add extension statuses on a single line, sorted by key alphabetically
 		const extensionStatuses = this.footerData.getExtensionStatuses();
 		if (extensionStatuses.size > 0) {
-			const sortedStatuses = Array.from(extensionStatuses.entries())
-				.sort(([a], [b]) => a.localeCompare(b))
-				.map(([, text]) => sanitizeStatusText(text));
+			const statusEntries: Array<[string, string]> = [];
+			for (const [statusKey, statusText] of extensionStatuses.entries()) {
+				statusEntries.push([statusKey, statusText]);
+			}
+			statusEntries.sort(([a], [b]) => a.localeCompare(b));
+			const sortedStatuses = statusEntries.map(([, text]) => sanitizeStatusText(text));
 			const statusLine = sortedStatuses.join(" ");
 			// Truncate to terminal width with dim ellipsis for consistency with footer style
 			lines.push(truncateToWidth(statusLine, width, theme.fg("dim", "...")));
