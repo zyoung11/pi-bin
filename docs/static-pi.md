@@ -78,6 +78,11 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十一轮记录（2026-08-31：292→282）
+
+- **markdown 8→0 + mini-markdown**：trimPartialClosingFences 改 switch + 直读（undefined 前置守卫）；nextToken?.type → 前置守卫 + 直读；TokensGeneric.text → `(token as unknown as TokensText).text`（union→unknown→精确臂三段在 TS 层过，scriptc 接受）；RegExpExecArray.index → indexOf 前置匹配；MarkedExtension.tokenizer 从 unknown 改 Tokenizer 类型（消除 checked cast）
+- **新规则**：TS 层允许的 union→unknown→精确三段 cast，scriptc 接受与否取决于目标臂是否含方法（Tokenizer 含方法被拒，TokensText 纯数据通过）
+
 ## 阶段 5 grind 第十轮记录（2026-08-30 深夜续四：325→292）
 
 - **footer 10→0**、**git.ts 9→0**（new URL→字符串解析）、**bash-executor 8→0**（WriteStream→appendFileSync、Buffer.toString）、**settings-manager 11→0**、**package-manager 9→2**、**agent.ts 11→0**、**pi-user-agent 1→0**、**main 10→6**
