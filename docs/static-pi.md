@@ -157,6 +157,10 @@
 
 ## 收尾快照（续三）：326→320。AgentMessage 索引访问 union（CustomAgentMessages[keyof ...]）拍平为显式 5 臂 union（类型-only 环 types.ts↔harness/messages.ts 安全）——但探针二分发现诡异现象：**内联同构 5 臂 union 数组通过、AgentMessage 别名数组仍报 no static representation**（臂各自 p14-p18 全过）——别名解析/组合怪癖待下轮专查。SessionManager 单文件 standalone build 已 0 诊断。新增已验证模式：filter 类型谓词不可用 → `map(?? "")` + 布尔过滤；`Array.from(Set/Map.entries)` → 立即展开 / forEach+push；fs.globSync → 递归 readdir + mini-minimatch；precise→record 动态键读 → `as unknown as Record<string, unknown>` 双跳（t34 验证）；`in` on index-signature record 也不可用（改 `!== undefined`）。新增模式：`.filter((line): line is string => ...)` 类型谓词不可用 → `map(x ?? "")` + 布尔过滤；`Array.from(Set/Map.entries)` → 立即展开 / forEach+push；fs.globSync → 递归 readdir + mini-minimatch。package-manager 根因批次清完（24→长尾）。新增模式：**precise→record 双跳 cast**（`x as unknown as Record<string, unknown>` 解锁动态键读——单跳被拒、双跳可行且运行时正确 t34）；SettingsStorage 接口→抽象基类（类→接口参数墙同 TUI）；`in` over index-signature 不可用（连 index-signature record 也不行，改 `!== undefined` 读）；`migrateSettings` 返回 double-jump。settings-manager 剩 1 个 SC2003 union re-tag（deepMerge 复杂 union）+ 记录残余；print 模式 + --list-models 真跑健康。__dirname 在 scriptc ESM 目标被全面禁用（typeof 守卫也无效）→ moduleDirname 统一 dirname(process.argv[1])。消息树 any 第二波清扫（ToolResultMessage/AgentTool 默认 TDetails=unknown、tool_execution 事件精确类型）。session-manager 自身 standalone build 已通过（FileEntry[] 的'unknown 值'毒源随 CustomData 收口消除）；全图 SessionManager.open ×5 级联待复查（可能为图上下文差异）
 
+## 已解决：AgentMessage 全展平（本轮）
+
+实验确认假设：**union 臂不能是另一个 union 别名**（`AgentMessage` 含 `Message` 别名臂 → SC2011）。全展平为 7 臂显式 union（UserMessage/AssistantMessage/ToolResultMessage/4 自定义）后探针通过。类型-only 循环导入（types.ts ↔ harness/messages.ts）安全。
+
 ## 下轮首要任务：AgentMessage 别名怪癖
 
 内联同构 union 数组通过但别名数组仍报 SC2011（探针二分确认臂各自全过）。首要假设：**union 臂中嵌套的 union 别名（Message）在 scriptc 的 interner 中不可重入**——即 union 不能引用另一个 union 别名作臂。验证法：探针 `(UserMessage | AssistantMessage | ToolResultMessage | BEM | CM | BSM | CSM)[]` 全展平应通过。若确认，修法 = AgentMessage 直接内联展开（或 Message 先展平为三臂 union 再组合）。波及：AgentMessage[] 出现的所有位置。
