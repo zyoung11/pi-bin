@@ -1119,11 +1119,10 @@ export class DefaultPackageManager implements PackageManager {
 			}
 		}
 
-		const npmCheckTasks = npmCandidates.map((entry) => async () => ({
+		const npmCheckResults = await this.runWithConcurrency(npmCandidates, UPDATE_CHECK_CONCURRENCY, async (entry) => ({
 			entry,
 			shouldUpdate: await this.shouldUpdateNpmSource(entry.parsed, entry.scope),
 		}));
-		const npmCheckResults = await this.runWithConcurrency(npmCheckTasks, UPDATE_CHECK_CONCURRENCY);
 		const userNpmUpdates: NpmUpdateTarget[] = [];
 		const projectNpmUpdates: NpmUpdateTarget[] = [];
 		for (const result of npmCheckResults) {
@@ -1145,13 +1144,13 @@ export class DefaultPackageManager implements PackageManager {
 			tasks.push(this.updateNpmBatch(projectNpmUpdates, "project"));
 		}
 		if (gitCandidates.length > 0) {
-			const gitTasks = gitCandidates.map(
-				(entry) => async () =>
+			tasks.push(
+				this.runWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (entry) =>
 					this.withProgress("update", entry.source, `Updating ${entry.source}...`, async () => {
 						await this.updateGit(entry.parsed, entry.scope);
 					}),
+				).then(() => {}),
 			);
-			tasks.push(this.runWithConcurrency(gitTasks, GIT_UPDATE_CONCURRENCY).then(() => {}));
 		}
 
 		await Promise.all(tasks);
@@ -1209,53 +1208,55 @@ export class DefaultPackageManager implements PackageManager {
 		}
 
 		const packageSources = this.dedupePackages(allPackages);
-		const checks = packageSources
-			.filter(
-				(entry): entry is { pkg: PackageSource; scope: Exclude<SourceScope, "temporary"> } =>
-					entry.scope !== "temporary",
-			)
-			.map((entry) => async (): Promise<PackageUpdate | undefined> => {
-				const source = typeof entry.pkg === "string" ? entry.pkg : entry.pkg.source;
-				const parsed = this.parseSource(source);
-				if (parsed.type === "local" || parsed.pinned) {
-					return undefined;
-				}
+		const checkInputs: { pkg: PackageSource; scope: InstalledSourceScope }[] = [];
+		for (const entry of packageSources) {
+			if (entry.scope !== "temporary") checkInputs.push({ pkg: entry.pkg, scope: entry.scope });
+		}
+		const checkTask = async (
+			entry: { pkg: PackageSource; scope: InstalledSourceScope },
+		): Promise<PackageUpdate | undefined> => {
+			const source = typeof entry.pkg === "string" ? entry.pkg : entry.pkg.source;
+			const parsed = this.parseSource(source);
+			if (parsed.type === "local" || parsed.pinned) {
+				return undefined;
+			}
 
-				if (parsed.type === "npm") {
-					const installedPath = this.getNpmInstallPath(parsed, entry.scope);
-					if (!existsSync(installedPath)) {
-						return undefined;
-					}
-					const hasUpdate = await this.npmHasAvailableUpdate(parsed, installedPath);
-					if (!hasUpdate) {
-						return undefined;
-					}
-					return {
-						source,
-						displayName: parsed.name,
-						type: "npm",
-						scope: entry.scope,
-					};
-				}
-
-				const installedPath = this.getGitInstallPath(parsed, entry.scope);
+			if (parsed.type === "npm") {
+				const installedPath = this.getNpmInstallPath(parsed, entry.scope);
 				if (!existsSync(installedPath)) {
 					return undefined;
 				}
-				const hasUpdate = await this.gitHasAvailableUpdate(installedPath);
+				const hasUpdate = await this.npmHasAvailableUpdate(parsed, installedPath);
 				if (!hasUpdate) {
 					return undefined;
 				}
 				return {
 					source,
-					displayName: `${parsed.host}/${parsed.path}`,
-					type: "git",
+					displayName: parsed.name,
+					type: "npm",
 					scope: entry.scope,
 				};
-			});
+			}
 
-		const results = await this.runWithConcurrency(checks, UPDATE_CHECK_CONCURRENCY);
-		return results.filter((result): result is PackageUpdate => result !== undefined);
+			const installedPath = this.getGitInstallPath(parsed, entry.scope);
+			if (!existsSync(installedPath)) {
+				return undefined;
+			}
+			const hasUpdate = await this.gitHasAvailableUpdate(installedPath);
+			if (!hasUpdate) {
+				return undefined;
+			}
+			return {
+				source,
+				displayName: `${parsed.host}/${parsed.path}`,
+				type: "git",
+				scope: entry.scope,
+			};
+		};
+
+		return this.runWithConcurrency(checkInputs, UPDATE_CHECK_CONCURRENCY, checkTask).then(
+			(results) => results.filter((result) => result !== undefined),
+		);
 	}
 
 	private async resolvePackageSources(
@@ -1664,27 +1665,32 @@ export class DefaultPackageManager implements PackageManager {
 		});
 	}
 
-	private async runWithConcurrency<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
-		if (tasks.length === 0) {
+	private async runWithConcurrency<TIn, TOut>(
+		inputs: TIn[],
+		limit: number,
+		task: (input: TIn) => Promise<TOut>,
+	): Promise<TOut[]> {
+		if (inputs.length === 0) {
 			return [];
 		}
 
-		const results: T[] = new Array(tasks.length);
+		const results: TOut[] = [];
 		let nextIndex = 0;
-		const workerCount = Math.max(1, Math.min(limit, tasks.length));
+		const workerCount = Math.max(1, Math.min(limit, inputs.length));
 
-		const worker = async () => {
-			while (true) {
-				const index = nextIndex;
+		const runWorker = async (): Promise<void> => {
+			while (nextIndex < inputs.length) {
+				const input = inputs[nextIndex];
 				nextIndex += 1;
-				if (index >= tasks.length) {
-					return;
-				}
-				results[index] = await tasks[index]();
+				results.push(await task(input));
 			}
 		};
 
-		await Promise.all(Array.from({ length: workerCount }, () => worker()));
+		const workers: Promise<void>[] = [];
+		for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+			workers.push(runWorker());
+		}
+		await Promise.all(workers);
 		return results;
 	}
 

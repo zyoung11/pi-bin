@@ -111,11 +111,11 @@ export interface RetryCallbacks {
 		maxAttempts: number,
 		delayMs: number,
 		errorMessage: string,
-	) => void | Promise<void>;
+	) => void;
 	/** Emitted after the backoff sleep, immediately before the retried call starts. */
-	onRetryAttemptStart?: () => void | Promise<void>;
+	onRetryAttemptStart?: () => void;
 	/** Emitted once when the loop ends: success if a later call completed normally. */
-	onRetryFinished?: (success: boolean, attempt: number, finalError?: string) => void | Promise<void>;
+	onRetryFinished?: (success: boolean, attempt: number, finalError?: string) => void;
 }
 
 class RetrySleepAbortError extends Error {

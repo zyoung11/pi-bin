@@ -22,7 +22,7 @@ import type {
 	StreamFn,
 } from "./types.ts";
 
-export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
+export type AgentEventSink = (event: AgentEvent) => void;
 
 /**
  * Start an agent loop with a new prompt message.
@@ -288,8 +288,9 @@ async function streamAssistantResponse(
 ): Promise<AssistantMessage> {
 	// Apply context transform if configured (AgentMessage[] → AgentMessage[])
 	let messages = context.messages;
-	if (config.transformContext) {
-		messages = await config.transformContext(messages, signal);
+	const transformContext = config.transformContext;
+	if (transformContext) {
+		messages = await transformContext(messages, signal);
 	}
 
 	// Convert to LLM-compatible messages (AgentMessage[] → Message[])
@@ -303,8 +304,9 @@ async function streamAssistantResponse(
 	};
 
 	// Resolve API key (important for expiring tokens)
+	const getApiKey = config.getApiKey;
 	const resolvedApiKey =
-		(config.getApiKey ? await config.getApiKey(config.model.provider) : undefined) || config.apiKey;
+		(getApiKey ? await getApiKey(config.model.provider) : undefined) || config.apiKey;
 
 	const response = await streamFunction(config.model, llmContext, {
 		...config,
@@ -585,16 +587,17 @@ function shouldTerminateToolBatch(finalizedCalls: FinalizedToolCallOutcome[]): b
 }
 
 function prepareToolCallArguments(tool: AgentTool, toolCall: AgentToolCall): AgentToolCall {
-	if (!tool.prepareArguments) {
+	const prepareArguments = tool.prepareArguments;
+	if (!prepareArguments) {
 		return toolCall;
 	}
-	const preparedArguments = tool.prepareArguments(toolCall.arguments);
+	const preparedArguments = prepareArguments(toolCall.arguments);
 	if (preparedArguments === toolCall.arguments) {
 		return toolCall;
 	}
 	return {
 		...toolCall,
-		arguments: preparedArguments as Record<string, any>,
+		arguments: preparedArguments as Record<string, unknown>,
 	};
 }
 
@@ -617,8 +620,9 @@ async function prepareToolCall(
 	try {
 		const preparedToolCall = prepareToolCallArguments(tool, toolCall);
 		const validatedArgs = validateToolArguments(tool, preparedToolCall);
-		if (config.beforeToolCall) {
-			const beforeResult = await config.beforeToolCall(
+		const beforeToolCallHook = config.beforeToolCall;
+		if (beforeToolCallHook) {
+			const beforeResult = await beforeToolCallHook(
 				{
 					assistantMessage,
 					toolCall,
@@ -722,9 +726,10 @@ async function finalizeExecutedToolCall(
 	let result = executed.result;
 	let isError = executed.isError;
 
-	if (config.afterToolCall) {
+	const afterToolCallHook = config.afterToolCall;
+	if (afterToolCallHook) {
 		try {
-			const afterResult = await config.afterToolCall(
+			const afterResult = await afterToolCallHook(
 				{
 					assistantMessage,
 					toolCall: prepared.toolCall,

@@ -15,7 +15,7 @@ export interface RunEndEvent {
 export type HarnessEvent = RunStartEvent | RunEndEvent;
 export type HarnessEventType = HarnessEvent["type"];
 export type HarnessEventOfType<TType extends HarnessEventType> = Extract<HarnessEvent, { type: TType }>;
-export type HarnessEventListener<TEvent extends HarnessEvent = HarnessEvent> = (event: TEvent) => void | Promise<void>;
+export type HarnessEventListener<TEvent extends HarnessEvent = HarnessEvent> = (event: TEvent) => void;
 
 export interface Events {
 	/**

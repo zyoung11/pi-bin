@@ -1,5 +1,12 @@
 type FetchInput = Parameters<typeof fetch>[0];
 
+interface FetchRetryInit {
+	signal?: AbortSignal;
+	method?: string;
+	headers?: Record<string, string>;
+	body?: string;
+}
+
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export interface FetchRetryOptions {
@@ -26,7 +33,7 @@ export interface FetchRetryOptions {
  */
 export async function fetchWithRetry(
 	input: FetchInput,
-	init: RequestInit | undefined = undefined,
+	init: FetchRetryInit | undefined = undefined,
 	options: FetchRetryOptions = {},
 ): Promise<Response> {
 	const maxRetries =
@@ -44,9 +51,10 @@ export async function fetchWithRetry(
 		parentSignal?.throwIfAborted();
 		timeoutSignal?.throwIfAborted();
 		const attemptTimeoutSignal = attemptTimeoutMs ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
-		const signals = [parentSignal, timeoutSignal, attemptTimeoutSignal].filter(
-			(signal): signal is AbortSignal => signal !== undefined,
-		);
+		const signals: AbortSignal[] = [];
+		if (parentSignal !== undefined) signals.push(parentSignal);
+		if (timeoutSignal !== undefined) signals.push(timeoutSignal);
+		if (attemptTimeoutSignal !== undefined) signals.push(attemptTimeoutSignal);
 		const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
 
 		try {

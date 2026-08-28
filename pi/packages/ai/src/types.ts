@@ -134,11 +134,11 @@ export interface ProviderRequestOptions<TModel = Model<Api>> {
 	 * Optional callback for inspecting or replacing provider payloads before sending.
 	 * Return undefined to keep the payload unchanged.
 	 */
-	onPayload?: (payload: unknown, model: TModel) => unknown | undefined | Promise<unknown | undefined>;
+	onPayload?: (payload: unknown, model: TModel) => unknown;
 	/**
 	 * Optional callback invoked after an HTTP response is received.
 	 */
-	onResponse?: (response: ProviderResponse, model: TModel) => void | Promise<void>;
+	onResponse?: (response: ProviderResponse, model: TModel) => void;
 	/**
 	 * Optional custom HTTP headers to include in API requests.
 	 * Merged with provider defaults; caller values override default headers.
@@ -173,7 +173,7 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
 	 * Optional callback invoked after an HTTP response is received and before
 	 * its body stream is consumed.
 	 */
-	onResponse?: (response: ProviderResponse, model: Model<Api>) => void | Promise<void>;
+	onResponse?: (response: ProviderResponse, model: Model<Api>) => void;
 	temperature?: number;
 	/**
 	 * Arbitrary sampling parameters merged into the request body as-is, after the named request

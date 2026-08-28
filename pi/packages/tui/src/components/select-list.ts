@@ -199,8 +199,9 @@ export class SelectList extends Component {
 
 	private truncatePrimary(item: SelectItem, isSelected: boolean, maxWidth: number, columnWidth: number): string {
 		const displayValue = this.getDisplayValue(item);
-		const truncatedValue = this.layout.truncatePrimary
-			? this.layout.truncatePrimary({
+		const truncatePrimary = this.layout.truncatePrimary;
+		const truncatedValue = truncatePrimary
+			? truncatePrimary({
 					text: displayValue,
 					maxWidth,
 					columnWidth,

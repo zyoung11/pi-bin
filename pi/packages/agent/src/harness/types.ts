@@ -96,7 +96,7 @@ export type AgentHarnessTool<
 /** Static tool context or zero-argument provider resolved for each turn snapshot. */
 export type AgentHarnessToolContextSource<TContext extends object | undefined> =
 	| TContext
-	| (() => TContext | Promise<TContext>);
+	| (() => Promise<TContext>);
 
 /** Curated provider request options owned by the harness and snapshotted per turn. */
 export interface AgentHarnessStreamOptions {

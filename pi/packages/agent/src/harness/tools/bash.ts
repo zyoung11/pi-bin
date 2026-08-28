@@ -31,7 +31,7 @@ export type BashPrepare<TContext extends ExecutionToolContext = ExecutionToolCon
 	execution: BashExecution,
 	context: TContext,
 	signal?: AbortSignal,
-) => void | Promise<void>;
+) => void;
 
 export interface BashToolOptions<TContext extends ExecutionToolContext = ExecutionToolContext> {
 	commandPrefix?: string;

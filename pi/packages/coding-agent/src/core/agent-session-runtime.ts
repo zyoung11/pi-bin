@@ -51,10 +51,11 @@ function extractUserMessageText(content: string | Array<{ type: string; text?: s
 		return content;
 	}
 
-	return content
-		.filter((part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string")
-		.map((part) => part.text)
-		.join("");
+	const textParts: string[] = [];
+	for (const part of content) {
+		if (part.type === "text" && typeof part.text === "string") textParts.push(part.text);
+	}
+	return textParts.join("");
 }
 
 /**
@@ -182,8 +183,9 @@ export class AgentSessionRuntime {
 				sessionManager,
 			}),
 		);
-		if (options?.setup) {
-			await options.setup(this.session.sessionManager);
+		const setup = options?.setup;
+		if (setup) {
+			await setup(this.session.sessionManager);
 			this.session.agent.state.messages = this.session.sessionManager.buildSessionContext().messages;
 		}
 		await this.finishSessionReplacement();

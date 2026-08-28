@@ -139,7 +139,7 @@ export function startAiSpan<Name extends AiSpanName, const Attributes extends Ai
 	telemetryContext: TelemetryContext,
 	name: Name,
 	attributes: ExactTelemetryAttributes<AiSpanStartAttributes<Name>, Attributes>,
-	callback: (span: AiTelemetrySpan<Name>) => Result | Promise<Result>,
+	callback: (span: AiTelemetrySpan<Name>) => Promise<Result>,
 ): Promise<Result> {
 	return telemetryContext.startSpan({ name, attributes }, (span) => callback(span as AiTelemetrySpan<Name>));
 }
@@ -607,7 +607,7 @@ export function startHarnessSpan<
 	telemetryContext: TelemetryContext,
 	name: Name,
 	attributes: ExactTelemetryAttributes<HarnessSpanStartAttributes<Name>, Attributes>,
-	callback: (span: HarnessTelemetrySpan<Name>) => Result | Promise<Result>,
+	callback: (span: HarnessTelemetrySpan<Name>) => Promise<Result>,
 ): Promise<Result> {
 	return telemetryContext.startSpan({ name, attributes }, (span: TelemetrySpan) =>
 		callback(span as HarnessTelemetrySpan<Name>),

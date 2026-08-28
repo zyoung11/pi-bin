@@ -172,9 +172,13 @@ export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
 // ============================================================================
 
 function withoutDeletedHeaders(headers: ProviderHeaders | undefined): Record<string, string> | undefined {
-	return headers
-		? Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== null))
-		: undefined;
+	if (!headers) return undefined;
+	const result: Record<string, string> = {};
+	for (const key of Object.keys(headers)) {
+		const value = headers[key];
+		if (value !== null && value !== undefined) result[key] = value;
+	}
+	return result;
 }
 
 export interface AgentSessionConfig {
@@ -2136,10 +2140,11 @@ export class AgentSession {
 				});
 			},
 			onRetryAttemptStart: () => {
-				this._emit({
-					type: "summarization_retry_attempt_start",
-					...source,
-				});
+				if (source.source === "compaction") {
+					this._emit({ type: "summarization_retry_attempt_start", source: "compaction", reason: source.reason });
+				} else {
+					this._emit({ type: "summarization_retry_attempt_start", source: "branchSummary" });
+				}
 			},
 			onRetryFinished: () => {
 				this._emit({ type: "summarization_retry_finished" });

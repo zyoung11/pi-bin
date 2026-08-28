@@ -100,11 +100,12 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 			try {
 				renderedArgs.set(toolCallId, args);
 				const toolDef = getToolDefinition(toolName);
-				if (!toolDef?.renderCall) {
+				const renderCall = toolDef?.renderCall;
+				if (!renderCall) {
 					return undefined;
 				}
 
-				const component = toolDef.renderCall(
+				const component = renderCall(
 					args,
 					theme,
 					createRenderContext(toolCallId, renderedCallComponents.get(toolCallId), false, true, false),
@@ -127,7 +128,8 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 		): { collapsed?: string; expanded?: string } | undefined {
 			try {
 				const toolDef = getToolDefinition(toolName);
-				if (!toolDef?.renderResult) {
+				const renderResultFn = toolDef?.renderResult;
+				if (!renderResultFn) {
 					return undefined;
 				}
 
@@ -140,7 +142,7 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 				};
 
 				// Render collapsed
-				const collapsedComponent = toolDef.renderResult(
+				const collapsedComponent = renderResultFn(
 					agentToolResult,
 					{ expanded: false, isPartial: false },
 					theme,
@@ -150,7 +152,7 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 				const collapsed = ansiLinesToHtml(trimRenderedResultLines(collapsedComponent.render(width)));
 
 				// Render expanded
-				const expandedComponent = toolDef.renderResult(
+				const expandedComponent = renderResultFn(
 					agentToolResult,
 					{ expanded: true, isPartial: false },
 					theme,

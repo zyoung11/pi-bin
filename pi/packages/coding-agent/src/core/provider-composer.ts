@@ -357,8 +357,9 @@ function composeApiKeyAuth(
 		name: inherited?.name ?? "API key",
 		login: composedLogin,
 		check: async (input) => {
+			const inheritedCheck = inherited?.check;
 			if (input.credential) {
-				if (inherited?.check) return inherited.check(input);
+				if (inheritedCheck) return inheritedCheck(input);
 				if (input.credential.key) return { type: "api_key", source: "stored credential" };
 				const resolved = await inherited?.resolve(input);
 				return resolved ? { type: "api_key", source: resolved.source } : undefined;
@@ -371,8 +372,9 @@ function composeApiKeyAuth(
 				}
 				return { type: "api_key", source: "configured API key" };
 			}
-			if (inherited?.check) return inherited.check(input);
-			const resolved = await inherited?.resolve(input);
+			if (inheritedCheck) return inheritedCheck(input);
+			const inheritedResolve = inherited?.resolve;
+			const resolved = inheritedResolve ? await inheritedResolve(input) : undefined;
 			return resolved ? { type: "api_key", source: resolved.source } : undefined;
 		},
 		resolve: async (input) => {
@@ -473,8 +475,9 @@ export function composeModelProvider(
 			applyModelsJson(providerId, base?.getModels() ?? [], config),
 			currentExtension(),
 		);
-		if (extensionOAuthCredential && extension?.oauth?.modifyModels) {
-			models = extension.oauth.modifyModels(models, extensionOAuthCredential);
+		const modifyModels = extension?.oauth?.modifyModels;
+		if (extensionOAuthCredential && modifyModels) {
+			models = modifyModels(models, extensionOAuthCredential);
 		}
 		return models.map((model) => {
 			const override = config?.modelOverrides?.[model.id];
@@ -522,7 +525,8 @@ export function composeModelProvider(
 				? async (context) => {
 						await base?.refreshModels?.(context);
 						let refreshed: NonNullable<ProviderConfigInput["models"]> | undefined;
-						if (extension?.refreshModels) refreshed = await extension.refreshModels(context);
+						const extensionRefreshModels = extension?.refreshModels;
+						if (extensionRefreshModels) refreshed = await extensionRefreshModels(context);
 						if (context.signal.aborted) return;
 						const oauthCredential = context.credential?.type === "oauth" ? context.credential : undefined;
 						await context.publish({

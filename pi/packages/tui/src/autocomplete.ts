@@ -227,7 +227,6 @@ export interface AutocompleteItem {
 	description?: string;
 }
 
-type Awaitable<T> = T | Promise<T>;
 
 export interface SlashCommand {
 	name: string;

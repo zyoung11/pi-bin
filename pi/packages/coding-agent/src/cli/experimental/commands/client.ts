@@ -17,7 +17,7 @@ export interface ClientCommand {
 }
 
 export interface ClientCommandContext {
-	runClient(command: ClientCommand): void | Promise<void>;
+	runClient(command: ClientCommand): void;
 }
 
 const connectOption = transportOption("--connect");

@@ -209,11 +209,11 @@ export type HookName =
 	| "before_navigation";
 
 export interface Hooks {
-	on(name: HookName, handler: (event: unknown) => unknown | Promise<unknown>, options?: { id?: string }): () => void;
+	on(name: HookName, handler: (event: unknown) => unknown, options?: { id?: string }): () => void;
 }
 
 export interface Events {
-	on(type: string, listener: (event: unknown) => void | Promise<void>): () => void;
+	on(type: string, listener: (event: unknown) => void): () => void;
 }
 
 class UnavailableRegistry implements Hooks, Events {
@@ -227,7 +227,7 @@ class UnavailableRegistry implements Hooks, Events {
 
 	on(
 		_name: HookName | string,
-		_handler: (event: unknown) => unknown | Promise<unknown>,
+		_handler: (event: unknown) => unknown,
 		_options?: { id?: string },
 	): () => void {
 		throw this.isClosed() ? new HarnessClosed() : new HarnessNotImplemented(this.operation);
@@ -280,12 +280,11 @@ export interface AgentLane {
 	abort(): Promise<AbortResult>;
 	steer(message: string | AgentMessage, images?: ImageContent[]): Promise<QueueResult>;
 	followUp(message: string | AgentMessage, images?: ImageContent[]): Promise<QueueResult>;
-	nextRun(text: string, images?: ImageContent[]): Promise<QueueResult>;
-	nextRun(message: AgentMessage): Promise<QueueResult>;
+	nextRun(message: string | AgentMessage, images?: ImageContent[]): Promise<QueueResult>;
 	cancelQueued(entryId: string): Promise<CancelQueuedResult>;
 	recordUsage(usage: Usage, options?: { entryId?: string; details?: JsonValue }): Promise<RecordUsageResult>;
 	waitForIdle(): Promise<void>;
-	runWhenIdle(callback: () => void | Promise<void>): Promise<void>;
+	runWhenIdle(callback: () => void): Promise<void>;
 	peekAction(): Promise<ActionInfo | undefined>;
 	executeAction(): Promise<ActionInfo | undefined>;
 	runToCompletion(): Promise<void>;
@@ -384,8 +383,6 @@ export class AgentHarness implements AgentLane {
 	async followUp(_input: string | AgentMessage, _images?: ImageContent[]): Promise<QueueResult> {
 		return this.unavailable("followUp");
 	}
-	async nextRun(_text: string, _images?: ImageContent[]): Promise<QueueResult>;
-	async nextRun(_message: AgentMessage): Promise<QueueResult>;
 	async nextRun(_input: string | AgentMessage, _images?: ImageContent[]): Promise<QueueResult> {
 		return this.unavailable("nextRun");
 	}
@@ -398,7 +395,7 @@ export class AgentHarness implements AgentLane {
 	async waitForIdle(): Promise<void> {
 		return this.unavailable("waitForIdle");
 	}
-	async runWhenIdle(_callback: () => void | Promise<void>): Promise<void> {
+	async runWhenIdle(_callback: () => void): Promise<void> {
 		return this.unavailable("runWhenIdle");
 	}
 	async peekAction(): Promise<ActionInfo | undefined> {

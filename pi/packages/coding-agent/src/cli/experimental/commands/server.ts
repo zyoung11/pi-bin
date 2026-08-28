@@ -17,7 +17,7 @@ export interface ServerCommand {
 }
 
 export interface ServerCommandContext {
-	runServer(command: ServerCommand): void | Promise<void>;
+	runServer(command: ServerCommand): void;
 }
 
 const listenOption = transportOption("--listen");

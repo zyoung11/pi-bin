@@ -387,8 +387,9 @@ export class Markdown extends Component {
 		let styled = text;
 
 		// Apply foreground color (NOT background - that's applied at padding stage)
-		if (this.defaultTextStyle.color) {
-			styled = this.defaultTextStyle.color(styled);
+		const colorFn = this.defaultTextStyle.color;
+		if (colorFn) {
+			styled = colorFn(styled);
 		}
 
 		// Apply text decorations using this.theme
@@ -420,8 +421,9 @@ export class Markdown extends Component {
 		const sentinel = "\u0000";
 		let styled = sentinel;
 
-		if (this.defaultTextStyle.color) {
-			styled = this.defaultTextStyle.color(styled);
+		const baseColorFn = this.defaultTextStyle.color;
+		if (baseColorFn) {
+			styled = baseColorFn(styled);
 		}
 
 		if (this.defaultTextStyle.bold) {
@@ -525,8 +527,9 @@ export class Markdown extends Component {
 			case "code": {
 				const indent = this.theme.codeBlockIndent ?? "  ";
 				lines.push(this.theme.codeBlockBorder(`\`\`\`${token.lang ?? ""}`));
-				if (this.theme.highlightCode) {
-					const highlightedLines = this.theme.highlightCode((token as Tokens.Code).text ?? "", (token as Tokens.Code).lang);
+				const highlightCode = this.theme.highlightCode;
+				if (highlightCode) {
+					const highlightedLines = highlightCode((token as Tokens.Code).text ?? "", (token as Tokens.Code).lang);
 					for (const hlLine of highlightedLines) {
 						lines.push(`${indent}${hlLine}`);
 					}

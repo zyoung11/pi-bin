@@ -53,7 +53,7 @@ type CommandBuilder<TInvocation extends NamedCommandInvocation> = (
 type CommandAction<TInvocation extends NamedCommandInvocation, TContext> = (
 	command: TInvocation,
 	context: TContext,
-) => void | Promise<void>;
+) => void;
 
 interface RegisteredCommand {
 	parse(argv: readonly string[]): CommandParseResult;

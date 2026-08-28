@@ -99,8 +99,9 @@ export async function executeBashWithOperations(
 		}
 
 		// Stream to callback
-		if (options?.onChunk) {
-			options.onChunk(text);
+		const onChunk = options?.onChunk;
+		if (onChunk) {
+			onChunk(text);
 		}
 	};
 

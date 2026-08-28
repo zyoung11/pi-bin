@@ -180,7 +180,7 @@ type ActiveRun = {
  */
 export class Agent {
 	private _state: MutableAgentState;
-	private readonly listeners: Array<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void> = [];
+	private readonly listeners: Array<(event: AgentEvent, signal: AbortSignal) => void> = [];
 	private readonly steeringQueue: PendingMessageQueue;
 	private readonly followUpQueue: PendingMessageQueue;
 
@@ -261,7 +261,7 @@ export class Agent {
 	 * `agent_end` is the final emitted event for a run, but the agent does not
 	 * become idle until all awaited listeners for that event have settled.
 	 */
-	subscribe(listener: (event: AgentEvent, signal: AbortSignal) => Promise<void> | void): () => void {
+	subscribe(listener: (event: AgentEvent, signal: AbortSignal) => void): () => void {
 		this.listeners.push(listener);
 		return () => {
 			const idx = this.listeners.indexOf(listener);

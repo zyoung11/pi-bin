@@ -18,7 +18,7 @@ export interface PiCommand {
 }
 
 export interface PiCommandContext {
-	runPi(command: PiCommand): void | Promise<void>;
+	runPi(command: PiCommand): void;
 }
 
 const listenOption = transportOption("--listen");

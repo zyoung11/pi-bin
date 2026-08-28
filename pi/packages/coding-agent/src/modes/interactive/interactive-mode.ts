@@ -2457,7 +2457,7 @@ export class InteractiveMode {
 			theme: Theme,
 			keybindings: KeybindingsManager,
 			done: (result: T) => void,
-		) => (Component & { dispose?(): void }) | Promise<Component & { dispose?(): void }>,
+		) => Promise<Component & { dispose?(): void }>,
 		options?: {
 			overlay?: boolean;
 			overlayOptions?: OverlayOptions | (() => OverlayOptions);

@@ -81,9 +81,9 @@ export interface ModelsConfig {
 
 export interface ModelsCallbacks {
 	/** Called whenever the enabled model set or order changes (session-only, no persist) */
-	onChange: (enabledModelIds: string[] | null) => void | Promise<void>;
+	onChange: (enabledModelIds: string[] | null) => void;
 	/** Called when user wants to persist current selection to settings */
-	onPersist: (enabledModelIds: string[] | null) => void | Promise<void>;
+	onPersist: (enabledModelIds: string[] | null) => void;
 	onCancel: () => void;
 }
 
