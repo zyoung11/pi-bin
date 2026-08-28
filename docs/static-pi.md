@@ -78,6 +78,13 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第六轮记录（2026-08-30：390→387）
+
+- **provider-composer 完全突破**：四个 Compat 接口加索引签名的方案证实不可行（`Omit<Required<T>>` 链路丢失具名字段，全变 unknown）已回滚；改用 **mergeCompat 参数/返回全 unknown + 调用点显式 cast**，provider-composer 21→8→剩余全挂在 OAuth 回调链（AbortSignal→unknown 降级入联合）。
+- **session-manager 回潮 14→12**：Map 参数默认值（含常量引用）确认全部非法；flatMap 回调返 union 数组非法改循环；getMessageActivityTime 逐臂 timestamp。
+- **剩余顽固点（12 个）全部是 SessionEntry/FileEntry 联合的深转型怪癖**：① 双跳 cast 后字段读报 SC1090（同模式在 agent 包探针通过——疑似 coding-agent 图上下文级联或 declare module 增强交互，需编译器级调查）② JSON.stringify(entry as unknown) 仍报（联合内含 unknown 嵌套成员，SC1101 转换拒绝）③ .find on 联合数组。这三个模式占据了 session-manager 剩余全部。
+- 探针方法论更新：探针必须放在目标文件同包且包含相同 declare module 增强；跨包 type-only 探针会漏掉增强导致的类型差异。
+
 ## 阶段 5 grind 第五轮记录（2026-08-30：425→390，provider-composer 21→8）
 
 - **provider-composer 全面重构**：mergeCompat Record 化（copyCompatRecord + unknown 参数）、mergeStringRecords/mergeUnknownRecords 工具化（spread 全部消灭）、configuredHeaders/rawModelHeaders/toOAuthCredential 循环化改写、login if/else 化、hasOAuth 判空。
