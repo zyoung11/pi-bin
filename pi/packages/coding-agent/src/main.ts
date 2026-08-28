@@ -292,7 +292,7 @@ function validateForkFlags(parsed: Args): void {
 		parsed.continue ? "--continue" : undefined,
 		parsed.resume ? "--resume" : undefined,
 		parsed.noSession ? "--no-session" : undefined,
-	].filter((flag): flag is string => flag !== undefined);
+	].filter((flag) => flag !== undefined);
 
 	if (conflictingFlags.length > 0) {
 		console.error(chalk.red(`Error: --fork cannot be combined with ${conflictingFlags.join(", ")}`));
@@ -307,7 +307,7 @@ function validateSessionIdFlags(parsed: Args): void {
 		parsed.session ? "--session" : undefined,
 		parsed.continue ? "--continue" : undefined,
 		parsed.resume ? "--resume" : undefined,
-	].filter((flag): flag is string => flag !== undefined);
+	].filter((flag) => flag !== undefined);
 
 	if (conflictingFlags.length > 0) {
 		console.error(chalk.red(`Error: --session-id cannot be combined with ${conflictingFlags.join(", ")}`));
@@ -600,8 +600,8 @@ export async function main(args: string[]) {
 	const parsed = parseArgs(args);
 	if (parsed.diagnostics.length > 0) {
 		for (const d of parsed.diagnostics) {
-			const color = d.type === "error" ? chalk.red : chalk.yellow;
-			console.error(color(`${d.type === "error" ? "Error" : "Warning"}: ${d.message}`));
+			const colorFn = d.type === "error" ? chalk.red : chalk.yellow;
+			console.error(colorFn(`${d.type === "error" ? "Error" : "Warning"}: ${d.message}`));
 		}
 		if (parsed.diagnostics.some((d) => d.type === "error")) {
 			process.exit(1);

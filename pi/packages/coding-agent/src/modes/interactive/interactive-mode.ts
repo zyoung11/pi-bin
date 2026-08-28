@@ -445,7 +445,7 @@ export class InteractiveMode {
 	private autocompleteProviderWrappers: AutocompleteProviderFactory[] = [];
 	private fdPath: string | undefined;
 	private editorContainer: Container;
-	private activeSelectorToken?: object;
+	private activeSelectorToken?: Record<string, never>;
 	private activeSelectorDispose?: () => void;
 	private footer: FooterComponent;
 	private footerContainer: Container;
@@ -4165,7 +4165,7 @@ export class InteractiveMode {
 	private showSelector(
 		create: (done: () => void) => { component: Component; focus: Component; dispose?: () => void },
 	): void {
-		const token = {};
+		const token: Record<string, never> = {};
 		let dispose: (() => void) | undefined;
 		const done = () => {
 			dispose?.();
