@@ -78,6 +78,14 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十轮记录（2026-08-30 深夜续四：325→292）
+
+- **footer 10→0**、**git.ts 9→0**（new URL→字符串解析）、**bash-executor 8→0**（WriteStream→appendFileSync、Buffer.toString）、**settings-manager 11→0**、**package-manager 9→2**、**agent.ts 11→0**、**pi-user-agent 1→0**、**main 10→6**
+- **child-process spawn/spawnSync 选项必须字面量**：spread、非字面量 detached、cwd 可选值、env 含 undefined 全被拒 → 字面量重建 + env 过滤。spawnProcessSync 保留 encoding: utf8（可选可选字段值也拒）
+- **ChildProcessHandle/ChildProcessStream 重述对齐 scriptc lowered 形状**：listener 参数 Uint8Array、on/once string event；nodeSpawn 返回值 as unknown as ChildProcessHandle
+- **剩余 child-process 6 个（下轮专项）**：child.stdout 的 Readable\|null → ChildProcessStream\|null cast 链全部被拒（含 as unknown 中转），疑似 scriptc child lowering 的 stdout 通道为特殊类型，需读写分离或 handle 直接持有 scriptc child
+- 总账 292。剩余分布：session-manager(12 顽固)、main(10)、rpc-mode(9)、markdown(8)、tool-renderer/export-html/compaction/config/session(各8)、package-manager-cli/migrations/sdk/provider-composer/keybindings(各7)
+
 ## 阶段 5 grind 第九轮记录（2026-08-30 深夜续三：334→303）
 
 - **agent.ts 11→0**、**settings-manager 11→0**、**footer 10→0**、**git.ts 9→0**、**package-manager 9→2**、pi-user-agent 1→0
