@@ -466,11 +466,11 @@ export function sessionEntryToContextMessages(entry: SessionEntry): AgentMessage
  */
 export function buildContextEntries(
 	entries: SessionEntry[],
-	leafId?: string | null,
-	byId: Map<string, SessionEntry> = EMPTY_ENTRY_INDEX,
+	leafId: string | null | undefined,
+	byId: Map<string, SessionEntry>,
 ): SessionEntry[] {
-	const entryIndex = byId ?? EMPTY_ENTRY_INDEX;
-	const path = buildSessionPath(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
+	const entryIndex = byId;
+	const path = buildSessionPath(entries, leafId, byId);
 	let compaction: CompactionEntry | null = null;
 
 	for (const entry of path) {
@@ -499,7 +499,9 @@ export function buildContextEntries(
 			contextEntries.push(entry);
 		}
 	}
-	contextEntries.push(...path.slice(compactionIdx + 1));
+	for (let restIndex = compactionIdx + 1; restIndex < path.length; restIndex++) {
+		contextEntries.push(path[restIndex]);
+	}
 	return contextEntries;
 }
 
@@ -516,9 +518,11 @@ export function buildSessionContext(
 	const entryIndex = byId;
 	const path = buildSessionPath(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
 	const { thinkingLevel, model } = getSessionContextSettings(path);
-	const messages = buildContextEntries(entries, leafId, byId ?? EMPTY_ENTRY_INDEX).flatMap(
-		sessionEntryToContextMessages,
-	);
+	const contextPath = buildContextEntries(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
+	const messages: AgentMessage[] = [];
+	for (const entry of contextPath) {
+		for (const message of sessionEntryToContextMessages(entry)) messages.push(message);
+	}
 	return { messages, thinkingLevel, model };
 }
 
@@ -743,7 +747,9 @@ function getMessageActivityTime(entry: SessionMessageEntry): number | undefined 
 	if (!isMessageWithContent(message)) return undefined;
 	if (message.role !== "user" && message.role !== "assistant") return undefined;
 
-	const msgTimestamp = (message as unknown as { timestamp?: number }).timestamp;
+	let msgTimestamp: number | undefined;
+	if (message.role === "user") msgTimestamp = message.timestamp;
+	else msgTimestamp = message.timestamp;
 	if (typeof msgTimestamp === "number") {
 		return msgTimestamp;
 	}
