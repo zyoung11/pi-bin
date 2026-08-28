@@ -35,7 +35,13 @@ import ignore from "../../../ai/src/utils/mini-ignore.ts";
 import { minimatch } from "../utils/mini-minimatch.ts";
 import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "../utils/mini-semver.ts";
 import { CONFIG_DIR_NAME } from "../config.ts";
-import { spawnProcess, spawnProcessSync, waitForChildProcess, type ChildProcessHandle } from "../utils/child-process.ts";
+import {
+	spawnProcess,
+	spawnProcessSync,
+	waitForChildProcess,
+	type ChildProcessHandle,
+	type ChildProcessStream,
+} from "../utils/child-process.ts";
 import { type GitSource, parseGitUrl } from "../utils/git.ts";
 import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
@@ -818,11 +824,10 @@ async function runTasksWithConcurrency<TIn, TOut>(
 	limit: number,
 	task: (input: TIn) => Promise<TOut>,
 ): Promise<TOut[]> {
-	if (inputs.length === 0) {
-		return [];
-	}
-
 	const results: TOut[] = [];
+	if (inputs.length === 0) {
+		return results;
+	}
 	let nextIndex = 0;
 	const workerCount = Math.max(1, Math.min(limit, inputs.length));
 
@@ -1148,7 +1153,7 @@ export class DefaultPackageManager implements PackageManager {
 			}
 		}
 
-		const npmCheckResults = await this.runWithConcurrency(npmCandidates, UPDATE_CHECK_CONCURRENCY, async (entry) => ({
+		const npmCheckResults = await runTasksWithConcurrency(npmCandidates, UPDATE_CHECK_CONCURRENCY, async (entry) => ({
 			entry,
 			shouldUpdate: await this.shouldUpdateNpmSource(entry.parsed, entry.scope),
 		}));
@@ -1174,7 +1179,7 @@ export class DefaultPackageManager implements PackageManager {
 		}
 		if (gitCandidates.length > 0) {
 			tasks.push(
-				this.runWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (entry) =>
+				runTasksWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (entry) =>
 					this.withProgress("update", entry.source, `Updating ${entry.source}...`, async () => {
 						await this.updateGit(entry.parsed, entry.scope);
 					}),
@@ -1283,7 +1288,7 @@ export class DefaultPackageManager implements PackageManager {
 			};
 		};
 
-		return this.runWithConcurrency(checkInputs, UPDATE_CHECK_CONCURRENCY, checkTask).then(
+		return runTasksWithConcurrency(checkInputs, UPDATE_CHECK_CONCURRENCY, checkTask).then(
 			(results) => results.filter((result) => result !== undefined),
 		);
 	}
@@ -1699,13 +1704,7 @@ export class DefaultPackageManager implements PackageManager {
 		});
 	}
 
-	private async runWithConcurrency<TIn, TOut>(
-		inputs: TIn[],
-		limit: number,
-		task: (input: TIn) => Promise<TOut>,
-	): Promise<TOut[]> {
-		return runTasksWithConcurrency(inputs, limit, task);
-	}
+
 
 	/**
 	 * Get a unique identity for a package, ignoring version/ref.
@@ -1788,7 +1787,10 @@ export class DefaultPackageManager implements PackageManager {
 	private getPackageManagerName(): string {
 		const npmCommand = this.getNpmCommand();
 		const commandParts = [npmCommand.command, ...npmCommand.args];
-		const separatorIndex = commandParts.lastIndexOf("--");
+		let separatorIndex = -1;
+		for (let partIndex = 0; partIndex < commandParts.length; partIndex++) {
+			if (commandParts[partIndex] === "--") separatorIndex = partIndex;
+		}
 		const packageManagerCommand = separatorIndex >= 0 ? commandParts[separatorIndex + 1] : npmCommand.command;
 		return packageManagerCommand ? basename(packageManagerCommand).replace(/\.(cmd|exe)$/i, "") : "";
 	}
@@ -1912,12 +1914,10 @@ export class DefaultPackageManager implements PackageManager {
 		if (!existsSync(packageJsonPath)) return false;
 
 		try {
-			const manifest = JSON.parse(stripBom(readFileSync(packageJsonPath, "utf-8"))) as { dependencies?: unknown };
-			if (
-				!manifest.dependencies ||
-				typeof manifest.dependencies !== "object" ||
-				Array.isArray(manifest.dependencies)
-			) {
+			const manifest = JSON.parse(stripBom(readFileSync(packageJsonPath, "utf-8"))) as unknown as {
+				dependencies: Record<string, unknown>;
+			};
+			if (typeof manifest.dependencies !== "object" || Array.isArray(manifest.dependencies)) {
 				return false;
 			}
 
@@ -2189,7 +2189,7 @@ export class DefaultPackageManager implements PackageManager {
 	): boolean {
 		if (filter) {
 			for (const resourceType of RESOURCE_TYPES) {
-				const patterns = filter[resourceType];
+				const patterns = (filter as unknown as Record<string, string[] | undefined>)[resourceType];
 				const target = this.getTargetMap(accumulator, resourceType);
 				if (filter.autoload === false) {
 					this.applyPackageDeltaFilter(packageRoot, patterns ?? [], resourceType, target, metadata);
@@ -2676,12 +2676,18 @@ export class DefaultPackageManager implements PackageManager {
 					}, options.timeoutMs)
 				: undefined;
 
-		child.stdout?.on("data", (data: Buffer) => {
-			stdout += data.toString();
-		});
-		child.stderr?.on("data", (data: Buffer) => {
-			stderr += data.toString();
-		});
+		const stdoutStream = child.stdout as ChildProcessStream | undefined;
+		if (stdoutStream) {
+			stdoutStream.on("data", (data: Buffer) => {
+				stdout += data.toString();
+			});
+		}
+		const stderrStream = child.stderr as ChildProcessStream | undefined;
+		if (stderrStream) {
+			stderrStream.on("data", (data: Buffer) => {
+				stderr += data.toString();
+			});
+		}
 		return waitForChildProcess(child).then((code) => {
 			if (timeout) clearTimeout(timeout);
 			if (timedOut) {
