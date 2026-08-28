@@ -35,16 +35,18 @@ function splitRef(url: string): { repo: string; ref?: string } {
 
 	if (url.includes("://")) {
 		try {
-			const parsed = new URL(url);
-			const pathWithMaybeRef = parsed.pathname.replace(/^\/+/, "");
+			const schemeEnd = url.indexOf("://") + 3;
+			const pathStart = url.indexOf("/", schemeEnd);
+			const pathWithMaybeRef = pathStart < 0 ? "" : url.slice(pathStart).replace(/^\/+/, "");
 			const refSeparator = pathWithMaybeRef.indexOf("@");
 			if (refSeparator < 0) return { repo: url };
 			const repoPath = pathWithMaybeRef.slice(0, refSeparator);
 			const ref = pathWithMaybeRef.slice(refSeparator + 1);
 			if (!repoPath || !ref) return { repo: url };
-			parsed.pathname = `/${repoPath}`;
+			const originEnd = pathStart < 0 ? url.length : url.indexOf("/", schemeEnd);
+			const origin = url.slice(0, originEnd);
 			return {
-				repo: parsed.toString().replace(/\/$/, ""),
+				repo: `${origin}/${repoPath}`.replace(/\/$/, ""),
 				ref,
 			};
 		} catch {
@@ -140,9 +142,13 @@ function parseGenericGitUrl(url: string): GitSource | null {
 		repoWithoutRef.startsWith("git://")
 	) {
 		try {
-			const parsed = new URL(repoWithoutRef);
-			host = parsed.hostname;
-			path = parsed.pathname.replace(/^\/+/, "");
+			const schemeEnd = repoWithoutRef.indexOf("://") + 3;
+			const slashIndex2 = repoWithoutRef.indexOf("/", schemeEnd);
+			if (slashIndex2 < 0) return null;
+			host = repoWithoutRef.slice(schemeEnd, slashIndex2);
+			const hostPortEnd = host.indexOf(":");
+			if (hostPortEnd >= 0) host = host.slice(0, hostPortEnd);
+			path = repoWithoutRef.slice(slashIndex2).replace(/^\/+/, "");
 		} catch {
 			return null;
 		}
@@ -180,9 +186,10 @@ export function parseGitUrl(source: string): GitSource | null {
 
 	const split = splitRef(url);
 
-	const hostedCandidates = [split.ref ? `${split.repo}#${split.ref}` : undefined, url].filter(
-		(value): value is string => Boolean(value),
-	);
+	const hostedCandidates: string[] = [];
+	for (const candidate of [split.ref ? `${split.repo}#${split.ref}` : undefined, url]) {
+		if (candidate !== undefined) hostedCandidates.push(candidate);
+	}
 	for (const candidate of hostedCandidates) {
 		const info = fromUrl(candidate);
 		if (info) {
@@ -204,9 +211,10 @@ export function parseGitUrl(source: string): GitSource | null {
 		}
 	}
 
-	const httpsCandidates = [split.ref ? `https://${split.repo}#${split.ref}` : undefined, `https://${url}`].filter(
-		(value): value is string => Boolean(value),
-	);
+	const httpsCandidates: string[] = [];
+	for (const candidate of [split.ref ? `https://${split.repo}#${split.ref}` : undefined, `https://${url}`]) {
+		if (candidate !== undefined) httpsCandidates.push(candidate);
+	}
 	for (const candidate of httpsCandidates) {
 		const info = fromUrl(candidate);
 		if (info) {
