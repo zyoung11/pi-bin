@@ -78,6 +78,14 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十三轮记录（2026-08-31 续：296→293，核心异步链改造）
+
+- **EventStream 重写**：scriptc 不支持 computed method names（`[Symbol.asyncIterator]`）与泛型类继承未实例化链——移除 AsyncIterable 实现，改公开 `next(): Promise<IteratorResult<T>>` + `result()`（notifyUpdate then 链唤醒，done 终态后返回）；agent-loop for-await 改 while+next 手动循环
+- **lazy.ts 动态 import() 移除**：openai-completions.lazy.ts 改静态命名导入 + lazyApi(async () => ({stream, streamSimple}) as ProviderStreams)；namespace 对象作为一等值也被拒（SC1013）——必须用具名导入重组
+- **事件字段读取模式确立**：runtime-optional capture 上的 cast+字段读全部失败，唯可靠模式是**逐臂 if-return 辅助函数**（eventPartial）；未知尾臂需显式 throw
+- **unknown 参与的比较/运算**：`preparedArguments === toolCall.arguments`（unknown === record）被拒 → 若语义可接受则删除该快捷判断
+- **void-promise 不能作 Promise.resolve 参数**：`Promise.resolve(emit(...))`（emit 返 void）被拒 → 改 async 函数推入数组
+
 ## 阶段 5 grind 第十二轮记录（2026-08-31：282→271）
 
 - **markdown 8→0**、**rpc-mode 9→3**：process.on 仅支持字面量信号（SIGHUP/off 均被拒，off 改 detach 守卫标志）；stdin 读改 data 分块 + Uint8Array 参数；unknownCommand 固定 type（union cast 读字段不可行）；shutdown 参数必选化
