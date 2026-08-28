@@ -45,7 +45,6 @@ import {
 	modelsAreEqual,
 	type RetryCallbacks,
 	resetApiProviders,
-	streamSimple,
 } from "../../../ai/src/compat.ts";
 import { getThemeByName, theme } from "../modes/interactive/theme/theme.ts";
 import { stripFrontmatter } from "../utils/frontmatter.ts";
@@ -140,7 +139,7 @@ export type AgentSessionEvent =
 	| {
 			type: "compaction_end";
 			reason: "manual" | "threshold" | "overflow";
-			result: CompactionResult | undefined;
+			result?: CompactionResult;
 			aborted: boolean;
 			willRetry: boolean;
 			errorMessage?: string;
@@ -442,10 +441,6 @@ export class AgentSession {
 		headers?: Record<string, string>;
 		env?: Record<string, string>;
 	}> {
-		if (streamSimple !== undefined) {
-			return this._getRequiredRequestAuth(model);
-		}
-
 		try {
 			const result = await this._modelRuntime.getAuth(model);
 			if (!result) return { model };
@@ -463,12 +458,14 @@ export class AgentSession {
 
 	/** Normalizes image content in tool results so inline images respect the auto-resize setting. */
 	private _installAgentToolHooks(): void {
-		this.agent.afterToolCall = async ({ result }) => {
-			const normalizedContent = await normalizeToolResultImages(result.content ?? [], {
+		this.agent.afterToolCall = async (context) => {
+			const { result } = context;
+			const originalContent: (TextContent | ImageContent)[] = result.content ?? [];
+			const normalizedContent = await normalizeToolResultImages(originalContent, {
 				autoResizeImages: this.settingsManager.getImageAutoResize(),
 			});
 
-			if (normalizedContent === (result.content ?? [])) {
+			if (normalizedContent === originalContent) {
 				return undefined;
 			}
 
@@ -480,10 +477,16 @@ export class AgentSession {
 		const previousPrepareNextTurnWithContext =
 			this.agent.prepareNextTurnWithContext ??
 			(this.agent.prepareNextTurn
-				? async (_turn: PrepareNextTurnContext, signal?: AbortSignal) => await this.agent.prepareNextTurn?.(signal)
+				? async (_turn: PrepareNextTurnContext, signal: AbortSignal | undefined) => {
+						const prepare = this.agent.prepareNextTurn;
+						if (!prepare) return undefined;
+						return await prepare(signal);
+					}
 				: undefined);
 		this.agent.prepareNextTurnWithContext = async (turn, signal) => {
-			const previousSnapshot = await previousPrepareNextTurnWithContext?.(turn, signal);
+			const previousSnapshot = previousPrepareNextTurnWithContext
+				? await previousPrepareNextTurnWithContext(turn, signal)
+				: undefined;
 			const previousContext = previousSnapshot?.context ?? turn.context;
 
 			return {
@@ -504,6 +507,16 @@ export class AgentSession {
 	// =========================================================================
 
 	/** Emit an event to all listeners */
+	private _emitCompactionEnd(
+		reason: "manual" | "threshold" | "overflow",
+		result: CompactionResult | undefined,
+		aborted: boolean,
+		willRetry: boolean,
+		errorMessage: string | undefined,
+	): void {
+		this._emit({ type: "compaction_end", reason, result, aborted, willRetry, errorMessage });
+	}
+
 	private _emit(event: AgentSessionEvent): void {
 		for (const l of this._eventListeners) {
 			l(event);
@@ -692,8 +705,9 @@ export class AgentSession {
 
 	/** Disconnect from agent events during disposal. */
 	private _disconnectFromAgent(): void {
-		if (this._unsubscribeAgent) {
-			this._unsubscribeAgent();
+		const unsubscribeAgent = this._unsubscribeAgent;
+		if (unsubscribeAgent) {
+			unsubscribeAgent();
 			this._unsubscribeAgent = undefined;
 		}
 	}
@@ -880,7 +894,9 @@ export class AgentSession {
 				unique.add(normalized);
 			}
 		}
-		return Array.from(unique);
+		const uniqueList: string[] = [];
+		for (const item of unique) uniqueList.push(item);
+		return uniqueList;
 	}
 
 	private _rebuildSystemPrompt(toolNames: string[]): string {
@@ -1050,7 +1066,7 @@ export class AgentSession {
 			// Add user message
 			const userContent: (TextContent | ImageContent)[] = [{ type: "text", text: expandedText }];
 			if (currentImages) {
-				userContent.push(...currentImages);
+				for (const image of currentImages) userContent.push(image);
 			}
 			messages.push({
 				role: "user",
@@ -1138,7 +1154,7 @@ export class AgentSession {
 		this._emitQueueUpdate();
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
-			content.push(...images);
+			for (const image of images) content.push(image);
 		}
 		this.agent.steer({
 			role: "user",
@@ -1155,7 +1171,7 @@ export class AgentSession {
 		this._emitQueueUpdate();
 		const content: (TextContent | ImageContent)[] = [{ type: "text", text }];
 		if (images) {
-			content.push(...images);
+			for (const image of images) content.push(image);
 		}
 		this.agent.followUp({
 			role: "user",
@@ -1613,7 +1629,8 @@ export class AgentSession {
 	 */
 	async compact(customInstructions?: string): Promise<CompactionResult> {
 		await this.abort();
-		this._compactionAbortController = new AbortController();
+		const controller = new AbortController();
+		this._compactionAbortController = { signal: controller.signal, abort: () => controller.abort() };
 		this._emit({ type: "compaction_start", reason: "manual" });
 
 		try {
@@ -1630,7 +1647,11 @@ export class AgentSession {
 			if (!preparation) {
 				// Check why we can't compact
 				const lastEntry = pathEntries[pathEntries.length - 1];
-				if (lastEntry?.type === "compaction") {
+				let lastEntryType: string | undefined;
+				if (lastEntry !== undefined) {
+					lastEntryType = (lastEntry as unknown as { type: string }).type;
+				}
+				if (lastEntryType === "compaction") {
 					throw new Error("Already compacted");
 				}
 				throw new Error("Nothing to compact (session too small)");
@@ -1678,27 +1699,29 @@ export class AgentSession {
 			};
 			// compaction_end listeners may submit queued prompts, so expose idle state before notifying them.
 			this._compactionAbortController = null;
-			this._emit({
+			const manualEndEvent: AgentSessionEvent = {
 				type: "compaction_end",
 				reason: "manual",
 				result: compactionResult,
 				aborted: false,
 				willRetry: false,
-			});
+			};
+			this._emit(manualEndEvent);
 			return compactionResult;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
 			const errorMessage = aborted ? undefined : `Compaction failed: ${message}`;
 			this._compactionAbortController = null;
-			this._emit({
+			const manualEndEvent: AgentSessionEvent = {
 				type: "compaction_end",
 				reason: "manual",
-				result: undefined,
+				result: undefined as CompactionResult | undefined,
 				aborted,
 				willRetry: false,
 				errorMessage,
-			});
+			};
+			this._emit(manualEndEvent);
 			throw error;
 		} finally {
 			this._compactionAbortController = null;
@@ -1755,7 +1778,9 @@ export class AgentSession {
 		// to a larger-context model (e.g. codex) - the overflow error from the old model
 		// shouldn't trigger compaction for the new model.
 		const sameModel =
-			this.model && assistantMessage.provider === this.model.provider && assistantMessage.model === this.model.id;
+			this.model !== undefined &&
+			assistantMessage.provider === this.model.provider &&
+			assistantMessage.model === this.model.id;
 
 		// Skip compaction checks if this assistant message is older than the latest
 		// compaction boundary. This prevents a stale pre-compaction usage/error
@@ -1785,14 +1810,15 @@ export class AgentSession {
 				const errorMessage = contextOverflow
 					? "Context overflow recovery failed after one compact-and-retry attempt. Try reducing context or switching to a larger-context model."
 					: "Truncated response recovery failed after one compact-and-retry attempt.";
-				this._emit({
+				const overflowEndEvent: AgentSessionEvent = {
 					type: "compaction_end",
 					reason: "overflow",
-					result: undefined,
+					result: undefined as CompactionResult | undefined,
 					aborted: false,
 					willRetry: false,
 					errorMessage,
-				});
+				};
+				this._emit(overflowEndEvent);
 				return false;
 			}
 
@@ -1869,7 +1895,8 @@ export class AgentSession {
 			}
 
 			this._emit({ type: "compaction_start", reason });
-			this._autoCompactionAbortController = new AbortController();
+			const autoController = new AbortController();
+			this._autoCompactionAbortController = { signal: autoController.signal, abort: () => autoController.abort() };
 			started = true;
 
 			let summary: string;
@@ -1895,13 +1922,7 @@ export class AgentSession {
 			details = compactResult.details;
 
 			if (this._autoCompactionAbortController.signal.aborted) {
-				this._emit({
-					type: "compaction_end",
-					reason,
-					result: undefined,
-					aborted: true,
-					willRetry: false,
-				});
+				this._emitCompactionEnd(reason, undefined, true, false, undefined);
 				return false;
 			}
 
@@ -1928,7 +1949,11 @@ export class AgentSession {
 				// from agent state. Rebuilding state from the new compaction can restore that kept entry,
 				// leaving an assistant as the final message. agent.continue() rejects that state, so remove
 				// the retriable error or truncated-length response again before continuing the interrupted turn.
-				if (lastMsg?.role === "assistant" && (lastMsg.stopReason === "error" || lastMsg.stopReason === "length")) {
+				if (
+					lastMsg !== undefined &&
+					lastMsg.role === "assistant" &&
+					(lastMsg.stopReason === "error" || lastMsg.stopReason === "length")
+				) {
 					this.agent.state.messages = messages.slice(0, -1);
 				}
 				return true;
@@ -1944,14 +1969,7 @@ export class AgentSession {
 					reason === "overflow"
 						? `Context overflow recovery failed: ${errorMessage}`
 						: `Auto-compaction failed: ${errorMessage}`;
-				this._emit({
-					type: "compaction_end",
-					reason,
-					result: undefined,
-					aborted: false,
-					willRetry: false,
-					errorMessage: formattedErrorMessage,
-				});
+				this._emitCompactionEnd(reason, undefined, false, false, formattedErrorMessage);
 			}
 			return false;
 		} finally {
@@ -1986,7 +2004,8 @@ export class AgentSession {
 	}
 
 	private _refreshToolRegistry(options?: { activeToolNames?: string[] }): void {
-		const previousRegistryNames = new Set(this._toolRegistry.keys());
+		const previousRegistryNames = new Set<string>();
+		for (const name of this._toolRegistry.keys()) previousRegistryNames.add(name);
 		const previousActiveToolNames = this.getActiveToolNames();
 		const allowedToolNames = this._allowedToolNames;
 		const excludedToolNames = this._excludedToolNames;
@@ -2000,17 +2019,14 @@ export class AgentSession {
 			}))
 			.filter((tool) => isAllowedTool(tool.definition.name));
 
-		const definitionRegistry = new Map<string, ToolDefinitionEntry>(
-			Array.from(this._baseToolDefinitions.entries())
-				.filter(([name]) => isAllowedTool(name))
-				.map(([name, definition]) => [
-					name,
-					{
-						definition,
-						sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
-					},
-				]),
-		);
+		const definitionRegistry = new Map<string, ToolDefinitionEntry>();
+		for (const [name, definition] of this._baseToolDefinitions.entries()) {
+			if (!isAllowedTool(name)) continue;
+			definitionRegistry.set(name, {
+				definition,
+				sourceInfo: createSyntheticSourceInfo(`<builtin:${name}>`, { source: "builtin" }),
+			});
+		}
 		for (const tool of customTools) {
 			definitionRegistry.set(tool.definition.name, {
 				definition: tool.definition,
@@ -2018,28 +2034,25 @@ export class AgentSession {
 			});
 		}
 		this._toolDefinitions = definitionRegistry;
-		this._toolPromptSnippets = new Map(
-			Array.from(definitionRegistry.values())
-				.map(({ definition }) => {
-					const snippet = this._normalizePromptSnippet(definition.promptSnippet);
-					return snippet ? ([definition.name, snippet] as const) : undefined;
-				})
-				.filter((entry): entry is readonly [string, string] => entry !== undefined),
-		);
-		this._toolPromptGuidelines = new Map(
-			Array.from(definitionRegistry.values())
-				.map(({ definition }) => {
-					const guidelines = this._normalizePromptGuidelines(definition.promptGuidelines);
-					return guidelines.length > 0 ? ([definition.name, guidelines] as const) : undefined;
-				})
-				.filter((entry): entry is readonly [string, string[]] => entry !== undefined),
-		);
+		const promptSnippets = new Map<string, string>();
+		for (const { definition } of definitionRegistry.values()) {
+			const snippet = this._normalizePromptSnippet(definition.promptSnippet);
+			if (snippet) promptSnippets.set(definition.name, snippet);
+		}
+		this._toolPromptSnippets = promptSnippets;
+		const promptGuidelines = new Map<string, string[]>();
+		for (const { definition } of definitionRegistry.values()) {
+			const guidelines = this._normalizePromptGuidelines(definition.promptGuidelines);
+			if (guidelines.length > 0) promptGuidelines.set(definition.name, guidelines);
+		}
+		this._toolPromptGuidelines = promptGuidelines;
 
 		const wrappedCustomTools = wrapToolDefinitions(customTools.map((tool) => tool.definition));
-		const wrappedBuiltInTools = wrapToolDefinitions(
-			Array.from(this._baseToolDefinitions.values())
-				.filter((definition) => isAllowedTool(definition.name)),
-		);
+		const builtInDefinitions: ToolDefinitionEntry["definition"][] = [];
+		for (const definition of this._baseToolDefinitions.values()) {
+			if (isAllowedTool(definition.name)) builtInDefinitions.push(definition);
+		}
+		const wrappedBuiltInTools = wrapToolDefinitions(builtInDefinitions);
 
 		const toolRegistry = new Map(wrappedBuiltInTools.map((tool) => [tool.name, tool]));
 		for (const tool of wrappedCustomTools as AgentTool[]) {
@@ -2146,7 +2159,7 @@ export class AgentSession {
 					this._emit({ type: "summarization_retry_attempt_start", source: "branchSummary" });
 				}
 			},
-			onRetryFinished: () => {
+			onRetryFinished: (_success: boolean, _attempt: number, _finalError?: string) => {
 				this._emit({ type: "summarization_retry_finished" });
 			},
 		};
@@ -2187,7 +2200,8 @@ export class AgentSession {
 		}
 
 		// Wait with exponential backoff (abortable)
-		this._retryAbortController = new AbortController();
+		const retryController = new AbortController();
+		this._retryAbortController = { signal: retryController.signal, abort: () => retryController.abort() };
 		try {
 			await sleep(delayMs, this._retryAbortController.signal);
 		} catch {
@@ -2320,7 +2334,7 @@ export class AgentSession {
 		for (const abortFn of this._bashAbortFns.slice()) {
 			abortFn("aborted");
 		}
-		this._bashAbortFns.length = 0;
+		this._bashAbortFns.splice(0, this._bashAbortFns.length);
 	}
 
 	/** Whether a bash command is currently running */
@@ -2427,7 +2441,8 @@ export class AgentSession {
 		};
 
 		// Set up abort controller for summarization
-		this._branchSummaryAbortController = new AbortController();
+		const branchController = new AbortController();
+		this._branchSummaryAbortController = { signal: branchController.signal, abort: () => branchController.abort() };
 
 		try {
 			// Run default summarizer if needed
@@ -2557,8 +2572,11 @@ export class AgentSession {
 		const usageTotals = createUsageTotals();
 
 		for (const entry of this.sessionManager.getEntries()) {
-			if ((entry.type === "branch_summary" || entry.type === "compaction") && entry.usage) {
-				addUsageToTotals(usageTotals, entry.usage);
+			if (entry.type === "compaction") {
+				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "branch_summary") {
+				const summaryUsage = (entry as unknown as { usage?: Usage }).usage;
+				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
 			}
 			if (entry.type !== "message") continue;
 			totalMessages++;
@@ -2615,7 +2633,13 @@ export class AgentSession {
 
 		if (latestCompaction) {
 			// Check if there's a valid assistant usage after the compaction boundary
-			const compactionIndex = branchEntries.lastIndexOf(latestCompaction);
+			let compactionIndex = -1;
+			for (let i = branchEntries.length - 1; i >= 0; i--) {
+				if (branchEntries[i] === latestCompaction) {
+					compactionIndex = i;
+					break;
+				}
+			}
 			let hasPostCompactionUsage = false;
 			for (let i = branchEntries.length - 1; i > compactionIndex; i--) {
 				const entry = branchEntries[i];
@@ -2691,16 +2715,14 @@ export class AgentSession {
 	 * @returns Text content, or undefined if no assistant message exists
 	 */
 	getLastAssistantText(): string | undefined {
-		const lastAssistant = this.messages
-			.slice()
-			.reverse()
-			.find((m) => {
-				if (m.role !== "assistant") return false;
-				const msg = m as AssistantMessage;
-				// Skip aborted messages with no content
-				if (msg.stopReason === "aborted" && msg.content.length === 0) return false;
-				return true;
-			});
+		const reversedMessages = this.messages.slice().reverse();
+		let lastAssistant: AgentMessage | undefined;
+		for (const m of reversedMessages) {
+			if (m.role === "assistant") {
+				lastAssistant = m;
+				break;
+			}
+		}
 
 		if (!lastAssistant) return undefined;
 
