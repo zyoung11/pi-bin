@@ -145,28 +145,32 @@ function isMergeableObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function deepMergeObjects(base: Record<string, unknown>, overrides: Record<string, unknown>): Record<string, unknown> {
-	const result = { ...base };
+function deepMergeObjects(target: unknown, source: unknown): void {
+	if (typeof target !== "object" || target === null) return;
+	if (typeof source !== "object" || source === null) return;
+	const targetView = target as Record<string, unknown>;
+	const sourceView = source as Record<string, unknown>;
 
-	for (const key of Object.keys(overrides)) {
-		const overrideValue = overrides[key];
+	for (const key of Object.keys(sourceView)) {
+		const overrideValue = sourceView[key];
 		if (overrideValue === undefined) {
 			continue;
 		}
 
-		const baseValue = base[key];
-		result[key] =
-			isMergeableObject(baseValue) && isMergeableObject(overrideValue)
-				? deepMergeObjects(baseValue, overrideValue)
-				: overrideValue;
+		const baseValue = targetView[key];
+		if (isMergeableObject(baseValue) && isMergeableObject(overrideValue)) {
+			deepMergeObjects(baseValue, overrideValue);
+		} else {
+			targetView[key] = overrideValue;
+		}
 	}
-
-	return result;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
 function deepMergeSettings(base: Settings, overrides: Settings): Settings {
-	return deepMergeObjects(base as Record<string, unknown>, overrides as Record<string, unknown>) as Settings;
+	const merged = structuredClone(base);
+	deepMergeObjects(merged, overrides);
+	return merged;
 }
 
 function parseTimeoutSetting(value: unknown, settingName: string): number | undefined {
@@ -226,15 +230,14 @@ export class FileSettingsStorage extends SettingsStorage {
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
 				return lockfile.lockSync(path, { realpath: false });
-			} catch (error) {
-				const code =
-					typeof error === "object" && error !== null && "code" in error
-						? String((error as { code?: unknown }).code)
-						: undefined;
+			} catch (lockErrorRaw) {
+				const caught: unknown = lockErrorRaw;
+				const lockError = caught as unknown as { code?: string | undefined };
+				const code = lockError.code;
 				if (code !== "ELOCKED" || attempt === maxAttempts) {
-					throw error;
+					throw lockErrorRaw;
 				}
-				lastError = error;
+				lastError = lockErrorRaw;
 				const start = Date.now();
 				while (Date.now() - start < delayMs) {
 					// Sleep synchronously to avoid changing callers to async.
@@ -242,7 +245,8 @@ export class FileSettingsStorage extends SettingsStorage {
 			}
 		}
 
-		throw (lastError as Error) ?? new Error("Failed to acquire settings lock");
+		if (lastError !== undefined) throw lastError;
+		throw new Error("Failed to acquire settings lock");
 	}
 
 	withLock(scope: SettingsScope, fn: (current: string | undefined) => string | undefined): void {
@@ -388,7 +392,7 @@ export class SettingsManager {
 	/** Create an in-memory SettingsManager (no file I/O) */
 	static inMemory(settings: Partial<Settings> = {}, options: SettingsManagerCreateOptions = {}): SettingsManager {
 		const storage = new InMemorySettingsStorage();
-		const initialSettings = SettingsManager.migrateSettings(structuredClone(settings) as Record<string, unknown>);
+		const initialSettings = SettingsManager.migrateSettings(structuredClone(settings));
 		storage.withLock("global", () => JSON.stringify(initialSettings, null, 2));
 		return SettingsManager.fromStorage(storage, options);
 	}
@@ -407,7 +411,7 @@ export class SettingsManager {
 		if (!content) {
 			return {};
 		}
-		const settings = JSON.parse(stripBom(content));
+		const settings = JSON.parse(stripBom(content)) as Settings;
 		return SettingsManager.migrateSettings(settings);
 	}
 
@@ -424,65 +428,70 @@ export class SettingsManager {
 	}
 
 	/** Migrate old settings format to new format */
-	private static migrateSettings(settings: Record<string, unknown>): Settings {
+	private static migrateSettings(settings: Settings): Settings {
+		const record = settings as unknown as Record<string, unknown>;
 		// Migrate queueMode -> steeringMode
-		if (settings.queueMode !== undefined && settings.steeringMode === undefined) {
-			settings.steeringMode = settings.queueMode;
-			delete settings.queueMode;
+		if (record["queueMode"] !== undefined && record["steeringMode"] === undefined) {
+			record["steeringMode"] = record["queueMode"];
+			delete record["queueMode"];
 		}
 
 		// Migrate legacy websockets boolean -> transport enum
-		if (settings.transport === undefined && typeof settings.websockets === "boolean") {
-			settings.transport = settings.websockets ? "websocket" : "sse";
-			delete settings.websockets;
+		if (record["transport"] === undefined && typeof record["websockets"] === "boolean") {
+			record["transport"] = record["websockets"] ? "websocket" : "sse";
+			delete record["websockets"];
 		}
 
 		// Migrate old skills object format to new array format
+		const skillsValue = record["skills"];
 		if (
-			settings.skills !== undefined &&
-			typeof settings.skills === "object" &&
-			settings.skills !== null &&
-			!Array.isArray(settings.skills)
+			skillsValue !== undefined &&
+			typeof skillsValue === "object" &&
+			skillsValue !== null &&
+			!Array.isArray(skillsValue)
 		) {
-			const skillsSettings = settings.skills as {
-				enableSkillCommands?: boolean;
-				customDirectories?: unknown;
-			};
-			if (skillsSettings.enableSkillCommands !== undefined && settings.enableSkillCommands === undefined) {
-				settings.enableSkillCommands = skillsSettings.enableSkillCommands;
+			const skillsSettings = skillsValue as Record<string, unknown>;
+			if (skillsSettings["enableSkillCommands"] !== undefined && record["enableSkillCommands"] === undefined) {
+				record["enableSkillCommands"] = skillsSettings["enableSkillCommands"];
 			}
-			if (Array.isArray(skillsSettings.customDirectories) && skillsSettings.customDirectories.length > 0) {
-				settings.skills = skillsSettings.customDirectories;
+			const customDirs = skillsSettings["customDirectories"];
+			if (Array.isArray(customDirs) && customDirs.length > 0) {
+				record["skills"] = customDirs;
 			} else {
-				delete settings.skills;
+				delete record["skills"];
 			}
 		}
 
 		// Migrate retry.maxDelayMs -> retry.provider.maxRetryDelayMs
+		const retryValue = record["retry"];
 		if (
-			settings.retry !== undefined &&
-			typeof settings.retry === "object" &&
-			settings.retry !== null &&
-			!Array.isArray(settings.retry)
+			retryValue !== undefined &&
+			typeof retryValue === "object" &&
+			retryValue !== null &&
+			!Array.isArray(retryValue)
 		) {
-			const retrySettings = settings.retry as Record<string, unknown>;
+			const retrySettings = retryValue as Record<string, unknown>;
+			const providerValue = retrySettings["provider"];
 			const providerSettings =
-				typeof retrySettings.provider === "object" && retrySettings.provider !== null
-					? (retrySettings.provider as Record<string, unknown>)
+				typeof providerValue === "object" && providerValue !== null
+					? (providerValue as Record<string, unknown>)
 					: undefined;
+			const maxDelayMs = retrySettings["maxDelayMs"];
 			if (
-				typeof retrySettings.maxDelayMs === "number" &&
+				typeof maxDelayMs === "number" &&
 				(providerSettings?.maxRetryDelayMs === undefined || providerSettings?.maxRetryDelayMs === null)
 			) {
-				retrySettings.provider = {
-					...(providerSettings ?? {}),
-					maxRetryDelayMs: retrySettings.maxDelayMs,
-				};
+				const mergedProvider: Record<string, unknown> = {};
+				if (providerSettings) {
+					for (const key of Object.keys(providerSettings)) mergedProvider[key] = providerSettings[key];
+				}
+				mergedProvider["maxRetryDelayMs"] = maxDelayMs;
+				retrySettings["provider"] = mergedProvider;
 			}
-			delete retrySettings.maxDelayMs;
+			delete retrySettings["maxDelayMs"];
 		}
 
-		return settings as unknown as Settings;
+		return settings;
 	}
 
 	getGlobalSettings(): Settings {
@@ -609,8 +618,12 @@ export class SettingsManager {
 				task();
 				this.clearModifiedScope(scope);
 			})
-			.catch((error) => {
-				this.recordError(scope, error);
+			.catch((caughtError) => {
+				if (caughtError instanceof Error) {
+					this.recordError(scope, caughtError);
+				} else {
+					this.recordError(scope, String(caughtError));
+				}
 			});
 	}
 
@@ -630,22 +643,29 @@ export class SettingsManager {
 	): void {
 		this.storage.withLock(scope, (current) => {
 			const currentFileSettings = current
-				? SettingsManager.migrateSettings(JSON.parse(stripBom(current)) as Record<string, unknown>)
+				? SettingsManager.migrateSettings(JSON.parse(stripBom(current)) as Settings)
 				: {};
+			const currentFileView = currentFileSettings as unknown as Record<string, unknown>;
 			const mergedSettings: Settings = { ...currentFileSettings };
+			const mergedSettingsView = mergedSettings as unknown as Record<string, unknown>;
 			for (const field of modifiedFields) {
-				const value = snapshotSettings[field];
+				const snapshotView = snapshotSettings as unknown as Record<string, unknown>;
+				const value = snapshotView[field];
 				if (modifiedNestedFields.has(field) && typeof value === "object" && value !== null) {
 					const nestedModified = modifiedNestedFields.get(field)!;
-					const baseNested = (currentFileSettings[field] as Record<string, unknown>) ?? {};
+					const baseValue = currentFileView[field];
+					const baseNested =
+						typeof baseValue === "object" && baseValue !== null ? (baseValue as Record<string, unknown>) : {};
 					const inMemoryNested = value as Record<string, unknown>;
-					const mergedNested = { ...baseNested };
+					const mergedNested: Record<string, unknown> = {};
+					for (const nestedKey of Object.keys(baseNested)) mergedNested[nestedKey] = baseNested[nestedKey];
 					for (const nestedKey of nestedModified) {
-						mergedNested[nestedKey] = inMemoryNested[nestedKey];
+						const nestedValue: unknown = inMemoryNested[nestedKey];
+						mergedNested[nestedKey] = nestedValue;
 					}
-					(mergedSettings as Record<string, unknown>)[field] = mergedNested;
+					mergedSettingsView[field] = mergedNested;
 				} else {
-					(mergedSettings as Record<string, unknown>)[field] = value;
+					mergedSettingsView[field] = value;
 				}
 			}
 
