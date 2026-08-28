@@ -78,6 +78,13 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第五轮记录（2026-08-30：425→390，provider-composer 21→8）
+
+- **provider-composer 全面重构**：mergeCompat Record 化（copyCompatRecord + unknown 参数）、mergeStringRecords/mergeUnknownRecords 工具化（spread 全部消灭）、configuredHeaders/rawModelHeaders/toOAuthCredential 循环化改写、login if/else 化、hasOAuth 判空。
+- **关键发现：ProviderHeaders 与 Record<string,string> 互转是 re-tag 死墙**（值域 null\|string vs string 差异就报 SC2003）——整个 headers 链路必须统一值域类型。已统一为 Record<string,string>（withConfiguredAuth 内部重建 ProviderHeaders）。
+- **structuredClone 保型方案验证失败**：clone(union) 后 cast 回 Record 报 SC2003——compat 联合内含不可重-tag 成员，Record→compat 联合 cast 与 union→unknown 转换均被拒。**下轮真正的解法是 ai 层类型改造**：给 OpenAICompletionsCompat/AnthropicMessagesCompat/OpenAIResponsesCompat/BedrockCompat 四个接口加 `[key: string]: unknown` 索引签名（types.ts 540/611/631/694 行），使 Record 互转合法；需同步验证 model-config 的 compat Schema Static 与消费方读取点。
+- provider-composer 剩余 8 个全部挂在 compat 联合转换链上，加索引签名后应连带清零；其余待查：428（adaptOAuth callbacks 签名）、442/473（await getAuth 联合）、627/638（credential 可选链）。
+
 ## 阶段 5 grind 第四轮记录（2026-08-29 深夜续：425→403，agent-session 28→3）
 
 - **AbortController 字段适配器模式**：lib 类 AbortController 不能直接赋给 record 字段 → 存 `{ signal: controller.signal, abort: () => controller.abort() }` 字面量（AbortControllerLike 接口）
