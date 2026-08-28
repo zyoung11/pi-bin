@@ -187,7 +187,7 @@ export class Agent {
 	public convertToLlm: (messages: AgentMessage[]) => Promise<Message[]>;
 	public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
 	public streamFunction: StreamFn;
-	public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
+	public getApiKey?: (provider: string) => Promise<string | undefined>;
 	public onPayload?: SimpleStreamOptions["onPayload"];
 	public onResponse?: SimpleStreamOptions["onResponse"];
 	public beforeToolCall?: (
@@ -228,7 +228,13 @@ export class Agent {
 		this.convertToLlm = runtimeOptions.convertToLlm ?? defaultConvertToLlm;
 		this.transformContext = runtimeOptions.transformContext;
 		this.streamFunction = runtimeOptions.streamFn ?? getDefaultStreamFn();
-		this.getApiKey = runtimeOptions.getApiKey;
+		const rawGetApiKey = runtimeOptions.getApiKey;
+		if (rawGetApiKey) {
+			this.getApiKey = async (provider: string) => {
+				const result = await rawGetApiKey(provider);
+				return result;
+			};
+		}
 		this.onPayload = runtimeOptions.onPayload;
 		this.onResponse = runtimeOptions.onResponse;
 		this.beforeToolCall = runtimeOptions.beforeToolCall;

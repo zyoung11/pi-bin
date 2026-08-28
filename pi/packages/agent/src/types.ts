@@ -208,7 +208,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 *
 	 * Contract: must not throw or reject. Return undefined when no key is available.
 	 */
-	getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
+	getApiKey?: (provider: string) => Promise<string | undefined>;
 
 	/**
 	 * Called after each turn fully completes and `turn_end` has been emitted.
