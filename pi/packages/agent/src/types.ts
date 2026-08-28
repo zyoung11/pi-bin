@@ -229,7 +229,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 */
 	prepareNextTurn?: (
 		context: PrepareNextTurnContext,
-	) => AgentLoopTurnUpdate | undefined | Promise<AgentLoopTurnUpdate | undefined>;
+	) => Promise<AgentLoopTurnUpdate | undefined>;
 
 	/**
 	 * Returns steering messages to inject into the conversation mid-run.

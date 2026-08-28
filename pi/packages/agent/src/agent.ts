@@ -108,7 +108,7 @@ export interface AgentOptions {
 	convertToLlm?: (messages: AgentMessage[]) => Promise<Message[]>;
 	transformContext?: (messages: AgentMessage[], signal: AbortSignal | undefined) => Promise<AgentMessage[]>;
 	streamFn: StreamFn;
-	getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
+	getApiKey?: (provider: string) => Promise<string | undefined>;
 	onPayload?: SimpleStreamOptions["onPayload"];
 	onResponse?: SimpleStreamOptions["onResponse"];
 	beforeToolCall?: (context: BeforeToolCallContext, signal: AbortSignal | undefined) => Promise<BeforeToolCallResult | undefined>;
