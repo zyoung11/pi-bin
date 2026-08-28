@@ -632,9 +632,11 @@ const NAMED_OPERATOR_RIGHT_SPACING_PATTERN = /\u{f0005}(?=[\p{L}\p{N}√\u{f0000
 function normalizeOutput(value: string): string {
 	return value
 		.replace(NAMED_OPERATOR_LEFT_SPACING_PATTERN, " ")
-		.replaceAll(NAMED_OPERATOR_START, "")
+		.split(NAMED_OPERATOR_START)
+		.join("")
 		.replace(NAMED_OPERATOR_RIGHT_SPACING_PATTERN, " ")
-		.replaceAll(NAMED_OPERATOR_END, "")
+		.split(NAMED_OPERATOR_END)
+		.join("")
 		.split("\n")
 		.map((line) => line.replace(/[ \t]+/g, " ").trim())
 		.filter((line, index, lines) => line.length > 0 || (index > 0 && index < lines.length - 1))
@@ -712,7 +714,7 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 	for (const sourceLine of source.split("\n")) {
 		const layouts: Layout[] = [];
 		let position = 0;
-		let previousNode: LayoutNode | undefined;
+		let previousNodeIsMatrix = false;
 		for (const match of sourceLine.matchAll(LAYOUT_MARKER_PATTERN)) {
 			const index = match.index;
 			const node = nodes[Number(match[1])];
@@ -721,8 +723,8 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 			}
 			if (index > position) {
 				const sliced = sourceLine.slice(position, index);
-				const trimmed = (previousNode ? sliced.trimStart() : sliced).trimEnd();
-				const preserveLeadingSpace = previousNode?.type === "matrix" && /^\s/.test(sliced);
+				const trimmed = previousNodeIsMatrix ? sliced.trimStart() : sliced;
+				const preserveLeadingSpace = previousNodeIsMatrix && /^\s/.test(sliced);
 				const preserveTrailingSpace = node.type === "matrix" && /\s$/.test(sliced);
 				const text = trimmed
 					? `${preserveLeadingSpace ? " " : ""}${trimmed}${preserveTrailingSpace ? " " : ""}`
@@ -773,12 +775,13 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 				});
 			}
 			position = index + match[0].length;
-			previousNode = node;
+			previousNodeIsMatrix = node.type === "matrix";
 		}
 		if (position < sourceLine.length) {
 			const sliced = sourceLine.slice(position);
-			const trimmed = previousNode ? sliced.trimStart() : sliced;
-			const text = previousNode?.type === "matrix" && /^\s/.test(sliced) ? ` ${trimmed}` : trimmed;
+			const slicedTrimmed = previousNodeIsMatrix ? sliced.trimStart() : sliced;
+			const isAfterMatrix = previousNodeIsMatrix && /^\s/.test(sliced);
+			const text = isAfterMatrix ? ` ${slicedTrimmed}` : slicedTrimmed;
 			layouts.push({ lines: [text], width: visibleWidth(text), baseline: 0 });
 		}
 		const lineLayout = joinLayouts(layouts);
@@ -787,9 +790,14 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 		}
 		renderedLines.push(...lineLayout.lines);
 	}
+	let maxWidth = 0;
+	for (const line of renderedLines) {
+		const w = visibleWidth(line);
+		if (w > maxWidth) maxWidth = w;
+	}
 	return {
 		lines: renderedLines,
-		width: Math.max(0, ...renderedLines.map((line) => visibleWidth(line))),
+		width: maxWidth,
 		baseline: firstBaseline,
 	};
 }
@@ -886,7 +894,7 @@ class LatexParser {
 			if (character === ".") {
 				const marker = TRAILING_LAYOUT_MARKER_PATTERN.exec(result);
 				const node = marker ? this.layoutNodes[Number(marker[1])] : undefined;
-				if (node?.type === "matrix") {
+				if (node !== undefined && node.type === "matrix") {
 					const lastLine = node.lines.length - 1;
 					node.lines[lastLine] = `${node.lines[lastLine] ?? ""}${character}`;
 					this.position++;
@@ -1042,7 +1050,9 @@ class LatexParser {
 		}
 		if (command === "mathbb") {
 			const value = this.parseRequiredArgument();
-			return Array.from(value, (character) => BLACKBOARD[character] ?? character).join("");
+			let mapped = "";
+			for (const character of value) mapped += BLACKBOARD[character] ?? character;
+			return mapped;
 		}
 		if (command === "operatorname") {
 			const starred = this.source[this.position] === "*";
@@ -1114,7 +1124,7 @@ class LatexParser {
 				break;
 			}
 			this.position = scriptPosition + 1;
-			const value = normalizeOutput(this.parseRequiredArgument(false)).replaceAll(" ", "");
+			const value = normalizeOutput(this.parseRequiredArgument(false)).split(" ").join("");
 			if (kind === "_") {
 				if (lower !== undefined) {
 					this.supported = false;
@@ -1299,10 +1309,20 @@ class LatexParser {
 		const matrix = this.splitEnvironmentRows(body)
 			.map((row) => row.split("&").map((cell) => this.renderNested(cell, false).trim()))
 			.filter((row) => row.some(Boolean));
-		const columnCount = Math.max(0, ...matrix.map((row) => row.length));
-		const columnWidths = Array.from({ length: columnCount }, (_, column) =>
-			Math.max(0, ...matrix.map((row) => visibleWidth(row[column] ?? ""))),
-		);
+		let columnCount = 0;
+		for (const row of matrix) {
+			if (row.length > columnCount) columnCount = row.length;
+		}
+		const columnWidths: number[] = [];
+		for (let column = 0; column < columnCount; column++) {
+			let widest = 0;
+			for (const row of matrix) {
+				const cell = row[column] ?? "";
+				const w = visibleWidth(cell);
+				if (w > widest) widest = w;
+			}
+			columnWidths.push(widest);
+		}
 		const rows = matrix.map((row) =>
 			Array.from({ length: columnCount }, (_, column) => {
 				const cell = row[column] ?? "";
@@ -1366,7 +1386,7 @@ export function renderLatex(source: string, options: RenderLatexOptions = {}): s
 		return undefined;
 	}
 	if (layoutNodes.length === 0) {
-		return rendered.replaceAll(PROTECTED_SPACE, " ");
+		return rendered.split(PROTECTED_SPACE).join(" ");
 	}
 	const lines = renderLayout(rendered, layoutNodes).lines;
 	const indentation = Math.min(
@@ -1376,5 +1396,6 @@ export function renderLatex(source: string, options: RenderLatexOptions = {}): s
 		.map((line) => line.slice(indentation).trimEnd())
 		.join("\n")
 		.trimEnd()
-		.replaceAll(PROTECTED_SPACE, " ");
+		.split(PROTECTED_SPACE)
+		.join(" ");
 }
