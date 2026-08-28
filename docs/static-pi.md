@@ -78,6 +78,14 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第七轮记录（2026-08-30 续：365→355）
+
+- **latex.ts 13→0**：replaceAll→split/join ×4、Math.max spread→循环、Array.from→循环、循环携带变量 previousNode 改布尔标志、?. 判空化
+- **theme.ts 12→0**：replace/toString(16)→numberToHex 手写、Proxy 导出→themeHolder.copyStateFrom(真实 Theme 实例 + 类内私有复制方法)、构造器参数交叉类型→纯 Record、withThemeColorFallbacks 值域统一、resolveThemeColors 去泛型、?? 子联合→colorOrDefault 辅助
+- **config-selector 12→0**：Set<ResourceItem>→数组+refIncludes 泛型辅助、动态键读双跳、元组 cast
+- **tui.ts**: Set<TuiInputListener>/Set<fn> → 数组 + indexOf/splice（解锁 TuiMainScreen 类构建）
+- **总账 387→355**。当前分布：session-manager(12 顽固)、main(12)、settings-manager(11)、model-runtime(11)、agent(11)、footer(10)、git/rpc-mode/package-manager(各9)、markdown/tool-renderer/export-html(各8)。
+
 ## 阶段 5 grind 第六轮记录（2026-08-30：390→387）
 
 - **provider-composer 完全突破**：四个 Compat 接口加索引签名的方案证实不可行（`Omit<Required<T>>` 链路丢失具名字段，全变 unknown）已回滚；改用 **mergeCompat 参数/返回全 unknown + 调用点显式 cast**，provider-composer 21→8→剩余全挂在 OAuth 回调链（AbortSignal→unknown 降级入联合）。
