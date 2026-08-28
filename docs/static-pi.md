@@ -78,6 +78,14 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十四轮记录（2026-08-31 深夜续五：282→274，揭幕至流式内核）
+
+- ansi-to-html 5→0：exec 循环→matchAll for-of（唯一支持的带 index 形态）、toString(16)→hexByte、parseInt→Number
+- tool-renderer 8→0：Map<string, any/unknown>→Record 动态键读写；renderResult content 逐块转换（generic 合并形状→逐元素精确字面量）
+- export-html/index 8→4：parseInt→Number、replace 链→replaceAllTokens、opts 逐臂 if
+- 揭幕至流式内核：openai-completions 18 个新诊断（buildParams 级联、StreamingToolCallBlock 工厂、headers 转、delete 重建、catch、spread）+ harness/session 8 个（泛型接口方法调用、?? 值域、union re-tag）
+- **两个专项难点**：① openai-completions 流式内核（buildParams 多层级联、delete 重建、catch 绑定）② harness/session 泛型接口方法（appendEntry/appendRecord generic through receiver——接口签名即可泛型，调用点必经，需接口去泛型化重构）
+
 ## 阶段 5 grind 第十三轮记录（2026-08-31 续：296→293，核心异步链改造）
 
 - **EventStream 重写**：scriptc 不支持 computed method names（`[Symbol.asyncIterator]`）与泛型类继承未实例化链——移除 AsyncIterable 实现，改公开 `next(): Promise<IteratorResult<T>>` + `result()`（notifyUpdate then 链唤醒，done 终态后返回）；agent-loop for-await 改 while+next 手动循环
