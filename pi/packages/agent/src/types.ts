@@ -220,7 +220,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 *
 	 * Contract: must not throw or reject. Throwing interrupts the low-level agent loop without producing a normal event sequence.
 	 */
-	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext) => boolean | Promise<boolean>;
+	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext) => Promise<boolean>;
 
 	/**
 	 * Called after `turn_end` and before the loop decides whether another provider request should start.

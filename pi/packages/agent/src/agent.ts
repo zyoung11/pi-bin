@@ -106,21 +106,21 @@ function createMutableAgentState(
 export interface AgentOptions {
 	initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
 	convertToLlm?: (messages: AgentMessage[]) => Promise<Message[]>;
-	transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
+	transformContext?: (messages: AgentMessage[], signal: AbortSignal | undefined) => Promise<AgentMessage[]>;
 	streamFn: StreamFn;
 	getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
 	onPayload?: SimpleStreamOptions["onPayload"];
 	onResponse?: SimpleStreamOptions["onResponse"];
-	beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
-	afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
-	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal?: AbortSignal) => boolean | Promise<boolean>;
+	beforeToolCall?: (context: BeforeToolCallContext, signal: AbortSignal | undefined) => Promise<BeforeToolCallResult | undefined>;
+	afterToolCall?: (context: AfterToolCallContext, signal: AbortSignal | undefined) => Promise<AfterToolCallResult | undefined>;
+	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal: AbortSignal | undefined) => Promise<boolean>;
 	prepareNextTurn?: (
-		signal?: AbortSignal,
-	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+		signal: AbortSignal | undefined,
+	) => Promise<AgentLoopTurnUpdate | undefined>;
 	prepareNextTurnWithContext?: (
 		context: PrepareNextTurnContext,
-		signal?: AbortSignal,
-	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+		signal: AbortSignal | undefined,
+	) => Promise<AgentLoopTurnUpdate | undefined>;
 	steeringMode?: QueueMode;
 	followUpMode?: QueueMode;
 	sessionId?: string;
@@ -185,30 +185,30 @@ export class Agent {
 	private readonly followUpQueue: PendingMessageQueue;
 
 	public convertToLlm: (messages: AgentMessage[]) => Promise<Message[]>;
-	public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
+	public transformContext?: (messages: AgentMessage[], signal: AbortSignal | undefined) => Promise<AgentMessage[]>;
 	public streamFunction: StreamFn;
 	public getApiKey?: (provider: string) => Promise<string | undefined>;
 	public onPayload?: SimpleStreamOptions["onPayload"];
 	public onResponse?: SimpleStreamOptions["onResponse"];
 	public beforeToolCall?: (
 		context: BeforeToolCallContext,
-		signal?: AbortSignal,
+		signal: AbortSignal | undefined,
 	) => Promise<BeforeToolCallResult | undefined>;
 	public afterToolCall?: (
 		context: AfterToolCallContext,
-		signal?: AbortSignal,
+		signal: AbortSignal | undefined,
 	) => Promise<AfterToolCallResult | undefined>;
 	public shouldStopAfterTurn?: (
 		context: ShouldStopAfterTurnContext,
-		signal?: AbortSignal,
-	) => boolean | Promise<boolean>;
+		signal: AbortSignal | undefined,
+	) => Promise<boolean>;
 	public prepareNextTurn?: (
-		signal?: AbortSignal,
-	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+		signal: AbortSignal | undefined,
+	) => Promise<AgentLoopTurnUpdate | undefined>;
 	public prepareNextTurnWithContext?: (
 		context: PrepareNextTurnContext,
-		signal?: AbortSignal,
-	) => Promise<AgentLoopTurnUpdate | undefined> | AgentLoopTurnUpdate | undefined;
+		signal: AbortSignal | undefined,
+	) => Promise<AgentLoopTurnUpdate | undefined>;
 	private activeRun?: ActiveRun;
 	/** Session identifier forwarded to providers for cache-aware backends. */
 	public sessionId?: string;
