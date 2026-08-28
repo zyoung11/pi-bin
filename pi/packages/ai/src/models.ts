@@ -72,12 +72,12 @@ export interface ModelsRefreshOptions {
 
 export interface ModelsRefreshResult {
 	aborted: boolean;
-	errors: ReadonlyMap<string, Error>;
+	errors: ReadonlyMap<string, string>;
 }
 
 export interface ModelsRequestTransforms {
 	/** Transform fully assembled model/auth/request headers before provider dispatch. */
-	transformHeaders?: (headers: ProviderHeaders) => ProviderHeaders | Promise<ProviderHeaders>;
+	transformHeaders?: (headers: ProviderHeaders) => Promise<ProviderHeaders>;
 }
 
 export type ModelsApiStreamOptions<TApi extends Api> = ApiStreamOptions<TApi> & ModelsRequestTransforms;
@@ -191,8 +191,7 @@ export interface Models {
 	 * when api-key resolution or the credential store fails. Request paths
 	 * surface rejections as stream errors.
 	 */
-	getAuth(providerId: string, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
-	getAuth(model: Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
+	getAuth(providerOrModel: string | Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
 
 	/** Run a provider-owned login flow and persist its returned credential. */
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential>;
@@ -386,7 +385,7 @@ class ModelsImpl implements MutableModels {
 	async refresh(options: ModelsRefreshOptions = {}): Promise<ModelsRefreshResult> {
 		const allowNetwork = options.allowNetwork ?? true;
 		const callerSignal = operationSignal(options.signal);
-		const errors = new Map<string, Error>();
+		const errors = new Map<string, string>();
 		if (callerSignal.aborted) return { aborted: true, errors };
 		const selected = options.providers ? new Set(options.providers) : undefined;
 		const refreshable = Array.from(this.providers.values()).filter(
@@ -424,8 +423,8 @@ class ModelsImpl implements MutableModels {
 						errors.set(
 							provider.id,
 							error instanceof Error
-								? error
-								: new ModelsError("model_source", `Model refresh failed for ${provider.id}`, { cause: error }),
+								? error.message
+								: `Model refresh failed for ${provider.id}`,
 						);
 					}
 				} finally {
@@ -541,8 +540,7 @@ class ModelsImpl implements MutableModels {
 		return raceWithAbortSignal(available, signal);
 	}
 
-	getAuth(providerId: string, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
-	getAuth(model: Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
+	getAuth(providerOrModel: string | Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
 	async getAuth(
 		providerOrModel: string | Model<Api>,
 		overrides?: AuthResolutionOverrides,

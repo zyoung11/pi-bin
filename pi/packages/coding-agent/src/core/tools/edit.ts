@@ -166,32 +166,31 @@ type EditToolResultLike = {
 	details?: EditToolDetails;
 };
 
-type EditCallRenderComponent = Box & {
-	preview?: EditPreview;
-	previewArgsKey?: string;
-	previewPending?: boolean;
-	settledError?: boolean;
-};
+class EditCallRenderComponent extends Box {
+	preview: EditPreview | undefined = undefined;
+	previewArgsKey: string | undefined = undefined;
+	previewPending = false;
+	settledError = false;
 
-function createEditCallRenderComponent(): EditCallRenderComponent {
-	return Object.assign(new Box(1, 1, (text: string) => text), {
-		preview: undefined as EditPreview | undefined,
-		previewArgsKey: undefined as string | undefined,
-		previewPending: false,
-		settledError: false,
-	});
+	constructor() {
+		super(1, 1, (text: string) => text);
+	}
 }
 
 function getEditCallRenderComponent(state: EditRenderState, lastComponent: unknown): EditCallRenderComponent {
-	if (lastComponent instanceof Box) {
-		const component = lastComponent as EditCallRenderComponent;
+	if (lastComponent instanceof EditCallRenderComponent) {
+		const component = lastComponent;
 		state.callComponent = component;
 		return component;
 	}
-	if (state.callComponent) {
-		return state.callComponent;
+	if (lastComponent instanceof Box) {
+		const prior = state.callComponent;
+		if (prior) {
+			state.callComponent = prior;
+			return prior;
+		}
 	}
-	const component = createEditCallRenderComponent();
+	const component = new EditCallRenderComponent();
 	state.callComponent = component;
 	return component;
 }

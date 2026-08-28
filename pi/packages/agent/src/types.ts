@@ -198,7 +198,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * }
 	 * ```
 	 */
-	transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
+	transformContext?: (messages: AgentMessage[], signal: AbortSignal | undefined) => Promise<AgentMessage[]>;
 
 	/**
 	 * Resolves an API key dynamically for each LLM call.
@@ -275,7 +275,10 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * A blocked result can also set `terminate: true` to participate in the batch early-termination rule.
 	 * The hook receives the agent abort signal and is responsible for honoring it.
 	 */
-	beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
+	beforeToolCall?: (
+		context: BeforeToolCallContext,
+		signal: AbortSignal | undefined,
+	) => Promise<BeforeToolCallResult | undefined>;
 
 	/**
 	 * Called after a tool finishes executing, before `tool_execution_end` and tool-result message events are emitted.
@@ -290,7 +293,10 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * Any omitted fields keep their original values. No deep merge is performed.
 	 * The hook receives the agent abort signal and is responsible for honoring it.
 	 */
-	afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
+	afterToolCall?: (
+		context: AfterToolCallContext,
+		signal: AbortSignal | undefined,
+	) => Promise<AfterToolCallResult | undefined>;
 }
 
 /**
@@ -404,7 +410,7 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 	 * Optional compatibility shim for raw tool-call arguments before schema validation.
 	 * Must return an object that matches `TParameters`.
 	 */
-	prepareArguments?: (args: unknown) => Static<TParameters>;
+	prepareArguments?: (args: unknown) => unknown;
 	/** Execute the tool call. Throw on failure instead of encoding errors in `content`. */
 	execute(
 		toolCallId: string,

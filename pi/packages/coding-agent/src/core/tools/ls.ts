@@ -36,11 +36,11 @@ export interface LsToolDetails {
  */
 export interface LsOperations {
 	/** Check if path exists */
-	exists: (absolutePath: string) => Promise<boolean> | boolean;
+	exists: (absolutePath: string) => Promise<boolean>;
 	/** Get file or directory stats. Throws if not found. */
-	stat: (absolutePath: string) => Promise<{ isDirectory: () => boolean }> | { isDirectory: () => boolean };
+	stat: (absolutePath: string) => Promise<{ isDirectory: () => boolean }>;
 	/** Read directory entries */
-	readdir: (absolutePath: string) => Promise<string[]> | string[];
+	readdir: (absolutePath: string) => Promise<string[]>;
 }
 
 const defaultLsOperations: LsOperations = {

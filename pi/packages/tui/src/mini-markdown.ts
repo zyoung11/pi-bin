@@ -211,7 +211,7 @@ export interface TokenizerExtension {
 	name: string;
 	level: "block" | "inline";
 	start?: (source: string) => number | undefined;
-	tokenizer: (this: Tokenizer, source: string, tokens: Token[]) => Token | TokensGeneric | undefined;
+	tokenizer: (source: string, tokens: Token[]) => Token | TokensGeneric | undefined;
 }
 
 export interface MarkedExtension {
@@ -315,7 +315,7 @@ class InlineLexer {
 			let handled = false;
 			for (const extension of this.extensions) {
 				if (!extension.tokenizer) continue;
-				const produced = extension.tokenizer.call(wrapTokenizer(this.customTokenizer, this.lexerRef), rest, tokens);
+				const produced = extension.tokenizer(rest, tokens);
 				if (produced) {
 					flushPlain();
 					tokens.push(produced as Token);
@@ -441,16 +441,6 @@ class InlineLexer {
 	}
 }
 
-function wrapTokenizer(custom: Tokenizer | undefined, lexer: Lexer): Tokenizer {
-	if (custom) {
-		custom.lexer = lexer;
-		return custom;
-	}
-	const base = new Tokenizer();
-	base.lexer = lexer;
-	return base;
-}
-
 export class Lexer {
 	private extensions: TokenizerExtension[];
 	private customTokenizer: Tokenizer | undefined;
@@ -459,6 +449,7 @@ export class Lexer {
 	constructor(extensions: TokenizerExtension[], customTokenizer: Tokenizer | undefined) {
 		this.extensions = extensions.filter((extension) => extension.level === "block");
 		this.customTokenizer = customTokenizer;
+		if (this.customTokenizer) this.customTokenizer.lexer = this;
 		this.inline = new InlineLexer(extensions, customTokenizer, this);
 	}
 
@@ -641,7 +632,7 @@ export class Lexer {
 		const rest = `${lines.slice(index).join("\n")}\n`;
 		for (const extension of this.extensions) {
 			if (!extension.tokenizer) continue;
-			const produced = extension.tokenizer.call(wrapTokenizer(this.customTokenizer, this), rest, []);
+			const produced = extension.tokenizer(rest, []);
 			if (produced) {
 				const consumedLines = produced.raw.endsWith("\n") ? produced.raw.split("\n").length - 1 : produced.raw.split("\n").length;
 				return { token: produced as Token, next: index + Math.max(1, consumedLines) };

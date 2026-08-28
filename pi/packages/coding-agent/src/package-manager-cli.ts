@@ -598,7 +598,7 @@ async function refreshModelCatalogs(agentDir: string): Promise<void> {
 			throw new Error("Model catalog refresh timed out.");
 		}
 		if (result.errors.size > 0) {
-			const details = Array.from(result.errors, ([provider, error]) => `${provider}: ${error.message}`).join("; ");
+			const details = Array.from(result.errors, ([provider, error]) => `${provider}: ${error}`).join("; ");
 			throw new Error(`Could not refresh model catalogs: ${details}`);
 		}
 	} finally {

@@ -44,9 +44,14 @@ export interface ScrollbarGeometry {
 	maxScrollTop: number;
 }
 
+interface RenderCacheEntry {
+	component: Component;
+	widths: Map<number, string[]>;
+}
+
 interface LayoutContext {
 	viewport: { width: number; height: number };
-	renderCache: Map<Component, Map<number, string[]>>;
+	renderCache: RenderCacheEntry[];
 	requestRender: () => void;
 	primaryScrollView: ScrollView | undefined;
 }
@@ -61,15 +66,21 @@ function intersect(a: LayoutRect, b: LayoutRect): LayoutRect {
 
 function renderCached(context: LayoutContext, component: Component, width: number): string[] {
 	const safeWidth = Math.max(1, Math.floor(width));
-	let widths = context.renderCache.get(component);
-	if (!widths) {
-		widths = new Map<number, string[]>();
-		context.renderCache.set(component, widths);
+	let entry: RenderCacheEntry | undefined;
+	for (const candidate of context.renderCache) {
+		if (candidate.component === component) {
+			entry = candidate;
+			break;
+		}
 	}
-	let lines = widths.get(safeWidth);
+	if (!entry) {
+		entry = { component, widths: new Map<number, string[]>() };
+		context.renderCache.push(entry);
+	}
+	let lines = entry.widths.get(safeWidth);
 	if (!lines) {
 		lines = component.render(safeWidth);
-		widths.set(safeWidth, lines);
+		entry.widths.set(safeWidth, lines);
 	}
 	return lines;
 }
@@ -360,7 +371,7 @@ export function renderLayoutFrame(
 	const safeHeight = Math.max(1, Math.floor(height));
 	const context: LayoutContext = {
 		viewport: { width: safeWidth, height: safeHeight },
-		renderCache: new Map(),
+		renderCache: [],
 		requestRender,
 		primaryScrollView: undefined,
 	};

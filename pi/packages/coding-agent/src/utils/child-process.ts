@@ -29,8 +29,7 @@ export interface SpawnSyncResult {
 
 export interface ChildProcessStream {
 	on(event: "data", listener: (chunk: Buffer) => void): void;
-	once(event: "data", listener: (chunk: Buffer) => void): void;
-	once(event: "end", listener: () => void): void;
+	once(event: "data" | "end", listener: (chunk: Buffer) => void): void;
 	destroy(): void;
 }
 

@@ -668,7 +668,7 @@ export class InteractiveMode {
 
 		const modelCommand = slashCommands.find((command) => command.name === "model");
 		if (modelCommand) {
-			modelCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null => {
+			modelCommand.getArgumentCompletions = async (prefix: string): Promise<AutocompleteItem[] | null> => {
 				const models =
 					this.session.scopedModels.length > 0
 						? this.session.scopedModels.map((s) => s.model)
@@ -694,7 +694,7 @@ export class InteractiveMode {
 
 		const thinkingCommand = slashCommands.find((command) => command.name === "thinking");
 		if (thinkingCommand) {
-			thinkingCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null => {
+			thinkingCommand.getArgumentCompletions = async (prefix: string): Promise<AutocompleteItem[] | null> => {
 				return createFuzzyAutocompleteItems(
 					this.session.getAvailableThinkingLevels(),
 					prefix,
@@ -709,7 +709,7 @@ export class InteractiveMode {
 
 		const loginCommand = slashCommands.find((command) => command.name === "login");
 		if (loginCommand) {
-			loginCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null => {
+			loginCommand.getArgumentCompletions = async (prefix: string): Promise<AutocompleteItem[] | null> => {
 				const providers = getLoginProviderCompletionOptions(this.getLoginProviderOptions());
 				return createFuzzyAutocompleteItems(providers, prefix, getLoginProviderSearchText, (provider) => ({
 					value: provider.id,

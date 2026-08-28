@@ -438,8 +438,7 @@ export class ModelRuntime implements Models {
 		return this.snapshot.configuredProviders.has(providerId);
 	}
 
-	getAuth(providerId: string, overrides?: ModelRuntimeAuthOverrides): Promise<AuthResult | undefined>;
-	getAuth(model: Model<Api>, overrides?: ModelRuntimeAuthOverrides): Promise<AuthResult | undefined>;
+	getAuth(providerOrModel: string | Model<Api>, overrides?: ModelRuntimeAuthOverrides): Promise<AuthResult | undefined>;
 	async getAuth(
 		providerOrModel: string | Model<Api>,
 		overrides: ModelRuntimeAuthOverrides = {},
@@ -496,7 +495,7 @@ export class ModelRuntime implements Models {
 			const result = await this.models.refresh({ allowNetwork: false, providers: [providerId], signal });
 			if (result.aborted) signal.throwIfAborted();
 			const refreshError = result.errors.get(providerId);
-			if (refreshError) throw refreshError;
+			if (refreshError) throw new Error(refreshError);
 			this.updateModelSnapshot();
 			await this.refreshProviderAvailability(providerId, signal);
 		} catch (cause) {

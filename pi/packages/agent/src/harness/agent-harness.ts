@@ -247,7 +247,7 @@ export interface AgentHarnessOptions {
 	thinkingLevel?: ThinkingLevel;
 	activeToolNames?: string[];
 	tools?: HarnessTool[];
-	toolContext?: object | (() => object | Promise<object>);
+	toolContext?: Record<string, unknown> | (() => Promise<Record<string, unknown>>);
 	systemPrompt?: string | (() => string | Promise<string>);
 	resources?: Resources;
 	streamOptions?: StreamOptions;

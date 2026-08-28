@@ -194,7 +194,7 @@ async function runLoop(
 			newMessages.push(message);
 
 			if (message.stopReason === "error" || message.stopReason === "aborted") {
-				await emit({ type: "turn_end", message, toolResults: [] });
+				await emit({ type: "turn_end", message, toolResults: [] as ToolResultMessage[] });
 				await emit({ type: "agent_end", messages: newMessages });
 				return;
 			}
@@ -229,7 +229,8 @@ async function runLoop(
 				context: currentContext,
 				newMessages,
 			};
-			const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
+			const prepareNextTurn = config.prepareNextTurn;
+			const nextTurnSnapshot = prepareNextTurn ? await prepareNextTurn(nextTurnContext) : undefined;
 			if (nextTurnSnapshot) {
 				currentContext = nextTurnSnapshot.context ?? currentContext;
 				config = {

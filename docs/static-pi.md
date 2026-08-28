@@ -1,5 +1,7 @@
 # static-pi：用 scriptc 静态编译 pi（无 JS 引擎）
 
+> ⚠️ 测试提醒（2026-08-29 用户指定）：后续冒烟/真跑一律用 `llamacpp/MiniCPM5-1B` 模型（`--model "llamacpp/MiniCPM5-1B"`）。
+
 ## 目标
 
 把 `pi`（coding agent CLI）用 `scriptc` 编译成**100% 静态、不嵌入 quickjs** 的原生二进制。
@@ -75,6 +77,23 @@
 - 基线数字 = `scriptc coverage packages/coding-agent/src/cli.ts` 输出中 **reached 段** 的实例数（诊断行有 ×N 聚合前缀，需按实例累加；unreached 段永不导致 build 失败，不计入）。712 基线已用该口径精确复现（SC1090×199、SC2013×157、SC2020×100、SC2002×100、SC2004×60、SC2009×56、SC2011×15、SC2003×9、SC2012×6、SC1120×6、SC1100×2、SC1063×1、SC1043×1）。
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
+
+## 阶段 5 grind 第一轮记录（2026-08-29：482→504 揭幕期，根因毒源批次攻坚）
+
+新快照起点 482（后续提交把基线从 416 揭幕到 482）。本轮不追单点，改攻 **member-map-null 毒源**（record 内单个成员不可映射即毒化整个 record，级联出下游 SC2011/SC2004）：
+
+- **混合 Promise/非 Promise 返回 union 是重灾区**（union 臂规则：promise 臂仅当全为 promise）：`transformHeaders`、`GrepOperations`、`LsOperations`、`FindOperations`、`getArgumentCompletions`（Awaitable）全部改纯 Promise；调用点本就 await，默认实现改 Promise.resolve/async 即可
+- **重载去净**：`getAuth`（ai Models + model-runtime）双签名合为单签名 `string | Model<Api>`（实现本就如此）；`ChildProcessStream.once` 合并为 `"data" | "end"` 单签名；faux `getModel` 三重载合为一
+- **faux.ts**：`[Model, ...Model[]]` rest 元组 → `Model[]`；`FauxResponseFactory` 返回改纯 Promise
+- **AgentTool.prepareArguments**：`Static<TParams>` 泛型条件返回类型不可映射 → 改 `unknown`（返回协变，实现方零改动）
+- **ModelsRefreshResult.errors**：`Map<string, Error>` → `Map<string, string>`（Error 类不可映射；唯一读值点改 throw new Error(msg)）
+- **edit.ts 交叉类型**：`Box & {...}` → `class EditCallRenderComponent extends Box`（类字段替代交叉）
+- **layout.ts renderCache**：`Map<Component, Map<number, string[]>>` 双违规（Map 键必须 string/number、值不能是 Map）→ `RenderCacheEntry[]`（component 引用等值线性查 + 内层 number 键 Map）
+- **mini-markdown 钩子**：`tokenizer: (this: Tokenizer, ...)` this 参数不可映射且 `.call` 被禁 → 去掉 this 参数直接调用；lexer 注入改在 Lexer 构造器里一次性赋值（StrictStrikethroughTokenizer.del 的 this.lexer 依赖保留）
+- **agent-harness toolContext**：`object | (() => object | Promise<object>)` → `Record<string, unknown> | (() => Promise<Record<string, unknown>>)`（object 类型不可映射）
+- 前一轮：AgentLoopConfig 三钩子 `signal?: AbortSignal` → `signal: AbortSignal | undefined`（可选 AbortSignal 参数 withUndefinedArm 返回 null 毒化整个函数类型）；emit turn_end 空数组字面量加显式类型；prepareNextTurn 可选链 await 改先收窄再 await
+
+**教训**：SC2011 报在函数类型上 ≠ 函数类型本身不可映射（instrumented 分解树显示 OK）——真毒源往往是宿主 record 的其他成员不可映射，导致属性读值走 dyn 通道。必须用 member-map-null 日志找“on X”的宿主。当前毒源榜：`Map<any, any>`（30，来自 ReadonlyMap<string,Error> 已修）、SessionShareContext.editor（EditorComponent 接口待查）、SessionStorage.findRecords 泛型+重载等；504 仍处揭幕期，继续按毒源榜攻坚。
 
 ## 阶段 5/6 记录（2026-08-28：三墙突破 + 七个 mini 库 + 两个砍除）
 
@@ -245,7 +264,7 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
-- [ ] 阶段 5 诊断清单批量修复（进行中，新基线 691 个诊断见下方记录）
+- [ ] 阶段 5 诊断清单批量修复（进行中；根因毒源批次攻坚中，最新基线 504 见下方第一轮记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 

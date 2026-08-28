@@ -111,7 +111,7 @@ export type FauxResponseFactory = (
 	options: SimpleStreamOptions | undefined,
 	state: FauxProviderState,
 	model: Model<Api>,
-) => AssistantMessage | Promise<AssistantMessage>;
+) => Promise<AssistantMessage>;
 
 export type FauxResponseStep = AssistantMessage | FauxResponseFactory;
 
@@ -133,9 +133,8 @@ export interface RegisterFauxProviderOptions {
 
 export interface FauxProviderRegistration {
 	api: KnownApi;
-	models: [Model<Api>, ...Model<Api>[]];
-	getModel(): Model<Api>;
-	getModel(modelId: string): Model<Api> | undefined;
+	models: Model<Api>[];
+	getModel(modelId?: string): Model<Api> | undefined;
 	state: FauxProviderState;
 	setResponses: (responses: FauxResponseStep[]) => void;
 	appendResponses: (responses: FauxResponseStep[]) => void;
@@ -146,9 +145,8 @@ export interface FauxProviderRegistration {
 export interface FauxProviderHandle {
 	provider: Provider;
 	api: KnownApi;
-	models: [Model<Api>, ...Model<Api>[]];
-	getModel(): Model<Api>;
-	getModel(modelId: string): Model<Api> | undefined;
+	models: Model<Api>[];
+	getModel(modelId?: string): Model<Api> | undefined;
 	state: FauxProviderState;
 	setResponses: (responses: FauxResponseStep[]) => void;
 	appendResponses: (responses: FauxResponseStep[]) => void;
@@ -643,8 +641,6 @@ export function createFauxCore(options: RegisterFauxProviderOptions) {
 		await cancelOptions?.onResponse?.({ status: 200, headers: {} }, requestModel);
 	};
 
-	function getModel(): Model<Api>;
-	function getModel(requestedModelId: string): Model<Api> | undefined;
 	function getModel(requestedModelId?: string): Model<Api> | undefined {
 		if (!requestedModelId) {
 			return models[0];

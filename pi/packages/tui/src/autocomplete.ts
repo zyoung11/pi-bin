@@ -235,7 +235,7 @@ export interface SlashCommand {
 	argumentHint?: string;
 	// Function to get argument completions for this command
 	// Returns null if no argument completion is available
-	getArgumentCompletions?(argumentPrefix: string): Awaitable<AutocompleteItem[] | null>;
+	getArgumentCompletions?(argumentPrefix: string): Promise<AutocompleteItem[] | null>;
 }
 
 export interface AutocompleteSuggestions {

@@ -66,7 +66,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	renderShell?: "default" | "self";
 
 	/** Optional compatibility shim to prepare raw tool call arguments before schema validation. Must return an object conforming to TParams. */
-	prepareArguments?: (args: unknown) => Static<TParams>;
+	prepareArguments?: (args: unknown) => unknown;
 
 	/**
 	 * Per-tool execution mode override.
