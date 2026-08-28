@@ -271,7 +271,7 @@ export class ModelRuntime implements Models {
 		const auth = new Map(checks);
 		const configuredProviders = new Set(
 			checks
-				.filter((entry): entry is [string, AuthCheck] => entry[1] !== undefined)
+				.filter((entry) => entry[1] !== undefined)
 				.map(([providerId]) => providerId),
 		);
 		this.snapshot = {
@@ -673,9 +673,9 @@ export class ModelRuntime implements Models {
 		// The fallback keeps source-mode CLI tests working without rebuilding workspace dependencies.
 		const result = ((await this.models.refresh(refreshOptions)) as ModelsRefreshResult | undefined) ?? {
 			aborted: refreshOptions.signal?.aborted ?? false,
-			errors: new Map(),
+			errors: new Map<string, string>(),
 		};
-		const errors = new Map(result.errors);
+		const errors = new Map<string, string>(result.errors);
 		this.updateModelSnapshot();
 		if (options.providers) {
 			await Promise.all(
@@ -684,7 +684,7 @@ export class ModelRuntime implements Models {
 						await this.refreshProviderAvailability(providerId, operationSignal(options.signal));
 					} catch (error) {
 						if (!options.signal?.aborted) {
-							errors.set(providerId, error instanceof Error ? error : new Error(String(error)));
+							errors.set(providerId, error instanceof Error ? error.message : String(error));
 						}
 					}
 				}),

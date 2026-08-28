@@ -3,7 +3,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { type Container, type EditorComponent, hyperlink, type TUI } from "../../../../tui/src/index.ts";
+import { type Component, type Container, type EditorComponent, hyperlink, type TUI } from "../../../../tui/src/index.ts";
 import { getAuthCredential } from "../../cli/auth-command.ts";
 import { getShareViewerUrl } from "../../config.ts";
 import type { AgentSession } from "../../core/agent-session.ts";
@@ -204,6 +204,6 @@ async function shareViaGist(tmpFile: string, context: SessionShareContext): Prom
 function restoreEditor(loader: BorderedLoader, context: SessionShareContext): void {
 	loader.dispose();
 	context.editorContainer.clear();
-	context.editorContainer.addChild(context.editor);
-	context.ui.setFocus(context.editor);
+	context.editorContainer.addChild(context.editor as unknown as Component);
+	context.ui.setFocus(context.editor as unknown as Component);
 }

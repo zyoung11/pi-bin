@@ -304,9 +304,6 @@ export interface SessionStorage<TMetadata extends SessionMetadata = SessionMetad
 	findEntries(query?: EntryQuery): Promise<Entry[]>;
 	/** start is mandatory here (as opposed to SessionTree's findEntriesOnBranch); defaulting to a lane's leaf is view sugar. */
 	findEntriesOnBranch(query: EntryQuery & BranchBounds & { start: string }): Promise<Entry[]>;
-	findRecords<K extends LaneRecord["type"]>(
-		query: RecordQuery & { type: K },
-	): Promise<Extract<LaneRecord, { type: K }>[]>;
 	findRecords(query?: RecordQuery): Promise<LaneRecord[]>;
 	/**
 	 * Returns unfinished operation starts newest first. Recovery uses `limit: 2`:

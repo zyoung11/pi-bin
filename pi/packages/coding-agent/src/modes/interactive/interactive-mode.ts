@@ -603,7 +603,7 @@ export class InteractiveMode {
 		});
 		this.editor = this.defaultEditor;
 		this.editorContainer = new Container();
-		this.editorContainer.addChild(this.editor as Component);
+		this.editorContainer.addChild(this.editor as unknown as Component);
 		this.footerDataProvider = new FooterDataProvider(this.sessionManager.getCwd());
 		this.footer = new FooterComponent(this.session, this.footerDataProvider);
 		this.footer.setAutoCompactEnabled(this.session.autoCompactionEnabled);
@@ -919,7 +919,7 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.clear", () => this.handleCtrlC());
 		this.defaultEditor.onCtrlD = () => this.handleCtrlD();
 		this.defaultEditor.onSubmit = (text) => this.handleStartupSubmit(text);
-		this.ui.setFocus(this.editor);
+		this.ui.setFocus(this.editor as unknown as Component);
 
 		// Start the UI before initializing extensions so session_start handlers can use interactive dialogs
 		this.ui.start();
@@ -2240,9 +2240,9 @@ export class InteractiveMode {
 	private hideExtensionSelector(): void {
 		this.extensionSelector?.dispose();
 		this.editorContainer.clear();
-		this.editorContainer.addChild(this.editor);
+		this.editorContainer.addChild(this.editor as unknown as Component);
 		this.extensionSelector = undefined;
-		this.ui.setFocus(this.editor);
+		this.ui.setFocus(this.editor as unknown as Component);
 		this.ui.requestRender();
 	}
 
@@ -2316,9 +2316,9 @@ export class InteractiveMode {
 	private hideExtensionInput(): void {
 		this.extensionInput?.dispose();
 		this.editorContainer.clear();
-		this.editorContainer.addChild(this.editor);
+		this.editorContainer.addChild(this.editor as unknown as Component);
 		this.extensionInput = undefined;
-		this.ui.setFocus(this.editor);
+		this.ui.setFocus(this.editor as unknown as Component);
 		this.ui.requestRender();
 	}
 
@@ -2357,9 +2357,9 @@ export class InteractiveMode {
 	 */
 	private hideExtensionEditor(): void {
 		this.editorContainer.clear();
-		this.editorContainer.addChild(this.editor);
+		this.editorContainer.addChild(this.editor as unknown as Component);
 		this.extensionEditor = undefined;
-		this.ui.setFocus(this.editor);
+		this.ui.setFocus(this.editor as unknown as Component);
 		this.ui.requestRender();
 	}
 
@@ -2432,8 +2432,8 @@ export class InteractiveMode {
 			this.editor = this.defaultEditor;
 		}
 
-		this.editorContainer.addChild(this.editor as Component);
-		this.ui.setFocus(this.editor as Component);
+		this.editorContainer.addChild(this.editor as unknown as Component);
+		this.ui.setFocus(this.editor as unknown as Component);
 		this.ui.requestRender();
 	}
 
@@ -2469,9 +2469,9 @@ export class InteractiveMode {
 
 		const restoreEditor = () => {
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
+			this.editorContainer.addChild(this.editor as unknown as Component);
 			this.editor.setText(savedText);
-			this.ui.setFocus(this.editor);
+			this.ui.setFocus(this.editor as unknown as Component);
 			this.ui.requestRender();
 		};
 
@@ -3357,7 +3357,7 @@ export class InteractiveMode {
 		// list and re-inject them after the assistant messages that paid for them.
 		const cacheMisses = this.settingsManager.getShowCacheMissNotices()
 			? collectCacheMisses(this.sessionManager.getEntries(), this.session.modelRuntime)
-			: new Map<AssistantMessage, CacheMiss>();
+			: [];
 
 		if (options.updateFooter) {
 			this.footer.invalidate();
@@ -3414,7 +3414,13 @@ export class InteractiveMode {
 					}
 				}
 				if (message.stopReason !== "aborted" && message.stopReason !== "error") {
-					const miss = cacheMisses.get(message);
+					let miss: CacheMiss | undefined;
+					for (const entry of cacheMisses) {
+						if (entry.message === message) {
+							miss = entry.miss;
+							break;
+						}
+					}
 					if (miss) this.addCacheMissNotice(miss);
 				}
 			} else if (message.role === "toolResult") {
@@ -4167,8 +4173,8 @@ export class InteractiveMode {
 			this.activeSelectorToken = undefined;
 			this.activeSelectorDispose = undefined;
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.ui.setFocus(this.editor);
+			this.editorContainer.addChild(this.editor as unknown as Component);
+			this.ui.setFocus(this.editor as unknown as Component);
 		};
 		const created = create(done);
 		dispose = created.dispose;
@@ -5365,8 +5371,8 @@ export class InteractiveMode {
 	private showAmbientAuthDialog(providerOption: AuthSelectorProvider): void {
 		const restoreEditor = () => {
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.ui.setFocus(this.editor);
+			this.editorContainer.addChild(this.editor as unknown as Component);
+			this.ui.setFocus(this.editor as unknown as Component);
 			this.ui.requestRender();
 		};
 
@@ -5416,8 +5422,8 @@ export class InteractiveMode {
 
 		const restoreEditor = () => {
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.ui.setFocus(this.editor);
+			this.editorContainer.addChild(this.editor as unknown as Component);
+			this.ui.setFocus(this.editor as unknown as Component);
 			this.ui.requestRender();
 		};
 
@@ -5530,8 +5536,8 @@ export class InteractiveMode {
 
 		const restoreEditor = () => {
 			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.ui.setFocus(this.editor);
+			this.editorContainer.addChild(this.editor as unknown as Component);
+			this.ui.setFocus(this.editor as unknown as Component);
 			this.ui.requestRender();
 		};
 
@@ -5634,11 +5640,11 @@ export class InteractiveMode {
 					? "Reloaded keybindings, extensions, skills, prompts, themes, and context files; saved project trust"
 					: "Reloaded keybindings, extensions, skills, prompts, themes, and context files",
 			);
-			dismissReloadBox(this.editor as Component);
+			dismissReloadBox(this.editor as unknown as Component);
 			reloadBoxDismissed = true;
 		} catch (error) {
 			if (!reloadBoxDismissed) {
-				dismissReloadBox(previousEditor as Component);
+				dismissReloadBox(previousEditor as unknown as Component);
 			}
 			this.showError(`Reload failed: ${error instanceof Error ? error.message : String(error)}`);
 		}

@@ -339,18 +339,19 @@ export function createReadToolDefinition(
 		},
 		renderCall(args, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			const classification = !context.expanded ? getCompactReadClassification(args, context.cwd) : undefined;
+			const renderArgs = args as ReadRenderArgs | undefined;
+			const classification = !context.expanded ? getCompactReadClassification(renderArgs, context.cwd) : undefined;
 			text.setText(
 				classification
-					? formatCompactReadCall(classification, args, theme)
-					: formatReadCall(args, theme, context.cwd),
+					? formatCompactReadCall(classification, renderArgs, theme)
+					: formatReadCall(renderArgs, theme, context.cwd),
 			);
 			return text;
 		},
 		renderResult(result, options, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
 			text.setText(
-				formatReadResult(context.args, result, options, theme, context.showImages, context.cwd, context.isError),
+				formatReadResult(context.args as ReadRenderArgs | undefined, result, options, theme, context.showImages, context.cwd, context.isError),
 			);
 			return text;
 		},

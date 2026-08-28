@@ -1,5 +1,4 @@
 import type { AutocompleteProvider } from "./autocomplete.ts";
-import type { Component } from "./tui.ts";
 
 /**
  * Interface for custom editor components.
@@ -8,7 +7,14 @@ import type { Component } from "./tui.ts";
  * (e.g., vim mode, emacs mode, custom keybindings) while maintaining
  * compatibility with the core application.
  */
-export interface EditorComponent extends Component {
+export interface EditorComponent {
+	/** Whether this component currently has TUI focus. */
+	focused: boolean;
+	wantsKeyRelease: boolean;
+	render(width: number): string[];
+	invalidate(): void;
+	handleInput(data: string): void;
+
 	// =========================================================================
 	// Core text access (required)
 	// =========================================================================
@@ -18,9 +24,6 @@ export interface EditorComponent extends Component {
 
 	/** Set the text content */
 	setText(text: string): void;
-
-	/** Handle raw terminal input (key presses, paste sequences, etc.) */
-	handleInput(data: string): void;
 
 	// =========================================================================
 	// Callbacks (required)
@@ -37,27 +40,27 @@ export interface EditorComponent extends Component {
 	// =========================================================================
 
 	/** Add text to history for up/down navigation */
-	addToHistory?(text: string): void;
+	addToHistory?: (text: string) => void;
 
 	// =========================================================================
 	// Advanced text manipulation (optional)
 	// =========================================================================
 
 	/** Insert text at current cursor position */
-	insertTextAtCursor?(text: string): void;
+	insertTextAtCursor?: (text: string) => void;
 
 	/**
 	 * Get text with any markers expanded (e.g., paste markers).
 	 * Falls back to getText() if not implemented.
 	 */
-	getExpandedText?(): string;
+	getExpandedText?: () => string;
 
 	// =========================================================================
 	// Autocomplete support (optional)
 	// =========================================================================
 
 	/** Set the autocomplete provider */
-	setAutocompleteProvider?(provider: AutocompleteProvider): void;
+	setAutocompleteProvider?: (provider: AutocompleteProvider) => void;
 
 	// =========================================================================
 	// Appearance (optional)
@@ -67,8 +70,8 @@ export interface EditorComponent extends Component {
 	borderColor?: (str: string) => string;
 
 	/** Set horizontal padding */
-	setPaddingX?(padding: number): void;
+	setPaddingX?: (padding: number) => void;
 
 	/** Set max visible items in autocomplete dropdown */
-	setAutocompleteMaxVisible?(maxVisible: number): void;
+	setAutocompleteMaxVisible?: (maxVisible: number) => void;
 }

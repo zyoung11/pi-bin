@@ -414,7 +414,7 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 	/** Execute the tool call. Throw on failure instead of encoding errors in `content`. */
 	execute(
 		toolCallId: string,
-		params: Static<TParameters>,
+		params: unknown,
 		signal: AbortSignal | undefined,
 		onUpdate: AgentToolUpdateCallback<TDetails> | undefined,
 	): Promise<AgentToolResult<TDetails>>;

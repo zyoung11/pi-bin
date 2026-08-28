@@ -265,7 +265,7 @@ export function resolveGrammarConstrainedSampling(
 export function createGrammarToolInputProperties(
 	tools: Tool[] | undefined,
 	supportsOpenAIGrammarTools: boolean,
-): ReadonlyMap<string, string> {
+): Map<string, string> {
 	const properties = new Map<string, string>();
 	for (const tool of tools ?? []) {
 		const grammar = resolveGrammarConstrainedSampling(tool, supportsOpenAIGrammarTools);

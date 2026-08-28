@@ -238,7 +238,7 @@ export type HarnessTool = AgentTool & { replay?: "never" | "safe" };
 export type Resources = AgentHarnessResources<Skill, PromptTemplate>;
 export type StreamOptions = SimpleStreamOptions;
 export type StreamOptionsPatch = Partial<SimpleStreamOptions>;
-export type EntryProjector = (entry: Entry) => AgentMessage[] | Promise<AgentMessage[]>;
+export type EntryProjector = (entry: Entry) => Promise<AgentMessage[]>;
 
 export interface AgentHarnessOptions {
 	session: Session;
@@ -248,7 +248,7 @@ export interface AgentHarnessOptions {
 	activeToolNames?: string[];
 	tools?: HarnessTool[];
 	toolContext?: Record<string, unknown> | (() => Promise<Record<string, unknown>>);
-	systemPrompt?: string | (() => string | Promise<string>);
+	systemPrompt?: string | (() => Promise<string>);
 	resources?: Resources;
 	streamOptions?: StreamOptions;
 	retry?: RetryPolicy;
@@ -257,7 +257,7 @@ export interface AgentHarnessOptions {
 	followUpMode?: QueueMode;
 	toolExecution?: "sequential" | "parallel";
 	drive?: "automatic" | "manual";
-	toProviderMessages?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
+	toProviderMessages?: (messages: AgentMessage[]) => Promise<Message[]>;
 	entryProjectors?: Record<string, EntryProjector>;
 	context?: TelemetryContext;
 }
@@ -271,18 +271,15 @@ export interface WatchHandle<TSnapshot> {
 export interface AgentLane {
 	readonly name: string;
 	getLeafId(): Promise<string | null>;
-	prompt(text: string, images?: ImageContent[]): Promise<RunResult>;
-	prompt(message: AgentMessage | AgentMessage[]): Promise<RunResult>;
+	prompt(message: string | AgentMessage | AgentMessage[], images?: ImageContent[]): Promise<RunResult>;
 	skill(name: string, additionalInstructions?: string): Promise<RunResult>;
 	promptFromTemplate(name: string, args?: string[]): Promise<RunResult>;
 	compact(options?: { customInstructions?: string }): Promise<CompactionResult>;
 	navigateTree(targetId: string | null, options?: NavigateOptions): Promise<NavigationResult>;
 	resume(): Promise<ResumeResult>;
 	abort(): Promise<AbortResult>;
-	steer(text: string, images?: ImageContent[]): Promise<QueueResult>;
-	steer(message: AgentMessage): Promise<QueueResult>;
-	followUp(text: string, images?: ImageContent[]): Promise<QueueResult>;
-	followUp(message: AgentMessage): Promise<QueueResult>;
+	steer(message: string | AgentMessage, images?: ImageContent[]): Promise<QueueResult>;
+	followUp(message: string | AgentMessage, images?: ImageContent[]): Promise<QueueResult>;
 	nextRun(text: string, images?: ImageContent[]): Promise<QueueResult>;
 	nextRun(message: AgentMessage): Promise<QueueResult>;
 	cancelQueued(entryId: string): Promise<CancelQueuedResult>;
@@ -360,8 +357,6 @@ export class AgentHarness implements AgentLane {
 		return this.durableSession.getLeafId();
 	}
 
-	async prompt(_text: string, _images?: ImageContent[]): Promise<RunResult>;
-	async prompt(_message: AgentMessage | AgentMessage[]): Promise<RunResult>;
 	async prompt(_input: string | AgentMessage | AgentMessage[], _images?: ImageContent[]): Promise<RunResult> {
 		return this.unavailable("prompt");
 	}
@@ -383,13 +378,9 @@ export class AgentHarness implements AgentLane {
 	async abort(): Promise<AbortResult> {
 		return this.unavailable("abort");
 	}
-	async steer(_text: string, _images?: ImageContent[]): Promise<QueueResult>;
-	async steer(_message: AgentMessage): Promise<QueueResult>;
 	async steer(_input: string | AgentMessage, _images?: ImageContent[]): Promise<QueueResult> {
 		return this.unavailable("steer");
 	}
-	async followUp(_text: string, _images?: ImageContent[]): Promise<QueueResult>;
-	async followUp(_message: AgentMessage): Promise<QueueResult>;
 	async followUp(_input: string | AgentMessage, _images?: ImageContent[]): Promise<QueueResult> {
 		return this.unavailable("followUp");
 	}

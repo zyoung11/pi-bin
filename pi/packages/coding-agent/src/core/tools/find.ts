@@ -363,7 +363,7 @@ export function createFindToolDefinition(
 		},
 		renderCall(args, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatFindCall(args, theme));
+			text.setText(formatFindCall(args as { pattern: string; path?: string; limit?: number } | undefined, theme));
 			return text;
 		},
 		renderResult(result, options, theme, context) {

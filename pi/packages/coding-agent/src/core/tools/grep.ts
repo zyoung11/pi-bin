@@ -373,7 +373,7 @@ export function createGrepToolDefinition(
 		},
 		renderCall(args, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatGrepCall(args, theme));
+			text.setText(formatGrepCall(args as { pattern: string; path?: string; glob?: string; limit?: number } | undefined, theme));
 			return text;
 		},
 		renderResult(result, options, theme, context) {

@@ -72,7 +72,7 @@ export interface ModelsRefreshOptions {
 
 export interface ModelsRefreshResult {
 	aborted: boolean;
-	errors: ReadonlyMap<string, string>;
+	errors: Map<string, string>;
 }
 
 export interface ModelsRequestTransforms {
@@ -441,7 +441,8 @@ class ModelsImpl implements MutableModels {
 			if (!callerSignal.aborted) throw error;
 		}
 
-		return { aborted: callerSignal.aborted, errors: new Map(errors) };
+		const resultErrors: Map<string, string> = new Map<string, string>(errors);
+		return { aborted: callerSignal.aborted, errors: resultErrors };
 	}
 
 	private async resolveRefreshCredential(

@@ -226,6 +226,18 @@ interface IdSet {
 	has(id: string): boolean;
 }
 
+function cloneEntryWithParent(entry: SessionEntry, parentId: string | null): SessionEntry {
+	if (entry.type === "message") return { ...entry, parentId };
+	if (entry.type === "thinking_level_change") return { ...entry, parentId };
+	if (entry.type === "model_change") return { ...entry, parentId };
+	if (entry.type === "compaction") return { ...entry, parentId };
+	if (entry.type === "branch_summary") return { ...entry, parentId };
+	if (entry.type === "custom") return { ...entry, parentId };
+	if (entry.type === "custom_message") return { ...entry, parentId };
+	if (entry.type === "label") return { ...entry, parentId };
+	return { ...entry, parentId };
+}
+
 function generateId(existingIds: IdSet): string {
 	for (let i = 0; i < 100; i++) {
 		const id = randomUUID().slice(0, 8);
@@ -240,15 +252,12 @@ function migrateV1ToV2(entries: FileEntry[]): void {
 	const ids = new Map<string, SessionEntry>();
 	let prevId: string | null = null;
 
-	for (const entry of entries) {
+	for (let index = 0; index < entries.length; index++) {
+		const entry = entries[index]!;
 		if (entry.type === "session") {
 			entry.version = 2;
 			continue;
 		}
-
-		entry.id = generateId(ids);
-		entry.parentId = prevId;
-		prevId = entry.id;
 
 		// Convert firstKeptEntryIndex to firstKeptEntryId for compaction
 		if (entry.type === "compaction") {
@@ -260,6 +269,10 @@ function migrateV1ToV2(entries: FileEntry[]): void {
 				entry.firstKeptEntryIndex = undefined;
 			}
 		}
+
+		const id = generateId(ids);
+		entries[index] = cloneEntryWithParent(entry, prevId);
+		prevId = id;
 	}
 }
 
@@ -330,8 +343,11 @@ export function getLatestCompactionEntry(entries: SessionEntry[]): CompactionEnt
 	return null;
 }
 
-function buildEntryIndex(entries: SessionEntry[], byId?: Map<string, SessionEntry>): Map<string, SessionEntry> {
-	if (byId) return byId;
+function buildEntryIndex(
+	entries: SessionEntry[],
+	byId: Map<string, SessionEntry> = new Map<string, SessionEntry>(),
+): Map<string, SessionEntry> {
+	if (byId.size > 0) return byId;
 	const index = new Map<string, SessionEntry>();
 	for (const entry of entries) {
 		index.set(entry.id, entry);
@@ -342,7 +358,7 @@ function buildEntryIndex(entries: SessionEntry[], byId?: Map<string, SessionEntr
 function buildSessionPath(
 	entries: SessionEntry[],
 	leafId?: string | null,
-	byId?: Map<string, SessionEntry>,
+	byId: Map<string, SessionEntry> = new Map<string, SessionEntry>(),
 ): SessionEntry[] {
 	const index = buildEntryIndex(entries, byId);
 	let leaf: SessionEntry | undefined;
@@ -426,7 +442,7 @@ export function sessionEntryToContextMessages(entry: SessionEntry): AgentMessage
 export function buildContextEntries(
 	entries: SessionEntry[],
 	leafId?: string | null,
-	byId?: Map<string, SessionEntry>,
+	byId: Map<string, SessionEntry> = new Map<string, SessionEntry>(),
 ): SessionEntry[] {
 	const path = buildSessionPath(entries, leafId, byId);
 	let compaction: CompactionEntry | null = null;
@@ -469,7 +485,7 @@ export function buildContextEntries(
 export function buildSessionContext(
 	entries: SessionEntry[],
 	leafId?: string | null,
-	byId?: Map<string, SessionEntry>,
+	byId: Map<string, SessionEntry> = new Map<string, SessionEntry>(),
 ): SessionContext {
 	const path = buildSessionPath(entries, leafId, byId);
 	const { thinkingLevel, model } = getSessionContextSettings(path);
@@ -650,10 +666,11 @@ export function findMostRecentSession(sessionDir: string, cwd?: string): string 
 			.map((f) => join(resolvedSessionDir, f))
 			.map((path) => ({ path, header: readSessionHeaderForDiscovery(path) }))
 			.filter(
-				(file): file is { path: string; header: SessionHeader } =>
+				(file) =>
 					file.header !== null &&
 					(!resolvedCwd || sessionCwdMatches(getSessionHeaderCwd(file.header), resolvedCwd)),
 			)
+			.map((file) => ({ path: file.path, header: file.header as SessionHeader }))
 			.sort((a, b) => {
 				const ta = Date.parse(a.header.timestamp) || 0;
 				const tb = Date.parse(b.header.timestamp) || 0;
@@ -1412,7 +1429,7 @@ export class SessionManager {
 		let pathParentId: string | null = null;
 		for (const entry of path) {
 			if (entry.type === "label") continue;
-			pathWithoutLabels.push({ ...entry, parentId: pathParentId });
+			pathWithoutLabels.push(cloneEntryWithParent(entry, pathParentId));
 			pathParentId = entry.id;
 		}
 

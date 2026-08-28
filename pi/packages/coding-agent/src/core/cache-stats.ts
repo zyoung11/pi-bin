@@ -101,13 +101,18 @@ function asPreviousRequest(message: AssistantMessage, reportedCache: boolean): P
 	};
 }
 
+export interface CacheMissEntry {
+	message: AssistantMessage;
+	miss: CacheMiss;
+}
+
 function scan(
 	entries: SessionEntry[],
 	models: ModelPriceSource,
-): { prev: PreviousRequest | undefined; totals: CacheWasteTotals; misses: Map<AssistantMessage, CacheMiss> } {
+): { prev: PreviousRequest | undefined; totals: CacheWasteTotals; misses: CacheMissEntry[] } {
 	let prev: PreviousRequest | undefined;
 	const totals: CacheWasteTotals = { missedTokens: 0, missedCost: 0, missCount: 0 };
-	const misses = new Map<AssistantMessage, CacheMiss>();
+	const misses: CacheMissEntry[] = [];
 
 	for (const entry of entries) {
 		if (entry.type === "compaction" || entry.type === "branch_summary") {
@@ -123,7 +128,7 @@ function scan(
 				totals.missedTokens += miss.missedTokens;
 				totals.missedCost += miss.missedCost;
 				totals.missCount += 1;
-				misses.set(entry.message, miss);
+				misses.push({ message: entry.message, miss });
 			}
 			prev = asPreviousRequest(entry.message, prev?.reportedCache ?? false) ?? prev;
 		}
@@ -147,7 +152,7 @@ export function computeCacheWaste(entries: SessionEntry[], models: ModelPriceSou
 export function collectCacheMisses(
 	entries: SessionEntry[],
 	models: ModelPriceSource,
-): Map<AssistantMessage, CacheMiss> {
+): CacheMissEntry[] {
 	return scan(entries, models).misses;
 }
 

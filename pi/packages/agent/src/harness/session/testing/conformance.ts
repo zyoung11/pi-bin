@@ -356,7 +356,7 @@ export function createSessionBackendConformance(
 				strictEqual("runId" in cancelled, false);
 				strictEqual(await session.getEntry("queued-message"), undefined);
 				const cancellations = await session.findRecords({ type: "queue_cancelled" });
-				strictEqual(cancellations[0]?.entryId, "queued-message");
+				strictEqual((cancellations[0] as { entryId?: string })?.entryId, "queued-message");
 				deepStrictEqual(cancellations, [cancelled]);
 				deepStrictEqual(await session.getLog(), [
 					{ kind: "record", seq: enqueued.seq, record: enqueued },
@@ -624,12 +624,12 @@ export function createSessionBackendConformance(
 				strictEqual(await session.getLabel("user"), undefined);
 				const usageRecords = await session.findRecords({ type: "usage", order: "oldestFirst" });
 				deepStrictEqual(
-					usageRecords.map((record) => record.cause),
+					usageRecords.map((record) => (record as { cause: string }).cause),
 					["assistant", "deferred_fetch", "adjustment"],
 				);
-				const deferredUsage = usageRecords.find((record) => record.cause === "deferred_fetch");
-				if (deferredUsage?.cause !== "deferred_fetch") throw new Error("Expected deferred usage record");
-				strictEqual(deferredUsage.stopReason, "deferred");
+				const deferredUsage = usageRecords.find((record) => (record as { cause?: string }).cause === "deferred_fetch");
+				if ((deferredUsage as { cause?: string } | undefined)?.cause !== "deferred_fetch") throw new Error("Expected deferred usage record");
+				strictEqual((deferredUsage as { stopReason: string }).stopReason, "deferred");
 				deepStrictEqual(await session.getStats(), {
 					messageCount: 2,
 					cachedTokens: 3,

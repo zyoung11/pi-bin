@@ -19,7 +19,7 @@ export interface ToolRenderResultOptions {
 }
 
 /** Context passed to tool renderers. */
-export interface ToolRenderContext<TState = any, TArgs = any> {
+export interface ToolRenderContext<TState = unknown, TArgs = unknown> {
 	/** Current tool call arguments. Shared across call/result renders for the same tool call. */
 	args: TArgs;
 	/** Unique id for this tool execution. Stable across call/result renders for the same tool call. */
@@ -80,16 +80,16 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	/** Execute the tool. */
 	execute(
 		toolCallId: string,
-		params: Static<TParams>,
+		params: unknown,
 		signal: AbortSignal | undefined,
 		onUpdate: AgentToolUpdateCallback<TDetails> | undefined,
 	): Promise<AgentToolResult<TDetails>>;
 
 	/** Custom rendering for tool call display */
 	renderCall?(
-		args: Static<TParams>,
+		args: unknown,
 		theme: Theme,
-		context: ToolRenderContext<TState, Static<TParams>>,
+		context: ToolRenderContext<TState, unknown>,
 	): Component;
 
 	/** Custom rendering for tool result display */
@@ -97,7 +97,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 		result: AgentToolResult<TDetails>,
 		options: ToolRenderResultOptions,
 		theme: Theme,
-		context: ToolRenderContext<TState, Static<TParams>>,
+		context: ToolRenderContext<TState, unknown>,
 	): Component;
 }
 

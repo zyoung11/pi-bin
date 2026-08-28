@@ -208,7 +208,7 @@ export function createLsToolDefinition(
 		},
 		renderCall(args, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatLsCall(args, theme, context.cwd));
+			text.setText(formatLsCall(args as { path?: string; limit?: number } | undefined, theme, context.cwd));
 			return text;
 		},
 		renderResult(result, options, theme, context) {

@@ -494,7 +494,7 @@ export function createShellToolDefinition(
 				state.endedAt = undefined;
 			}
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			text.setText(formatShellCall(args, config.prompt));
+			text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
 			return text;
 		},
 		renderResult(result, options, _theme, context) {

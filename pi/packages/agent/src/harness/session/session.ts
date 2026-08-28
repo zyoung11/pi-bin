@@ -21,7 +21,7 @@ import type {
 } from "./types.ts";
 import { SessionError } from "./types.ts";
 
-type JsonValidationFrame = { value: unknown } | { exit: object };
+const MAX_JSON_DEPTH = 512;
 
 function invalidPayload(reason: string): never {
 	throw new SessionError("invalid_payload", `Durable payload ${reason}`);
@@ -40,62 +40,30 @@ function assertValidCursor(afterSeq: number | undefined): void {
 }
 
 export function assertJsonSerializable(value: unknown): void {
-	const active = new WeakSet<object>();
-	const stack: JsonValidationFrame[] = [{ value }];
-	while (stack.length > 0) {
-		const frame = stack.pop()!;
-		if ("exit" in frame) {
-			active.delete(frame.exit);
-			continue;
-		}
-		const candidate = frame.value;
-		if (candidate === null || typeof candidate === "string" || typeof candidate === "boolean") {
-			continue;
-		}
-		if (typeof candidate === "number") {
-			if (!Number.isFinite(candidate)) invalidPayload("contains a non-finite number");
-			continue;
-		}
-		if (typeof candidate !== "object") invalidPayload(`contains ${typeof candidate}`);
-		if (active.has(candidate)) invalidPayload("contains a cycle");
-		active.add(candidate);
-		stack.push({ exit: candidate });
+	assertJsonSerializableDepth(value, 0);
+}
 
-		if (Array.isArray(candidate)) {
-			if (Object.getPrototypeOf(candidate) !== Array.prototype) {
-				invalidPayload("contains a non-standard array");
-			}
-			if (
-				Object.getOwnPropertySymbols(candidate).length > 0 ||
-				Object.getOwnPropertyNames(candidate).length !== candidate.length + 1
-			) {
-				invalidPayload("contains an array with unsupported properties");
-			}
-			for (let index = candidate.length - 1; index >= 0; index--) {
-				if (!Object.hasOwn(candidate, index)) invalidPayload("contains a sparse array");
-				const descriptor = Object.getOwnPropertyDescriptor(candidate, index)!;
-				if (!("value" in descriptor)) invalidPayload("contains an array accessor");
-				stack.push({ value: descriptor.value });
-			}
-			continue;
+function assertJsonSerializableDepth(value: unknown, depth: number): void {
+	if (depth > MAX_JSON_DEPTH) invalidPayload("exceeds maximum depth");
+	if (value === null || typeof value === "string" || typeof value === "boolean") {
+		return;
+	}
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) invalidPayload("contains a non-finite number");
+		return;
+	}
+	if (typeof value !== "object") invalidPayload(`contains ${typeof value}`);
+	if (Array.isArray(value)) {
+		const items = value as unknown as unknown[];
+		for (let index = 0; index < items.length; index++) {
+			assertJsonSerializableDepth(items[index], depth + 1);
 		}
-
-		const prototype = Object.getPrototypeOf(candidate);
-		if (prototype !== Object.prototype && prototype !== null) {
-			invalidPayload("contains a non-plain object");
-		}
-		if (Object.getOwnPropertySymbols(candidate).length > 0) {
-			invalidPayload("contains a symbol-keyed property");
-		}
-		const keys = Object.keys(candidate);
-		if (Object.getOwnPropertyNames(candidate).length !== keys.length) {
-			invalidPayload("contains a non-enumerable property");
-		}
-		for (let index = keys.length - 1; index >= 0; index--) {
-			const descriptor = Object.getOwnPropertyDescriptor(candidate, keys[index]!)!;
-			if (!("value" in descriptor)) invalidPayload("contains an accessor");
-			stack.push({ value: descriptor.value });
-		}
+		return;
+	}
+	const record = value as unknown as Record<string, unknown>;
+	const keys = Object.keys(record);
+	for (let index = 0; index < keys.length; index++) {
+		assertJsonSerializableDepth(record[keys[index]!], depth + 1);
 	}
 }
 
@@ -206,9 +174,6 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 		return this.commitRecord(record);
 	}
 
-	async findRecords<K extends LaneRecord["type"]>(
-		query: RecordQuery & { type: K },
-	): Promise<Extract<LaneRecord, { type: K }>[]>;
 	async findRecords(query?: RecordQuery): Promise<LaneRecord[]>;
 	async findRecords(query?: RecordQuery): Promise<LaneRecord[]> {
 		return this.queryRecords(query);

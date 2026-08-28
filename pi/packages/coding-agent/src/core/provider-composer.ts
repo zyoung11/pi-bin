@@ -3,7 +3,9 @@ import {
 	type ApiKeyAuth,
 	type AssistantMessageEventStream,
 	type AuthContext,
+	type ApiKeyCredential,
 	type AuthInteraction,
+	type ProviderAuthInteraction,
 	type AuthResult,
 	type Context,
 	type Credential,
@@ -310,15 +312,16 @@ function composeApiKeyAuth(
 	// OAuth-only providers get no fabricated API-key login method.
 	if (!inherited && rawKey === undefined && oauth) return undefined;
 	const rawHeaders = configuredHeaders(config, extension);
+	const composedLogin: ((interaction: ProviderAuthInteraction) => Promise<ApiKeyCredential>) | undefined =
+		inherited?.login ??
+		(async (interaction: ProviderAuthInteraction) => ({
+			type: "api_key",
+			key: await interaction.prompt({ type: "secret", message: "Enter API key" }),
+		}));
 	const authHeader = extension?.authHeader ?? config?.authHeader ?? false;
 	return {
 		name: inherited?.name ?? "API key",
-		login:
-			inherited?.login ??
-			(async (interaction: AuthInteraction) => ({
-				type: "api_key",
-				key: await interaction.prompt({ type: "secret", message: "Enter API key" }),
-			})),
+		login: composedLogin,
 		check: async (input) => {
 			if (input.credential) {
 				if (inherited?.check) return inherited.check(input);

@@ -162,14 +162,14 @@ function isOpenAIReasoningDetail(detail: unknown): detail is OpenAIReasoningDeta
 }
 
 export interface OpenAICompletionsOptions extends StreamOptions {
-	toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+	toolChoice?: "auto" | "none" | "required" | { type: "function"; function: { name: string } };
 	reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 	/** Token budgets per thinking level. Used when `compat.thinkingTokenBudgetField` or `compat.supportsThinkingTokenBudget` is set, or by `{ "$var": "thinking.budget" }`. */
 	thinkingBudgets?: ThinkingBudgets;
 }
 
 export interface ConvertCompletionsMessagesOptions {
-	grammarToolInputProperties?: ReadonlyMap<string, string>;
+	grammarToolInputProperties?: Map<string, string>;
 }
 
 interface OpenAICompatCacheControl {
@@ -795,7 +795,7 @@ function buildParams(
 	options?: OpenAICompletionsOptions,
 	compat: ResolvedOpenAICompletionsCompat = getCompat(model),
 	cacheRetention: CacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env),
-	grammarToolInputProperties: ReadonlyMap<string, string> = createGrammarToolInputProperties(
+	grammarToolInputProperties: Map<string, string> = createGrammarToolInputProperties(
 		context.tools,
 		compat.supportsOpenAIGrammarTools,
 	),
@@ -1172,7 +1172,7 @@ function addCacheControlToTextContent(
 	return false;
 }
 
-export function convertMessages(
+function convertMessages(
 	model: Model<"openai-completions">,
 	context: Context,
 	compat: ResolvedOpenAICompletionsCompat,
