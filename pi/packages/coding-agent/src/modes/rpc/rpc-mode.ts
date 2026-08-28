@@ -11,6 +11,7 @@
  */
 
 import * as crypto from "node:crypto";
+import type { AgentSession } from "../../core/agent-session.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import {
 	flushRawStdout,
@@ -71,7 +72,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 	let shuttingDown = false;
 	const signalCleanupHandlers: Array<() => void> = [];
 
-	runtimeHost.setRebindSession(async () => {
+	runtimeHost.setRebindSession(async (_session: AgentSession) => {
 		await rebindSession();
 	});
 
@@ -96,10 +97,13 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		for (const signal of signals) {
 			const handler = () => {
 				killTrackedDetachedChildren();
-				void shutdown(signal === "SIGHUP" ? 129 : 143, signal);
+				void shutdown(signal === "SIGHUP" ? 129 : 143);
 			};
-			process.on(signal, handler);
-			signalCleanupHandlers.push(() => process.off(signal, handler));
+			if (signal === "SIGINT") {
+				process.on("SIGINT", handler);
+			} else if (signal === "SIGTERM") {
+				process.on("SIGTERM", handler);
+			}
 		}
 	};
 
@@ -130,9 +134,9 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 							}
 						},
 					})
-					.catch((e) => {
-						if (!preflightSucceeded) {
-							output(error(id, "prompt", e.message));
+					.catch((promptError) => {
+						if (!preflightSucceeded && promptError instanceof Error) {
+							output(error(id, "prompt", promptError.message));
 						}
 					});
 				return undefined;
@@ -412,8 +416,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			}
 
 			default: {
-				const unknownCommand = command as { type: string };
-				return error(id, unknownCommand.type, `Unknown command: ${unknownCommand.type}`);
+				return error(id, "unknown_command", "Unknown command");
 			}
 		}
 	};
@@ -422,9 +425,9 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 	 * Check if shutdown was requested and perform shutdown if so.
 	 * Called after handling each command when waiting for the next command.
 	 */
-	let detachInput = () => {};
+	const inputDetach = { detach: (): void => {} };
 
-	async function shutdown(exitCode = 0, signal?: NodeJS.Signals): Promise<never> {
+	async function shutdown(exitCode: number): Promise<never> {
 		if (shuttingDown) {
 			process.exit(exitCode);
 		}
@@ -435,11 +438,8 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		unsubscribe?.();
 		unsubscribeBackpressure?.();
 		await runtimeHost.dispose();
-		detachInput();
-		process.stdin.pause();
-		if (signal !== "SIGTERM") {
-			await flushRawStdout();
-		}
+		inputDetach.detach();
+		await flushRawStdout();
 		process.exit(exitCode);
 	}
 
@@ -476,19 +476,39 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 	};
 
 	const onInputEnd = () => {
-		void shutdown();
+		void shutdown(0);
 	};
-	process.stdin.on("end", onInputEnd);
-
-	detachInput = (() => {
-		const detachJsonl = attachJsonlLineReader(process.stdin, (line) => {
-			void handleInputLine(line);
-		});
-		return () => {
-			detachJsonl();
-			process.stdin.off("end", onInputEnd);
-		};
-	})();
+	let inputDetached = false;
+	let stdinBuffer = "";
+	let stdinEnded = false;
+	const emitRpcLine = (line: string) => {
+		if (!inputDetached) void handleInputLine(line);
+	};
+	const flushStdinBuffer = () => {
+		while (true) {
+			const newlineIndex = stdinBuffer.indexOf("\n");
+			if (newlineIndex === -1) return;
+			emitRpcLine(stdinBuffer.slice(0, newlineIndex));
+			stdinBuffer = stdinBuffer.slice(newlineIndex + 1);
+		}
+	};
+	process.stdin.on("data", (chunk: Uint8Array) => {
+		if (inputDetached) return;
+		stdinBuffer += Buffer.from(chunk).toString("utf8");
+		flushStdinBuffer();
+	});
+	process.stdin.on("end", () => {
+		if (stdinEnded) return;
+		stdinEnded = true;
+		if (!inputDetached && stdinBuffer.length > 0) {
+			emitRpcLine(stdinBuffer);
+			stdinBuffer = "";
+		}
+		onInputEnd();
+	});
+	inputDetach.detach = (): void => {
+		inputDetached = true;
+	};
 
 	// Keep process alive forever
 	return new Promise(() => {});
