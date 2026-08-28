@@ -99,8 +99,7 @@ export class CredentialSynchronizationError extends Error {
 		credential: Credential | undefined,
 		cause?: unknown,
 	) {
-		super(`Credential ${operation} committed for ${providerId}, but local synchronization failed`);
-		if (cause !== undefined) this.cause = cause;
+		super(`Credential ${operation} committed for ${providerId}, but local synchronization failed${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`);
 		this.name = "CredentialSynchronizationError";
 		this.providerId = providerId;
 		this.operation = operation;
@@ -108,34 +107,70 @@ export class CredentialSynchronizationError extends Error {
 	}
 }
 
-function mergeHeaders(
-	base: ProviderHeaders | undefined,
-	override: ProviderHeaders | undefined,
-): ProviderHeaders | undefined {
+function mergeHeaders(base: unknown, override: unknown): ProviderHeaders | undefined {
 	const overridden = new Map<string, boolean>();
 	if (override) {
 		for (const name of Object.keys(override)) overridden.set(name.toLowerCase(), true);
 	}
 	const merged: ProviderHeaders = {};
 	if (base) {
-		for (const name of Object.keys(base)) {
-			const value = base[name];
+		const baseView = base as Record<string, unknown>;
+		for (const name of Object.keys(baseView)) {
+			const value = baseView[name];
 			if (value === null || value === undefined) continue;
 			if (overridden.has(name.toLowerCase())) continue;
-			merged[name] = value;
+			merged[name] = String(value);
 		}
 	}
 	if (override) {
-		for (const name of Object.keys(override)) {
-			const value = override[name];
+		const overrideView = override as Record<string, unknown>;
+		for (const name of Object.keys(overrideView)) {
+			const value = overrideView[name];
 			if (value === null || value === undefined) continue;
-			merged[name] = value;
+			merged[name] = String(value);
 		}
 	}
 	return merged;
 }
 
 /** Configured pi-ai Models collection used by coding-agent and SDK consumers. */
+async function enqueueCredentialOperation(
+	operations: Map<string, Promise<void>>,
+	providerId: string,
+	signal: AbortSignal,
+	task: () => Promise<unknown>,
+): Promise<unknown> {
+	const previous = operations.get(providerId);
+	let markStarted: (() => void) | undefined;
+	const started = new Promise<void>((resolve) => {
+		markStarted = resolve;
+	});
+	const operation = (async () => {
+		if (previous) {
+			try {
+				await previous;
+			} catch {
+				// previous failures do not block the next operation
+			}
+		}
+		signal.throwIfAborted();
+		markStarted?.();
+		return task();
+	})();
+	const tail: Promise<void> = (async () => {
+		try {
+			await operation;
+		} catch {
+			// errors are observed by the operation caller
+		}
+	})();
+	operations.set(providerId, tail);
+	void tail.then(() => {
+		if (operations.get(providerId) === tail) operations.delete(providerId);
+	});
+	return raceWithAbortSignal(started, signal).then(() => operation);
+}
+
 export class ModelRuntime implements Models {
 	private readonly models: MutableModels;
 	private readonly credentials: RuntimeCredentials;
@@ -279,10 +314,10 @@ export class ModelRuntime implements Models {
 		}
 		const credentials = await this.credentials.list({ signal });
 		if (seq !== this.availabilityRefreshSeq) return;
-		const auth = new Map<string, AuthCheck>();
+		const auth = new Map<string, AuthCheck | undefined>();
 		const configuredProviders = new Set<string>();
 		for (const entry of checks) {
-			if (entry[1] !== undefined) auth.set(entry[0], entry[1]);
+			auth.set(entry[0], entry[1]);
 			if (entry[1] !== undefined) configuredProviders.add(entry[0]);
 		}
 		const storedProviderIds = new Set<string>();
@@ -328,10 +363,9 @@ export class ModelRuntime implements Models {
 			for (const provider of this.snapshot.configuredProviders) configuredProviders.add(provider);
 			const storedProviders = new Set<string>();
 			for (const provider of this.snapshot.storedProviders) storedProviders.add(provider);
-			const authByProvider = new Map<string, AuthCheck>();
+			const authByProvider = new Map<string, AuthCheck | undefined>();
 			for (const key of this.snapshot.auth.keys()) {
-				const value = this.snapshot.auth.get(key);
-				if (value !== undefined) authByProvider.set(key, value);
+				authByProvider.set(key, this.snapshot.auth.get(key));
 			}
 			if (auth) {
 				configuredProviders.add(providerId);
@@ -477,41 +511,12 @@ export class ModelRuntime implements Models {
 			...resolution,
 			auth: {
 				...resolution.auth,
-				headers: mergeHeaders(resolution.auth.headers, configuredHeaders),
+				headers: mergeHeaders(
+				resolution.auth.headers,
+				configuredHeaders as ProviderHeaders | undefined,
+			),
 			},
 		};
-	}
-
-	private enqueueCredentialOperation<T>(providerId: string, signal: AbortSignal, task: () => Promise<T>): Promise<T> {
-		const previous = this.credentialOperations.get(providerId);
-		let markStarted: (() => void) | undefined;
-		const started = new Promise<void>((resolve) => {
-			markStarted = resolve;
-		});
-		const operation = (async () => {
-			if (previous) {
-				try {
-					await previous;
-				} catch {
-					// previous failures do not block the next operation
-				}
-			}
-			signal.throwIfAborted();
-			markStarted?.();
-			return task();
-		})();
-		const tail: Promise<void> = (async () => {
-			try {
-				await operation;
-			} catch {
-				// errors are observed by the operation caller
-			}
-		})();
-		this.credentialOperations.set(providerId, tail);
-		void tail.then(() => {
-			if (this.credentialOperations.get(providerId) === tail) this.credentialOperations.delete(providerId);
-		});
-		return raceWithAbortSignal(started, signal).then(() => operation);
 	}
 
 	private async synchronizeCredentialState(
@@ -538,7 +543,7 @@ export class ModelRuntime implements Models {
 
 	setRuntimeApiKey(providerId: string, apiKey: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return this.enqueueCredentialOperation(providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
 			this.credentials.setRuntimeApiKey(providerId, apiKey);
 			await this.synchronizeCredentialState(
 				providerId,
@@ -546,15 +551,15 @@ export class ModelRuntime implements Models {
 				{ type: "api_key", key: apiKey },
 				signal,
 			);
-		});
+		}) as Promise<void>;
 	}
 
 	removeRuntimeApiKey(providerId: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return this.enqueueCredentialOperation(providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
 			this.credentials.removeRuntimeApiKey(providerId);
 			await this.synchronizeCredentialState(providerId, "removeRuntimeApiKey", undefined, signal);
-		});
+		}) as Promise<void>;
 	}
 
 	listCredentials(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
@@ -675,19 +680,20 @@ export class ModelRuntime implements Models {
 
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
 		const signal = operationSignal(interaction.signal);
-		return this.enqueueCredentialOperation(providerId, signal, async () => {
+		const credentialPromise = enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
 			const credential = await this.models.login(providerId, type, { ...interaction, signal });
 			await this.synchronizeCredentialState(providerId, "login", credential, signal);
 			return credential;
 		});
+		return credentialPromise as Promise<Credential>;
 	}
 
 	logout(providerId: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return this.enqueueCredentialOperation(providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
 			await this.models.logout(providerId, { signal });
 			await this.synchronizeCredentialState(providerId, "logout", undefined, signal);
-		});
+		}) as Promise<void>;
 	}
 
 	async refresh(options: ModelsRefreshOptions = {}): Promise<ModelsRefreshResult> {

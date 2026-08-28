@@ -1,5 +1,6 @@
 import type {
 	Api,
+	AssistantMessage,
 	ImageContent,
 	Message,
 	Model,
@@ -32,9 +33,19 @@ import type {
 export type { QueueMode } from "./types.ts";
 
 async function defaultConvertToLlm(messages: AgentMessage[]): Promise<Message[]> {
-	return messages.filter(
-		(message) => message.role === "user" || message.role === "assistant" || message.role === "toolResult",
-	);
+	const converted: Message[] = [];
+	for (const message of messages) {
+		if (message.role === "user" || message.role === "assistant" || message.role === "toolResult") {
+			converted.push(message);
+		}
+	}
+	return converted;
+}
+
+function copyStringSet(source: Set<string>): Set<string> {
+	const copy = new Set<string>();
+	for (const value of source) copy.add(value);
+	return copy;
 }
 
 const EMPTY_USAGE = {
@@ -418,7 +429,7 @@ export class Agent {
 
 		const content: Array<TextContent | ImageContent> = [{ type: "text", text: input }];
 		if (images && images.length > 0) {
-			content.push(...images);
+			for (const image of images) content.push(image);
 		}
 		return [{ role: "user", content, timestamp: Date.now() }];
 	}
@@ -480,10 +491,15 @@ export class Agent {
 			prepareNextTurn:
 				this.prepareNextTurnWithContext || this.prepareNextTurn
 					? async (context) => {
-							if (this.prepareNextTurnWithContext) {
-								return await this.prepareNextTurnWithContext(context, this.signal);
+							const withContext = this.prepareNextTurnWithContext;
+							if (withContext) {
+								return await withContext(context, this.signal);
 							}
-							return await this.prepareNextTurn?.(this.signal);
+							const withoutContext = this.prepareNextTurn;
+							if (withoutContext) {
+								return await withoutContext(this.signal);
+							}
+							return undefined;
 						}
 					: undefined,
 			convertToLlm: this.convertToLlm,
@@ -492,7 +508,7 @@ export class Agent {
 			getSteeringMessages: async () => {
 				if (skipInitialSteeringPoll) {
 					skipInitialSteeringPoll = false;
-					return [];
+					return [] as AgentMessage[];
 				}
 				return this.steeringQueue.drain();
 			},
@@ -526,7 +542,7 @@ export class Agent {
 	}
 
 	private async handleRunFailure(error: unknown, aborted: boolean): Promise<void> {
-		const failureMessage = {
+		const failureMessage: AssistantMessage = {
 			role: "assistant",
 			content: [{ type: "text", text: "" }],
 			api: this._state.model.api,
@@ -536,11 +552,15 @@ export class Agent {
 			stopReason: aborted ? "aborted" : "error",
 			errorMessage: error instanceof Error ? error.message : String(error),
 			timestamp: Date.now(),
-		} satisfies AgentMessage;
+		};
 		await this.processEvents({ type: "message_start", message: failureMessage });
 		await this.processEvents({ type: "message_end", message: failureMessage });
-		await this.processEvents({ type: "turn_end", message: failureMessage, toolResults: [] });
-		await this.processEvents({ type: "agent_end", messages: [failureMessage] });
+		await this.processEvents({
+			type: "turn_end",
+			message: failureMessage,
+			toolResults: [] as import("../../ai/src/index.ts").ToolResultMessage[],
+		});
+		await this.processEvents({ type: "agent_end", messages: [failureMessage] as AgentMessage[] });
 	}
 
 	private finishRun(): void {
@@ -574,14 +594,14 @@ export class Agent {
 				break;
 
 			case "tool_execution_start": {
-				const pendingToolCalls = new Set(this._state.pendingToolCalls);
+				const pendingToolCalls = copyStringSet(this._state.pendingToolCalls);
 				pendingToolCalls.add(event.toolCallId);
 				this._state.pendingToolCalls = pendingToolCalls;
 				break;
 			}
 
 			case "tool_execution_end": {
-				const pendingToolCalls = new Set(this._state.pendingToolCalls);
+				const pendingToolCalls = copyStringSet(this._state.pendingToolCalls);
 				pendingToolCalls.delete(event.toolCallId);
 				this._state.pendingToolCalls = pendingToolCalls;
 				break;
