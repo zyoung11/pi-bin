@@ -78,6 +78,13 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第九轮记录（2026-08-30 深夜续三：334→303）
+
+- **agent.ts 11→0**、**settings-manager 11→0**、**footer 10→0**、**git.ts 9→0**、**package-manager 9→2**、pi-user-agent 1→0
+- 新规则：**空数组字面量 `return []` 推断为 number[] 是一切联合 re-tag 失败的高频根因**（runTasksWithConcurrency 早退分支）——所有早退空数组必须 `const tmp: T[] = []; return tmp;` 或显式 cast
+- **catch 绑定只能 instanceof 收窄后使用**：直接传参/赋值/cast 都报 SC1063；需要 code 字段时用 `caught as unknown as {code?: string}`
+- CredentialStore 联合链（model-runtime 4 个）与 OAuth 回调链（provider-composer 7 个）需要专项：接口方法参数中的 AbortSignal 降级 unknown 导致 re-tag 失败
+
 ## 阶段 5 grind 第八轮记录（2026-08-30 深夜续二：365→334）
 
 - **agent.ts 11→0**：defaultConvertToLlm filter→循环、push spread→循环、prepareNextTurn 可选链提升、failureMessage 改显式 AssistantMessage 注解（satisfies union 也失败，用显式类型注解）、空数组 cast、copyStringSet 辅助
