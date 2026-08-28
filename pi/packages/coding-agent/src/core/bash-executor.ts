@@ -7,9 +7,10 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { createWriteStream, type WriteStream } from "node:fs";
+
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { stripAnsi } from "../utils/ansi.ts";
 import { sanitizeBinaryOutput } from "../utils/shell.ts";
 import type { BashOperations } from "./tools/bash.ts";
@@ -58,7 +59,6 @@ export async function executeBashWithOperations(
 	const maxOutputBytes = DEFAULT_MAX_BYTES * 2;
 
 	let tempFilePath: string | undefined;
-	let tempFileStream: WriteStream | undefined;
 	let totalBytes = 0;
 
 	const ensureTempFile = () => {
@@ -67,27 +67,23 @@ export async function executeBashWithOperations(
 		}
 		const id = randomBytes(8).toString("hex");
 		tempFilePath = join(tmpdir(), `pi-bash-${id}.log`);
-		tempFileStream = createWriteStream(tempFilePath);
-		for (const chunk of outputChunks) {
-			tempFileStream.write(chunk);
-		}
+		const existing = outputChunks.join("");
+		writeFileSync(tempFilePath, existing);
 	};
-
-	const decoder = new TextDecoder();
 
 	const onData = (data: Buffer) => {
 		totalBytes += data.length;
 
 		// Sanitize: strip ANSI, replace binary garbage, normalize newlines
-		const text = sanitizeBinaryOutput(stripAnsi(decoder.decode(data, { stream: true }))).replace(/\r/g, "");
+		const text = sanitizeBinaryOutput(stripAnsi(data.toString())).replace(/\r/g, "");
 
 		// Start writing to temp file if exceeds threshold
 		if (totalBytes > DEFAULT_MAX_BYTES) {
 			ensureTempFile();
 		}
 
-		if (tempFileStream) {
-			tempFileStream.write(text);
+		if (tempFilePath) {
+			appendFileSync(tempFilePath, text);
 		}
 
 		// Keep rolling buffer
@@ -116,9 +112,6 @@ export async function executeBashWithOperations(
 		if (truncationResult.truncated) {
 			ensureTempFile();
 		}
-		if (tempFileStream) {
-			tempFileStream.end();
-		}
 		const cancelled = options?.signal?.aborted ?? false;
 
 		return {
@@ -136,9 +129,6 @@ export async function executeBashWithOperations(
 			if (truncationResult.truncated) {
 				ensureTempFile();
 			}
-			if (tempFileStream) {
-				tempFileStream.end();
-			}
 			return {
 				output: truncationResult.truncated ? truncationResult.content : fullOutput,
 				exitCode: undefined,
@@ -146,10 +136,6 @@ export async function executeBashWithOperations(
 				truncated: truncationResult.truncated,
 				fullOutputPath: tempFilePath,
 			};
-		}
-
-		if (tempFileStream) {
-			tempFileStream.end();
 		}
 
 		throw err;
