@@ -84,6 +84,14 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第十五轮记录（2026-08-31 深夜终：274→294 揭幕至 openai-completions 内部迭代器）
+
+- **buildParams 默认参提升**、**sseJsonLines async generator→next() 对象**（openai-http.ts）、**for-await→while+next**（openai-completions.ts）
+- **关键发现**：scriptc 不支持 custom async iterable 的 for-await（SC1070 仅允许 process.stdin 和 Readable），也不支持手动 next() 协议（IteratorResult.done SC2020、openaiStream.next SC1090）——**迭代器协议整体在 scriptc 静态域外**
+- **下轮解法**：将 SSE 解析从自定义 async iterator 改为 Node.js Readable 流（`new Readable({ objectMode: true })` + `push()`），或改用回调模式（`streamChunks(response, onChunk)`），这样 for-await 或 onChunk 回调都可以被 scriptc lowering。需要同步改 lazy.ts/forwardStream 和 agent-loop 的消费端
+- openai-completions 19 个新诊断也包含：delete 重建 ×4、catch binding、computed spread、Map 默认参、indexOf on union——这些都是标准模板
+- runtime 验证通过（拉取 cache 前正常）
+
 ## 阶段 5 grind 第十四轮记录（2026-08-31 深夜续五：282→274，揭幕至流式内核）
 
 - ansi-to-html 5→0：exec 循环→matchAll for-of（唯一支持的带 index 形态）、toString(16)→hexByte、parseInt→Number
