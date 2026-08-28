@@ -1,21 +1,19 @@
 import type { AssistantMessage, AssistantMessageEvent } from "../types.ts";
 
 // Generic event stream class for async iteration
-export class EventStream<T, R = T> implements AsyncIterable<T> {
+export class EventStream<T, R = T> {
 	private queue: T[] = [];
 	private waiting: ((value: IteratorResult<T>) => void)[] = [];
+	private resultWaiters: ((result: R) => void)[] = [];
 	private done = false;
-	private finalResultPromise: Promise<R>;
-	private resolveFinalResult!: (result: R) => void;
+	private finalResult: R | undefined;
+	private finalResultSet = false;
 	private isComplete: (event: T) => boolean;
 	private extractResult: (event: T) => R;
 
 	constructor(isComplete: (event: T) => boolean, extractResult: (event: T) => R) {
 		this.isComplete = isComplete;
 		this.extractResult = extractResult;
-		this.finalResultPromise = new Promise((resolve) => {
-			this.resolveFinalResult = resolve;
-		});
 	}
 
 	push(event: T): void {
@@ -23,46 +21,69 @@ export class EventStream<T, R = T> implements AsyncIterable<T> {
 
 		if (this.isComplete(event)) {
 			this.done = true;
-			this.resolveFinalResult(this.extractResult(event));
+			this.finalResult = this.extractResult(event);
+			this.finalResultSet = true;
 		}
 
-		// Deliver to waiting consumer or queue it
-		const waiter = this.waiting.shift();
-		if (waiter) {
+		const waiter = this.waiting[0];
+		if (waiter !== undefined) {
+			this.waiting.splice(0, 1);
 			waiter({ value: event, done: false });
-		} else {
+		} else if (!this.finalResultSet) {
 			this.queue.push(event);
+		}
+
+		if (this.finalResultSet) {
+			const waiters = this.resultWaiters;
+			this.resultWaiters = [];
+			for (const resultWaiter of waiters) {
+				resultWaiter(this.finalResult as R);
+			}
 		}
 	}
 
 	end(result?: R): void {
 		this.done = true;
-		if (result !== undefined) {
-			this.resolveFinalResult(result);
+		if (result !== undefined && !this.finalResultSet) {
+			this.finalResult = result;
+			this.finalResultSet = true;
 		}
-		// Notify all waiting consumers that we're done
-		while (this.waiting.length > 0) {
-			const waiter = this.waiting.shift()!;
-			waiter({ value: undefined as any, done: true });
+		const pending = this.waiting[0];
+		if (pending !== undefined) {
+			this.waiting.splice(0, 1);
+			pending({ value: undefined as unknown as T, done: true });
+		}
+		const waiters = this.resultWaiters;
+		this.resultWaiters = [];
+		for (const resultWaiter of waiters) {
+			resultWaiter(this.finalResult as R);
 		}
 	}
 
-	async *[Symbol.asyncIterator](): AsyncIterator<T> {
-		while (true) {
-			if (this.queue.length > 0) {
-				yield this.queue.shift()!;
-			} else if (this.done) {
-				return;
-			} else {
-				const result = await new Promise<IteratorResult<T>>((resolve) => this.waiting.push(resolve));
-				if (result.done) return;
-				yield result.value;
-			}
+	next(): Promise<IteratorResult<T>> {
+		if (this.queue.length > 0) {
+			const value: T = this.queue[0];
+			this.queue.splice(0, 1);
+			return Promise.resolve({ value, done: false });
 		}
+		if (this.done) {
+			return Promise.resolve({ value: undefined as unknown as T, done: true });
+		}
+		return new Promise<IteratorResult<T>>((resolve) => {
+			this.waiting.push(resolve);
+		});
 	}
 
 	result(): Promise<R> {
-		return this.finalResultPromise;
+		if (this.finalResultSet) {
+			return Promise.resolve(this.finalResult as R);
+		}
+		if (this.done) {
+			return Promise.resolve(undefined as unknown as R);
+		}
+		return new Promise<R>((resolve) => {
+			this.resultWaiters.push(resolve);
+		});
 	}
 }
 

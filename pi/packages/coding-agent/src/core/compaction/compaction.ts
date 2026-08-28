@@ -52,12 +52,15 @@ function extractFileOperations(
 		const prevCompaction = entries[prevCompactionIndex] as CompactionEntry;
 		if (!prevCompaction.fromHook && prevCompaction.details) {
 			// fromHook field kept for session file compatibility
-			const details = prevCompaction.details as unknown as CompactionDetails;
-			if (Array.isArray(details.readFiles)) {
-				for (const f of details.readFiles) fileOps.read.add(f);
-			}
-			if (Array.isArray(details.modifiedFiles)) {
-				for (const f of details.modifiedFiles) fileOps.edited.add(f);
+			const detailsRaw = prevCompaction.details;
+			if (typeof detailsRaw === "object" && detailsRaw !== null) {
+				const details = detailsRaw as Record<string, unknown>;
+				if (Array.isArray(details.readFiles)) {
+					for (const f of details.readFiles as string[]) fileOps.read.add(f);
+				}
+				if (Array.isArray(details.modifiedFiles)) {
+					for (const f of details.modifiedFiles as string[]) fileOps.edited.add(f);
+				}
 			}
 		}
 	}
@@ -288,6 +291,8 @@ export function estimateTokens(message: AgentMessage): number {
 			return Math.ceil(chars / 4);
 		}
 		case "custom":
+			chars = estimateTextAndImageContentChars(message.content);
+			return Math.ceil(chars / 4);
 		case "toolResult": {
 			chars = estimateTextAndImageContentChars(message.content);
 			return Math.ceil(chars / 4);
@@ -297,6 +302,8 @@ export function estimateTokens(message: AgentMessage): number {
 			return Math.ceil(chars / 4);
 		}
 		case "branchSummary":
+			chars = message.summary.length;
+			return Math.ceil(chars / 4);
 		case "compactionSummary": {
 			chars = message.summary.length;
 			return Math.ceil(chars / 4);
@@ -563,7 +570,19 @@ function createSummarizationOptions(
 	thinkingLevel: ThinkingLevel | undefined,
 	sessionId: string | undefined,
 ): SimpleStreamOptions {
-	const options: SimpleStreamOptions = { maxTokens, signal, apiKey, headers, env, sessionId };
+	let headerOut: { [key: string]: string | null } | undefined;
+	if (headers) {
+		headerOut = {};
+		for (const key of Object.keys(headers)) headerOut[key] = headers[key];
+	}
+	const options: SimpleStreamOptions = {
+		maxTokens,
+		signal,
+		apiKey,
+		headers: headerOut,
+		env,
+		sessionId,
+	};
 	if (model.reasoning && thinkingLevel && thinkingLevel !== "off") {
 		options.reasoning = thinkingLevel;
 	}
@@ -592,10 +611,13 @@ export async function completeSummarization(
 		cacheRetention: "none",
 		sessionId: options.sessionId ?? uuidv7(),
 	};
-	const produce = async (): Promise<AssistantMessage> =>
-		streamFn
-			? (await streamFn(model, context, requestOptions)).result()
-			: completeSimple(model, context, requestOptions);
+	const produce = async (): Promise<AssistantMessage> => {
+		if (streamFn) {
+			const stream = await streamFn(model, context, requestOptions);
+			return stream.result();
+		}
+		return completeSimple(model, context, requestOptions);
+	};
 	return retryAssistantCall(produce, retry, requestOptions.signal, callbacks);
 }
 
@@ -783,7 +805,7 @@ export function prepareCompaction(
 	if (!firstKeptEntry?.id) {
 		return undefined; // Session needs migration
 	}
-	const firstKeptEntryId = firstKeptEntry.id;
+	const firstKeptEntryId = (firstKeptEntry as unknown as { id: string }).id;
 
 	const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
 

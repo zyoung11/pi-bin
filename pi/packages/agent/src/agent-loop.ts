@@ -5,6 +5,7 @@
 
 import {
 	type AssistantMessage,
+	type AssistantMessageEvent,
 	type Context,
 	EventStream,
 	type ToolResultMessage,
@@ -28,6 +29,20 @@ export type AgentEventSink = (event: AgentEvent) => void;
  * Start an agent loop with a new prompt message.
  * The prompt is added to the context and events are emitted for it.
  */
+function eventPartial(event: AssistantMessageEvent): AssistantMessage {
+	if (event.type === "start") return event.partial;
+	if (event.type === "text_start") return event.partial;
+	if (event.type === "text_delta") return event.partial;
+	if (event.type === "text_end") return event.partial;
+	if (event.type === "thinking_start") return event.partial;
+	if (event.type === "thinking_delta") return event.partial;
+	if (event.type === "thinking_end") return event.partial;
+	if (event.type === "toolcall_start") return event.partial;
+	if (event.type === "toolcall_delta") return event.partial;
+	if (event.type !== "toolcall_end") throw new Error("event has no partial");
+	return event.partial;
+}
+
 export function agentLoop(
 	prompts: AgentMessage[],
 	context: AgentContext,
@@ -317,13 +332,15 @@ async function streamAssistantResponse(
 	let partialMessage: AssistantMessage | null = null;
 	let addedPartial = false;
 
-	for await (const event of response) {
+	let iteration: IteratorResult<AssistantMessageEvent> = await response.next();
+	while (!iteration.done) {
+		const event: AssistantMessageEvent = iteration.value as AssistantMessageEvent;
 		switch (event.type) {
 			case "start":
 				partialMessage = event.partial;
 				context.messages.push(partialMessage);
 				addedPartial = true;
-				await emit({ type: "message_start", message: { ...partialMessage } });
+				await emit({ type: "message_start", message: { ...partialMessage } as AgentMessage });
 				break;
 
 			case "text_start":
@@ -336,7 +353,7 @@ async function streamAssistantResponse(
 			case "toolcall_delta":
 			case "toolcall_end":
 				if (partialMessage) {
-					partialMessage = event.partial;
+					partialMessage = eventPartial(event);
 					context.messages[context.messages.length - 1] = partialMessage;
 					await emit({
 						type: "message_update",
@@ -361,6 +378,7 @@ async function streamAssistantResponse(
 				return finalMessage;
 			}
 		}
+		iteration = await response.next();
 	}
 
 	const finalMessage = await response.result();
@@ -592,9 +610,10 @@ function prepareToolCallArguments(tool: AgentTool, toolCall: AgentToolCall): Age
 		return toolCall;
 	}
 	const preparedArguments = prepareArguments(toolCall.arguments);
-	if (preparedArguments === toolCall.arguments) {
-		return toolCall;
-	}
+	return {
+		...toolCall,
+		arguments: preparedArguments as Record<string, unknown>,
+	};
 	return {
 		...toolCall,
 		arguments: preparedArguments as Record<string, unknown>,
@@ -687,17 +706,16 @@ async function executePreparedToolCall(
 			signal,
 			(partialResult) => {
 				if (!acceptingUpdates) return;
-				updateEvents.push(
-					Promise.resolve(
-						emit({
-							type: "tool_execution_update",
-							toolCallId: prepared.toolCall.id,
-							toolName: prepared.toolCall.name,
-							args: prepared.toolCall.arguments,
-							partialResult,
-						}),
-					),
-				);
+				const updateTask = async (): Promise<void> => {
+				await emit({
+						type: "tool_execution_update",
+						toolCallId: prepared.toolCall.id,
+						toolName: prepared.toolCall.name,
+						args: prepared.toolCall.arguments,
+						partialResult,
+					});
+			};
+			updateEvents.push(updateTask());
 			},
 		);
 		acceptingUpdates = false;
@@ -775,7 +793,7 @@ async function emitToolExecutionEnd(finalized: FinalizedToolCallOutcome, emit: A
 		type: "tool_execution_end",
 		toolCallId: finalized.toolCall.id,
 		toolName: finalized.toolCall.name,
-		result: finalized.result,
+		result: finalized.result as unknown,
 		isError: finalized.isError,
 	});
 }

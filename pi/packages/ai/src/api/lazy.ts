@@ -22,20 +22,16 @@ function createSetupErrorMessage(model: Model<Api>, error: unknown): AssistantMe
 	};
 }
 
-function hasResult(
-	source: AsyncIterable<AssistantMessageEvent>,
-): source is AsyncIterable<AssistantMessageEvent> & { result(): Promise<AssistantMessage> } {
-	return typeof (source as { result?: unknown }).result === "function";
-}
-
 async function forwardStream(
 	target: AssistantMessageEventStream,
-	source: AsyncIterable<AssistantMessageEvent>,
+	source: AssistantMessageEventStream,
 ): Promise<void> {
-	for await (const event of source) {
-		target.push(event);
+	let step = await source.next();
+	while (!step.done) {
+		target.push(step.value);
+		step = await source.next();
 	}
-	target.end(hasResult(source) ? await source.result() : undefined);
+	target.end(await source.result());
 }
 
 /**
@@ -45,14 +41,15 @@ async function forwardStream(
  */
 export function lazyStream(
 	model: Model<Api>,
-	setup: () => Promise<AsyncIterable<AssistantMessageEvent>>,
+	setup: () => Promise<AssistantMessageEventStream>,
 ): AssistantMessageEventStream {
 	const outer = new AssistantMessageEventStream();
 
 	setup()
 		.then((inner) => forwardStream(outer, inner))
-		.catch((error) => {
-			const message = createSetupErrorMessage(model, error);
+		.catch((caughtError) => {
+			if (!(caughtError instanceof Error)) return;
+			const message = createSetupErrorMessage(model, caughtError);
 			outer.push({ type: "error", reason: "error", error: message });
 			outer.end(message);
 		});
