@@ -546,8 +546,13 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 				return block;
 			};
 
-			for await (const chunk of openaiStream) {
-				if (!chunk || typeof chunk !== "object") continue;
+			let chunkResult = await openaiStream.next();
+			while (!chunkResult.done) {
+				const chunk = chunkResult.value;
+				if (!chunk || typeof chunk !== "object") {
+					chunkResult = await openaiStream.next();
+					continue;
+				}
 
 				// OpenAI documents ChatCompletionChunk.id as the unique chat completion identifier,
 				// and each chunk in a streamed completion carries the same id.
@@ -670,6 +675,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 						}
 					}
 				}
+			chunkResult = await openaiStream.next();
 			}
 
 			for (const block of blocks) {
@@ -792,13 +798,10 @@ function createHttpTransport(
 function buildParams(
 	model: Model<"openai-completions">,
 	context: Context,
-	options?: OpenAICompletionsOptions,
-	compat: ResolvedOpenAICompletionsCompat = getCompat(model),
-	cacheRetention: CacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env),
-	grammarToolInputProperties: Map<string, string> = createGrammarToolInputProperties(
-		context.tools,
-		compat.supportsOpenAIGrammarTools,
-	),
+	options: OpenAICompletionsOptions | undefined,
+	compat: ResolvedOpenAICompletionsCompat,
+	cacheRetention: CacheRetention,
+	grammarToolInputProperties: Map<string, string>,
 ) {
 	const messages = convertMessages(model, context, compat, { grammarToolInputProperties });
 	const cacheControl = getCompatCacheControl(compat, cacheRetention);

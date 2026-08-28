@@ -18,7 +18,7 @@ export interface OpenAIHttpOptions {
 }
 
 export interface OpenAIStreamResult {
-	data: AsyncGenerator<ChatCompletionChunk>;
+	data: { next(): Promise<IteratorResult<ChatCompletionChunk>> };
 	response: Response;
 }
 
@@ -93,49 +93,86 @@ async function toHttpError(response: Response): Promise<Error & { status: number
 	return err;
 }
 
-async function* sseJsonLines(response: Response): AsyncGenerator<ChatCompletionChunk> {
+function sseJsonLines(response: Response): { next(): Promise<IteratorResult<ChatCompletionChunk>> } {
 	const body = response.body;
 	if (!body) throw new Error("Response has no body");
 	const reader = body.getReader();
 	const decoder = new TextDecoder("utf-8");
 	let buffer = "";
 	let dataLines: string[] = [];
+	let finished = false;
+	let pendingChunk: ChatCompletionChunk | undefined;
+	let hasPending = false;
 
-	for (;;) {
-		const readResult = await reader.read();
-		buffer += readResult.done ? decoder.decode() : decoder.decode(readResult.value, { stream: true });
-
-		let newlineIndex = buffer.indexOf("\n");
-		while (newlineIndex !== -1) {
-			const rawLine = buffer.slice(0, newlineIndex);
-			buffer = buffer.slice(newlineIndex + 1);
-			const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-			if (line.length > 0 && line.startsWith("data:")) {
-				let value = line.slice(5);
-				if (value.startsWith(" ")) value = value.slice(1);
-				dataLines.push(value);
-			} else if (line.length === 0 && dataLines.length > 0) {
-				const payload = dataLines.join("\n");
-				dataLines = [];
-				if (payload === "[DONE]") return;
-				try {
-					yield JSON.parse(payload) as ChatCompletionChunk;
-				} catch {}
+	const pump = async (): Promise<void> => {
+		while (true) {
+			let newlineIndex = buffer.indexOf("\n");
+			while (newlineIndex !== -1) {
+				const rawLine = buffer.slice(0, newlineIndex);
+				buffer = buffer.slice(newlineIndex + 1);
+				const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
+				if (line.length > 0 && line.startsWith("data:")) {
+					let value = line.slice(5);
+					if (value.startsWith(" ")) value = value.slice(1);
+					dataLines.push(value);
+				} else if (line.length === 0 && dataLines.length > 0) {
+					const payload = dataLines.join("\n");
+					dataLines = [];
+					if (payload === "[DONE]") {
+						finished = true;
+						return;
+					}
+					try {
+						pendingChunk = JSON.parse(payload) as ChatCompletionChunk;
+						hasPending = true;
+						return;
+					} catch {
+						// skip malformed payloads
+					}
+				}
+				newlineIndex = buffer.indexOf("\n");
 			}
-			newlineIndex = buffer.indexOf("\n");
-		}
 
-		if (readResult.done) break;
-	}
-
-	if (dataLines.length > 0) {
-		const payload = dataLines.join("\n");
-		if (payload !== "[DONE]") {
-			try {
-				yield JSON.parse(payload) as ChatCompletionChunk;
-			} catch {}
+			if (finished) return;
+			const readResult = await reader.read();
+			if (readResult.done) {
+				buffer += decoder.decode();
+				finished = true;
+				if (dataLines.length > 0) {
+					const payload = dataLines.join("\n");
+					dataLines = [];
+					if (payload !== "[DONE]") {
+						try {
+							pendingChunk = JSON.parse(payload) as ChatCompletionChunk;
+							hasPending = true;
+						} catch {
+							// skip malformed payloads
+						}
+					}
+				}
+				return;
+			}
+			buffer += decoder.decode(readResult.value, { stream: true });
 		}
-	}
+	};
+
+	return {
+		next: async (): Promise<IteratorResult<ChatCompletionChunk>> => {
+			if (finished && !hasPending) {
+				return { value: undefined as unknown as ChatCompletionChunk, done: true };
+			}
+			if (!hasPending) {
+				await pump();
+			}
+			if (hasPending) {
+				const chunk = pendingChunk as ChatCompletionChunk;
+				pendingChunk = undefined;
+				hasPending = false;
+				return { value: chunk, done: false };
+			}
+			return { value: undefined as unknown as ChatCompletionChunk, done: true };
+		},
+	};
 }
 
 export async function streamOpenAIChatCompletions(options: OpenAIHttpOptions): Promise<OpenAIStreamResult> {
