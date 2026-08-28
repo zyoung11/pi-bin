@@ -78,6 +78,17 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第四轮记录（2026-08-29 深夜续：425→403，agent-session 28→3）
+
+- **AbortController 字段适配器模式**：lib 类 AbortController 不能直接赋给 record 字段 → 存 `{ signal: controller.signal, abort: () => controller.abort() }` 字面量（AbortControllerLike 接口）
+- **event 字面量禁止先存 const 再 _emit**（字面量字会宽化，union re-tag 失败）；改为专用 helper 方法（参数精确类型 + 内联字面量，调用点上下文正确）。agent-session 新增 _emitCompactionEnd
+- **event 臂字段 result: CompactionResult | undefined 改 result?: CompactionResult**（显式 undefined 在字面量中宽化为 null\|undefined 导致 re-tag 失败；optional 字段允许缺省）
+- **runWithConcurrency 泛型方法委托模块级函数**（类内泛型方法不单态化）；调用点三处数据化
+- **interface 可选参方法调用需显式传 undefined**：getModels(undefined)
+- **enqueueCredentialOperation 重写**：Map<string, Promise<unknown>> 收窄 Promise<void>（Promise 不可变协变）；去 .catch/.then 链改 async 包裹
+- **合并 union headers spread 改双循环重建**（index-signature spread 禁）；CredentialSynchronizationError ErrorOptions→cause 参数直传
+- 新遇 3 个顽固点（下轮首批，需编译器级调查）：① `as unknown as { type: string }` 双跳后静态字段读仍报 SC1090（同模式探针通过，疑上下文级联）② helper 内联字面量丢 `\| undefined` 臂（result/errorMessage）③ afterToolCall 上下文签名 re-tag 不匹配
+
 ## 阶段 5 grind 第三轮记录（2026-08-29 深夜：479→425，两大文件全清 + 规则库扩充）
 
 **全清文件**：session-manager(36→0，后揭幕的 14 也已再清)、model-runtime(30→~5)、runtime-credentials(3→0)、package-manager(15→0)。
