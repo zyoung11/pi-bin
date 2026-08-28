@@ -354,7 +354,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 			if (nextParams !== undefined) {
 				params = nextParams as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming;
 			}
-			const { data: openaiStream, response } = await retryProviderRequest(
+			const { response, processChunks } = await retryProviderRequest(
 				() =>
 					streamOpenAIChatCompletions({
 						url: transport.url,
@@ -546,12 +546,9 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 				return block;
 			};
 
-			let chunkResult = await openaiStream.next();
-			while (!chunkResult.done) {
-				const chunk = chunkResult.value;
+			await processChunks(async (chunk) => {
 				if (!chunk || typeof chunk !== "object") {
-					chunkResult = await openaiStream.next();
-					continue;
+					return;
 				}
 
 				// OpenAI documents ChatCompletionChunk.id as the unique chat completion identifier,
@@ -565,7 +562,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 				}
 
 				const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
-				if (!choice) continue;
+				if (!choice) return;
 
 				// Fallback: some providers (e.g., Moonshot) return usage
 				// in choice.usage instead of the standard chunk.usage
@@ -675,8 +672,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 						}
 					}
 				}
-			chunkResult = await openaiStream.next();
-			}
+			});
 
 			for (const block of blocks) {
 				finishBlock(block);
