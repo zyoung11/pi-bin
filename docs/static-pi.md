@@ -86,6 +86,11 @@
 - **tui.ts**: Set<TuiInputListener>/Set<fn> → 数组 + indexOf/splice（解锁 TuiMainScreen 类构建）
 - **总账 387→355**。当前分布：session-manager(12 顽固)、main(12)、settings-manager(11)、model-runtime(11)、agent(11)、footer(10)、git/rpc-mode/package-manager(各9)、markdown/tool-renderer/export-html(各8)。
 
+## 阶段 5 grind 第七轮续（355）
+
+- latex/theme/config-selector/tui.ts 全清（详见上节）。main.ts 10 个中 6 个修复，剩余：173/176（auth-check createAuthCheckModelRuntime 的 create 降级链）、371（switch 多 case 合并收窄后 union 字段读→双跳 cast 可修）、603（chalk.red 绑定方法引用→需局部化 colorFn 未完全解决，实际是 chalk.red 本身为绑定方法）、909-940（InteractiveMode 类构建链，根在 interactive-mode 526 Map<string, Component & {dispose?}> 交叉类型 → 改接口）。
+- interactive-mode.ts:448 activeSelectorToken object→Record<string, never> 已修。
+
 ## 阶段 5 grind 第六轮记录（2026-08-30：390→387）
 
 - **provider-composer 完全突破**：四个 Compat 接口加索引签名的方案证实不可行（`Omit<Required<T>>` 链路丢失具名字段，全变 unknown）已回滚；改用 **mergeCompat 参数/返回全 unknown + 调用点显式 cast**，provider-composer 21→8→剩余全挂在 OAuth 回调链（AbortSignal→unknown 降级入联合）。
