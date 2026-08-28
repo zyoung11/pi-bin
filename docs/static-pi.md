@@ -210,7 +210,13 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - 揭幕不会再大规模发生（any 已清，全图可见）
 - SC2004 级联：先修 SC1090/SC2002 根声明
 
-## 阶段 5/6 剩余工作清单（按优先级）
+### 三大 SC2002 簇（agent-session-runtime 16 / main 23 / session-manager 30 的主体）
+
+1. **窄 record 参数收类实例**（agent-session-runtime.ts:151/333、main.ts:674）：参数类型 `{ getCwd: () => string; getSessionFile: () => string | undefined }`（SessionManager 的结构子集）收到 `SessionManager` 类实例 → 类→record 拷贝墙。修法：参数类型改 `SessionManager` 类引用（同 TUI 模式），或把这类"视图接口"改为 `Pick<SessionManager, "getCwd" | "getSessionFile">` 后仍走类引用（Pick of class = 类类型子集，scriptc 对类→类赋值走引用 ✓ 需验证）
+2. **`{ has: (string) => boolean }` 收 Map**（session-manager.ts:1054/1067/1121）：`byId: Map<string, SessionEntry>` 传给 `Set<string>`-形参的 `has` 视图 → 改参数类型为 `Map<string, SessionEntry>` 或加薄适配
+3. **`[string, string, string, string]` 元组收 string[]**（config-selector.ts:32）：`getConfiguredProviders()` 返回 string[]，声明改元组或调用点断言
+
+### 通用修法（按 SC 码）
 
 0. **TUI Component 接口 → 抽象基类重构**（本次会话最大剩余项）：scriptc 拒绝「类实例 → 接口(record) 参数」（t30 实验：copy 会丢原型方法与私有字段，直接判死）——TUI 全部 addChild(component)/children.push 都是此形态 ×~120。t31 实验已验证修复路径：①子类实例 → 抽象基类参数是引用语义 ✓（无拷贝）②泛型方法 `<C extends Comp>` ✓ ③可选方法字段调用必须先提升到局部变量（`const h = c.handleInput; if (h) h(x)`）④`in` 守卫在类实例上不可用（改 `!== undefined` 读 + cast）。具体做法：tui.ts 的 `interface Component` 改 `abstract class Component`（render/invalidate abstract、handleInput/wantsKeyRelease 可选字段），~30 个组件类 `implements Component` 改 `extends Component`，`interface TUI extends Component` 的对象字面量实现需单测（interface extends abstract class 的类型在 scriptc 下对待定 object literal 是否仍走 record 通道未验证）。
 2. Set/Map 非基元元素（Set<TuiInputListener>/Set<SessionResourceCleanup>/Map<Api,…>/Map<keyof Settings,Set<string>>）→ 数组或 string 键 Map
