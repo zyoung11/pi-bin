@@ -180,7 +180,7 @@ type ActiveRun = {
  */
 export class Agent {
 	private _state: MutableAgentState;
-	private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
+	private readonly listeners: Array<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void> = [];
 	private readonly steeringQueue: PendingMessageQueue;
 	private readonly followUpQueue: PendingMessageQueue;
 
@@ -256,8 +256,11 @@ export class Agent {
 	 * become idle until all awaited listeners for that event have settled.
 	 */
 	subscribe(listener: (event: AgentEvent, signal: AbortSignal) => Promise<void> | void): () => void {
-		this.listeners.add(listener);
-		return () => this.listeners.delete(listener);
+		this.listeners.push(listener);
+		return () => {
+			const idx = this.listeners.indexOf(listener);
+			if (idx !== -1) this.listeners.splice(idx, 1);
+		};
 	}
 
 	/**

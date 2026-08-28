@@ -409,8 +409,8 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 	execute(
 		toolCallId: string,
 		params: Static<TParameters>,
-		signal?: AbortSignal,
-		onUpdate?: AgentToolUpdateCallback<TDetails>,
+		signal: AbortSignal | undefined,
+		onUpdate: AgentToolUpdateCallback<TDetails> | undefined,
 	): Promise<AgentToolResult<TDetails>>;
 	/**
 	 * Per-tool execution mode override.
