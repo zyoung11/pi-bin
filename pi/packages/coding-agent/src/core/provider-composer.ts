@@ -80,26 +80,38 @@ export type AuthStatus = {
 
 export const clearApiKeyCache = clearConfigValueCache;
 
+function copyCompatRecord(source: Record<string, unknown>): Record<string, unknown> {
+	const target: Record<string, unknown> = {};
+	for (const key of Object.keys(source)) target[key] = source[key];
+	return target;
+}
+
 function mergeCompat(
 	base: Model<Api>["compat"],
 	override: Model<Api>["compat"] | ModelsJsonModelOverride["compat"],
 ): Model<Api>["compat"] {
 	if (!override) return base;
-	const merged = { ...base, ...override } as NonNullable<Model<Api>["compat"]>;
-	const baseNested = base as Record<string, unknown> | undefined;
-	const overrideNested = override as Record<string, unknown>;
-	const mergedNested = merged as Record<string, unknown>;
-	for (const key of ["openRouterRouting", "vercelGatewayRouting", "chatTemplateKwargs", "chatTemplateArgs"] as const) {
-		const baseValue = baseNested?.[key];
-		const overrideValue = overrideNested[key];
-		if (
-			(typeof baseValue === "object" && baseValue !== null) ||
-			(typeof overrideValue === "object" && overrideValue !== null)
-		) {
-			mergedNested[key] = { ...(baseValue as object | undefined), ...(overrideValue as object | undefined) };
+	const baseRecord: Record<string, unknown> = (base ?? {}) as unknown as Record<string, unknown>;
+	const overrideRecord: Record<string, unknown> = override as unknown as Record<string, unknown>;
+	const merged = copyCompatRecord(baseRecord);
+	for (const key of Object.keys(overrideRecord)) merged[key] = overrideRecord[key];
+	const nestedKeys = ["openRouterRouting", "vercelGatewayRouting", "chatTemplateKwargs", "chatTemplateArgs"];
+	for (const key of nestedKeys) {
+		const baseValue = baseRecord[key];
+		const overrideValue = overrideRecord[key];
+		const baseIsObject = typeof baseValue === "object" && baseValue !== null;
+		const overrideIsObject = typeof overrideValue === "object" && overrideValue !== null;
+		if (!baseIsObject && !overrideIsObject) continue;
+		const mergedNested: Record<string, unknown> = baseIsObject
+			? copyCompatRecord(baseValue as Record<string, unknown>)
+			: {};
+		if (overrideIsObject) {
+			const overrideNested = overrideValue as Record<string, unknown>;
+			for (const nestedKey of Object.keys(overrideNested)) mergedNested[nestedKey] = overrideNested[nestedKey];
 		}
+		merged[key] = mergedNested;
 	}
-	return merged;
+	return merged as unknown as NonNullable<Model<Api>["compat"]>;
 }
 
 function applyModelOverride(model: Model<Api>, override: ModelsJsonModelOverride): Model<Api> {
@@ -242,12 +254,34 @@ function adaptOAuth(config: ExtensionOAuthConfig): OAuthAuth {
 		isSubscription: config.isSubscription,
 		login: async (callbacks) => {
 			const credential = await config.login({
-				onAuth: (info) => callbacks.notify({ type: "auth_url", ...info }),
-				onDeviceCode: (info) => callbacks.notify({ type: "device_code", ...info }),
-				onPrompt: (prompt) => callbacks.prompt({ type: "text", ...prompt }),
+				onAuth: (info) =>
+					callbacks.notify({
+						type: "auth_url",
+						url: info.url,
+						instructions: info.instructions,
+					}),
+				onDeviceCode: (info) =>
+					callbacks.notify({
+						type: "device_code",
+						userCode: info.userCode,
+						verificationUri: info.verificationUri,
+						intervalSeconds: info.intervalSeconds,
+						expiresInSeconds: info.expiresInSeconds,
+					}),
+				onPrompt: (prompt) =>
+					callbacks.prompt({
+						type: "text",
+						message: prompt.message,
+						placeholder: prompt.placeholder,
+					}),
 				onProgress: (message) => callbacks.notify({ type: "progress", message }),
 				onManualCodeInput: () => callbacks.prompt({ type: "manual_code", message: "Paste the authorization code" }),
-				onSelect: (prompt) => callbacks.prompt({ type: "select", ...prompt }),
+				onSelect: (prompt) =>
+					callbacks.prompt({
+						type: "select",
+						message: prompt.message,
+						options: prompt.options,
+					}),
 				signal: callbacks.signal,
 			});
 			return { ...credential, type: "oauth" };
