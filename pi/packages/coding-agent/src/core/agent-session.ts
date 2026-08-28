@@ -351,8 +351,8 @@ export class AgentSession {
 	private _baseToolDefinitions: Map<string, ToolDefinition> = new Map();
 	private _cwd: string;
 	private _initialActiveToolNames?: string[];
-	private _allowedToolNames?: Set<string>;
-	private _excludedToolNames?: Set<string>;
+	private _allowedToolNames?: string[];
+	private _excludedToolNames?: string[];
 	private _baseToolsOverride?: Record<string, AgentTool>;
 
 	private _modelRuntime: ModelRuntime;
@@ -378,8 +378,8 @@ export class AgentSession {
 		this._cwd = config.cwd;
 		this._modelRuntime = config.modelRuntime;
 		this._initialActiveToolNames = config.initialActiveToolNames;
-		this._allowedToolNames = config.allowedToolNames ? new Set(config.allowedToolNames) : undefined;
-		this._excludedToolNames = config.excludedToolNames ? new Set(config.excludedToolNames) : undefined;
+		this._allowedToolNames = config.allowedToolNames ? [...config.allowedToolNames] : undefined;
+		this._excludedToolNames = config.excludedToolNames ? [...config.excludedToolNames] : undefined;
 		this._baseToolsOverride = config.baseToolsOverride;
 
 		// Always subscribe to agent events for internal handling
@@ -1989,7 +1989,7 @@ export class AgentSession {
 		const allowedToolNames = this._allowedToolNames;
 		const excludedToolNames = this._excludedToolNames;
 		const isAllowedTool = (name: string): boolean =>
-			(!allowedToolNames || allowedToolNames.has(name)) && !excludedToolNames?.has(name);
+			(!allowedToolNames || allowedToolNames.includes(name)) && !(excludedToolNames ?? []).includes(name);
 
 		const customTools = this._customTools
 			.map((definition) => ({
@@ -2051,7 +2051,7 @@ export class AgentSession {
 
 		if (allowedToolNames) {
 			for (const toolName of this._toolRegistry.keys()) {
-				if (allowedToolNames.has(toolName)) {
+				if (allowedToolNames.includes(toolName)) {
 					nextActiveToolNames.push(toolName);
 				}
 			}
