@@ -78,6 +78,14 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第八轮记录（2026-08-30 深夜续二：365→334）
+
+- **agent.ts 11→0**：defaultConvertToLlm filter→循环、push spread→循环、prepareNextTurn 可选链提升、failureMessage 改显式 AssistantMessage 注解（satisfies union 也失败，用显式类型注解）、空数组 cast、copyStringSet 辅助
+- **pi-user-agent**：process.version/versions.bun 移除（User-Agent runtime 简化为 node）
+- **model-runtime 11→4**：enqueueCredentialOperation 模块级去泛型（泛型 async fn 的 Promise<T> 即使模块级也在声明时被拒——**非泛型化 + unknown 返回 + 调用点 cast 才是出路**）、mergeHeaders unknown 参数化 + String 过滤、auth Map 对齐快照值域（含 undefined 槽位）
+- **CredentialStore 联合链（model-runtime 剩 4 个 + auth-check 3 个）**：AuthOperationOptions.signal?: AbortSignal 在 interface 方法参数中降级为 unknown，导致实现/接口 re-tag 不匹配。解法候选：① CredentialStore 接口方法参数信号改 unknown（消费方有 unknown 上 throwIfAborted 会炸）② 接口重述合并 ③ 将 DefaultAuthStorage/ReadOnlyAuthStorage 统一为同一起点。需专项
+- 剩余 334 分布：session-manager(12 顽固)、settings-manager(11)、main(10)、footer(10)、git(9)、rpc-mode(9)、package-manager(9)、markdown/tool-renderer/export-html(各8)、bash-executor/compaction(各8)、sdk(7) 等
+
 ## 阶段 5 grind 第七轮记录（2026-08-30 续：365→355）
 
 - **latex.ts 13→0**：replaceAll→split/join ×4、Math.max spread→循环、Array.from→循环、循环携带变量 previousNode 改布尔标志、?. 判空化
