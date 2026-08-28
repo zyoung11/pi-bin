@@ -304,7 +304,7 @@ function estimateMessagesTokens(messages: AgentMessage[]): number {
 /** Minimal abort-controller surface (the lib AbortController class itself is not statically mappable). */
 export interface AbortControllerLike {
 	readonly signal: AbortSignal;
-	abort(reason?: unknown): void;
+	abort(): void;
 }
 
 export class AgentSession {
@@ -343,7 +343,7 @@ export class AgentSession {
 	private _retryAttempt = 0;
 
 	// Bash execution state
-	private readonly _bashAbortControllers = new Set<AbortController>();
+	private readonly _bashAbortControllers: AbortController[] = [];
 	private _pendingBashMessages: BashExecutionMessage[] = [];
 
 	private _resourceLoader: ResourceLoader;
@@ -2257,7 +2257,7 @@ export class AgentSession {
 		options?: { excludeFromContext?: boolean; id?: string; operations?: BashOperations },
 	): Promise<BashResult> {
 		const abortController = new AbortController();
-		this._bashAbortControllers.add(abortController);
+		this._bashAbortControllers.push(abortController);
 
 		// Apply command prefix if configured (e.g., "shopt -s expand_aliases" for alias support)
 		const prefix = this.settingsManager.getShellCommandPrefix();
@@ -2281,7 +2281,8 @@ export class AgentSession {
 			this.recordBashResult(command, result, options);
 			return result;
 		} finally {
-			this._bashAbortControllers.delete(abortController);
+			const idx = this._bashAbortControllers.indexOf(abortController);
+			if (idx !== -1) this._bashAbortControllers.splice(idx, 1);
 		}
 	}
 
@@ -2319,14 +2320,14 @@ export class AgentSession {
 	 * Cancel running bash command.
 	 */
 	abortBash(): void {
-		for (const abortController of [...this._bashAbortControllers]) {
+		for (const abortController of this._bashAbortControllers.slice()) {
 			abortController.abort();
 		}
 	}
 
 	/** Whether a bash command is currently running */
 	get isBashRunning(): boolean {
-		return this._bashAbortControllers.size > 0;
+		return this._bashAbortControllers.length > 0;
 	}
 
 	/** Whether there are pending bash messages waiting to be flushed */
