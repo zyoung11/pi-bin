@@ -78,6 +78,11 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十二轮记录（2026-08-31：282→271）
+
+- **markdown 8→0**、**rpc-mode 9→3**：process.on 仅支持字面量信号（SIGHUP/off 均被拒，off 改 detach 守卫标志）；stdin 读改 data 分块 + Uint8Array 参数；unknownCommand 固定 type（union cast 读字段不可行）；shutdown 参数必选化
+- 新规则：**let 闭包重赋值（detachInput = () => ...）报 binding form no lowering** → record holder（`const inputDetach = { detach: () => {} }`）属性写入替换
+
 ## 阶段 5 grind 第十一轮记录（2026-08-31：292→282）
 
 - **markdown 8→0 + mini-markdown**：trimPartialClosingFences 改 switch + 直读（undefined 前置守卫）；nextToken?.type → 前置守卫 + 直读；TokensGeneric.text → `(token as unknown as TokensText).text`（union→unknown→精确臂三段在 TS 层过，scriptc 接受）；RegExpExecArray.index → indexOf 前置匹配；MarkedExtension.tokenizer 从 unknown 改 Tokenizer 类型（消除 checked cast）
