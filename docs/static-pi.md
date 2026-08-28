@@ -78,6 +78,12 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第十五轮状态（2026-08-31 深夜收尾：274，openai-completions 重写中途中止已回滚）
+
+- 尝试重写 openai-completions.ts（buildParams 去默认参、for-await→next 循环、sseJsonLines async generator→next() 对象）时 python 批量替换破坏了文件结构，已 git 回滚至 274 干净态
+- **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
+- 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
+
 ## 阶段 5 grind 第十四轮记录（2026-08-31 深夜续五：282→274，揭幕至流式内核）
 
 - ansi-to-html 5→0：exec 循环→matchAll for-of（唯一支持的带 index 形态）、toString(16)→hexByte、parseInt→Number
