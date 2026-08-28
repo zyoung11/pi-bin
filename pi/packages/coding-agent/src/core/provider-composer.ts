@@ -115,11 +115,8 @@ function mergeUnknownRecords(
 	return merged;
 }
 
-function mergeCompat(
-	base: Model<Api>["compat"],
-	override: Model<Api>["compat"] | ModelsJsonModelOverride["compat"],
-): Model<Api>["compat"] {
-	if (!override) return base;
+function mergeCompat(base: unknown, override: unknown): unknown {
+	if (override === undefined || override === null) return base;
 	const baseRecord: Record<string, unknown> = copyCompatRecord(base);
 	const overrideRecord: Record<string, unknown> = copyCompatRecord(override);
 	const merged: Record<string, unknown> = copyCompatRecord(baseRecord);
@@ -140,7 +137,7 @@ function mergeCompat(
 		}
 		merged[key] = mergedNested;
 	}
-	return merged as NonNullable<Model<Api>["compat"]>;
+	return merged;
 }
 
 function applyModelOverride(model: Model<Api>, override: ModelsJsonModelOverride): Model<Api> {
@@ -166,7 +163,7 @@ function applyModelOverride(model: Model<Api>, override: ModelsJsonModelOverride
 		samplingParams: override.samplingParams
 			? mergeUnknownRecords(model.samplingParams, override.samplingParams)
 			: model.samplingParams,
-		compat: mergeCompat(model.compat, override.compat),
+		compat: mergeCompat(model.compat, override.compat) as NonNullable<Model<Api>["compat"]>,
 	};
 }
 
@@ -204,7 +201,7 @@ function modelFromJson(
 		maxTokens: definition.maxTokens ?? 16384,
 		samplingParams: definition.samplingParams,
 		headers: undefined,
-		compat: mergeCompat(providerConfig.compat, definition.compat),
+		compat: mergeCompat(providerConfig.compat, definition.compat) as NonNullable<Model<Api>["compat"]>,
 	};
 }
 
@@ -236,7 +233,7 @@ function applyModelsJson(
 	const models: Model<Api>[] = baseModels.map((model) => ({
 		...model,
 		baseUrl: config.oauth === "radius" ? model.baseUrl : (config.baseUrl ?? model.baseUrl),
-		compat: mergeCompat(model.compat, config.compat),
+		compat: mergeCompat(model.compat, config.compat) as NonNullable<Model<Api>["compat"]>,
 	}));
 	for (const definition of config.models ?? []) {
 		const existingIndex = models.findIndex((model) => model.id === definition.id);
