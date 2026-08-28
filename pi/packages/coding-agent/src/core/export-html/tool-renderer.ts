@@ -60,14 +60,14 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 
 	const renderedCallComponents = new Map<string, Component>();
 	const renderedResultComponents = new Map<string, Component>();
-	const renderedStates = new Map<string, any>();
-	const renderedArgs = new Map<string, unknown>();
+	const renderedStates: Record<string, Record<string, unknown>> = {};
+	const renderedArgs: Record<string, unknown> = {};
 
-	const getState = (toolCallId: string): any => {
-		let state = renderedStates.get(toolCallId);
-		if (!state) {
+	const getState = (toolCallId: string): Record<string, unknown> => {
+		let state = renderedStates[toolCallId];
+		if (state === undefined) {
 			state = {};
-			renderedStates.set(toolCallId, state);
+			renderedStates[toolCallId] = state;
 		}
 		return state;
 	};
@@ -80,7 +80,7 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 		isError: boolean,
 	): ToolRenderContext => {
 		return {
-			args: renderedArgs.get(toolCallId),
+			args: renderedArgs[toolCallId],
 			toolCallId,
 			invalidate: () => {},
 			lastComponent,
@@ -98,7 +98,7 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 	return {
 		renderCall(toolCallId: string, toolName: string, args: unknown): string | undefined {
 			try {
-				renderedArgs.set(toolCallId, args);
+				renderedArgs[toolCallId] = args;
 				const toolDef = getToolDefinition(toolName);
 				const renderCall = toolDef?.renderCall;
 				if (!renderCall) {
@@ -135,8 +135,20 @@ export function createToolHtmlRenderer(deps: ToolHtmlRendererDeps): ToolHtmlRend
 
 				// Build AgentToolResult from content array
 				// Cast content since session storage uses generic object types
+				const contentBlocks: (TextContent | ImageContent)[] = [];
+				for (const block of result) {
+					if (block.type === "image") {
+						contentBlocks.push({
+							type: "image",
+							data: block.data ?? "",
+							mimeType: block.mimeType ?? "",
+						});
+					} else {
+						contentBlocks.push({ type: "text", text: block.text ?? "" });
+					}
+				}
 				const agentToolResult = {
-					content: result as (TextContent | ImageContent)[],
+					content: contentBlocks,
 					details,
 					isError,
 				};

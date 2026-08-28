@@ -47,13 +47,13 @@ function color256ToHex(index: number): string {
 		const g = Math.floor((cubeIndex % 36) / 6);
 		const b = cubeIndex % 6;
 		const toComponent = (n: number) => (n === 0 ? 0 : 55 + n * 40);
-		const toHex = (n: number) => toComponent(n).toString(16).padStart(2, "0");
+		const toHex = (n: number) => hexByte(toComponent(n));
 		return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 	}
 
 	// Grayscale (232-255): 24 shades
 	const gray = 8 + (index - 232) * 10;
-	const grayHex = gray.toString(16).padStart(2, "0");
+	const grayHex = hexByte(gray);
 	return `#${grayHex}${grayHex}${grayHex}`;
 }
 
@@ -192,6 +192,18 @@ function applySgrCode(params: number[], style: TextStyle): void {
 // Match ANSI escape sequences: ESC[ followed by params and ending with 'm'
 const ANSI_REGEX = /\x1b\[([\d;]*)m/g;
 
+function hexByte(value: number): string {
+	const digits = "0123456789abcdef";
+	if (value === 0) return "00";
+	let out = "";
+	let remaining = value;
+	while (remaining > 0) {
+		out = digits[remaining % 16] + out;
+		remaining = Math.floor(remaining / 16);
+	}
+	return out;
+}
+
 /**
  * Convert ANSI-escaped text to HTML with inline styles.
  */
@@ -201,11 +213,7 @@ export function ansiToHtml(text: string): string {
 	let lastIndex = 0;
 	let inSpan = false;
 
-	// Reset regex state
-	ANSI_REGEX.lastIndex = 0;
-
-	let match = ANSI_REGEX.exec(text);
-	while (match !== null) {
+	for (const match of text.matchAll(ANSI_REGEX)) {
 		// Add text before this escape sequence
 		const beforeText = text.slice(lastIndex, match.index);
 		if (beforeText) {
@@ -214,7 +222,15 @@ export function ansiToHtml(text: string): string {
 
 		// Parse SGR parameters
 		const paramStr = match[1];
-		const params = paramStr ? paramStr.split(";").map((p) => parseInt(p, 10) || 0) : [0];
+				const params: number[] = [];
+		if (paramStr) {
+			for (const p of paramStr.split(";")) {
+				const parsed = Number(p);
+				params.push(Number.isNaN(parsed) ? 0 : parsed);
+			}
+		} else {
+			params.push(0);
+		}
 
 		// Close existing span if we have one
 		if (inSpan) {
@@ -232,7 +248,6 @@ export function ansiToHtml(text: string): string {
 		}
 
 		lastIndex = match.index + match[0].length;
-		match = ANSI_REGEX.exec(text);
 	}
 
 	// Add remaining text

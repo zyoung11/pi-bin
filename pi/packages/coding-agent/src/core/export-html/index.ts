@@ -44,17 +44,17 @@ function parseColor(color: string): { r: number; g: number; b: number } | undefi
 	const hexMatch = color.match(/^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
 	if (hexMatch) {
 		return {
-			r: Number.parseInt(hexMatch[1], 16),
-			g: Number.parseInt(hexMatch[2], 16),
-			b: Number.parseInt(hexMatch[3], 16),
+			r: Number(hexMatch[1]),
+			g: Number(hexMatch[2]),
+			b: Number(hexMatch[3]),
 		};
 	}
 	const rgbMatch = color.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/);
 	if (rgbMatch) {
 		return {
-			r: Number.parseInt(rgbMatch[1], 10),
-			g: Number.parseInt(rgbMatch[2], 10),
-			b: Number.parseInt(rgbMatch[3], 10),
+			r: Number(rgbMatch[1]),
+			g: Number(rgbMatch[2]),
+			b: Number(rgbMatch[3]),
 		};
 	}
 	return undefined;
@@ -160,18 +160,20 @@ function generateHtml(sessionData: SessionData, themeName?: string): string {
 	const sessionDataBase64 = Buffer.from(JSON.stringify(sessionData)).toString("base64");
 
 	// Build the CSS with theme variables injected
-	const css = templateCss
-		.replace("{{THEME_VARS}}", themeVars)
-		.replace("{{BODY_BG}}", bodyBg)
-		.replace("{{CONTAINER_BG}}", containerBg)
-		.replace("{{INFO_BG}}", infoBg);
+	const css = replaceAllTokens(templateCss, [
+		["{{THEME_VARS}}", themeVars],
+		["{{BODY_BG}}", bodyBg],
+		["{{CONTAINER_BG}}", containerBg],
+		["{{INFO_BG}}", infoBg],
+	]);
 
-	return template
-		.replace("{{CSS}}", css)
-		.replace("{{JS}}", templateJs)
-		.replace("{{SESSION_DATA}}", sessionDataBase64)
-		.replace("{{MARKED_JS}}", markedJs)
-		.replace("{{HIGHLIGHT_JS}}", hljsJs);
+	return replaceAllTokens(template, [
+		["{{CSS}}", css],
+		["{{JS}}", templateJs],
+		["{{SESSION_DATA}}", sessionDataBase64],
+		["{{MARKED_JS}}", markedJs],
+		["{{HIGHLIGHT_JS}}", hljsJs],
+	]);
 }
 
 /** Tools rendered directly by the HTML template (not pre-rendered via TUI→ANSI→HTML pipeline) */
@@ -211,7 +213,7 @@ function preRenderCustomTools(
 				const rendered = toolRenderer.renderResult(
 					msg.toolCallId,
 					toolName,
-					msg.content,
+					msg.content as Array<{ type: string; text?: string }>,
 					msg.details,
 					msg.isError || false,
 				);
@@ -233,12 +235,27 @@ function preRenderCustomTools(
  * Export session to HTML using SessionManager and AgentState.
  * Used by TUI's /export command.
  */
+function replaceAllTokens(template: string, replacements: Array<[string, string]>): string {
+	let result = template;
+	for (const [search, replacement] of replacements) {
+		result = result.split(search).join(replacement);
+	}
+	return result;
+}
+
 export async function exportSessionToHtml(
 	sm: SessionManager,
 	state?: AgentState,
 	options?: ExportOptions | string,
 ): Promise<string> {
-	const opts: ExportOptions = typeof options === "string" ? { outputPath: options } : options || {};
+	let opts: ExportOptions;
+	if (typeof options === "string") {
+		opts = { outputPath: options };
+	} else if (options !== undefined) {
+		opts = options;
+	} else {
+		opts = {};
+	}
 
 	const sessionFile = sm.getSessionFile();
 	if (!sessionFile) {
@@ -286,7 +303,14 @@ export async function exportSessionToHtml(
  * Used by CLI for exporting arbitrary session files.
  */
 export async function exportFromFile(inputPath: string, options?: ExportOptions | string): Promise<string> {
-	const opts: ExportOptions = typeof options === "string" ? { outputPath: options } : options || {};
+	let opts: ExportOptions;
+	if (typeof options === "string") {
+		opts = { outputPath: options };
+	} else if (options !== undefined) {
+		opts = options;
+	} else {
+		opts = {};
+	}
 	const resolvedInputPath = resolvePath(inputPath);
 
 	if (!existsSync(resolvedInputPath)) {
