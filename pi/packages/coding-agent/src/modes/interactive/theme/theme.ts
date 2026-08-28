@@ -177,8 +177,32 @@ type ColorMode = "truecolor" | "256color";
 // Color Utilities
 // ============================================================================
 
+function numberToHex(value: number): string {
+	const digits = "0123456789abcdef";
+	if (value === 0) return "0";
+	let out = "";
+	let remaining = value;
+	while (remaining > 0) {
+		out = digits[remaining % 16] + out;
+		remaining = Math.floor(remaining / 16);
+	}
+	return out;
+}
+
+function colorOrDefault(primary: string | number | undefined, fallback: string | number | undefined): string | number {
+	if (primary !== undefined) return primary;
+	if (fallback !== undefined) return fallback;
+	return "";
+}
+
+function copyThemeRecord(source: Record<string, string | number>): Record<string, string | number> {
+	const out: Record<string, string | number> = {};
+	for (const key of Object.keys(source)) out[key] = source[key];
+	return out;
+}
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
-	const cleaned = hex.replace("#", "");
+	const cleaned = hex.startsWith("#") ? hex.slice(1) : hex;
 	if (cleaned.length !== 6) {
 		throw new Error(`Invalid hex color: ${hex}`);
 	}
@@ -317,30 +341,29 @@ function resolveVarRefs(
 	return resolveVarRefs(vars[value], vars, visited);
 }
 
-function resolveThemeColors<T extends Record<string, ColorValue>>(
-	colors: T,
+function resolveThemeColors(
+	colors: Record<string, ColorValue>,
 	vars: Record<string, ColorValue> = {},
-): Record<keyof T, string | number> {
+): Record<string, string | number> {
 	const resolved: Record<string, string | number> = {};
-	for (const [key, value] of Object.entries(colors)) {
-		resolved[key] = resolveVarRefs(value, vars);
+	for (const key of Object.keys(colors)) {
+		resolved[key] = resolveVarRefs(colors[key], vars);
 	}
-	return resolved as Record<keyof T, string | number>;
+	return resolved;
 }
 
-function withThemeColorFallbacks(colors: ThemeJson["colors"]): ThemeJson["colors"] & {
-	thinkingMax: ColorValue;
-	scrollbarThumb: ColorValue;
-	searchMatchBg: ColorValue;
-	searchMatchText: ColorValue;
-} {
-	return {
-		...colors,
-		thinkingMax: colors.thinkingMax ?? colors.thinkingXhigh,
-		scrollbarThumb: colors.scrollbarThumb ?? colors.selectedBg,
-		searchMatchBg: colors.searchMatchBg ?? colors.selectedBg,
-		searchMatchText: colors.searchMatchText ?? colors.text,
-	};
+function withThemeColorFallbacks(colors: ThemeJson["colors"]): Record<string, string | number> {
+	const source = colors as Record<string, string | number | undefined>;
+	const merged: Record<string, string | number> = {};
+	for (const key of Object.keys(source)) {
+		const value = source[key];
+		if (value !== undefined) merged[key] = value;
+	}
+	merged.thinkingMax = source.thinkingMax ?? source.thinkingXhigh ?? "";
+	merged.scrollbarThumb = source.scrollbarThumb ?? source.selectedBg ?? "";
+	merged.searchMatchBg = source.searchMatchBg ?? source.selectedBg ?? "";
+	merged.searchMatchText = source.searchMatchText ?? source.text ?? "";
+	return merged;
 }
 
 // ============================================================================
@@ -356,10 +379,8 @@ export class Theme {
 	private mode: ColorMode;
 
 	constructor(
-		fgColors: Record<Exclude<ThemeColor, OptionalThemeColor>, string | number> &
-			Partial<Record<OptionalThemeColor, string | number>>,
-		bgColors: Record<Exclude<ThemeBg, OptionalThemeBg>, string | number> &
-			Partial<Record<OptionalThemeBg, string | number>>,
+		fgColors: Record<string, string | number>,
+		bgColors: Record<string, string | number>,
 		mode: ColorMode,
 		options: { name?: string; sourcePath?: string; sourceInfo?: SourceInfo } = {},
 	) {
@@ -368,23 +389,36 @@ export class Theme {
 		this.sourceInfo = options.sourceInfo;
 		this.mode = mode;
 		this.fgColors = new Map();
-		const colors = {
-			...fgColors,
-			thinkingMax: fgColors.thinkingMax ?? fgColors.thinkingXhigh,
-			searchMatchText: fgColors.searchMatchText ?? fgColors.text,
-		};
-		for (const [key, value] of Object.entries(colors) as [ThemeColor, string | number][]) {
-			this.fgColors.set(key, fgAnsi(value, mode));
+		const colors = copyThemeRecord(fgColors);
+		colors.thinkingMax = colorOrDefault(fgColors.thinkingMax, fgColors.thinkingXhigh);
+		colors.searchMatchText = colorOrDefault(fgColors.searchMatchText, fgColors.text);
+		for (const key of Object.keys(colors)) {
+			this.fgColors.set(key as ThemeColor, fgAnsi(colors[key], mode));
 		}
 		this.bgColors = new Map();
-		const backgrounds = {
-			...bgColors,
-			scrollbarThumb: bgColors.scrollbarThumb ?? bgColors.selectedBg,
-			searchMatchBg: bgColors.searchMatchBg ?? bgColors.selectedBg,
-		};
-		for (const [key, value] of Object.entries(backgrounds) as [ThemeBg, string | number][]) {
-			this.bgColors.set(key, bgAnsi(value, mode));
+		const backgrounds = copyThemeRecord(bgColors);
+		backgrounds.scrollbarThumb = colorOrDefault(bgColors.scrollbarThumb, bgColors.selectedBg);
+		backgrounds.searchMatchBg = colorOrDefault(bgColors.searchMatchBg, bgColors.selectedBg);
+		for (const key of Object.keys(backgrounds)) {
+			this.bgColors.set(key as ThemeBg, bgAnsi(backgrounds[key], mode));
 		}
+	}
+
+	copyStateFrom(other: Theme): void {
+		const self = this as unknown as {
+			name?: string;
+			sourcePath?: string;
+			sourceInfo?: SourceInfo;
+			fgColors: Map<ThemeColor, string>;
+			bgColors: Map<ThemeBg, string>;
+			mode: ColorMode;
+		};
+		self.name = other.name;
+		self.sourcePath = other.sourcePath;
+		self.sourceInfo = other.sourceInfo;
+		self.fgColors = other.fgColors;
+		self.bgColors = other.bgColors;
+		self.mode = other.mode;
 	}
 
 	fg(color: ThemeColor, text: string): string {
@@ -554,7 +588,9 @@ function assertThemeNameIsValid(name: string): void {
 
 function parseThemeJson(label: string, json: unknown): ThemeJson {
 	if (!validateThemeJson.Check(json)) {
-		const errors = Array.from(validateThemeJson.Errors(json));
+		const errors: { keyword: string; instancePath: string; message: string; params?: unknown }[] = [];
+	// PiValidationError 结构按 keyword/instancePath/message 读取
+		for (const error of validateThemeJson.Errors(json)) errors.push(error);
 		const missingColors = new Set<string>();
 		const otherErrors: string[] = [];
 
@@ -574,8 +610,10 @@ function parseThemeJson(label: string, json: unknown): ThemeJson {
 		let errorMessage = `Invalid theme "${label}":\n`;
 		if (missingColors.size > 0) {
 			errorMessage += "\nMissing required color tokens:\n";
-			errorMessage += Array.from(missingColors)
-				.sort()
+			const missingList: string[] = [];
+			for (const color of missingColors) missingList.push(color);
+			missingList.sort();
+			errorMessage += missingList
 				.map((color) => `  - ${color}`)
 				.join("\n");
 			errorMessage += '\n\nPlease add these colors to your theme\'s "colors" object.';
@@ -628,8 +666,8 @@ function loadThemeJson(name: string): ThemeJson {
 function createTheme(themeJson: ThemeJson, mode?: ColorMode, sourcePath?: string): Theme {
 	const colorMode = mode ?? (getCapabilities().trueColor ? "truecolor" : "256color");
 	const resolvedColors = resolveThemeColors(withThemeColorFallbacks(themeJson.colors), themeJson.vars);
-	const fgColors: Record<ThemeColor, string | number> = {} as Record<ThemeColor, string | number>;
-	const bgColors: Record<ThemeBg, string | number> = {} as Record<ThemeBg, string | number>;
+	const fgColors: Record<string, string | number> = {};
+	const bgColors: Record<string, string | number> = {};
 	const bgColorKeys: Set<string> = new Set([
 		"selectedBg",
 		"scrollbarThumb",
@@ -642,9 +680,9 @@ function createTheme(themeJson: ThemeJson, mode?: ColorMode, sourcePath?: string
 	]);
 	for (const [key, value] of Object.entries(resolvedColors)) {
 		if (bgColorKeys.has(key)) {
-			bgColors[key as ThemeBg] = value;
+			bgColors[key] = value;
 		} else {
-			fgColors[key as ThemeColor] = value;
+			fgColors[key] = value;
 		}
 	}
 	return new Theme(fgColors, bgColors, colorMode, {
@@ -821,7 +859,7 @@ export async function detectTerminalThemeForAuto({
 	const backgroundThemePromise = detectTerminalBackgroundTheme({ ui, timeoutMs, env });
 
 	try {
-		const colorScheme = await colorSchemePromise;
+		const colorScheme = colorSchemePromise !== undefined ? await colorSchemePromise : undefined;
 		if (colorScheme) return colorScheme;
 	} catch {
 		// Fall back to the concurrently queried OSC 11 / COLORFGBG detection.
@@ -843,17 +881,12 @@ const THEME_KEY_OLD = Symbol.for("@mariozechner/pi-coding-agent:theme");
 
 // Export theme as a getter that reads from globalThis
 // This ensures all module instances (tsx, jiti) see the same theme
-export const theme: Theme = new Proxy({} as Theme, {
-	get(_target, prop) {
-		const t = (globalThis as Record<symbol, Theme>)[THEME_KEY];
-		if (!t) throw new Error("Theme not initialized. Call initTheme() first.");
-		return (t as unknown as Record<string | symbol, unknown>)[prop];
-	},
-});
+const themeHolder: Theme = new Theme({}, {}, "256color");
+
+export const theme: Theme = themeHolder;
 
 function setGlobalTheme(t: Theme): void {
-	(globalThis as Record<symbol, Theme>)[THEME_KEY] = t;
-	(globalThis as Record<symbol, Theme>)[THEME_KEY_OLD] = t;
+	themeHolder.copyStateFrom(t);
 }
 
 let currentThemeName: string | undefined;
@@ -1046,13 +1079,13 @@ function ansi256ToHex(index: number): string {
 		const r = Math.floor(cubeIndex / 36);
 		const g = Math.floor((cubeIndex % 36) / 6);
 		const b = cubeIndex % 6;
-		const toHex = (n: number) => (n === 0 ? 0 : 55 + n * 40).toString(16).padStart(2, "0");
+		const toHex = (n: number) => numberToHex(n === 0 ? 0 : 55 + n * 40).padStart(2, "0");
 		return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 	}
 
 	// Grayscale (232-255): 24 shades
 	const gray = 8 + (index - 232) * 10;
-	const grayHex = gray.toString(16).padStart(2, "0");
+	const grayHex = numberToHex(gray).padStart(2, "0");
 	return `#${grayHex}${grayHex}${grayHex}`;
 }
 
