@@ -43,6 +43,21 @@ export type {
  * Run in RPC mode.
  * Listens for JSON commands on stdin, outputs events and responses on stdout.
  */
+function success(
+	id: string | undefined,
+	command: string,
+	data?: object | null,
+): RpcResponse {
+	if (data === undefined) {
+		return { id, type: "response", command, success: true } as RpcResponse;
+	}
+	return { id, type: "response", command, success: true, data } as RpcResponse;
+}
+
+function error(id: string | undefined, command: string, message: string): RpcResponse {
+	return { id, type: "response", command, success: false, error: message };
+}
+
 export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<never> {
 	takeOverStdout();
 	let session = runtimeHost.session;
@@ -51,21 +66,6 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 
 	const output = (obj: RpcResponse | RpcExtensionUIRequest | object) => {
 		writeRawStdout(serializeJsonLine(obj));
-	};
-
-	const success = <T extends RpcCommand["type"]>(
-		id: string | undefined,
-		command: T,
-		data?: object | null,
-	): RpcResponse => {
-		if (data === undefined) {
-			return { id, type: "response", command, success: true } as RpcResponse;
-		}
-		return { id, type: "response", command, success: true, data } as RpcResponse;
-	};
-
-	const error = (id: string | undefined, command: string, message: string): RpcResponse => {
-		return { id, type: "response", command, success: false, error: message };
 	};
 
 	let shuttingDown = false;

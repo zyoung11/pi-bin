@@ -301,6 +301,12 @@ function estimateMessagesTokens(messages: AgentMessage[]): number {
 // AgentSession Class
 // ============================================================================
 
+/** Minimal abort-controller surface (the lib AbortController class itself is not statically mappable). */
+export interface AbortControllerLike {
+	readonly signal: AbortSignal;
+	abort(reason?: unknown): void;
+}
+
 export class AgentSession {
 	readonly agent: Agent;
 	readonly sessionManager: SessionManager;
@@ -325,15 +331,15 @@ export class AgentSession {
 	private _pendingCustomMessages: CustomMessage[] = [];
 
 	// Compaction state
-	private _compactionAbortController: AbortController | null = null;
-	private _autoCompactionAbortController: AbortController | null = null;
+	private _compactionAbortController: AbortControllerLike | null = null;
+	private _autoCompactionAbortController: AbortControllerLike | null = null;
 	private _overflowRecoveryAttempted = false;
 
 	// Branch summarization state
-	private _branchSummaryAbortController: AbortController | null = null;
+	private _branchSummaryAbortController: AbortControllerLike | null = null;
 
 	// Retry state
-	private _retryAbortController: AbortController | null = null;
+	private _retryAbortController: AbortControllerLike | null = null;
 	private _retryAttempt = 0;
 
 	// Bash execution state
