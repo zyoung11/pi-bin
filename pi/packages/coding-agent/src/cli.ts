@@ -8,6 +8,8 @@
 import { APP_NAME } from "./config.ts";
 import { configureHttpDispatcher } from "./core/http-dispatcher.ts";
 import { main } from "./main.ts";
+import { probeHolder } from "./scratch-probe.ts";
+void probeHolder;
 
 process.title = APP_NAME;
 process.env.PI_CODING_AGENT = "true";

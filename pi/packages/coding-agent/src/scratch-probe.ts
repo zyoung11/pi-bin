@@ -1,14 +1,46 @@
-import type { FileError, Result } from "../../agent/src/harness/types.ts";
+class AbortControllerList2 {
+	private items: AbortController[] = [];
 
-export function p21(v: FileError[]): string {
-	return v.length.toString();
+	add(c: AbortController): void {
+		this.items.push(c as AbortController);
+	}
+
+	abortAll(): void {
+		for (const item of this.items) (item as AbortController).abort();
+		this.items.length = 0;
+	}
+
+	count(): number {
+		return this.items.length;
+	}
 }
-export function p22(v: Result<string, FileError>[]): string {
-	return v.length.toString();
+
+class ReadonlyHolder {
+	private readonly items: unknown[] = [];
+
+	add(c: AbortController): void {
+		this.items.push(c as AbortController);
+	}
+
+	count(): number {
+		return this.items.length;
+	}
 }
-export function p23(v: Result<string, never>[]): string {
-	return v.length.toString();
+
+class Holder {
+	private list: AbortControllerList2 = new AbortControllerList2();
+
+	use(c: AbortController): void {
+		this.list.add(c);
+	}
+
+	probe(): string {
+		return `count=${String(this.list.count())}`;
+	}
 }
-export function p24(v: { ok: false; error: FileError }[]): string {
-	return v.length.toString();
+
+export function probeHolder(): string {
+	const h = new Holder();
+	h.use(new AbortController());
+	return h.probe();
 }
