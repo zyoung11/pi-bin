@@ -216,7 +216,7 @@ export interface TokenizerExtension {
 
 export interface MarkedExtension {
 	extensions?: TokenizerExtension[];
-	tokenizer?: unknown;
+	tokenizer?: Tokenizer;
 	[key: string]: unknown;
 }
 
@@ -426,8 +426,8 @@ class InlineLexer {
 				position += htmlMatch[0].length;
 				continue;
 			}
-			const brMatch = /[ \t]{2,}\n|^ {2,}\n/.exec(rest);
-			if (brMatch && brMatch.index === 0) {
+			const brMatch = /^[ \t]{2,}\n|^ {2,}\n/.exec(rest);
+			if (brMatch && rest.startsWith(brMatch[0])) {
 				flushPlain();
 				tokens.push({ type: "br", raw: brMatch[0] });
 				position += brMatch[0].length;
@@ -802,7 +802,7 @@ export class Marked {
 		if (extension.extensions) {
 			this.extensions = this.extensions.concat(extension.extensions);
 		}
-		if (extension.tokenizer) this.customTokenizer = extension.tokenizer as Tokenizer;
+		if (extension.tokenizer) this.customTokenizer = extension.tokenizer as unknown as Tokenizer;
 		return this;
 	}
 

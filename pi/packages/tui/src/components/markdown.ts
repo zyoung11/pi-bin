@@ -1,4 +1,4 @@
-import { Marked, type Token, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
+import { Marked, type Token, type TokensBlockquote, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
@@ -126,7 +126,10 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 		level: "block",
 		start(source) {
 			const match = /(?:^|\n) {0,3}(?:\$\$|\\\[)/.exec(source);
-			return match ? match.index + (match[0].startsWith("\n") ? 1 : 0) : undefined;
+			if (!match) return undefined;
+			const newlineOffset = match[0].startsWith("\n") ? 1 : 0;
+			const matchStart = source.indexOf(match[0]);
+			return matchStart + newlineOffset;
 		},
 		tokenizer: tokenizeBlockLatex,
 	},
@@ -145,17 +148,19 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 
 function trimPartialClosingFences(tokens: readonly Token[]): void {
 	const token = tokens[tokens.length - 1];
-	if (token?.type === "list") {
+	if (token === undefined) return;
+	if (token.type === "list") {
 		const listToken = token as Tokens.List;
 		const lastItem = listToken.items[listToken.items.length - 1];
 		trimPartialClosingFences(lastItem?.tokens ?? []);
 		return;
 	}
-	if (token?.type === "blockquote") {
-		trimPartialClosingFences(token.tokens ?? []);
+	if (token.type === "blockquote") {
+		const blockquoteToken = token as TokensBlockquote;
+		trimPartialClosingFences(blockquoteToken.tokens ?? []);
 		return;
 	}
-	if (token?.type !== "code") {
+	if (token.type !== "code") {
 		return;
 	}
 
@@ -167,8 +172,9 @@ function trimPartialClosingFences(tokens: readonly Token[]): void {
 		return;
 	}
 
-	if (token.text !== undefined) {
-		token.text = token.text.slice(0, -lastLine.length).replace(/\n$/, "");
+	const textView = token as unknown as { text?: string };
+	if (textView.text !== undefined) {
+		textView.text = textView.text.slice(0, -lastLine.length).replace(/\n$/, "");
 	}
 }
 
@@ -312,7 +318,9 @@ export class Markdown extends Component {
 		for (let i = 0; i < tokens.length; i++) {
 			const token = tokens[i];
 			const nextToken = tokens[i + 1];
-			const tokenLines = this.renderToken(token, contentWidth, nextToken?.type);
+			let nextTokenType: string | undefined;
+			if (nextToken !== undefined) nextTokenType = nextToken.type;
+			const tokenLines = this.renderToken(token, contentWidth, nextTokenType);
 			for (const tokenLine of tokenLines) {
 				renderedLines.push(tokenLine);
 			}
@@ -587,8 +595,10 @@ export class Markdown extends Component {
 				for (let i = 0; i < quoteTokens.length; i++) {
 					const quoteToken = quoteTokens[i];
 					const nextQuoteToken = quoteTokens[i + 1];
+					let nextQuoteTokenType: string | undefined;
+					if (nextQuoteToken !== undefined) nextQuoteTokenType = nextQuoteToken.type;
 					renderedQuoteLines.push(
-						...this.renderToken(quoteToken, quoteContentWidth, nextQuoteToken?.type, quoteInlineStyleContext),
+						...this.renderToken(quoteToken, quoteContentWidth, nextQuoteTokenType, quoteInlineStyleContext),
 					);
 				}
 
@@ -631,7 +641,7 @@ export class Markdown extends Component {
 
 			default:
 				// Handle any other token types as plain text
-				const genericText = (token as TokensGeneric).text;
+				const genericText = (token as unknown as TokensText).text;
 				if (typeof genericText === "string") {
 					lines.push(genericText);
 				}
@@ -735,7 +745,7 @@ export class Markdown extends Component {
 
 				default:
 					// Handle any other inline token types as plain text
-					const genericText = (token as TokensGeneric).text;
+					const genericText = (token as unknown as TokensText).text;
 						if (typeof genericText === "string") {
 							result += applyTextWithNewlines(genericText);
 						}
