@@ -13,6 +13,7 @@ import {
 	type Model,
 	type ModelAuth,
 	type OAuthAuth,
+	type OAuthCredential,
 	type OAuthCredentials,
 	type OAuthLoginCallbacks,
 	type Provider,
@@ -80,10 +81,38 @@ export type AuthStatus = {
 
 export const clearApiKeyCache = clearConfigValueCache;
 
-function copyCompatRecord(source: Record<string, unknown>): Record<string, unknown> {
+function copyCompatRecord(source: unknown): Record<string, unknown> {
 	const target: Record<string, unknown> = {};
-	for (const key of Object.keys(source)) target[key] = source[key];
+	if (typeof source !== "object" || source === null) return target;
+	const record = source as Record<string, unknown>;
+	for (const key of Object.keys(record)) target[key] = record[key];
 	return target;
+}
+
+function mergeStringRecords(
+	...records: Array<Record<string, string | null | undefined> | undefined>
+): Record<string, string> {
+	const merged: Record<string, string> = {};
+	for (const record of records) {
+		if (!record) continue;
+		for (const key of Object.keys(record)) {
+			const value = record[key];
+			if (value === null || value === undefined) continue;
+			merged[key] = value;
+		}
+	}
+	return merged;
+}
+
+function mergeUnknownRecords(
+	...records: Array<Record<string, unknown> | undefined>
+): Record<string, unknown> {
+	const merged: Record<string, unknown> = {};
+	for (const record of records) {
+		if (!record) continue;
+		for (const key of Object.keys(record)) merged[key] = record[key];
+	}
+	return merged;
 }
 
 function mergeCompat(
@@ -91,9 +120,9 @@ function mergeCompat(
 	override: Model<Api>["compat"] | ModelsJsonModelOverride["compat"],
 ): Model<Api>["compat"] {
 	if (!override) return base;
-	const baseRecord: Record<string, unknown> = (base ?? {}) as unknown as Record<string, unknown>;
-	const overrideRecord: Record<string, unknown> = override as unknown as Record<string, unknown>;
-	const merged = copyCompatRecord(baseRecord);
+	const baseRecord: Record<string, unknown> = copyCompatRecord(base);
+	const overrideRecord: Record<string, unknown> = copyCompatRecord(override);
+	const merged: Record<string, unknown> = copyCompatRecord(baseRecord);
 	for (const key of Object.keys(overrideRecord)) merged[key] = overrideRecord[key];
 	const nestedKeys = ["openRouterRouting", "vercelGatewayRouting", "chatTemplateKwargs", "chatTemplateArgs"];
 	for (const key of nestedKeys) {
@@ -111,7 +140,7 @@ function mergeCompat(
 		}
 		merged[key] = mergedNested;
 	}
-	return merged as unknown as NonNullable<Model<Api>["compat"]>;
+	return merged as NonNullable<Model<Api>["compat"]>;
 }
 
 function applyModelOverride(model: Model<Api>, override: ModelsJsonModelOverride): Model<Api> {
@@ -135,7 +164,7 @@ function applyModelOverride(model: Model<Api>, override: ModelsJsonModelOverride
 		contextWindow: override.contextWindow ?? model.contextWindow,
 		maxTokens: override.maxTokens ?? model.maxTokens,
 		samplingParams: override.samplingParams
-			? { ...model.samplingParams, ...override.samplingParams }
+			? mergeUnknownRecords(model.samplingParams, override.samplingParams)
 			: model.samplingParams,
 		compat: mergeCompat(model.compat, override.compat),
 	};
@@ -188,7 +217,7 @@ function applyModelsJson(
 	if (config.oauth && !config.baseUrl) {
 		throw new Error(`Provider ${providerId}: "baseUrl" is required when "oauth" is set.`);
 	}
-	const hasOverrides = config.modelOverrides && Object.keys(config.modelOverrides).length > 0;
+	const hasOverrides = config.modelOverrides !== undefined && Object.keys(config.modelOverrides).length > 0;
 	if (
 		!config.models?.length &&
 		!config.baseUrl &&
@@ -284,11 +313,26 @@ function adaptOAuth(config: ExtensionOAuthConfig): OAuthAuth {
 					}),
 				signal: callbacks.signal,
 			});
-			return { ...credential, type: "oauth" };
+			return toOAuthCredential(credential);
 		},
-		refresh: async (credential, signal) => ({ ...(await config.refreshToken(credential, signal)), type: "oauth" }),
+		refresh: async (credential, signal) => toOAuthCredential(await config.refreshToken(credential, signal)),
 		toAuth: async (credential) => ({ apiKey: config.getApiKey(credential) }),
 	};
+}
+
+function toOAuthCredential(source: OAuthCredentials): OAuthCredential {
+	const converted: OAuthCredential = {
+		refresh: source.refresh,
+		access: source.access,
+		expires: source.expires,
+		type: "oauth",
+	};
+	const reserved = ["type", "refresh", "access", "expires"];
+	for (const key of Object.keys(source)) {
+		if (reserved.includes(key)) continue;
+		converted[key] = source[key];
+	}
+	return converted;
 }
 
 function withConfiguredAuth(
@@ -296,11 +340,23 @@ function withConfiguredAuth(
 	headers: Record<string, string> | undefined,
 	authHeader: boolean,
 ): ModelAuth {
-	let mergedHeaders: ProviderHeaders | undefined =
-		auth.headers || headers ? { ...auth.headers, ...headers } : undefined;
+	let mergedHeaders: ProviderHeaders | undefined;
+	if (auth.headers || headers) {
+		mergedHeaders = {};
+		if (auth.headers) {
+			for (const key of Object.keys(auth.headers)) {
+				const value = auth.headers[key];
+				if (value !== null && value !== undefined) mergedHeaders[key] = value;
+			}
+		}
+		if (headers) {
+			for (const key of Object.keys(headers)) mergedHeaders[key] = headers[key];
+		}
+	}
 	if (authHeader) {
 		if (!auth.apiKey) throw new Error("authHeader requires a resolved API key");
-		mergedHeaders = { ...mergedHeaders, Authorization: `Bearer ${auth.apiKey}` };
+		if (!mergedHeaders) mergedHeaders = {};
+		mergedHeaders.Authorization = `Bearer ${auth.apiKey}`;
 	}
 	return { ...auth, headers: mergedHeaders };
 }
@@ -317,7 +373,17 @@ function configuredHeaders(
 	extension: ProviderConfigInput | undefined,
 ): Record<string, string> | undefined {
 	if (!config?.headers && !extension?.headers) return undefined;
-	return { ...config?.headers, ...extension?.headers };
+	const merged: Record<string, string> = {};
+	if (config?.headers) {
+		for (const key of Object.keys(config.headers)) {
+			const value = config.headers[key];
+			if (value !== null && value !== undefined) merged[key] = value;
+		}
+	}
+	if (extension?.headers) {
+		for (const key of Object.keys(extension.headers)) merged[key] = extension.headers[key];
+	}
+	return merged;
 }
 
 async function configContextEnv(
@@ -325,11 +391,19 @@ async function configContextEnv(
 	ctx: AuthContext,
 	explicit?: Record<string, string>,
 ): Promise<Record<string, string> | undefined> {
-	const env = { ...explicit };
-	for (const name of new Set(values.flatMap(getConfigValueEnvVarNames))) {
-		if (env[name] !== undefined) continue;
-		const value = await ctx.env(name);
-		if (value !== undefined) env[name] = value;
+	const env: Record<string, string> = {};
+	if (explicit) {
+		for (const key of Object.keys(explicit)) env[key] = explicit[key];
+	}
+	const seen = new Set<string>();
+	for (const value of values) {
+		for (const name of getConfigValueEnvVarNames(value)) {
+			if (seen.has(name)) continue;
+			seen.add(name);
+			if (env[name] !== undefined) continue;
+			const resolved = await ctx.env(name);
+			if (resolved !== undefined) env[name] = resolved;
+		}
 	}
 	return Object.keys(env).length > 0 ? env : undefined;
 }
@@ -342,16 +416,20 @@ function composeApiKeyAuth(
 ): ApiKeyAuth | undefined {
 	const inherited = base?.auth.apiKey;
 	const rawKey = configuredApiKey(config, extension);
-	const oauth = extension?.oauth ?? base?.auth.oauth;
+	const hasOAuth = extension?.oauth !== undefined || base?.auth.oauth !== undefined;
 	// OAuth-only providers get no fabricated API-key login method.
-	if (!inherited && rawKey === undefined && oauth) return undefined;
+	if (!inherited && rawKey === undefined && hasOAuth) return undefined;
 	const rawHeaders = configuredHeaders(config, extension);
-	const composedLogin: ((interaction: ProviderAuthInteraction) => Promise<ApiKeyCredential>) | undefined =
-		inherited?.login ??
-		(async (interaction: ProviderAuthInteraction) => ({
-			type: "api_key",
-			key: await interaction.prompt({ type: "secret", message: "Enter API key" }),
-		}));
+		let composedLogin: ((interaction: ProviderAuthInteraction) => Promise<ApiKeyCredential>) | undefined;
+		if (inherited?.login) {
+			const inheritedLogin = inherited.login;
+			composedLogin = (interaction: ProviderAuthInteraction) => inheritedLogin(interaction);
+		} else {
+			composedLogin = async (interaction: ProviderAuthInteraction) => ({
+				type: "api_key",
+				key: await interaction.prompt({ type: "secret", message: "Enter API key" }),
+			});
+		}
 	const authHeader = extension?.authHeader ?? config?.authHeader ?? false;
 	return {
 		name: inherited?.name ?? "API key",
@@ -395,8 +473,19 @@ function composeApiKeyAuth(
 				result = await inherited?.resolve(input);
 			}
 			if (!result) return undefined;
-			const explicitEnv = { ...(input.credential?.env ?? {}), ...(result.env ?? {}) };
-			const headerEnv = await configContextEnv(Object.values(rawHeaders ?? {}), input.ctx, explicitEnv);
+			const credentialEnv = input.credential?.env;
+			const explicitEnv = mergeStringRecords(
+				credentialEnv as Record<string, string> | undefined,
+				result.env as Record<string, string> | undefined,
+			);
+			const headerValues: string[] = [];
+			if (rawHeaders) {
+				for (const headerKey of Object.keys(rawHeaders)) {
+					const headerValue = rawHeaders[headerKey];
+					if (headerValue !== null && headerValue !== undefined) headerValues.push(headerValue);
+				}
+			}
+			const headerEnv = await configContextEnv(headerValues, input.ctx, explicitEnv);
 			const headers = resolveHeadersOrThrow(rawHeaders, `provider "${providerId}"`, headerEnv);
 			return { ...result, auth: withConfiguredAuth(result.auth, headers, authHeader) };
 		},
@@ -435,11 +524,18 @@ function rawModelHeaders(
 ): Record<string, string> | undefined {
 	const definition = config?.models?.find((entry) => entry.id === model.id);
 	const extensionModel = extension?.models?.find((entry) => entry.id === model.id);
-	const headers = {
-		...config?.modelOverrides?.[model.id]?.headers,
-		...definition?.headers,
-		...extensionModel?.headers,
-	};
+	const modelOverrides = config?.modelOverrides;
+	const overrideHeaders = modelOverrides !== undefined ? modelOverrides[model.id]?.headers : undefined;
+	const headers: Record<string, string> = {};
+	if (overrideHeaders) {
+		for (const key of Object.keys(overrideHeaders)) headers[key] = overrideHeaders[key];
+	}
+	if (definition?.headers) {
+		for (const key of Object.keys(definition.headers)) headers[key] = definition.headers[key];
+	}
+	if (extensionModel?.headers) {
+		for (const key of Object.keys(extensionModel.headers)) headers[key] = extensionModel.headers[key];
+	}
 	return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
