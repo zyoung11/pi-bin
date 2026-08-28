@@ -1,4 +1,3 @@
-import type OpenAI from "openai";
 import type {
 	ChatCompletionAssistantMessageParam,
 	ChatCompletionChunk,
@@ -161,6 +160,11 @@ function isOpenAIReasoningDetail(detail: unknown): detail is OpenAIReasoningDeta
 	}
 }
 
+type ChatCompletionTool =
+	| { type: "function"; function: { name: string; description?: string; parameters?: Record<string, unknown> } }
+	| { type: "custom"; custom: { name: string; description?: string; format?: Record<string, unknown> } };
+type ChatCompletionCreateParams = Record<string, unknown>;
+
 export interface OpenAICompletionsOptions extends StreamOptions {
 	toolChoice?: "auto" | "none" | "required" | { type: "function"; function: { name: string } };
 	reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -193,7 +197,7 @@ type ChatCompletionInstructionMessageParam = ChatCompletionDeveloperMessageParam
 
 type KimiToolSystemMessageParam = {
 	role: "system";
-	tools: OpenAI.Chat.Completions.ChatCompletionTool[];
+	tools: ChatCompletionTool[];
 };
 
 type OpenAIReasoningDetailBase = Record<string, JsonValue> & {
@@ -290,7 +294,7 @@ type ChatCompletionTextPartWithCacheControl = ChatCompletionContentPartText & {
 	cache_control?: OpenAICompatCacheControl;
 };
 
-type ChatCompletionToolWithCacheControl = OpenAI.Chat.Completions.ChatCompletionTool & {
+type ChatCompletionToolWithCacheControl = ChatCompletionTool & {
 	cache_control?: OpenAICompatCacheControl;
 };
 
@@ -352,7 +356,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 			let params = buildParams(model, context, options, compat, cacheRetention, grammarToolInputProperties);
 			const nextParams = await options?.onPayload?.(params, model);
 			if (nextParams !== undefined) {
-				params = nextParams as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming;
+				params = nextParams as ChatCompletionCreateParams;
 			}
 			const { response, processChunks } = await retryProviderRequest(
 				() =>
@@ -802,7 +806,7 @@ function buildParams(
 	const messages = convertMessages(model, context, compat, { grammarToolInputProperties });
 	const cacheControl = getCompatCacheControl(compat, cacheRetention);
 
-	const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
+	const params: ChatCompletionCreateParams = {
 		model: model.id,
 		messages,
 		stream: true,
@@ -848,7 +852,7 @@ function buildParams(
 	}
 
 	if (cacheControl) {
-		applyAnthropicCacheControl(messages, params.tools, cacheControl);
+		applyAnthropicCacheControl(messages, params.tools as ChatCompletionTool[] | undefined, cacheControl);
 	}
 
 	if (options?.toolChoice) {
@@ -1069,7 +1073,7 @@ function getCompatCacheControl(
 
 function applyAnthropicCacheControl(
 	messages: ChatCompletionMessageParam[],
-	tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined,
+	tools: ChatCompletionTool[] | undefined,
 	cacheControl: OpenAICompatCacheControl,
 ): void {
 	addCacheControlToSystemPrompt(messages, cacheControl);
@@ -1104,7 +1108,7 @@ function addCacheControlToLastConversationMessage(
 }
 
 function addCacheControlToLastTool(
-	tools: OpenAI.Chat.Completions.ChatCompletionTool[] | undefined,
+	tools: ChatCompletionTool[] | undefined,
 	cacheControl: OpenAICompatCacheControl,
 ): void {
 	if (!tools || tools.length === 0) {
@@ -1466,8 +1470,8 @@ function convertMessages(
 function convertTools(
 	tools: Tool[],
 	compat: ResolvedOpenAICompletionsCompat,
-): OpenAI.Chat.Completions.ChatCompletionTool[] {
-	return tools.map((tool) => {
+): ChatCompletionTool[] {
+	return tools.map((tool): ChatCompletionTool => {
 		const grammar = resolveGrammarConstrainedSampling(tool, compat.supportsOpenAIGrammarTools);
 		if (grammar) {
 			return {
@@ -1543,7 +1547,7 @@ function parseChunkUsage(
 	return usage;
 }
 
-function mapStopReason(reason: ChatCompletionChunk.Choice["finish_reason"] | string): {
+function mapStopReason(reason: string): {
 	stopReason: StopReason;
 	errorMessage?: string;
 } {
