@@ -353,7 +353,6 @@ export class AgentSession {
 	private _initialActiveToolNames?: string[];
 	private _allowedToolNames?: string[];
 	private _excludedToolNames?: string[];
-	private _baseToolsOverride?: Record<string, AgentTool>;
 
 	private _modelRuntime: ModelRuntime;
 
@@ -380,7 +379,6 @@ export class AgentSession {
 		this._initialActiveToolNames = config.initialActiveToolNames;
 		this._allowedToolNames = config.allowedToolNames ? [...config.allowedToolNames] : undefined;
 		this._excludedToolNames = config.excludedToolNames ? [...config.excludedToolNames] : undefined;
-		this._baseToolsOverride = config.baseToolsOverride;
 
 		// Always subscribe to agent events for internal handling
 		// (session persistence, auto-compaction, retry logic)
@@ -2070,25 +2068,16 @@ export class AgentSession {
 		const autoResizeImages = this.settingsManager.getImageAutoResize();
 		const shellCommandPrefix = this.settingsManager.getShellCommandPrefix();
 		const shellPath = this.settingsManager.getShellPath();
-		const baseToolDefinitions = this._baseToolsOverride
-			? Object.fromEntries(
-					Object.entries(this._baseToolsOverride).map(([name, tool]) => [
-						name,
-						createToolDefinitionFromAgentTool(tool),
-					]),
-				)
-			: createAllToolDefinitions(this._cwd, {
-					read: { autoResizeImages, modelProvider: () => this.model },
-					bash: { commandPrefix: shellCommandPrefix, shellPath, sessionEnvProvider: () => this._sessionEnvironment() },
-				});
+		const baseToolDefinitions = createAllToolDefinitions(this._cwd, {
+				read: { autoResizeImages, modelProvider: () => this.model },
+				bash: { commandPrefix: shellCommandPrefix, shellPath, sessionEnvProvider: () => this._sessionEnvironment() },
+			});
 
 		this._baseToolDefinitions = new Map(
 			Object.entries(baseToolDefinitions).map(([name, tool]) => [name, tool as ToolDefinition]),
 		);
 
-		const defaultActiveToolNames = this._baseToolsOverride
-			? Object.keys(this._baseToolsOverride)
-			: ["read", "bash", "edit", "write"];
+		const defaultActiveToolNames = ["read", "bash", "edit", "write"];
 		const baseActiveToolNames = options.activeToolNames ?? defaultActiveToolNames;
 		this._refreshToolRegistry({ activeToolNames: baseActiveToolNames });
 	}
