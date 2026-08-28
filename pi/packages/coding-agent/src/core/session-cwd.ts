@@ -6,10 +6,9 @@ export interface SessionCwdIssue {
 	fallbackCwd: string;
 }
 
-interface SessionCwdSource {
-	getCwd(): string;
-	getSessionFile(): string | undefined;
-}
+import type { SessionManager } from "./session-manager.ts";
+
+type SessionCwdSource = SessionManager;
 
 export function getMissingSessionCwdIssue(
 	sessionManager: SessionCwdSource,
