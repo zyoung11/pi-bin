@@ -26,7 +26,7 @@ export abstract class Component {
 	 * Set by TUI when focus changes (see Focusable). Components emit the hardware
 	 * cursor marker in their render output when focused.
 	 */
-	private _baseFocused: boolean = false;
+	_baseFocused: boolean = false;
 
 	get focused(): boolean {
 		return this._baseFocused;

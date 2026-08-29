@@ -4698,6 +4698,20 @@ export class Lowerer {
    * and answers null when no pointed story applies (the generic message
    * stands). */
   describeRecordWidthBlocker(fromId: string, toId: string): string | null {
+    if (process.env.SC_DEBUG_WIDTH) {
+      const dbgFrom = this.shapes.get(fromId);
+      const dbgTo = this.shapes.get(toId);
+      if (dbgFrom && dbgTo) {
+        for (const tf of dbgTo.fields) {
+          const ff = dbgFrom.fields.find((f) => f.name === tf.name);
+          if (!ff) {
+            console.error(`SCDBG width: '${tf.name}' MISSING on source (type ${this.fmt(tf.type)})`);
+          } else if (this.widthLiftPlan(ff.type, tf.type) === null) {
+            console.error(`SCDBG width: field '${tf.name}': '${this.fmt(ff.type)}' does not lift into '${this.fmt(tf.type)}'`);
+          }
+        }
+      }
+    }
     const from = this.shapes.get(fromId);
     const to = this.shapes.get(toId);
     if (!from || !to) return null;

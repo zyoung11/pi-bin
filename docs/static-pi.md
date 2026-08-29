@@ -84,6 +84,13 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十七轮补充：record 墙根因定位工具落地
+
+- **编译器插桩**：lowerer.ts 的 `describeRecordWidthBlocker` 新增 `SC_DEBUG_WIDTH=1` 门控探针——对每个失败的 record width-coerce 逐字段打印：目标字段 MISSING on source / 字段 lift 失败（from→to 类型）。compiler dist 已重建
+- **关键发现**（SCDBG 输出）：①settings-selector 等的 record：目标字段 `truncatedBy/totalLines/maxBytes/...` MISSING on source——字面量未携带全部可选字段；②**selector 墙群**：`field 'component'/'focus': 'm85.Component' does not lift into 'mXXX.SelectorComponent'`——showSelector 的 create 回调返回 `{component: Component; focus: Component}` 注解与各调用处返回的具体组件类的 width-lift 不匹配——方向是**基类字段值→子类字段声明**（组件的 options/内部 record 的 focus 字段声明为具体类）③`'m85.Component' does not lift into 'm85.Container'`——record 字段槽的类→基类 lift 失败（疑 private 成员阻断，_baseFocused 已改 public 仍未解，需继续查 Container shape）
+- **TuiForwarder→TUI 返回墙仍剩 1 个**：TuiForwarder 现为纯方法类仍 SC2002——待用 SCDBG width 输出定位具体失败字段（上面②③类的字段匹配问题同样适用）
+- 下轮：按 SCDBG 输出逐 record 修（selector options/focus 字段改 Component；VStack 调用字面量显式注解；EditorOptions 字段级排查）
+
 ## 阶段 5 grind 第二十七轮记录（进行中：400→442 揭幕，结构性根因 1 已拆、2/3 大幅推进）
 
 - **根因 1 已拆：new Proxy→TuiForwarder 类**：implements TUI，34 成员逐一转发 getTui()（含 getter 转发字段 mode/children/terminal/wantsKeyRelease/onDebug→后改方法转发）；类型导入补齐（TuiStopOptions/TuiInputListener/RgbColor/TerminalColorScheme from terminal-colors.ts）
