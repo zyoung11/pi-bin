@@ -4710,11 +4710,19 @@ export class Lowerer {
             console.error(`SCDBG width: field '${tf.name}': '${this.fmt(ff.type)}' does not lift into '${this.fmt(tf.type)}'`);
           }
         }
+        const fromNames = dbgFrom.fields.map((f) => f.name).sort().join(",");
+        const toNames = dbgTo.fields.map((f) => f.name).sort().join(",");
+        console.error(`SCDBG width-shapes: from=[${fromNames}] to=[${toNames}]`);
       }
     }
     const from = this.shapes.get(fromId);
     const to = this.shapes.get(toId);
-    if (!from || !to) return null;
+    if (!from || !to) {
+      if (process.env.SC_DEBUG_WIDTH) {
+        console.error(`SCDBG width: shape lookup FAILED from=${fromId} to=${toId}`);
+      }
+      return null;
+    }
     if (to.indexValue) {
       // The overflow CAPTURE's gates (lowerRecordOvfCaptureHelper).
       if (from.tuple || to.tuple) return "a tuple cannot reshape into an index-signature record";

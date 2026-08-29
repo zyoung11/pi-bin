@@ -422,142 +422,46 @@ type AutocompleteProviderFactory = (current: AutocompleteProvider) => Autocomple
 type EditorFactory = (tui: TUI, theme: ReturnType<typeof getEditorTheme>, keybindings: KeybindingsManager) => Editor;
 
 /** Stable reference for components while InteractiveMode replaces the active renderer. */
-class TuiForwarder implements TUI {
-	private readonly getTui: () => TUI;
-
-	constructor(getTui: () => TUI) {
-		this.getTui = getTui;
-	}
-
-	getMode(): TuiMode {
-		return this.getTui().getMode();
-	}
-
-	getTerminal(): ProcessTerminal {
-		return this.getTui().getTerminal();
-	}
-
-	setOnDebug(handler: (() => void) | undefined): void {
-		this.getTui().setOnDebug(handler);
-	}
-
-	render(width: number): string[] {
-		return this.getTui().render(width);
-	}
-
-	handleInput(data: string): void {
-		this.getTui().handleInput(data);
-	}
-
-	invalidate(): void {
-		this.getTui().invalidate();
-	}
-
-	addChild(component: Component): void {
-		this.getTui().addChild(component);
-	}
-
-	removeChild(component: Component): void {
-		this.getTui().removeChild(component);
-	}
-
-	clear(): void {
-		this.getTui().clear();
-	}
-
-	getShowHardwareCursor(): boolean {
-		return this.getTui().getShowHardwareCursor();
-	}
-
-	setShowHardwareCursor(enabled: boolean): void {
-		this.getTui().setShowHardwareCursor(enabled);
-	}
-
-	getClearOnShrink(): boolean {
-		return this.getTui().getClearOnShrink();
-	}
-
-	setClearOnShrink(enabled: boolean): void {
-		this.getTui().setClearOnShrink(enabled);
-	}
-
-	setFocus(component: Component | null): void {
-		this.getTui().setFocus(component);
-	}
-
-	showOverlay(component: Component, options?: OverlayOptions): OverlayHandle {
-		return this.getTui().showOverlay(component, options);
-	}
-
-	hideOverlay(): void {
-		this.getTui().hideOverlay();
-	}
-
-	hasOverlay(): boolean {
-		return this.getTui().hasOverlay();
-	}
-
-	start(): void {
-		this.getTui().start();
-	}
-
-	stop(): void {
-		this.getTui().stop();
-	}
-
-	stopWithOptions(options: TuiStopOptions): void {
-		this.getTui().stopWithOptions(options);
-	}
-
-	renderNow(): void {
-		this.getTui().renderNow();
-	}
-
-	renderNowForce(force: boolean): void {
-		this.getTui().renderNowForce(force);
-	}
-
-	requestRender(): void {
-		this.getTui().requestRender();
-	}
-
-	requestRenderForce(force: boolean): void {
-		this.getTui().requestRenderForce(force);
-	}
-
-	addInputListener(listener: TuiInputListener): () => void {
-		return this.getTui().addInputListener(listener);
-	}
-
-	removeInputListener(listener: TuiInputListener): void {
-		this.getTui().removeInputListener(listener);
-	}
-
-	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void {
-		return this.getTui().onTerminalColorSchemeChange(listener);
-	}
-
-	setTerminalColorSchemeNotifications(enabled: boolean): void {
-		this.getTui().setTerminalColorSchemeNotifications(enabled);
-	}
-
-	queryTerminalBackgroundColor(options: { timeoutMs: number }): Promise<RgbColor | undefined> {
-		return this.getTui().queryTerminalBackgroundColor(options);
-	}
-
-	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined> {
-		return this.getTui().queryTerminalColorScheme(options);
-	}
-}
-
-export function createInteractiveTuiReference(getTui: () => TUI): TuiForwarder {
-	return new TuiForwarder(getTui);
+export function createInteractiveTuiReference(getTui: () => TUI): TUI {
+	const self = { getTui };
+	return {
+		getMode: () => self.getTui().getMode(),
+		getTerminal: () => self.getTui().getTerminal(),
+		setOnDebug: (handler) => self.getTui().setOnDebug(handler),
+		render: (width) => self.getTui().render(width),
+		handleInput: (data) => self.getTui().handleInput(data),
+		invalidate: () => self.getTui().invalidate(),
+		addChild: (component) => self.getTui().addChild(component),
+		removeChild: (component) => self.getTui().removeChild(component),
+		clear: () => self.getTui().clear(),
+		getShowHardwareCursor: () => self.getTui().getShowHardwareCursor(),
+		setShowHardwareCursor: (enabled) => self.getTui().setShowHardwareCursor(enabled),
+		getClearOnShrink: () => self.getTui().getClearOnShrink(),
+		setClearOnShrink: (enabled) => self.getTui().setClearOnShrink(enabled),
+		setFocus: (component) => self.getTui().setFocus(component),
+		showOverlay: (component, options) => self.getTui().showOverlay(component, options),
+		hideOverlay: () => self.getTui().hideOverlay(),
+		hasOverlay: () => self.getTui().hasOverlay(),
+		start: () => self.getTui().start(),
+		stop: () => self.getTui().stop(),
+		stopWithOptions: (options) => self.getTui().stopWithOptions(options),
+		renderNow: () => self.getTui().renderNow(),
+		renderNowForce: (force) => self.getTui().renderNowForce(force),
+		requestRender: () => self.getTui().requestRender(),
+		requestRenderForce: (force) => self.getTui().requestRenderForce(force),
+		addInputListener: (listener) => self.getTui().addInputListener(listener),
+		removeInputListener: (listener) => self.getTui().removeInputListener(listener),
+		onTerminalColorSchemeChange: (listener) => self.getTui().onTerminalColorSchemeChange(listener),
+		setTerminalColorSchemeNotifications: (enabled) => self.getTui().setTerminalColorSchemeNotifications(enabled),
+		queryTerminalBackgroundColor: (options) => self.getTui().queryTerminalBackgroundColor(options),
+		queryTerminalColorScheme: (options) => self.getTui().queryTerminalColorScheme(options),
+	};
 }
 
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiBase;
-	private ui: TuiForwarder;
+	private ui: TUI;
 	private mainScreenRenderState: TuiMainScreenRenderState | undefined;
 	private loadedResourcesContainer: Container;
 	private chatContainer: Container;
@@ -4536,7 +4440,7 @@ export class InteractiveMode {
 					},
 				},
 			);
-			return { component: selector, focus: selector.getSettingsList() };
+			return { component: selector as Component, focus: selector.getSettingsList() as Component };
 		});
 	}
 
@@ -4585,7 +4489,7 @@ export class InteractiveMode {
 				(level) => selectLevel(level, true),
 				this.settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL,
 			);
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -4734,7 +4638,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 			});
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -4771,7 +4675,7 @@ export class InteractiveMode {
 				(model) => selectModel(model, true),
 				defaultProvider && defaultModel ? { provider: defaultProvider, id: defaultModel } : undefined,
 			);
-			return { component: selector, focus: selector, dispose: () => selector.dispose() };
+			return { component: selector as Component, focus: selector as Component, dispose: () => selector.dispose() };
 		});
 	}
 
@@ -4931,7 +4835,7 @@ export class InteractiveMode {
 				},
 				initialSelectedId,
 			);
-			return { component: selector, focus: selector.getMessageList() };
+			return { component: selector as Component, focus: selector.getMessageList() as Component };
 		});
 	}
 
@@ -5093,7 +4997,7 @@ export class InteractiveMode {
 					this.showError(error instanceof Error ? error.message : String(error));
 				}
 			};
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -5131,7 +5035,7 @@ export class InteractiveMode {
 
 				this.sessionManager.getSessionFile(),
 			);
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -5310,7 +5214,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 			);
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -5353,7 +5257,7 @@ export class InteractiveMode {
 				},
 				initialSearchInput,
 			);
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -5413,7 +5317,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 			);
-			return { component: selector, focus: selector };
+			return { component: selector as Component, focus: selector as Component };
 		});
 	}
 
@@ -6145,7 +6049,7 @@ export class InteractiveMode {
 			`Total lines: ${allLines.length}`,
 			"",
 			"=== All rendered lines with visible widths ===",
-			...allLines.map((line, idx) => {
+			...allLines.map((line: string, idx: number) => {
 				const vw = visibleWidth(line);
 				const escaped = JSON.stringify(line);
 				return `[${idx}] (w=${vw}) ${escaped}`;

@@ -91,6 +91,14 @@
 - **TuiForwarder→TUI 返回墙仍剩 1 个**：TuiForwarder 现为纯方法类仍 SC2002——待用 SCDBG width 输出定位具体失败字段（上面②③类的字段匹配问题同样适用）
 - 下轮：按 SCDBG 输出逐 record 修（selector options/focus 字段改 Component；VStack 调用字面量显式注解；EditorOptions 字段级排查）
 
+## 阶段 5 grind 第二十八轮记录（进行中：442→414，interactive-mode 95→67，结构性根因全部拆除）
+
+- **根因 3 彻底拆除：TuiForwarder 类删除→createInteractiveTuiReference 返回字面量 record**（29 个箭头函数字段逐一转发 self.getTui()，闭包捕获 self 实现动态转发）——类实例（classval）→接口 record 槽确认是 scriptc 死墙（SC2002 无 detail = requireExactShape 的 classval/record kind 不匹配），而**字面量 record→接口 width-coerce 可行**（函数值字段 lift ✓）——这是本会话最重要的架构发现：稳定引用用字面量 record 而非类实现
+- **根因 2 彻底拆除：selector 墙群**——showSelector 的 create 回调注解 focus/component: Component 与各调用处子类实例的 lift 不匹配→全部调用处加 `as Component` cast（10 处）；机制确认：子类→基类字段 lift 在组件含不可映射成员时失败，cast 路径绕过
+- **探针验证**：子类→基类 record 字段槽在简单类上可行（probe29），复杂组件失败源于不可映射成员
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r28-ok）
+- **总账 442→414，interactive-mode 95→67**；剩余全部为机械叶子（splice/parseInt/process 事件面/record 形状零星）
+
 ## 阶段 5 grind 第二十七轮记录（进行中：400→442 揭幕，结构性根因 1 已拆、2/3 大幅推进）
 
 - **根因 1 已拆：new Proxy→TuiForwarder 类**：implements TUI，34 成员逐一转发 getTui()（含 getter 转发字段 mode/children/terminal/wantsKeyRelease/onDebug→后改方法转发）；类型导入补齐（TuiStopOptions/TuiInputListener/RgbColor/TerminalColorScheme from terminal-colors.ts）
