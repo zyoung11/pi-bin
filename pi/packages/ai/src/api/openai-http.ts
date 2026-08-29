@@ -4,6 +4,7 @@
  * the retry-layer-compatible error fields (status + Headers) pi relies on.
  */
 
+import { ProviderHttpError } from "../utils/provider-retry.ts";
 import type { JsonValue, ProviderHeaders } from "../types.ts";
 
 export type ChatCompletionChunkUsage = {
@@ -60,16 +61,7 @@ function buildHeaders(apiKey: string | undefined, headers: ProviderHeaders | und
 	return out;
 }
 
-class HttpError extends Error {
-	status?: number;
-
-	constructor(message: string) {
-		super(message);
-		this.name = "HttpError";
-	}
-}
-
-function toHttpError(response: Response): Promise<HttpError> {
+function toHttpError(response: Response): Promise<ProviderHttpError> {
 	return response.text().then((bodyText) => {
 		let parsed: unknown;
 		try {
@@ -88,8 +80,11 @@ function toHttpError(response: Response): Promise<HttpError> {
 		} else {
 			message = bodyText.slice(0, 200) || `HTTP ${response.status}`;
 		}
-		const error = new HttpError(message);
+		const error = new ProviderHttpError(message);
 		error.status = response.status;
+		error.shouldRetry = response.headers.get("x-should-retry") ?? undefined;
+		error.retryAfterMs = response.headers.get("retry-after-ms") ?? undefined;
+		error.retryAfter = response.headers.get("retry-after") ?? undefined;
 		return error;
 	});
 }
