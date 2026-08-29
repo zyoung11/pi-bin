@@ -4,8 +4,35 @@
  * the retry-layer-compatible error fields (status + Headers) pi relies on.
  */
 
-import type { ChatCompletionChunk } from "openai/resources/chat/completions.js";
-import type { ProviderHeaders } from "../types.ts";
+import type { JsonValue, ProviderHeaders } from "../types.ts";
+
+export type ChatCompletionChunkUsage = {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	cached_tokens?: number;
+	prompt_cache_hit_tokens?: number;
+	prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
+	completion_tokens_details?: { reasoning_tokens?: number };
+};
+
+export type ChatCompletionChunkDelta = {
+	content?: string | null;
+	tool_calls?: JsonValue;
+	reasoning_details?: JsonValue;
+};
+
+export type ChatCompletionChunkChoice = {
+	finish_reason?: string;
+	delta?: ChatCompletionChunkDelta;
+	usage?: ChatCompletionChunkUsage;
+};
+
+export type ChatCompletionChunk = {
+	id?: string;
+	model?: string;
+	usage?: ChatCompletionChunkUsage;
+	choices?: ChatCompletionChunkChoice[];
+};
 
 export interface OpenAIHttpOptions {
 	url: string;
@@ -33,7 +60,16 @@ function buildHeaders(apiKey: string | undefined, headers: ProviderHeaders | und
 	return out;
 }
 
-function toHttpError(response: Response): Promise<Error> {
+class HttpError extends Error {
+	status?: number;
+
+	constructor(message: string) {
+		super(message);
+		this.name = "HttpError";
+	}
+}
+
+function toHttpError(response: Response): Promise<HttpError> {
 	return response.text().then((bodyText) => {
 		let parsed: unknown;
 		try {
@@ -52,17 +88,30 @@ function toHttpError(response: Response): Promise<Error> {
 		} else {
 			message = bodyText.slice(0, 200) || `HTTP ${response.status}`;
 		}
-		const error = new Error(message) as Error & { status?: number };
+		const error = new HttpError(message);
 		error.status = response.status;
 		return error;
 	});
+}
+
+function incompleteUtf8TailLength(bytes: Uint8Array): number {
+	for (let back = 1; back <= 3 && back <= bytes.length; back++) {
+		const b = bytes[bytes.length - back];
+		if (b === undefined) return 0;
+		if (b >= 0xc0) {
+			const expected = b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : 2;
+			return back < expected ? back : 0;
+		}
+		if ((b & 0xc0) !== 0x80) return 0;
+	}
+	return 0;
 }
 
 export async function streamOpenAIChatCompletions(
 	options: OpenAIHttpOptions,
 	onChunk: (chunk: ChatCompletionChunk) => Promise<void>,
 ): Promise<void> {
-	const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+	const customFetch = options.fetchImpl;
 	const headers = buildHeaders(options.apiKey, options.headers);
 	const controller = new AbortController();
 	let timedOut = false;
@@ -85,12 +134,22 @@ export async function streamOpenAIChatCompletions(
 	}
 
 	try {
-		const response = await fetchImpl(options.url, {
-			method: "POST",
-			headers,
-			body: JSON.stringify(options.body),
-			signal: controller.signal,
-		});
+		let response: Response;
+		if (customFetch !== undefined) {
+			response = await customFetch(options.url, {
+				method: "POST",
+				headers,
+				body: JSON.stringify(options.body),
+				signal: controller.signal,
+			});
+		} else {
+			response = await fetch(options.url, {
+				method: "POST",
+				headers,
+				body: JSON.stringify(options.body),
+				signal: controller.signal,
+			});
+		}
 		if (!response.ok) {
 			throw await toHttpError(response);
 		}
@@ -102,12 +161,28 @@ export async function streamOpenAIChatCompletions(
 			const decoder = new TextDecoder("utf-8");
 			let buffer = "";
 			let dataLines: string[] = [];
+			let pendingBytes: Uint8Array | undefined;
 
 			while (true) {
 				const readResult = await reader.read();
-				buffer += readResult.done
-					? decoder.decode()
-					: decoder.decode(readResult.value, { stream: true });
+				if (readResult.done) {
+					if (pendingBytes !== undefined && pendingBytes.length > 0) {
+						buffer += decoder.decode(pendingBytes);
+					}
+					buffer += decoder.decode();
+				} else {
+					let chunk: Uint8Array = readResult.value;
+					if (pendingBytes !== undefined && pendingBytes.length > 0) {
+						const merged = new Uint8Array(pendingBytes.length + chunk.length);
+						merged.set(pendingBytes, 0);
+						merged.set(chunk, pendingBytes.length);
+						chunk = merged;
+					}
+					const tailLength = incompleteUtf8TailLength(chunk);
+					pendingBytes = tailLength > 0 ? chunk.slice(chunk.length - tailLength) : undefined;
+					const safeBytes = tailLength > 0 ? chunk.slice(0, chunk.length - tailLength) : chunk;
+					buffer += decoder.decode(safeBytes);
+				}
 
 				let newlineIndex = buffer.indexOf("\n");
 				while (newlineIndex !== -1) {
@@ -149,7 +224,6 @@ export async function streamOpenAIChatCompletions(
 		await readAndProcessChunks();
 	} catch (error) {
 		if (timeoutId !== undefined) clearTimeout(timeoutId);
-		options.signal?.removeEventListener("abort", onUserAbort);
 		throw error;
 	}
 }
