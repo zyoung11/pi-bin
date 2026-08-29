@@ -9,6 +9,12 @@ import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { formatKeyText, keyHint } from "./keybinding-hints.ts";
 
+/** Read the content field off a message union via an unknown parameter. */
+function messageContentOf(message: unknown): unknown {
+	const record = message as unknown as Record<string, unknown>;
+	return record["content"];
+}
+
 /** Gutter info: position (displayIndent where connector was) and whether to show │ */
 interface GutterInfo {
 	position: number; // displayIndent level where the connector was shown
@@ -393,9 +399,10 @@ class TreeList extends Component {
 		if (this.foldedNodes.size > 0) {
 			const skipSet = new Set<string>();
 			for (const flatNode of this.flatNodes) {
-				const { id, parentId } = flatNode.node.entry;
+				const entryId = flatNode.node.entry.id;
+				const parentId = flatNode.node.entry.parentId;
 				if (parentId != null && (this.foldedNodes.has(parentId) || skipSet.has(parentId))) {
-					skipSet.add(id);
+					skipSet.add(entryId);
 				}
 			}
 			this.filteredNodes = this.filteredNodes.filter((flatNode) => !skipSet.has(flatNode.node.entry.id));
@@ -564,7 +571,7 @@ class TreeList extends Component {
 				const msg = entry.message;
 				parts.push(msg.role);
 				if ("content" in msg && msg.content) {
-					parts.push(this.extractContent(msg.content));
+					parts.push(this.extractContent(messageContentOf(msg)));
 				}
 				if (msg.role === "bashExecution") {
 					const bashMsg = msg as { command?: string };
@@ -803,13 +810,7 @@ class TreeList extends Component {
 				break;
 			}
 			case "custom_message": {
-				const content =
-					typeof entry.content === "string"
-						? entry.content
-						: entry.content
-								.filter((c): c is { type: "text"; text: string } => c.type === "text")
-								.map((c) => c.text)
-								.join("");
+				const content = this.extractFullContent(entry.content);
 				result = theme.fg("customMessageLabel", `[${entry.customType}]: `) + normalize(content);
 				break;
 			}
@@ -896,7 +897,7 @@ class TreeList extends Component {
 				if (entry.message.role === "bashExecution") {
 					text = entry.message.command;
 				} else if ("content" in entry.message) {
-					text = this.extractFullContent(entry.message.content);
+					text = this.extractFullContent(messageContentOf(entry.message));
 					if (!text && entry.message.role === "assistant") {
 						text = entry.message.errorMessage;
 					}
@@ -1018,7 +1019,8 @@ class TreeList extends Component {
 		} else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selected = this.filteredNodes[this.selectedIndex];
 			if (selected && this.onSelect) {
-				this.onSelect(selected.node.entry.id);
+				const onSelect = this.onSelect;
+				onSelect(selected.node.entry.id);
 			}
 		} else if (kb.matches(keyData, "app.message.copy")) {
 			this.copySelected();
@@ -1078,7 +1080,8 @@ class TreeList extends Component {
 		} else if (kb.matches(keyData, "app.tree.editLabel")) {
 			const selected = this.filteredNodes[this.selectedIndex];
 			if (selected && this.onLabelEdit) {
-				this.onLabelEdit(selected.node.entry.id, selected.node.label);
+				const onLabelEdit = this.onLabelEdit;
+				onLabelEdit(selected.node.entry.id, selected.node.label);
 			}
 		} else if (kb.matches(keyData, "app.tree.toggleLabelTimestamp")) {
 			this.showLabelTimestamps = !this.showLabelTimestamps;
@@ -1360,7 +1363,10 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.treeList = new TreeList(tree, currentLeafId, maxVisibleLines, initialSelectedId, initialFilterMode);
 		this.treeList.onSelect = onSelect;
 		this.treeList.onCancel = onCancel;
-		this.treeList.onCopy = (text) => this.onCopy?.(text);
+		this.treeList.onCopy = (text) => {
+			const onCopy = this.onCopy;
+			if (onCopy) onCopy(text);
+		};
 		this.treeList.onLabelEdit = (entryId, currentLabel) => this.showLabelInput(entryId, currentLabel);
 
 		this.treeContainer = new Container();

@@ -78,6 +78,13 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十六轮记录（进行中：287→275，editor/tree-selector 全清）
+
+- **editor.ts 8→0**：paste 内 CSI-u 解码循环与 paste marker 重编号循环的 RegExpExecArray.index → segment 切片 + lastIndex 累加模式；`.replace(string, "")` → split/join；jumpToChar 的 lastIndexOf(fromIndex)/混合三元 → indexOf + charCodeAt 反向手写扫描；shouldTriggerFileCompletion 可选方法调用 → 提升局部变量
+- **tree-selector.ts 8→0**：union 解构 → 逐字段读；msg.content/entry.content 联合读 → messageContentOf unknown 参数 helper（extractFullContent 本就收 unknown）；filter 谓词 → for-of；onSelect/onLabelEdit/onCopy 可选方法调用 → 提升局部变量
+- **下轮台账**：provider-composer(8，OAuth/stream 泛型)、footer-data-provider(8，fs.watchFile/unwatchFile/execFile/git 轮询子系统集成性改造)、config(8)、session.ts(8，SessionStorage 泛型接口方法去泛型化)、word-navigation(7)、package-manager-cli(7)、migrations(7)、sdk(7)、model-runtime(7，prepareRequest Omit 级联)、auth-storage(5，withLockAsync 多调用点闭包返回形状统一，需编译器级调查)
+- **验证**：tsgo src 清零；MiniCPM5-1B print 真跑 OK（OK-r36）
+
 ## 阶段 5 grind 第三十五轮记录（进行中：309→287，auth/model-runtime 簇深水区）
 
 - **child-process 类型体系重构（-6，拆除顽固墙）**：`ChildProcessHandle` 从手写接口改为 `type ChildProcessHandle = ChildProcess`（node 原生类型）——spawnProcess 返回值不再 as unknown as 双跳；ChildProcessStream 接口删除；package-manager/session-share/child-process 的 `child.stdout as ...` cast 全部直呼（stdout.on("data") 原生可映射）

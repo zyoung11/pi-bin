@@ -651,7 +651,7 @@ export class Editor extends Component implements Focusable {
 		if (data.includes("\x1b[200~")) {
 			this.isInPaste = true;
 			this.pasteBuffer = "";
-			data = data.replace("\x1b[200~", "");
+			data = data.split("\x1b[200~").join("");
 		}
 
 		if (this.isInPaste) {
@@ -1207,15 +1207,18 @@ export class Editor extends Component implements Focusable {
 		let decodedText = "";
 		const ctrlRegex = /\x1b\[(\d+);5u/g;
 		let lastIndex = 0;
-		let ctrlMatch = ctrlRegex.exec(pastedText);
+		let segment = pastedText;
+		let ctrlMatch = ctrlRegex.exec(segment);
 		while (ctrlMatch !== null) {
-			decodedText += pastedText.slice(lastIndex, ctrlMatch.index);
+			const matchStart = lastIndex + ctrlMatch.index;
+			decodedText += pastedText.slice(lastIndex, matchStart);
 			const cp = parseDecimalInt(ctrlMatch[1] ?? "") ?? 0;
 			if (cp >= 97 && cp <= 122) decodedText += String.fromCharCode(cp - 96);
 			else if (cp >= 65 && cp <= 90) decodedText += String.fromCharCode(cp - 64);
 			else decodedText += ctrlMatch[0];
-			lastIndex = ctrlMatch.index + ctrlMatch[0].length;
-			ctrlMatch = ctrlRegex.exec(pastedText);
+			lastIndex = matchStart + ctrlMatch[0].length;
+			segment = pastedText.slice(lastIndex);
+			ctrlMatch = ctrlRegex.exec(segment);
 		}
 		decodedText += pastedText.slice(lastIndex);
 
@@ -1365,13 +1368,16 @@ export class Editor extends Component implements Focusable {
 					let lineOut = "";
 					let scanIndex = 0;
 					const markerRegex = new RegExp("\\[paste #(\\d+)( (\\+\\d+ lines|\\d+ chars))?\\]", "g");
-					let markerMatch = markerRegex.exec(line);
+					let segment = line;
+					let markerMatch = markerRegex.exec(segment);
 					while (markerMatch !== null) {
+						const matchStart = scanIndex + markerMatch.index;
 						const x = parseDecimalInt(markerMatch[1]) ?? 0;
 						const replacement = x <= targetId ? markerMatch[0] : `[paste #${x - 1}${markerMatch[2] ?? ""}]`;
-						lineOut += line.slice(scanIndex, markerMatch.index) + replacement;
-						scanIndex = markerMatch.index + markerMatch[0].length;
-						markerMatch = markerRegex.exec(line);
+						lineOut += line.slice(scanIndex, matchStart) + replacement;
+						scanIndex = matchStart + markerMatch[0].length;
+						segment = line.slice(scanIndex);
+						markerMatch = markerRegex.exec(segment);
 					}
 					lineOut += line.slice(scanIndex);
 					renumbered.push(lineOut);
@@ -2136,7 +2142,19 @@ export class Editor extends Component implements Focusable {
 					: this.state.cursorCol - 1
 				: undefined;
 
-			const idx = isForward ? line.indexOf(char, searchFrom) : line.lastIndexOf(char, searchFrom);
+			let idx = -1;
+			if (isForward) {
+				idx = searchFrom !== undefined ? line.indexOf(char, searchFrom) : line.indexOf(char);
+			} else {
+				const target = char.charCodeAt(0);
+				const start = searchFrom !== undefined ? searchFrom : line.length - 1;
+				for (let i = start; i >= 0; i--) {
+					if (line.charCodeAt(i) === target) {
+						idx = i;
+						break;
+					}
+				}
+			}
 
 			if (idx !== -1) {
 				this.state.cursorLine = lineIdx;
@@ -2252,13 +2270,12 @@ export class Editor extends Component implements Focusable {
 		if (!this.autocompleteProvider) return;
 
 		if (options.force) {
-			const shouldTrigger =
-				!this.autocompleteProvider.shouldTriggerFileCompletion ||
-				this.autocompleteProvider.shouldTriggerFileCompletion(
-					this.state.lines,
-					this.state.cursorLine,
-					this.state.cursorCol,
-				);
+			const shouldTriggerFn = this.autocompleteProvider.shouldTriggerFileCompletion;
+			const shouldTrigger = shouldTriggerFn === undefined || shouldTriggerFn(
+				this.state.lines,
+				this.state.cursorLine,
+				this.state.cursorCol,
+			);
 			if (!shouldTrigger) {
 				return;
 			}
