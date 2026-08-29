@@ -219,8 +219,9 @@ export class SelectList extends Component {
 
 	private notifySelectionChange(): void {
 		const selectedItem = this.filteredItems[this.selectedIndex];
-		if (selectedItem && this.onSelectionChange) {
-			this.onSelectionChange(selectedItem);
+		const onSelectionChange = this.onSelectionChange;
+		if (selectedItem && onSelectionChange !== undefined) {
+			onSelectionChange(selectedItem);
 		}
 	}
 

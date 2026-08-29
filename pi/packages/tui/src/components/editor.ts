@@ -468,7 +468,8 @@ export class Editor extends Component implements Focusable {
 				this.preferredVisualCol = null;
 				this.snappedFromCursorCol = null;
 				this.scrollOffset = 0;
-				if (this.onChange) this.onChange(this.getText());
+				const changeHandler = this.onChange;
+				if (changeHandler !== undefined) changeHandler(this.getText());
 			} else {
 				this.setTextInternal("");
 			}
@@ -491,8 +492,9 @@ export class Editor extends Component implements Focusable {
 		// Reset scroll - render() will adjust to show cursor
 		this.scrollOffset = 0;
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -710,7 +712,8 @@ export class Editor extends Component implements Focusable {
 					this.state.cursorLine = result.cursorLine;
 					this.setCursorCol(result.cursorCol);
 					this.cancelAutocomplete();
-					if (this.onChange) this.onChange(this.getText());
+					const changeHandler = this.onChange;
+				if (changeHandler !== undefined) changeHandler(this.getText());
 				}
 				return;
 			}
@@ -736,7 +739,8 @@ export class Editor extends Component implements Focusable {
 						// Fall through to submit
 					} else {
 						this.cancelAutocomplete();
-						if (this.onChange) this.onChange(this.getText());
+						const changeHandler = this.onChange;
+				if (changeHandler !== undefined) changeHandler(this.getText());
 						return;
 					}
 				}
@@ -1120,8 +1124,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol((insertedLines[insertedLines.length - 1] || "").length);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1149,8 +1154,9 @@ export class Editor extends Component implements Focusable {
 		this.state.lines[this.state.cursorLine] = before + char + after;
 		this.setCursorCol(this.state.cursorCol + char.length);
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 
 		// Check if we should trigger or update autocomplete
@@ -1274,8 +1280,9 @@ export class Editor extends Component implements Focusable {
 		this.state.cursorLine++;
 		this.setCursorCol(0);
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1369,8 +1376,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol(previousLine.length);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 
 		// Update or re-trigger autocomplete after backspace
@@ -1581,8 +1589,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol(previousLine.length);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1613,8 +1622,9 @@ export class Editor extends Component implements Focusable {
 			this.state.lines.splice(this.state.cursorLine + 1, 1);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1658,8 +1668,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol(deleteFrom);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1700,8 +1711,9 @@ export class Editor extends Component implements Focusable {
 				currentLine.slice(0, this.state.cursorCol) + currentLine.slice(deleteTo);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -1734,8 +1746,9 @@ export class Editor extends Component implements Focusable {
 			this.state.lines.splice(this.state.cursorLine + 1, 1);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 
 		// Update or re-trigger autocomplete after forward delete
@@ -1995,8 +2008,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol((lines[lines.length - 1] || "").length);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -2037,8 +2051,9 @@ export class Editor extends Component implements Focusable {
 			this.setCursorCol(startCol);
 		}
 
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 
@@ -2055,8 +2070,9 @@ export class Editor extends Component implements Focusable {
 		this.pasteCounter = snapshot.pasteCounter;
 		this.lastAction = null;
 		this.preferredVisualCol = null;
-		if (this.onChange) {
-			this.onChange(this.getText());
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) {
+			changeHandler(this.getText());
 		}
 	}
 

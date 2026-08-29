@@ -108,7 +108,7 @@ class TreeList extends Component {
 	private showLabelTimestamps = false;
 	private activePathIds: Set<string> = new Set();
 	private visibleParentMap: Map<string, string | null> = new Map();
-	private visibleChildrenMap: Map<string | null, string[]> = new Map();
+	private visibleChildrenMap: Map<string, string[]> = new Map();
 	private lastSelectedId: string | null = null;
 	private foldedNodes: Set<string> = new Set();
 
@@ -205,7 +205,7 @@ class TreeList extends Component {
 
 		// Determine which subtrees contain the active leaf (to sort current branch first)
 		// Use iterative post-order traversal to avoid stack overflow
-		const containsActive = new Map<SessionTreeNode, boolean>();
+		const containsActive = new Map<string, boolean>();
 		const leafId = this.currentLeafId;
 		{
 			// Build list in pre-order, then process in reverse for post-order effect
@@ -224,18 +224,18 @@ class TreeList extends Component {
 				const node = allNodes[i];
 				let has = leafId !== null && node.entry.id === leafId;
 				for (const child of node.children) {
-					if (containsActive.get(child)) {
+					if (containsActive.get(child.entry.id) === true) {
 						has = true;
 					}
 				}
-				containsActive.set(node, has);
+				containsActive.set(node.entry.id, has);
 			}
 		}
 
 		// Add roots in reverse order, prioritizing the one containing the active leaf
 		// If multiple roots, treat them as children of a virtual root that branches
 		const multipleRoots = roots.length > 1;
-		const orderedRoots = [...roots].sort((a, b) => Number(containsActive.get(b)) - Number(containsActive.get(a)));
+		const orderedRoots = [...roots].sort((a, b) => Number(containsActive.get(b.entry.id) === true) - Number(containsActive.get(a.entry.id) === true));
 		for (let i = orderedRoots.length - 1; i >= 0; i--) {
 			const isLast = i === orderedRoots.length - 1;
 			stack.push([orderedRoots[i], multipleRoots ? 1 : 0, multipleRoots, multipleRoots, isLast, [], multipleRoots]);
@@ -268,7 +268,7 @@ class TreeList extends Component {
 				const prioritized: SessionTreeNode[] = [];
 				const rest: SessionTreeNode[] = [];
 				for (const child of children) {
-					if (containsActive.get(child)) {
+					if (containsActive.get(child.entry.id) === true) {
 						prioritized.push(child);
 					} else {
 						rest.push(child);
@@ -451,22 +451,23 @@ class TreeList extends Component {
 		// - visibleParent: nodeId → nearest visible ancestor (or null for roots)
 		// - visibleChildren: parentId → list of visible children (in filteredNodes order)
 		const visibleParent = new Map<string, string | null>();
-		const visibleChildren = new Map<string | null, string[]>();
-		visibleChildren.set(null, []); // root-level nodes
+		const visibleChildren = new Map<string, string[]>();
+		visibleChildren.set("", []); // root-level nodes
 
 		for (const flatNode of this.filteredNodes) {
 			const nodeId = flatNode.node.entry.id;
 			const ancestorId = findVisibleAncestor(nodeId);
 			visibleParent.set(nodeId, ancestorId);
+			const ancestorKey = ancestorId ?? "";
 
-			if (!visibleChildren.has(ancestorId)) {
-				visibleChildren.set(ancestorId, []);
+			if (!visibleChildren.has(ancestorKey)) {
+				visibleChildren.set(ancestorKey, []);
 			}
-			visibleChildren.get(ancestorId)!.push(nodeId);
+			visibleChildren.get(ancestorKey)?.push(nodeId);
 		}
 
 		// Update multipleRoots based on visible roots
-		const visibleRootIds = visibleChildren.get(null)!;
+		const visibleRootIds = visibleChildren.get("")!;
 		this.multipleRoots = visibleRootIds.length > 1;
 
 		// Build a map for quick lookup: nodeId → FlatNode

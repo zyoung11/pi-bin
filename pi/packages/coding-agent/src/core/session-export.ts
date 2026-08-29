@@ -7,7 +7,7 @@ import { CURRENT_SESSION_VERSION, type SessionHeader, type SessionManager } from
 export function exportSessionToJsonl(
 	sessionManager: SessionManager,
 	outputPath?: string,
-	createTrailingEntries?: (parentId: string | null, timestamp: string) => readonly object[],
+	createTrailingEntries?: (parentId: string | null, timestamp: string) => readonly Record<string, unknown>[],
 ): string {
 	const filePath = resolvePath(
 		outputPath ?? `session-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`,

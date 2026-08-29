@@ -84,6 +84,19 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十四轮记录（进行中：466→399，洋葱揭幕继续）
+
+- **armin(28→0)**：全文件重写——effectState 的精确形状 cast（Record→{pos}）改 bracket 读写 + typeof；rain 状态展平为 dropsY/dropsSettled 两个 number[]（unknown 槽数组读出后 cast number[]）；Array.from({length}, fn)→循环；glitch 的 map 回调 union→for-if-push 循环；shuffledPositions 提取模块级
+- **settings-selector(13→2)**：splice(start, 0, item) 3 参插入×11→insertAt helper（push+后移循环）
+- **select-list(3→0)/editor.ts onChange(4→0)**：可选函数字段调用→提升局部变量（onSelect/onCancel/onSelectionChange/onChange）
+- **bordered-loader(1→0)**：AbortController 类字段→适配器 record
+- **session-export.ts**：createTrailingEntries 返回 readonly object[]→readonly Record<string, unknown>[]（object 类型不可映射）
+- **session-share(25→4)**：new URL 2 参→字符串拼接；spawn→3 参字面量 stdio + Buffer→Uint8Array 监听 + exit 事件（close 不支持）；proc 判空后取 stdout/stderr；trailingEntries 政为注解 Record 变量中转
+- **tool-execution(9→1)**：ToolExecutionComponent any 字段全清（rendererState/args/details→unknown/Record，ToolDefinition<any,any>→默认参数）；renderContainer union→Box 统一类型；renderResult 参数经 unknown 中转 cast
+- **tree-selector(8→5)**：Map<SessionTreeNode, boolean>→Map<string, boolean>（entry.id 为键）；visibleChildren Map 键 null→"" 哨兵
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK
+- **总账 466→399**；剩余顽固点：①session-share 177 ChildProcessStream 接口在全图中的 SC2003（独立构建 0，疑重载/图上下文）②tool-execution 301 checked cast③tree-selector 5 个④interactive-mode 自身约 100 个
+
 ## 阶段 5 grind 第二十三轮记录（进行中：360→466 揭幕深水区，tui index 导入全仓迁移完成）
 
 - **重大发现：tui/index.ts re-export 产生双重类身份**。components/*.ts（tool-execution 等）仍从 tui/index.ts 导入，而 interactive-mode 已直连——同一 Component/Container/Box 类在编译图中存在两套模块身份（m80/m192/m97/m270…），跨身份赋值/构造全部被拒。这就是 interactive-mode 及其组件链大量 SC2002/m8x 诊断的统一根因

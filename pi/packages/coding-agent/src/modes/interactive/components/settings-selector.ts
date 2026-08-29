@@ -43,6 +43,14 @@ const DEFAULT_PROJECT_TRUST_BY_LABEL = new Map(
 	Object.entries(DEFAULT_PROJECT_TRUST_LABELS).map(([value, label]) => [label, value as DefaultProjectTrust]),
 );
 
+function insertAt<T>(items: T[], index: number, item: T): void {
+	items.push(item);
+	for (let i = items.length - 1; i > index; i--) {
+		items[i] = items[i - 1];
+	}
+	items[index] = item;
+}
+
 export interface SettingsConfig {
 	autoCompact: boolean;
 	defaultModel: string;
@@ -691,14 +699,14 @@ export class SettingsSelectorComponent extends Container {
 		// Only show image toggle if terminal supports it
 		if (supportsImages) {
 			// Insert after autocompact
-			items.splice(1, 0, {
+			insertAt(items, 1, {
 				id: "show-images",
 				label: "Show images",
 				description: "Render images inline in terminal",
 				currentValue: config.showImages ? "true" : "false",
 				values: ["true", "false"],
 			});
-			items.splice(2, 0, {
+			insertAt(items, 2, {
 				id: "image-width-cells",
 				label: "Image width",
 				description: "Preferred inline image width in terminal cells",
@@ -708,7 +716,7 @@ export class SettingsSelectorComponent extends Container {
 		}
 
 		// Image auto-resize toggle (always available, affects both attached and read images)
-		items.splice(supportsImages ? 3 : 1, 0, {
+		insertAt(items, supportsImages ? 3 : 1, {
 			id: "auto-resize-images",
 			label: "Auto-resize images",
 			description: "Resize large images to 2000x2000 max for better model compatibility",
@@ -718,7 +726,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Block images toggle (always available, insert after auto-resize-images)
 		const autoResizeIndex = items.findIndex((item) => item.id === "auto-resize-images");
-		items.splice(autoResizeIndex + 1, 0, {
+		insertAt(items, autoResizeIndex + 1, {
 			id: "block-images",
 			label: "Block images",
 			description: "Prevent images from being sent to LLM providers",
@@ -728,7 +736,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Skill commands toggle (insert after block-images)
 		const blockImagesIndex = items.findIndex((item) => item.id === "block-images");
-		items.splice(blockImagesIndex + 1, 0, {
+		insertAt(items, blockImagesIndex + 1, {
 			id: "skill-commands",
 			label: "Skill commands",
 			description: "Register skills as /skill:name commands",
@@ -738,7 +746,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Hardware cursor toggle (insert after skill-commands)
 		const skillCommandsIndex = items.findIndex((item) => item.id === "skill-commands");
-		items.splice(skillCommandsIndex + 1, 0, {
+		insertAt(items, skillCommandsIndex + 1, {
 			id: "show-hardware-cursor",
 			label: "Show hardware cursor",
 			description: "Show the terminal cursor while still positioning it for IME support",
@@ -748,7 +756,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Editor padding toggle (insert after show-hardware-cursor)
 		const hardwareCursorIndex = items.findIndex((item) => item.id === "show-hardware-cursor");
-		items.splice(hardwareCursorIndex + 1, 0, {
+		insertAt(items, hardwareCursorIndex + 1, {
 			id: "editor-padding",
 			label: "Editor padding",
 			description: "Horizontal padding for input editor (0-3)",
@@ -758,7 +766,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Output padding toggle (insert after editor-padding)
 		const editorPaddingIndex = items.findIndex((item) => item.id === "editor-padding");
-		items.splice(editorPaddingIndex + 1, 0, {
+		insertAt(items, editorPaddingIndex + 1, {
 			id: "output-padding",
 			label: "Output padding",
 			description: "Horizontal padding for user messages, assistant messages, and thinking",
@@ -768,7 +776,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Autocomplete max visible toggle (insert after output-padding)
 		const outputPaddingIndex = items.findIndex((item) => item.id === "output-padding");
-		items.splice(outputPaddingIndex + 1, 0, {
+		insertAt(items, outputPaddingIndex + 1, {
 			id: "autocomplete-max-visible",
 			label: "Autocomplete max items",
 			description: "Max visible items in autocomplete dropdown (3-20)",
@@ -778,7 +786,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Clear on shrink toggle (insert after autocomplete-max-visible)
 		const autocompleteIndex = items.findIndex((item) => item.id === "autocomplete-max-visible");
-		items.splice(autocompleteIndex + 1, 0, {
+		insertAt(items, autocompleteIndex + 1, {
 			id: "clear-on-shrink",
 			label: "Clear on shrink",
 			description: "Clear empty rows when content shrinks (may cause flicker)",
@@ -788,7 +796,7 @@ export class SettingsSelectorComponent extends Container {
 
 		// Terminal progress toggle (insert after clear-on-shrink)
 		const clearOnShrinkIndex = items.findIndex((item) => item.id === "clear-on-shrink");
-		items.splice(clearOnShrinkIndex + 1, 0, {
+		insertAt(items, clearOnShrinkIndex + 1, {
 			id: "terminal-progress",
 			label: "Terminal progress",
 			description: "Show OSC 9;4 progress indicators in the terminal tab bar",

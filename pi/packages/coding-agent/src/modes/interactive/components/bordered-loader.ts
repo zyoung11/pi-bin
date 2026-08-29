@@ -11,7 +11,7 @@ import { keyHint } from "./keybinding-hints.ts";
 export class BorderedLoader extends Container {
 	private loader: CancellableLoader | Loader;
 	private cancellable: boolean;
-	private signalController?: AbortController;
+	private signalController?: { signal: AbortSignal; abort: () => void };
 
 	constructor(tui: TUI, theme: Theme, message: string, options?: { cancellable?: boolean }) {
 		super();
@@ -26,7 +26,8 @@ export class BorderedLoader extends Container {
 				message,
 			);
 		} else {
-			this.signalController = new AbortController();
+			const controller = new AbortController();
+			this.signalController = { signal: controller.signal, abort: () => controller.abort() };
 			this.loader = new Loader(
 				tui,
 				(s) => theme.fg("accent", s),

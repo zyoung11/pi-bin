@@ -11,6 +11,7 @@ import { getShareViewerUrl } from "../../config.ts";
 import type { AgentSession } from "../../core/agent-session.ts";
 import { exportSessionToJsonl } from "../../core/session-export.ts";
 import { BorderedLoader } from "./components/bordered-loader.ts";
+import type { ChildProcessHandle } from "../../utils/child-process.ts";
 import { theme } from "./theme/theme.ts";
 
 interface SessionShareContext {
@@ -24,23 +25,26 @@ interface SessionShareContext {
 
 /** Export the current branch with presentation metadata for Radius. */
 export function exportSessionForShare(filePath: string, session: AgentSession): void {
-	exportSessionToJsonl(session.sessionManager, filePath, (parentId, timestamp) => [
-		{
-			type: "custom",
-			customType: "pi.share",
-			id: crypto.randomUUID().slice(0, 8),
-			parentId,
-			timestamp,
-			data: {
-				systemPrompt: session.state.systemPrompt,
-				tools: session.state.tools.map((tool) => ({
-					name: tool.name,
-					description: tool.description,
-					parameters: tool.parameters,
-				})),
+	exportSessionToJsonl(session.sessionManager, filePath, (parentId, timestamp) => {
+		const entries: Record<string, unknown>[] = [
+			{
+				type: "custom",
+				customType: "pi.share",
+				id: crypto.randomUUID().slice(0, 8),
+				parentId,
+				timestamp,
+				data: {
+					systemPrompt: session.state.systemPrompt,
+					tools: session.state.tools.map((tool) => ({
+						name: tool.name,
+						description: tool.description,
+						parameters: tool.parameters,
+					})),
+				},
 			},
-		},
-	]);
+		];
+		return entries;
+	});
 }
 
 /** Share the current session through Radius, falling back to a private gist. */
@@ -110,9 +114,7 @@ async function tryShareViaRadius(tmpFile: string, context: SessionShareContext):
 
 	try {
 		const body = fs.readFileSync(tmpFile);
-		const url = new URL("/v1/artifacts", provider.baseUrl);
-		url.searchParams.set("visibility", "organization");
-		url.searchParams.set("title", "Pi session");
+		const url = `${provider.baseUrl.replace(/\/+$/, "")}/v1/artifacts?visibility=organization&title=Pi%20session`;
 		const response = await fetch(url, {
 			method: "POST",
 			headers: {
@@ -157,25 +159,35 @@ async function shareViaGist(tmpFile: string, context: SessionShareContext): Prom
 	context.ui.setFocus(loader);
 	context.ui.requestRender();
 
-	let proc: ReturnType<typeof spawn> | null = null;
+	let proc: ChildProcessHandle | null = null;
 	loader.onAbort = () => {
-		proc?.kill();
+		if (proc !== null) proc.kill();
 		restoreEditor(loader, context);
 		context.showStatus("Share cancelled");
 	};
 
 	try {
 		const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve) => {
-			proc = spawn("gh", ["gist", "create", "--public=false", tmpFile]);
+			proc = spawn("gh", ["gist", "create", "--public=false", tmpFile], {
+				stdio: ["ignore", "pipe", "pipe"],
+			});
 			let stdout = "";
 			let stderr = "";
-			proc.stdout?.on("data", (data) => {
-				stdout += data.toString();
-			});
-			proc.stderr?.on("data", (data) => {
-				stderr += data.toString();
-			});
-			proc.on("close", (code) => resolve({ stdout, stderr, code }));
+			if (proc !== null) {
+				const out = proc.stdout;
+				if (out !== null) {
+					out.on("data", (data: Uint8Array) => {
+						stdout += new TextDecoder().decode(data);
+					});
+				}
+				const err = proc.stderr;
+				if (err !== null) {
+					err.on("data", (data: Uint8Array) => {
+						stderr += new TextDecoder().decode(data);
+					});
+				}
+				proc.on("exit", (code: number | null) => resolve({ stdout, stderr, code }));
+			}
 		});
 
 		if (loader.signal.aborted) return;

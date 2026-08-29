@@ -20,7 +20,7 @@ export interface ToolExecutionOptions {
 export class ToolExecutionComponent extends Container {
 	private contentBox: Box;
 	private contentText: Text;
-	private selfRenderContainer: Container;
+	private selfRenderContainer: Box;
 	private callRendererComponent?: Component;
 	private resultRendererComponent?: Component;
 	private rendererState: Record<string, unknown> = {};
@@ -74,7 +74,7 @@ export class ToolExecutionComponent extends Container {
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
 		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.selfRenderContainer = new Container();
+		this.selfRenderContainer = new Box();
 
 		if (this.hasRendererDefinition()) {
 			this.addChild(this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox);
@@ -257,15 +257,13 @@ export class ToolExecutionComponent extends Container {
 		let hasContent = false;
 		this.hideComponent = false;
 		if (this.hasRendererDefinition()) {
-			let renderContainer: Container;
+			let renderContainer: Box;
 			if (this.getRenderShell() === "self") {
 				renderContainer = this.selfRenderContainer;
 			} else {
 				renderContainer = this.contentBox;
 			}
-			if (renderContainer instanceof Box) {
-				renderContainer.setBgFn(bgFn);
-			}
+			renderContainer.setBgFn(bgFn);
 			renderContainer.clear();
 
 			const callRenderer = this.getCallRenderer();
@@ -295,8 +293,12 @@ export class ToolExecutionComponent extends Container {
 					}
 				} else {
 					try {
+						const renderPayload: unknown = {
+							content: this.result.content,
+							details: this.result.details,
+						};
 						const component = resultRenderer(
-							{ content: this.result.content as unknown as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0]["content"], details: this.result.details },
+							renderPayload as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0],
 							{ expanded: this.expanded, isPartial: this.isPartial },
 							theme,
 							this.getRenderContext(this.resultRendererComponent),
