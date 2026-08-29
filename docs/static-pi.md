@@ -84,6 +84,14 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第十八轮记录（2026-08-31 深夜终五：274→290）
+
+- **openai-completions 回调化完成**：streamOpenAIChatCompletions 改为接受 onChunk 回调参数并返回 void；Response/AsyncGenerator/迭代器协议完全消除；SSE 解析内嵌
+- **openai SDK type import 全部移除**：ChatCompletionTool/CreateParams 等改为本地定义
+- **新规则**：**Record 不可变——`params.xxx = value` 赋值在 scriptc 中报 assignment to non-variables，即使 params 类型为 Record<string, unknown>**。解法：把所有条件值先算为局部变量，最后一次性字面量构建
+- buildParams 重构（~20 个条件分支，15+ 赋值→一次性字面量）为下轮首批工作，当前 28 个诊断集中于此
+- **总账 479→290**，52 个 commit
+
 ## 阶段 5 grind 第十七轮记录（2026-08-31 深夜终二：294→298，openai SDK 类型移除揭幕）
 
 - **openai SDK type import 全部移除**：`import type OpenAI from "openai"` 及 `openai/resources/chat/completions.js` 的 10 个类型全部移除
