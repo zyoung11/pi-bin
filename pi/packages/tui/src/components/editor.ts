@@ -1022,8 +1022,8 @@ export class Editor extends Component implements Focusable {
 	private expandPasteMarkers(text: string): string {
 		let result = text;
 		for (const [pasteId, pasteContent] of this.pastes) {
-			const markerRegex = new RegExp(`\\[paste #${pasteId}( (\\+\\d+ lines|\\d+ chars))?\\]`, "g");
-			result = result.replace(markerRegex, () => pasteContent);
+			const marker = `[paste #${pasteId}]`;
+			result = result.split(marker).join(pasteContent);
 		}
 		return result;
 	}
@@ -1120,7 +1120,7 @@ export class Editor extends Component implements Focusable {
 				...this.state.lines.slice(this.state.cursorLine + 1),
 			];
 
-			this.state.cursorLine += insertedLines.length - 1;
+			this.state.cursorLine = this.state.cursorLine + insertedLines.length - 1;
 			this.setCursorCol((insertedLines[insertedLines.length - 1] || "").length);
 		}
 
@@ -1204,12 +1204,20 @@ export class Editor extends Component implements Focusable {
 		// (ESC [ <codepoint> ; 5 u). Decode those back to their literal byte so the
 		// per-char filter below preserves newlines instead of stripping ESC and
 		// leaking the printable tail (e.g. "[106;5u") into the editor.
-		const decodedText = pastedText.replace(/\x1b\[(\d+);5u/g, (match, code) => {
-			const cp = Number(code);
-			if (cp >= 97 && cp <= 122) return String.fromCharCode(cp - 96);
-			if (cp >= 65 && cp <= 90) return String.fromCharCode(cp - 64);
-			return match;
-		});
+		let decodedText = "";
+		const ctrlRegex = /\x1b\[(\d+);5u/g;
+		let lastIndex = 0;
+		let ctrlMatch = ctrlRegex.exec(pastedText);
+		while (ctrlMatch !== null) {
+			decodedText += pastedText.slice(lastIndex, ctrlMatch.index);
+			const cp = parseDecimalInt(ctrlMatch[1] ?? "") ?? 0;
+			if (cp >= 97 && cp <= 122) decodedText += String.fromCharCode(cp - 96);
+			else if (cp >= 65 && cp <= 90) decodedText += String.fromCharCode(cp - 64);
+			else decodedText += ctrlMatch[0];
+			lastIndex = ctrlMatch.index + ctrlMatch[0].length;
+			ctrlMatch = ctrlRegex.exec(pastedText);
+		}
+		decodedText += pastedText.slice(lastIndex);
 
 		// Clean the pasted text: normalize line endings, expand tabs
 		const cleanText = this.normalizeText(decodedText);
@@ -1281,7 +1289,7 @@ export class Editor extends Component implements Focusable {
 		this.state.lines[this.state.cursorLine + 1] = after;
 
 		// Move cursor to start of new line
-		this.state.cursorLine++;
+		this.state.cursorLine = this.state.cursorLine + 1;
 		this.setCursorCol(0);
 
 		const changeHandler = this.onChange;
@@ -1313,8 +1321,10 @@ export class Editor extends Component implements Focusable {
 		this.undoStack.clear();
 		this.lastAction = null;
 
-		if (this.onChange) this.onChange("");
-		if (this.onSubmit) this.onSubmit(result);
+		const changeHandler = this.onChange;
+		if (changeHandler !== undefined) changeHandler("");
+		const submitHandler = this.onSubmit;
+		if (submitHandler !== undefined) submitHandler(result);
 	}
 
 	private handleBackspace(): void {
@@ -1350,13 +1360,23 @@ export class Editor extends Component implements Focusable {
 				}
 
 				// Renumber markers with ids greater than the removed one.
-				this.state.lines = this.state.lines.map((line) =>
-					line.replace(PASTE_MARKER_REGEX, (fullMatch, idGroup, suffixGroup) => {
-						const x = Number(idGroup);
-						if (x <= targetId) return fullMatch;
-						return `[paste #${x - 1}${suffixGroup}]`;
-					}),
-				);
+				const renumbered: string[] = [];
+				for (const line of this.state.lines) {
+					let lineOut = "";
+					let scanIndex = 0;
+					const markerRegex = new RegExp("\\[paste #(\\d+)( (\\+\\d+ lines|\\d+ chars))?\\]", "g");
+					let markerMatch = markerRegex.exec(line);
+					while (markerMatch !== null) {
+						const x = parseDecimalInt(markerMatch[1]) ?? 0;
+						const replacement = x <= targetId ? markerMatch[0] : `[paste #${x - 1}${markerMatch[2] ?? ""}]`;
+						lineOut += line.slice(scanIndex, markerMatch.index) + replacement;
+						scanIndex = markerMatch.index + markerMatch[0].length;
+						markerMatch = markerRegex.exec(line);
+					}
+					lineOut += line.slice(scanIndex);
+					renumbered.push(lineOut);
+				}
+				this.state.lines = renumbered;
 			}
 
 			line = this.state.lines[this.state.cursorLine] || "";
@@ -1376,7 +1396,7 @@ export class Editor extends Component implements Focusable {
 			this.state.lines[this.state.cursorLine - 1] = previousLine + currentLine;
 			this.state.lines.splice(this.state.cursorLine, 1);
 
-			this.state.cursorLine--;
+			this.state.cursorLine = this.state.cursorLine - 1;
 			this.setCursorCol(previousLine.length);
 		}
 
@@ -1589,7 +1609,7 @@ export class Editor extends Component implements Focusable {
 			const previousLine = this.state.lines[this.state.cursorLine - 1] || "";
 			this.state.lines[this.state.cursorLine - 1] = previousLine + currentLine;
 			this.state.lines.splice(this.state.cursorLine, 1);
-			this.state.cursorLine--;
+			this.state.cursorLine = this.state.cursorLine - 1;
 			this.setCursorCol(previousLine.length);
 		}
 
@@ -1649,7 +1669,7 @@ export class Editor extends Component implements Focusable {
 				const previousLine = this.state.lines[this.state.cursorLine - 1] || "";
 				this.state.lines[this.state.cursorLine - 1] = previousLine + currentLine;
 				this.state.lines.splice(this.state.cursorLine, 1);
-				this.state.cursorLine--;
+				this.state.cursorLine = this.state.cursorLine - 1;
 				this.setCursorCol(previousLine.length);
 			}
 		} else {
@@ -1862,7 +1882,7 @@ export class Editor extends Component implements Focusable {
 					this.setCursorCol(this.state.cursorCol + (firstGrapheme ? firstGrapheme.segment.length : 1));
 				} else if (this.state.cursorLine < this.state.lines.length - 1) {
 					// Wrap to start of next logical line
-					this.state.cursorLine++;
+					this.state.cursorLine = this.state.cursorLine + 1;
 					this.setCursorCol(0);
 				} else {
 					// At end of last line - can't move, but set preferredVisualCol for up/down navigation
@@ -1880,7 +1900,7 @@ export class Editor extends Component implements Focusable {
 					this.setCursorCol(this.state.cursorCol - (lastGrapheme ? lastGrapheme.segment.length : 1));
 				} else if (this.state.cursorLine > 0) {
 					// Wrap to end of previous logical line
-					this.state.cursorLine--;
+					this.state.cursorLine = this.state.cursorLine - 1;
 					const prevLine = this.state.lines[this.state.cursorLine] || "";
 					this.setCursorCol(prevLine.length);
 				}
@@ -1923,7 +1943,7 @@ export class Editor extends Component implements Focusable {
 		// If at start of line, move to end of previous line
 		if (this.state.cursorCol === 0) {
 			if (this.state.cursorLine > 0) {
-				this.state.cursorLine--;
+				this.state.cursorLine = this.state.cursorLine - 1;
 				const prevLine = this.state.lines[this.state.cursorLine] || "";
 				this.setCursorCol(prevLine.length);
 			}
@@ -2000,12 +2020,20 @@ export class Editor extends Component implements Focusable {
 
 			// Insert middle lines
 			for (let i = 1; i < lines.length - 1; i++) {
-				this.state.lines.splice(this.state.cursorLine + i, 0, lines[i] || "");
+				this.state.lines.push("");
+			for (let j = this.state.lines.length - 1; j > this.state.cursorLine + i; j--) {
+				this.state.lines[j] = this.state.lines[j - 1];
+			}
+			this.state.lines[this.state.cursorLine + i] = lines[i] ?? "";
 			}
 
 			// Last line merges with text after cursor
 			const lastLineIndex = this.state.cursorLine + lines.length - 1;
-			this.state.lines.splice(lastLineIndex, 0, (lines[lines.length - 1] || "") + after);
+			this.state.lines.push("");
+		for (let j = this.state.lines.length - 1; j > lastLineIndex; j--) {
+			this.state.lines[j] = this.state.lines[j - 1];
+		}
+		this.state.lines[lastLineIndex] = (lines[lines.length - 1] ?? "") + after;
 
 			// Update cursor position
 			this.state.cursorLine = lastLineIndex;
@@ -2048,7 +2076,12 @@ export class Editor extends Component implements Focusable {
 			const beforeYank = (this.state.lines[startLine] || "").slice(0, startCol);
 
 			// Remove all lines from startLine to cursorLine and replace with merged line
-			this.state.lines.splice(startLine, yankLines.length, beforeYank + afterCursor);
+			this.state.lines.splice(startLine, yankLines.length);
+		this.state.lines.push("");
+		for (let j = this.state.lines.length - 1; j > startLine; j--) {
+			this.state.lines[j] = this.state.lines[j - 1];
+		}
+		this.state.lines[startLine] = beforeYank + afterCursor;
 
 			// Update cursor
 			this.state.cursorLine = startLine;
@@ -2121,7 +2154,7 @@ export class Editor extends Component implements Focusable {
 		// If at end of line, move to start of next line
 		if (this.state.cursorCol >= currentLine.length) {
 			if (this.state.cursorLine < this.state.lines.length - 1) {
-				this.state.cursorLine++;
+				this.state.cursorLine = this.state.cursorLine + 1;
 				this.setCursorCol(0);
 			}
 			return;
@@ -2335,7 +2368,8 @@ export class Editor extends Component implements Focusable {
 			this.state.lines = result.lines;
 			this.state.cursorLine = result.cursorLine;
 			this.setCursorCol(result.cursorCol);
-			if (this.onChange) this.onChange(this.getText());
+			const changeHandler = this.onChange;
+			if (changeHandler !== undefined) changeHandler(this.getText());
 			this.tui.requestRender();
 			return;
 		}
