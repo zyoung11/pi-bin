@@ -62,12 +62,12 @@ function getActiveManagedInstallRoot(): string | undefined {
 
 	const markerPath = join(managedRoot, MANAGED_INSTALL_MARKER);
 	try {
-		const marker = JSON.parse(readFileSync(markerPath, "utf8")) as {
-			kind?: unknown;
-			layout?: unknown;
-			schemaVersion?: unknown;
-		};
-		if (marker.kind !== "pi-managed-install" || marker.schemaVersion !== 1 || marker.layout !== "releases-v1") {
+		const marker = JSON.parse(readFileSync(markerPath, "utf8")) as Record<string, unknown>;
+		if (
+			marker["kind"] !== "pi-managed-install" ||
+			marker["schemaVersion"] !== 1 ||
+			marker["layout"] !== "releases-v1"
+		) {
 			throw new Error();
 		}
 	} catch {
@@ -176,7 +176,7 @@ async function runManagedSelfUpdate(managedRoot: string, version: string): Promi
 	try {
 		releaseLock = await lockfile.lock(join(managedRoot, "update"), { realpath: false });
 	} catch (error: unknown) {
-		if (error instanceof Error && "code" in error && error.code === "ELOCKED") {
+		if (error instanceof Error && error.name === "LockError") {
 			throw new Error("Another managed Pi update is already running.");
 		}
 		throw error;
@@ -255,9 +255,6 @@ function reportSettingsErrors(settingsManager: SettingsManager, context: string)
 	const errors = settingsManager.drainErrors();
 	for (const { scope, error } of errors) {
 		console.error(chalk.yellow(`Warning (${context}, ${scope} settings): ${error.message}`));
-		if (error.stack) {
-			console.error(chalk.dim(error.stack));
-		}
 	}
 }
 
@@ -639,7 +636,8 @@ function printSelfUpdateNote(note: string): void {
 	console.log();
 	console.log(chalk.bold(chalk.yellow("Update note")));
 	try {
-		const width = Math.max(20, process.stdout.columns ?? 80);
+		const columns = (process.stdout as unknown as Record<string, unknown>)["columns"];
+		const width = Math.max(20, typeof columns === "number" ? columns : 80);
 		const renderedLines = new Markdown(trimmedNote, 0, 0, SELF_UPDATE_NOTE_MARKDOWN_THEME)
 			.render(width)
 			.map((line) => line.trimEnd());
@@ -663,9 +661,7 @@ async function getSelfUpdatePlan(force: boolean): Promise<SelfUpdatePlan> {
 	try {
 		latestRelease = await getLatestPiRelease(VERSION, { retry: true });
 	} catch (error: unknown) {
-		throw new Error(`Could not determine latest ${APP_NAME} version: ${formatVersionCheckError(error)}`, {
-			cause: error,
-		});
+		throw new Error(`Could not determine latest ${APP_NAME} version: ${formatVersionCheckError(error)}`);
 	}
 	if (!latestRelease) {
 		throw new Error(`Could not determine latest ${APP_NAME} version.`);

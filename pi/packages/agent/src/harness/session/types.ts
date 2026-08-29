@@ -296,8 +296,8 @@ export interface SessionStorage<TMetadata extends SessionMetadata = SessionMetad
 	moveLane(lane: string, to: string | null): Promise<void>;
 
 	// Entries and Records
-	appendEntry<TEntry extends Entry>(entry: ProvisionedEntry<TEntry>, lane: string): Promise<TEntry>;
-	appendRecord<TRecord extends LaneRecord>(record: NewRecord<TRecord>): Promise<TRecord>;
+	appendEntry(entry: ProvisionedEntry, lane: string): Promise<Entry>;
+	appendRecord(record: NewRecord<LaneRecord>): Promise<LaneRecord>;
 
 	// Reads
 	getEntry(id: string): Promise<Entry | undefined>;

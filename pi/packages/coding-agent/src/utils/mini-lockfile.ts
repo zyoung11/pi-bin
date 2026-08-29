@@ -20,6 +20,7 @@ export class LockError extends Error {
 
 	constructor(message: string) {
 		super(message);
+		this.name = "LockError";
 		this.code = "ELOCKED";
 	}
 }

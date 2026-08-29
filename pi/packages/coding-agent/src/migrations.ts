@@ -36,7 +36,12 @@ export function migrateAuthToAuthJson(): string[] {
 		try {
 			const oauth = JSON.parse(stripBom(readFileSync(oauthPath, "utf-8")));
 			for (const [provider, cred] of Object.entries(oauth)) {
-				migrated[provider] = { type: "oauth", ...(cred as object) };
+				const credRecord = JSON.parse(JSON.stringify(cred)) as Record<string, unknown>;
+				const entry: Record<string, unknown> = { type: "oauth" };
+				for (const credKey of Object.keys(credRecord)) {
+					entry[credKey] = credRecord[credKey];
+				}
+				migrated[provider] = entry;
 				providers.push(provider);
 			}
 			renameSync(oauthPath, `${oauthPath}.migrated`);
@@ -49,15 +54,15 @@ export function migrateAuthToAuthJson(): string[] {
 	if (existsSync(settingsPath)) {
 		try {
 			const content = readFileSync(settingsPath, "utf-8");
-			const settings = JSON.parse(stripBom(content));
-			if (settings.apiKeys && typeof settings.apiKeys === "object") {
-				for (const [provider, key] of Object.entries(settings.apiKeys)) {
+			const settings = JSON.parse(stripBom(content)) as Record<string, unknown>;
+			if (settings["apiKeys"] && typeof settings["apiKeys"] === "object") {
+				for (const [provider, key] of Object.entries(settings["apiKeys"])) {
 					if (!migrated[provider] && typeof key === "string") {
 						migrated[provider] = { type: "api_key", key };
 						providers.push(provider);
 					}
 				}
-				delete settings.apiKeys;
+				delete settings["apiKeys"];
 				writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 			}
 		} catch {
@@ -203,7 +208,7 @@ function migrateToolsToBin(): void {
 			} else {
 				// Target exists, just delete the old one
 				try {
-					rmSync?.(oldPath, { force: true });
+					rmSync(oldPath, { force: true });
 				} catch {
 					// Ignore
 				}
@@ -284,17 +289,6 @@ export async function showDeprecationWarnings(warnings: string[]): Promise<void>
 	console.log(chalk.yellow(`\nMove your extensions to the extensions/ directory.`));
 	console.log(chalk.yellow(`Migration guide: ${MIGRATION_GUIDE_URL}`));
 	console.log(chalk.yellow(`Documentation: ${EXTENSIONS_DOC_URL}`));
-	console.log(chalk.dim(`\nPress any key to continue...`));
-
-	await new Promise<void>((resolve) => {
-		process.stdin.setRawMode?.(true);
-		process.stdin.resume();
-		process.stdin.once("data", () => {
-			process.stdin.setRawMode?.(false);
-			process.stdin.pause();
-			resolve();
-		});
-	});
 	console.log();
 }
 

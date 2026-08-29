@@ -1,4 +1,4 @@
-import { getWordSegmenter, isWhitespaceChar, PUNCTUATION_REGEX } from "./utils.ts";
+import { getWordSegmenter, isPunctuationChar, isWhitespaceChar } from "./utils.ts";
 import type { SegmentData } from "./segmenter.ts";
 
 const wordSegmenter = getWordSegmenter();
@@ -48,12 +48,14 @@ export function findWordBackward(text: string, cursor: number, options?: WordNav
 	} else if (last.isWordLike) {
 		// Skip inside one word-like segment, preserving ASCII punctuation boundaries.
 		const segment = last.segment;
-		const matches = [...segment.matchAll(new RegExp(PUNCTUATION_REGEX, "g"))];
-		if (matches.length <= 0) {
+		let lastPunct = -1;
+		for (let i = 0; i < segment.length; i++) {
+			if (isPunctuationChar(segment.charAt(i))) lastPunct = i;
+		}
+		if (lastPunct === -1) {
 			newCursor -= segment.length;
 		} else {
-			const lastMatch = matches[matches.length - 1]!;
-			newCursor -= segment.length - (lastMatch.index + lastMatch[0].length);
+			newCursor -= segment.length - (lastPunct + 1);
 		}
 	} else {
 		// Skip non-word non-whitespace run (punctuation)
@@ -83,34 +85,47 @@ export function findWordForward(text: string, cursor: number, options?: WordNavi
 	const segmentFn = options?.segment;
 	const isAtomic = options?.isAtomicSegment;
 	const segments = segmentFn ? segmentFn(textAfterCursor) : wordSegmenter.segment(textAfterCursor);
-	const iterator = segments[Symbol.iterator]();
-	let next = iterator.next();
+	let index = 0;
 	let newCursor = cursor;
 
 	// Skip leading whitespace
-	while (!next.done && !isAtomic?.(next.value.segment) && isWhitespaceChar(next.value.segment)) {
-		newCursor += next.value.segment.length;
-		next = iterator.next();
+	while (
+		index < segments.length &&
+		!isAtomic?.(segments[index]?.segment || "") &&
+		isWhitespaceChar(segments[index]?.segment || "")
+	) {
+		newCursor += segments[index]?.segment.length || 0;
+		index++;
 	}
 
-	if (next.done) return newCursor;
+	if (index >= segments.length) return newCursor;
 
-	if (isAtomic?.(next.value.segment)) {
+	const next = segments[index];
+
+	if (isAtomic?.(next.segment)) {
 		// Skip one atomic segment.
-		newCursor += next.value.segment.length;
-	} else if (next.value.isWordLike) {
+		newCursor += next.segment.length;
+	} else if (next.isWordLike) {
 		// Skip inside one word-like segment, preserving ASCII punctuation boundaries.
-		newCursor += PUNCTUATION_REGEX.exec(next.value.segment)?.index ?? next.value.segment.length;
+		const segment = next.segment;
+		let firstPunct = -1;
+		for (let i = 0; i < segment.length; i++) {
+			if (isPunctuationChar(segment.charAt(i))) {
+				firstPunct = i;
+				break;
+			}
+		}
+		newCursor += firstPunct === -1 ? segment.length : firstPunct;
 	} else {
 		// Skip non-word non-whitespace run (punctuation)
 		while (
-			!next.done &&
-			!isAtomic?.(next.value.segment) &&
-			!next.value.isWordLike &&
-			!isWhitespaceChar(next.value.segment)
+			index < segments.length &&
+			!isAtomic?.(segments[index]?.segment || "") &&
+			!segments[index]?.isWordLike &&
+			!isWhitespaceChar(segments[index]?.segment || "")
 		) {
-			newCursor += next.value.segment.length;
-			next = iterator.next();
+			newCursor += segments[index]?.segment.length || 0;
+			index++;
 		}
 	}
 

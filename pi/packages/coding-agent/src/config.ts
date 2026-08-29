@@ -1,6 +1,6 @@
 import { accessSync, constants, existsSync, readFileSync, realpathSync } from "fs";
 import { homedir } from "os";
-import { basename, dirname, join, resolve, sep, win32 } from "path";
+import { basename, dirname, join, resolve, sep } from "path";
 import { spawnProcessSync } from "./utils/child-process.ts";
 import { normalizePath } from "./utils/paths.ts";
 import { stripBom } from "./utils/text.ts";
@@ -98,17 +98,16 @@ export function detectInstallMethod(): InstallMethod {
 
 function getInferredNpmInstall(): { root: string; prefix: string } | undefined {
 	const packageDir = getPackageDir();
-	const path = process.platform === "win32" || packageDir.includes("\\") ? win32 : { basename, dirname };
-	const parent = path.dirname(packageDir);
+	const parent = dirname(packageDir);
 	let root: string | undefined;
-	if (path.basename(parent).startsWith("@") && path.basename(path.dirname(parent)) === "node_modules") {
-		root = path.dirname(parent);
-	} else if (path.basename(parent) === "node_modules") {
+	if (basename(parent).startsWith("@") && basename(dirname(parent)) === "node_modules") {
+		root = dirname(parent);
+	} else if (basename(parent) === "node_modules") {
 		root = parent;
 	}
 	if (!root) return undefined;
-	const rootParent = path.dirname(root);
-	if (path.basename(rootParent) === "lib") return { root, prefix: path.dirname(rootParent) };
+	const rootParent = dirname(root);
+	if (basename(rootParent) === "lib") return { root, prefix: dirname(rootParent) };
 	// Windows global npm prefixes use `<prefix>\\node_modules`, which is
 	// indistinguishable from local project installs by path shape alone. Do not
 	// infer unsupported Windows custom prefixes without `npm root -g` evidence.
@@ -225,7 +224,10 @@ function getGlobalPackageRoots(method: InstallMethod, _packageName: string, npmC
 				requireSuccess: configured,
 			});
 			const inferred = configured ? undefined : getInferredNpmInstall();
-			return [root, inferred?.root].filter((x): x is string => !!x);
+			const roots: string[] = [];
+			if (root) roots.push(root);
+			if (inferred?.root) roots.push(inferred.root);
+			return roots;
 		}
 		case "pnpm": {
 			const root = readCommandOutput("pnpm", ["root", "-g"]);
@@ -271,13 +273,12 @@ function normalizeExistingPathForComparison(path: string, resolveSymlinks: boole
 }
 
 function getPathComparisonCandidates(path: string): string[] {
-	return Array.from(
-		new Set(
-			[normalizeExistingPathForComparison(path, false), normalizeExistingPathForComparison(path, true)].filter(
-				(candidate): candidate is string => !!candidate,
-			),
-		),
-	);
+	const candidates: string[] = [];
+	const first = normalizeExistingPathForComparison(path, false);
+	const second = normalizeExistingPathForComparison(path, true);
+	if (first) candidates.push(first);
+	if (second && second !== first) candidates.push(second);
+	return candidates;
 }
 
 function getEntrypointPackageDir(): string | undefined {
@@ -305,8 +306,17 @@ function isSelfUpdatePathWritable(): boolean {
 }
 
 function isManagedByGlobalPackageManager(method: InstallMethod, packageName: string, npmCommand?: string[]): boolean {
-	const packageDirs = [getPackageDir(), getEntrypointPackageDir()].filter((dir): dir is string => !!dir);
-	const packageDirCandidates = packageDirs.flatMap((dir) => getPathComparisonCandidates(dir));
+	const packageDirs: string[] = [];
+	const primaryPackageDir = getPackageDir();
+	if (primaryPackageDir) packageDirs.push(primaryPackageDir);
+	const entrypointPackageDir = getEntrypointPackageDir();
+	if (entrypointPackageDir) packageDirs.push(entrypointPackageDir);
+	const packageDirCandidates: string[] = [];
+	for (const dir of packageDirs) {
+		for (const candidate of getPathComparisonCandidates(dir)) {
+			packageDirCandidates.push(candidate);
+		}
+	}
 	return getGlobalPackageRoots(method, packageName, npmCommand).some((root) => {
 		return getPathComparisonCandidates(root).some((normalizedRoot) => {
 			const rootPrefix = normalizedRoot.endsWith(sep) ? normalizedRoot : `${normalizedRoot}${sep}`;

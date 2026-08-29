@@ -163,7 +163,7 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 		await this.storage.moveLane(lane, to);
 	}
 
-	async appendEntry<TEntry extends Entry>(entry: ProvisionedEntry<TEntry>, lane: string): Promise<TEntry> {
+	async appendEntry(entry: ProvisionedEntry, lane: string): Promise<Entry> {
 		return this.commitEntry(entry, lane);
 	}
 
@@ -212,7 +212,7 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 	): Promise<Entry[]> {
 		assertValidLimit(query.limit);
 		assertValidCursor(query.cursor?.afterSeq);
-		const start = query.start ?? (await this.getLeafIdForLane(defaultLane));
+		const start: string | null = query.start ?? (await this.getLeafIdForLane(defaultLane));
 		if (start === null) return [];
 		const storageQuery = resultLimit === query.limit ? query : { ...query, limit: resultLimit };
 		return this.storage.findEntriesOnBranch({ ...storageQuery, start });
@@ -248,17 +248,13 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 		return entry.id;
 	}
 
-	private async commitEntry<TEntry extends Entry>(entry: ProvisionedEntry<TEntry>, lane: string): Promise<TEntry> {
+	private async commitEntry(entry: ProvisionedEntry, lane: string): Promise<Entry> {
 		assertJsonSerializable(entry);
 		return this.storage.appendEntry(entry, lane);
 	}
 
-	private async commitRecord<TNewRecord extends NewRecord>(
-		record: TNewRecord,
-	): Promise<TNewRecord & Pick<RecordBase, "seq" | "timestamp">> {
+	private async commitRecord(record: NewRecord): Promise<LaneRecord> {
 		assertJsonSerializable(record);
-		return this.storage.appendRecord<LaneRecord>(record) as unknown as Promise<
-			TNewRecord & Pick<RecordBase, "seq" | "timestamp">
-		>;
+		return this.storage.appendRecord(record);
 	}
 }

@@ -85,7 +85,7 @@ export class FileAuthStorageBackend extends AuthStorageBackend {
 			try {
 				return lockfile.lockSync(path, { realpath: false });
 			} catch (error) {
-				const code = error instanceof LockError ? error.code : undefined;
+				const code = error instanceof Error && error.name === "LockError" ? "ELOCKED" : undefined;
 				if (code !== "ELOCKED" || attempt === maxAttempts) {
 					throw error;
 				}
@@ -97,7 +97,7 @@ export class FileAuthStorageBackend extends AuthStorageBackend {
 			}
 		}
 
-		if (lastError instanceof LockError) throw lastError;
+		if (lastError instanceof Error && lastError.name === "LockError") throw lastError;
 		throw new Error("Failed to acquire auth storage lock");
 	}
 
@@ -141,7 +141,7 @@ export class FileAuthStorageBackend extends AuthStorageBackend {
 				});
 			} catch (error) {
 				if (signal !== undefined) signal.throwIfAborted();
-				const code = error instanceof LockError ? error.code : undefined;
+				const code = error instanceof Error && error.name === "LockError" ? "ELOCKED" : undefined;
 				const remainingMs = deadline - Date.now();
 				if (code !== "ELOCKED" || remainingMs <= 0) throw error;
 				const baseDelayMs = Math.min(10 * 2 ** retry, maxDelayMs / 2);
@@ -242,7 +242,7 @@ export class ReadOnlyAuthStorage extends CredentialStore {
 				throw new Error(`Invalid auth.json credential for provider "${providerId}"`);
 			}
 			const value = credentialRecordOf(credential);
-			if (value.type === "api_key") {
+			if (value["type"] === "api_key") {
 				const validKey = value.key === undefined || typeof value.key === "string";
 				const validEnv =
 					value.env === undefined ||

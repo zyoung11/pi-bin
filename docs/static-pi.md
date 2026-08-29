@@ -78,6 +78,17 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十七轮记录（进行中：241，package-manager/package-manager-cli/migrations/config/word-navigation 全清）
+
+- **config.ts 8→0**：getInferredNpmInstall 的 path 平台联合（path.win32 无 lowering）→ 直用 posix basename/dirname（Linux 静态目标下 win32 分支为死代码，行为备注）；3 处 filter 谓词 → 条件 push；Array.from(new Set([a,b])) → 手工去重
+- **word-navigation.ts 7→0**：Intl/TextSegmenter 迭代器（Symbol.iterator/ArrayIterator.next）→ 数组下标遍历（segment() 本就返回 SegmentData[]）；PUNCTUATION_REGEX.exec().index 与 matchAll+new RegExp(RegExp) → charAt+isPunctuationChar 手写扫描
+- **package-manager.ts 8→0**：runTasksWithConcurrency 彻底去泛型化（inputs: unknown[]、task: (unknown)→Promise<unknown>、返回 unknown[]，调用点 3 处改 typed task + 结果 cast）；taskRunner.fn 默认值改 async 箭头；typed-array toString → TextDecoder.decode
+- **package-manager-cli.ts 7→0**：marker JSON.parse cast → Record<string,unknown> + bracket 读；catch 绑定 ELOCKED → error.name === "LockError"（mini-lockfile LockError 新增 name 字段，配合「unknown 上只允许 instanceof Error」规则）；Error cause 选项删除；process.stdout.columns → Record 双跳 bracket 读
+- **migrations.ts 7→0**：oauth cred spread-after-explicit → JSON 往返 + Record 循环拷贝；delete settings.apiKeys → Record bracket delete；rmSync 直呼（去 ?.）；「press any key」提示删除（setRawMode/resume/pause 无 lowering，行为变更备注）
+- **session.ts（agent harness）8→6**：SessionStorage.appendEntry/appendRecord 接口去泛型化（appendEntry(entry: ProvisionedEntry): Promise<Entry>），commitEntry/commitRecord/Session.appendEntry 去泛型，Session.appendRecord 泛型重载保留；conformance.ts 类型参数同步清理；?? 默认值类型注解；剩余 6 = SessionTree view 字面量 width-coerce ×2（泛型类双实例化）+ 泛型类级联，需编译器级调查
+- **验证**：tsgo src 清零；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r37/smoke-r37-done）
+- **总账 243→241（session 深水区未完）；本会话累计 376→241（-135，36%）**
+
 ## 阶段 5 grind 第三十六轮记录（进行中：287→275，editor/tree-selector 全清）
 
 - **editor.ts 8→0**：paste 内 CSI-u 解码循环与 paste marker 重编号循环的 RegExpExecArray.index → segment 切片 + lastIndex 累加模式；`.replace(string, "")` → split/join；jumpToChar 的 lastIndexOf(fromIndex)/混合三元 → indexOf + charCodeAt 反向手写扫描；shouldTriggerFileCompletion 可选方法调用 → 提升局部变量

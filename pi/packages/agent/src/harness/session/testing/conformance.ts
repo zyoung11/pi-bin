@@ -99,12 +99,12 @@ export function createSessionBackendConformance(
 			"assigns parents and one sequence across every mutation",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				const root = await session.appendEntry<MessageEntry>(
+				const root = await session.appendEntry(
 					{ type: "message", id: "root", message: createUserMessage("root") },
 					"main",
 				);
 				await session.createLane("thread", root.id);
-				const child = await session.appendEntry<CustomEntry>(
+				const child = await session.appendEntry(
 					{ type: "custom", id: "child", customType: "note", data: { value: 1 } },
 					"thread",
 				);
@@ -147,7 +147,7 @@ export function createSessionBackendConformance(
 			"commits records and lane moves as separate mutations",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				const root = await session.appendEntry<MessageEntry>(
+				const root = await session.appendEntry(
 					{ type: "message", id: "root", message: createUserMessage("root") },
 					"main",
 				);
@@ -180,7 +180,7 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "rejects duplicate ids without changing state", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry<MessageEntry>(
+			await session.appendEntry(
 				{ type: "message", id: "shared", message: createUserMessage("root") },
 				"main",
 			);
@@ -190,7 +190,7 @@ export function createSessionBackendConformance(
 			);
 			await session.appendRecord(operationStarted("run", { lane: "main", kind: "run" }));
 			await rejectsWithCode(
-				session.appendEntry<CustomEntry>({ type: "custom", id: "run", customType: "note" }, "main"),
+				session.appendEntry({ type: "custom", id: "run", customType: "note" }, "main"),
 				"already_exists",
 			);
 			deepStrictEqual(
@@ -201,16 +201,16 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "isolates lanes while sharing the tree", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry<MessageEntry>(
+			await session.appendEntry(
 				{ type: "message", id: "root", message: createUserMessage("root") },
 				"main",
 			);
 			await session.createLane("thread", "root");
-			await session.appendEntry<MessageEntry>(
+			await session.appendEntry(
 				{ type: "message", id: "main-child", message: createUserMessage("main") },
 				"main",
 			);
-			await session.appendEntry<MessageEntry>(
+			await session.appendEntry(
 				{ type: "message", id: "thread-child", message: createUserMessage("thread") },
 				"thread",
 			);
@@ -253,11 +253,11 @@ export function createSessionBackendConformance(
 			"supports bounded filtered and cursor-based queries",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				await session.appendEntry<MessageEntry>(
+				await session.appendEntry(
 					{ type: "message", id: "root", message: createUserMessage("root") },
 					"main",
 				);
-				await session.appendEntry<CustomEntry>(
+				await session.appendEntry(
 					{ type: "custom", id: "old-note", customType: "note", data: 1 },
 					"main",
 				);
@@ -265,11 +265,11 @@ export function createSessionBackendConformance(
 					{ type: "compaction", id: "compact", summary: "summary", retainedTail: [], tokensBefore: 10 },
 					"main",
 				);
-				await session.appendEntry<CustomEntry>(
+				await session.appendEntry(
 					{ type: "custom", id: "new-note", customType: "note", data: 2 },
 					"main",
 				);
-				await session.appendEntry<MessageEntry>(
+				await session.appendEntry(
 					{ type: "message", id: "tail", message: createAssistantMessage("tail") },
 					"main",
 				);
@@ -564,11 +564,11 @@ export function createSessionBackendConformance(
 					totalTokens: 20,
 					cost: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 },
 				};
-				await session.appendEntry<MessageEntry>(
+				await session.appendEntry(
 					{ type: "message", id: "user", message: createUserMessage("question") },
 					"main",
 				);
-				await session.appendEntry<MessageEntry>({ type: "message", id: "assistant", message: assistant }, "main");
+				await session.appendEntry({ type: "message", id: "assistant", message: assistant }, "main");
 				await session.appendRecord({
 					type: "usage",
 					id: "assistant-usage",
@@ -667,7 +667,7 @@ export function createSessionBackendConformance(
 			const session = await repository.create({ id: "immutable" });
 			const metadata = await session.getMetadata();
 			const data = { nested: { value: 1 } };
-			await session.appendEntry<CustomEntry>({ type: "custom", id: "custom", customType: "note", data }, "main");
+			await session.appendEntry({ type: "custom", id: "custom", customType: "note", data }, "main");
 			data.nested.value = 50;
 			const read = await session.getEntry("custom");
 			if (read?.type !== "custom") throw new Error("Expected custom entry");
@@ -721,10 +721,10 @@ export function createSessionBackendConformance(
 			"appends provisioned entries with their existing ids",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				const entry = await session.appendEntry<CustomEntry>(
+				const entry = await session.appendEntry(
 					{ type: "custom", id: "provisioned", customType: "note", data: { value: 1 } },
 					"main",
-				);
+				) as CustomEntry;
 
 				strictEqual(entry.customType, "note");
 				deepStrictEqual(
@@ -737,7 +737,7 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "persists tool-result termination decisions", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			const entry = await session.appendEntry<MessageEntry>(
+			const entry = (await session.appendEntry(
 				{
 					type: "message",
 					id: "tool-result",
@@ -752,7 +752,7 @@ export function createSessionBackendConformance(
 					terminate: true,
 				},
 				"main",
-			);
+			)) as MessageEntry;
 
 			strictEqual(entry.terminate, true);
 			const stored = await session.getEntry(entry.id);
@@ -829,17 +829,17 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "linearizes concurrent writes across two lanes", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry<MessageEntry>(
+			await session.appendEntry(
 				{ type: "message", id: "root", message: createUserMessage("root") },
 				"main",
 			);
 			await session.createLane("thread", "root");
 			const completionOrder: string[] = [];
 			const writes = [
-				session.appendEntry<CustomEntry>({ type: "custom", id: "main-1", customType: "note" }, "main"),
-				session.appendEntry<CustomEntry>({ type: "custom", id: "thread-1", customType: "note" }, "thread"),
-				session.appendEntry<CustomEntry>({ type: "custom", id: "main-2", customType: "note" }, "main"),
-				session.appendEntry<CustomEntry>({ type: "custom", id: "thread-2", customType: "note" }, "thread"),
+				session.appendEntry({ type: "custom", id: "main-1", customType: "note" }, "main"),
+				session.appendEntry({ type: "custom", id: "thread-1", customType: "note" }, "thread"),
+				session.appendEntry({ type: "custom", id: "main-2", customType: "note" }, "main"),
+				session.appendEntry({ type: "custom", id: "thread-2", customType: "note" }, "thread"),
 			].map((write) =>
 				write.then((entry) => {
 					completionOrder.push(entry.id);

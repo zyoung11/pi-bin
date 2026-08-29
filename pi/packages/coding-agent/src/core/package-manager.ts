@@ -823,7 +823,7 @@ const taskRunner = {
 	nextIndex: 0,
 	limit: 1,
 	inputs: [] as unknown[],
-	fn: (input: unknown): Promise<unknown> => Promise.resolve(undefined),
+	fn: async (input: unknown): Promise<unknown> => undefined,
 };
 
 async function runTasksWorker(): Promise<void> {
@@ -834,26 +834,27 @@ async function runTasksWorker(): Promise<void> {
 	}
 }
 
-async function runTasksWithConcurrency<TIn, TOut>(
-	inputs: TIn[],
+/** Run task over inputs with bounded concurrency. Results are returned in completion order; cast to the concrete element type at the call site. */
+async function runTasksWithConcurrency(
+	inputs: unknown[],
 	limit: number,
-	task: (input: TIn) => Promise<TOut>,
-): Promise<TOut[]> {
+	task: (input: unknown) => Promise<unknown>,
+): Promise<unknown[]> {
 	taskRunner.results = [];
 	if (inputs.length === 0) {
-		return taskRunner.results as TOut[];
+		return taskRunner.results;
 	}
-	taskRunner.inputs = inputs as unknown as unknown[];
+	taskRunner.inputs = inputs;
 	taskRunner.nextIndex = 0;
 	taskRunner.limit = Math.max(1, Math.min(limit, inputs.length));
-	taskRunner.fn = task as (input: unknown) => Promise<unknown>;
+	taskRunner.fn = task;
 
 	const workers: Promise<void>[] = [];
 	for (let workerIndex = 0; workerIndex < taskRunner.limit; workerIndex++) {
 		workers.push(runTasksWorker());
 	}
 	await Promise.all(workers);
-	return taskRunner.results as TOut[];
+	return taskRunner.results;
 }
 
 export class DefaultPackageManager implements PackageManager {
@@ -1162,10 +1163,17 @@ export class DefaultPackageManager implements PackageManager {
 			}
 		}
 
-		const npmCheckResults = await runTasksWithConcurrency(npmCandidates, UPDATE_CHECK_CONCURRENCY, async (entry) => ({
-			entry,
-			shouldUpdate: await this.shouldUpdateNpmSource(entry.parsed, entry.scope),
-		}));
+		const npmCheckResults = (await runTasksWithConcurrency(
+			npmCandidates,
+			UPDATE_CHECK_CONCURRENCY,
+			async (input: unknown) => {
+				const entry = input as NpmUpdateTarget;
+				return {
+					entry,
+					shouldUpdate: await this.shouldUpdateNpmSource(entry.parsed, entry.scope),
+				};
+			},
+		)) as Array<{ entry: NpmUpdateTarget; shouldUpdate: boolean }>;
 		const userNpmUpdates: NpmUpdateTarget[] = [];
 		const projectNpmUpdates: NpmUpdateTarget[] = [];
 		for (const result of npmCheckResults) {
@@ -1188,11 +1196,12 @@ export class DefaultPackageManager implements PackageManager {
 		}
 		if (gitCandidates.length > 0) {
 			tasks.push(
-				runTasksWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (entry) =>
-					this.withProgress("update", entry.source, `Updating ${entry.source}...`, async () => {
+				runTasksWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (input: unknown) => {
+					const entry = input as GitUpdateTarget;
+					await this.withProgress("update", entry.source, `Updating ${entry.source}...`, async () => {
 						await this.updateGit(entry.parsed, entry.scope);
-					}),
-				).then(() => {}),
+					});
+				}).then(() => {}),
 			);
 		}
 
@@ -1257,8 +1266,9 @@ export class DefaultPackageManager implements PackageManager {
 			if (entry.scope !== "temporary") checkInputs.push({ pkg: entry.pkg, scope: entry.scope });
 		}
 		const checkTask = async (
-			entry: { pkg: PackageSource; scope: InstalledSourceScope },
+			input: unknown,
 		): Promise<PackageUpdate | undefined> => {
+			const entry = input as { pkg: PackageSource; scope: InstalledSourceScope };
 			const source = typeof entry.pkg === "string" ? entry.pkg : entry.pkg.source;
 			const parsed = this.parseSource(source);
 			if (parsed.type === "local") {
@@ -1301,9 +1311,12 @@ export class DefaultPackageManager implements PackageManager {
 			};
 		};
 
-		return runTasksWithConcurrency(checkInputs, UPDATE_CHECK_CONCURRENCY, checkTask).then(
-			(results) => results.filter((result) => result !== undefined),
-		);
+		const results = await runTasksWithConcurrency(checkInputs, UPDATE_CHECK_CONCURRENCY, checkTask);
+		const updates: PackageUpdate[] = [];
+		for (const result of results) {
+			if (result !== undefined) updates.push(result as PackageUpdate);
+		}
+		return updates;
 	}
 
 	private async resolvePackageSources(
@@ -2692,13 +2705,13 @@ export class DefaultPackageManager implements PackageManager {
 		const stdoutStream = child.stdout;
 		if (stdoutStream) {
 			stdoutStream.on("data", (data: Uint8Array) => {
-				stdout += data.toString();
+				stdout += new TextDecoder().decode(data);
 			});
 		}
 		const stderrStream = child.stderr;
 		if (stderrStream) {
 			stderrStream.on("data", (data: Uint8Array) => {
-				stderr += data.toString();
+				stderr += new TextDecoder().decode(data);
 			});
 		}
 		return waitForChildProcess(child).then((code) => {
