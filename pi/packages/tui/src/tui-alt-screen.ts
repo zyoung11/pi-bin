@@ -1,3 +1,4 @@
+import { ProcessTerminal } from "./terminal.ts";
 import {
 	AltScreenSearchComponent,
 	type AltScreenSearchMatch,
@@ -222,7 +223,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	private readonly copySelection?: (text: string) => Promise<boolean>;
 
 	constructor(
-		terminal: Terminal,
+		terminal: ProcessTerminal,
 		showHardwareCursor?: boolean,
 		logDirectory?: string,
 		options: TuiAltScreenOptions = {},

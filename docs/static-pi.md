@@ -84,6 +84,18 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十七轮记录（进行中：400→442 揭幕，结构性根因 1 已拆、2/3 大幅推进）
+
+- **根因 1 已拆：new Proxy→TuiForwarder 类**：implements TUI，34 成员逐一转发 getTui()（含 getter 转发字段 mode/children/terminal/wantsKeyRelease/onDebug→后改方法转发）；类型导入补齐（TuiStopOptions/TuiInputListener/RgbColor/TerminalColorScheme from terminal-colors.ts）
+- **根因 2 大幅推进：类→接口 record 墙**：
+  - Terminal：TuiBase.terminal/TuiAltScreen/TuiMainScreen 构造器参数/InteractiveTuiOptions.terminal/TuiForwarder getter 全改 ProcessTerminal 类（接口仅存类型层）
+  - ReadonlyFooterDataProvider→FooterDataProvider 类（customFooter factory 参数）
+  - ModelCatalogRuntime（Pick<ModelRuntime,"refresh">）删除→直接 ModelRuntime 类（model-catalog-refresh）
+  - TUI 接口去字段化：mode/children/terminal/wantsKeyRelease/onDebug/fullRedraws 字段删除→getMode()/getTerminal()/setOnDebug() 方法（TuiForwarder getter 不参与 width-coerce 字段拷贝的根因）；TuiBase 实现三方法；全仓 ui.terminal→ui.getTerminal() 迁移
+- **剩余单个顽固墙**：TuiForwarder 类→TUI 接口返回/传参仍 SC2002（width-coerce 失败，独立验证待编译器级调查——疑似 showOverlay 的 OverlayOptions 嵌套 record 或方法签名内的模块身份细节）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r27-final）
+- **总账 400→442（Terminal 迁移揭幕）**，interactive-mode 95（record 墙 ~40 + 其余）；下一轮：逐个 record 墙的 got 端分析 + TuiForwarder→TUI 墙编译器级调查
+
 ## 阶段 5 grind 第二十六轮记录（进行中：410→400，interactive-mode 108→87）
 
 - **Terminal 接口 getter→方法全仓迁移**：columns/rows/kittyProtocolActive getter 改方法（接口 getter 不可映射），ProcessTerminal 实现与 6 个文件全部调用点迁移

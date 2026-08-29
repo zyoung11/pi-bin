@@ -29,13 +29,16 @@ import { Editor } from "../../../../tui/src/components/editor.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
 import { type KeyId, matchesKey } from "../../../../tui/src/keys.ts";
-import { ProcessTerminal, type Terminal } from "../../../../tui/src/terminal.ts";
+import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
 import { getCapabilities, hyperlink } from "../../../../tui/src/terminal-image.ts";
+import type { RgbColor, TerminalColorScheme } from "../../../../tui/src/terminal-colors.ts";
 import {
 	type Component,
 	Container,
 	type OverlayHandle,
 	type OverlayOptions,
+	type TuiInputListener,
+	type TuiStopOptions,
 	TuiBase,
 	type TUI,
 } from "../../../../tui/src/tui.ts";
@@ -67,7 +70,7 @@ import {
 	detectCacheMiss,
 } from "../../core/cache-stats.ts";
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "../../core/defaults.ts";
-import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.ts";
+import { FooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
@@ -371,7 +374,7 @@ interface InteractiveTuiOptions {
 	tuiMode: TuiMode;
 	showHardwareCursor: boolean;
 	logDirectory: string;
-	terminal?: Terminal;
+	terminal?: ProcessTerminal;
 	onRightClickPaste?: () => void;
 }
 
@@ -419,40 +422,142 @@ type AutocompleteProviderFactory = (current: AutocompleteProvider) => Autocomple
 type EditorFactory = (tui: TUI, theme: ReturnType<typeof getEditorTheme>, keybindings: KeybindingsManager) => Editor;
 
 /** Stable reference for components while InteractiveMode replaces the active renderer. */
-export function createInteractiveTuiReference(getTui: () => TUI): TUI {
-	return new Proxy({} as TUI, {
-		get: (_target, property) => {
-			const tui = getTui();
-			const value = Reflect.get(tui, property, tui);
-			if (typeof value !== "function") return value;
-			let methodTui = tui;
-			let method = value;
-			return (...args: unknown[]) => {
-				const currentTui = getTui();
-				if (currentTui !== methodTui) {
-					const currentMethod = Reflect.get(currentTui, property, currentTui);
-					if (typeof currentMethod !== "function") {
-						throw new TypeError(`TUI property ${String(property)} is not callable`);
-					}
-					methodTui = currentTui;
-					method = currentMethod;
-				}
-				return Reflect.apply(method, methodTui, args);
-			};
-		},
-		set: (_target, property, value) => {
-			const tui = getTui();
-			return Reflect.set(tui, property, value, tui);
-		},
-		has: (_target, property) => Reflect.has(getTui(), property),
-		getPrototypeOf: () => Reflect.getPrototypeOf(getTui()),
-	});
+class TuiForwarder implements TUI {
+	private readonly getTui: () => TUI;
+
+	constructor(getTui: () => TUI) {
+		this.getTui = getTui;
+	}
+
+	getMode(): TuiMode {
+		return this.getTui().getMode();
+	}
+
+	getTerminal(): ProcessTerminal {
+		return this.getTui().getTerminal();
+	}
+
+	setOnDebug(handler: (() => void) | undefined): void {
+		this.getTui().setOnDebug(handler);
+	}
+
+	render(width: number): string[] {
+		return this.getTui().render(width);
+	}
+
+	handleInput(data: string): void {
+		this.getTui().handleInput(data);
+	}
+
+	invalidate(): void {
+		this.getTui().invalidate();
+	}
+
+	addChild(component: Component): void {
+		this.getTui().addChild(component);
+	}
+
+	removeChild(component: Component): void {
+		this.getTui().removeChild(component);
+	}
+
+	clear(): void {
+		this.getTui().clear();
+	}
+
+	getShowHardwareCursor(): boolean {
+		return this.getTui().getShowHardwareCursor();
+	}
+
+	setShowHardwareCursor(enabled: boolean): void {
+		this.getTui().setShowHardwareCursor(enabled);
+	}
+
+	getClearOnShrink(): boolean {
+		return this.getTui().getClearOnShrink();
+	}
+
+	setClearOnShrink(enabled: boolean): void {
+		this.getTui().setClearOnShrink(enabled);
+	}
+
+	setFocus(component: Component | null): void {
+		this.getTui().setFocus(component);
+	}
+
+	showOverlay(component: Component, options?: OverlayOptions): OverlayHandle {
+		return this.getTui().showOverlay(component, options);
+	}
+
+	hideOverlay(): void {
+		this.getTui().hideOverlay();
+	}
+
+	hasOverlay(): boolean {
+		return this.getTui().hasOverlay();
+	}
+
+	start(): void {
+		this.getTui().start();
+	}
+
+	stop(): void {
+		this.getTui().stop();
+	}
+
+	stopWithOptions(options: TuiStopOptions): void {
+		this.getTui().stopWithOptions(options);
+	}
+
+	renderNow(): void {
+		this.getTui().renderNow();
+	}
+
+	renderNowForce(force: boolean): void {
+		this.getTui().renderNowForce(force);
+	}
+
+	requestRender(): void {
+		this.getTui().requestRender();
+	}
+
+	requestRenderForce(force: boolean): void {
+		this.getTui().requestRenderForce(force);
+	}
+
+	addInputListener(listener: TuiInputListener): () => void {
+		return this.getTui().addInputListener(listener);
+	}
+
+	removeInputListener(listener: TuiInputListener): void {
+		this.getTui().removeInputListener(listener);
+	}
+
+	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void {
+		return this.getTui().onTerminalColorSchemeChange(listener);
+	}
+
+	setTerminalColorSchemeNotifications(enabled: boolean): void {
+		this.getTui().setTerminalColorSchemeNotifications(enabled);
+	}
+
+	queryTerminalBackgroundColor(options: { timeoutMs: number }): Promise<RgbColor | undefined> {
+		return this.getTui().queryTerminalBackgroundColor(options);
+	}
+
+	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined> {
+		return this.getTui().queryTerminalColorScheme(options);
+	}
+}
+
+export function createInteractiveTuiReference(getTui: () => TUI): TuiForwarder {
+	return new TuiForwarder(getTui);
 }
 
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiBase;
-	private ui: TUI;
+	private ui: TuiForwarder;
 	private mainScreenRenderState: TuiMainScreenRenderState | undefined;
 	private loadedResourcesContainer: Container;
 	private chatContainer: Container;
@@ -1069,9 +1174,9 @@ export class InteractiveMode {
 		const cwdBasename = path.basename(this.sessionManager.getCwd());
 		const sessionName = this.sessionManager.getSessionName();
 		if (sessionName) {
-			this.ui.terminal.setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`);
+			this.ui.getTerminal().setTitle(`${APP_TITLE} - ${sessionName} - ${cwdBasename}`);
 		} else {
-			this.ui.terminal.setTitle(`${APP_TITLE} - ${cwdBasename}`);
+			this.ui.getTerminal().setTitle(`${APP_TITLE} - ${cwdBasename}`);
 		}
 	}
 
@@ -2147,7 +2252,7 @@ export class InteractiveMode {
 	 */
 	private setExtensionFooter(
 		factory:
-			| ((tui: TUI, thm: Theme, footerData: ReadonlyFooterDataProvider) => Component)
+			| ((tui: TUI, thm: Theme, footerData: FooterDataProvider) => Component)
 			| undefined,
 	): void {
 		// Dispose existing custom footer
@@ -2630,7 +2735,7 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.model.cycleBackward", () => this.cycleModel("backward"));
 
 		// Global debug handler on TUI (works regardless of focus)
-		this.ui.onDebug = () => this.handleDebugCommand();
+		this.ui.setOnDebug(() => this.handleDebugCommand());
 		this.defaultEditor.onAction("app.model.select", () => this.showModelSelector());
 		this.defaultEditor.onAction("app.tools.expand", () => this.toggleToolOutputExpansion());
 		this.defaultEditor.onAction("app.thinking.toggle", () => this.toggleThinkingBlockVisibility());
@@ -2901,7 +3006,7 @@ export class InteractiveMode {
 			case "agent_start":
 				this.pendingTools.clear();
 				if (this.settingsManager.getShowTerminalProgress()) {
-					this.ui.terminal.setProgress(true);
+					this.ui.getTerminal().setProgress(true);
 				}
 				// Restore main escape handler if retry handler is still active
 				// (retry success event fires later, but we need main handler now)
@@ -3094,7 +3199,7 @@ export class InteractiveMode {
 
 			case "agent_end":
 				if (this.settingsManager.getShowTerminalProgress()) {
-					this.ui.terminal.setProgress(false);
+					this.ui.getTerminal().setProgress(false);
 				}
 				this.clearStatusIndicator("working");
 				if (this.streamingComponent) {
@@ -3113,7 +3218,7 @@ export class InteractiveMode {
 
 			case "compaction_start": {
 				if (this.settingsManager.getShowTerminalProgress()) {
-					this.ui.terminal.setProgress(true);
+					this.ui.getTerminal().setProgress(true);
 				}
 				// Keep editor active; submissions are queued during compaction.
 				this.autoCompactionEscapeHandler = this.defaultEditor.onEscape;
@@ -3127,7 +3232,7 @@ export class InteractiveMode {
 
 			case "compaction_end": {
 				if (this.settingsManager.getShowTerminalProgress()) {
-					this.ui.terminal.setProgress(false);
+					this.ui.getTerminal().setProgress(false);
 				}
 				if (this.autoCompactionEscapeHandler) {
 					this.defaultEditor.onEscape = this.autoCompactionEscapeHandler;
@@ -3645,7 +3750,7 @@ export class InteractiveMode {
 			// the render loop is already idle, so this cannot hot-spin (see #4144).
 			await this.runtimeHost.dispose();
 			this.themeController.disableAutoSync();
-			await this.ui.terminal.drainInput(1000);
+			await this.ui.getTerminal().drainInput(1000);
 			this.stop();
 			process.exit(0);
 		}
@@ -3656,7 +3761,7 @@ export class InteractiveMode {
 		// Drain any in-flight Kitty key release events before stopping.
 		// This prevents escape sequences from leaking to the parent shell over slow SSH.
 		this.themeController.disableAutoSync();
-		await this.ui.terminal.drainInput(1000);
+		await this.ui.getTerminal().drainInput(1000);
 
 		this.stop();
 		await this.runtimeHost.dispose();
@@ -3719,40 +3824,22 @@ export class InteractiveMode {
 	private registerSignalHandlers(): void {
 		this.unregisterSignalHandlers();
 
-		const signals: NodeJS.Signals[] = ["SIGTERM"];
-		if (process.platform !== "win32") {
-			signals.push("SIGHUP");
-		}
-
-		for (const signal of signals) {
-			const handler = () => {
-				// SIGHUP no longer hard-exits: graceful shutdown emits session_shutdown
-				// first, then attempts terminal restore. A genuinely dead terminal
-				// surfaces as an EIO on the restore writes, which the stdout/stderr
-				// error handler converts into emergencyTerminalExit (see #4144, #5080).
-				killTrackedDetachedChildren();
-				void this.shutdown({ fromSignal: true });
-			};
-			process.prependListener(signal, handler);
-			this.signalCleanupHandlers.push(() => process.off(signal, handler));
-		}
-
-		const terminalErrorHandler = (error: Error) => {
-			if (isDeadTerminalError(error)) {
-				this.emergencyTerminalExit();
-			}
-			throw error;
+		const signalHandler = () => {
+			killTrackedDetachedChildren();
+			void this.shutdown({ fromSignal: true });
 		};
-		process.stdout.on("error", terminalErrorHandler);
-		process.stderr.on("error", terminalErrorHandler);
-		this.signalCleanupHandlers.push(() => process.stdout.off("error", terminalErrorHandler));
-		this.signalCleanupHandlers.push(() => process.stderr.off("error", terminalErrorHandler));
+		process.on("SIGTERM", signalHandler);
+		this.signalCleanupHandlers.push(() => process.off("SIGTERM", signalHandler));
+		if (process.platform !== "win32") {
+			process.on("SIGHUP", signalHandler);
+			this.signalCleanupHandlers.push(() => process.off("SIGHUP", signalHandler));
+		}
 
 		// Restore the terminal before the process dies on any uncaught throw.
-		// Without this, an unhandled exception from extension code (or anywhere
-		// in pi) leaves the terminal in raw mode with no cursor.
+		// Without this, an unhandled exception from anywhere in pi leaves the
+		// terminal in raw mode with no cursor.
 		const uncaughtExceptionHandler = (error: Error) => this.uncaughtCrash(error);
-		process.prependListener("uncaughtException", uncaughtExceptionHandler);
+		process.on("uncaughtException", uncaughtExceptionHandler);
 		this.signalCleanupHandlers.push(() => process.off("uncaughtException", uncaughtExceptionHandler));
 	}
 
@@ -3780,12 +3867,13 @@ export class InteractiveMode {
 		process.on("SIGINT", ignoreSigint);
 
 		// Set up handler to restore TUI when resumed
-		process.once("SIGCONT", () => {
+		const sigcontHandler = () => {
 			clearInterval(suspendKeepAlive);
 			process.removeListener("SIGINT", ignoreSigint);
 			this.ui.start();
 			this.ui.requestRenderForce(true);
-		});
+		};
+		process.on("SIGCONT", sigcontHandler);
 
 		try {
 			// Stop the TUI (restore terminal to normal mode)
@@ -4264,7 +4352,7 @@ export class InteractiveMode {
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
-					tuiMode: this.ui.mode,
+					tuiMode: this.ui.getMode(),
 					fullscreenExitOutput: this.settingsManager.getFullscreenExitOutput(),
 					fullscreenScrollbar: this.settingsManager.getFullscreenScrollbar(),
 					warnings: this.settingsManager.getWarnings(),
@@ -4424,7 +4512,7 @@ export class InteractiveMode {
 					},
 					onTuiModeChange: (mode) => {
 						if (!this.switchTuiMode(mode)) {
-							selector?.getSettingsList().updateValue("tui-mode", this.ui.mode);
+							selector?.getSettingsList().updateValue("tui-mode", this.ui.getMode());
 							this.showStatus("Close active overlays before changing TUI mode");
 							return;
 						}
@@ -4882,7 +4970,7 @@ export class InteractiveMode {
 			const selector = new TreeSelectorComponent(
 				tree,
 				realLeafId,
-				this.ui.terminal.rows(),
+				this.ui.getTerminal().rows(),
 				async (entryId) => {
 					// Selecting the current leaf is a no-op (already there)
 					if (entryId === this.sessionManager.getLeafId()) {
@@ -6046,8 +6134,8 @@ export class InteractiveMode {
 	}
 
 	private handleDebugCommand(): void {
-		const width = this.ui.terminal.columns();
-		const height = this.ui.terminal.rows();
+		const width = this.ui.getTerminal().columns();
+		const height = this.ui.getTerminal().rows();
 		const allLines = this.ui.render(width);
 
 		const debugLogPath = getDebugLogPath();
@@ -6160,7 +6248,7 @@ export class InteractiveMode {
 	stop(fullscreenExitOutput = this.settingsManager.getFullscreenExitOutput()): void {
 		this.disposeActiveSelector();
 		if (this.settingsManager.getShowTerminalProgress()) {
-			this.ui.terminal.setProgress(false);
+			this.ui.getTerminal().setProgress(false);
 		}
 		this.clearStatusIndicator();
 		this.themeController.disableAutoSync();

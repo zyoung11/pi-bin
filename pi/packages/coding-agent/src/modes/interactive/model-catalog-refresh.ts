@@ -2,8 +2,6 @@ import type { ModelsRefreshResult } from "../../../../ai/src/index.ts";
 import type { ModelRuntime } from "../../core/model-runtime.ts";
 import { raceWithAbortSignal } from "../../utils/abort.ts";
 
-type ModelCatalogRuntime = Pick<ModelRuntime, "refresh">;
-
 interface ActiveModelCatalogRefresh {
 	controller: AbortController;
 	promise: Promise<ModelsRefreshResult>;
@@ -11,21 +9,21 @@ interface ActiveModelCatalogRefresh {
 }
 
 class ModelCatalogRefreshCoordinator {
-	private readonly activeByRuntime: { runtime: ModelCatalogRuntime; active: ActiveModelCatalogRefresh }[] = [];
+	private readonly activeByRuntime: { runtime: ModelRuntime; active: ActiveModelCatalogRefresh }[] = [];
 
-	private findActive(runtime: ModelCatalogRuntime): ActiveModelCatalogRefresh | undefined {
+	private findActive(runtime: ModelRuntime): ActiveModelCatalogRefresh | undefined {
 		for (const item of this.activeByRuntime) {
 			if (item.runtime === runtime) return item.active;
 		}
 		return undefined;
 	}
 
-	private removeActive(runtime: ModelCatalogRuntime): void {
+	private removeActive(runtime: ModelRuntime): void {
 		const index = this.activeByRuntime.findIndex((item) => item.runtime === runtime);
 		if (index !== -1) this.activeByRuntime.splice(index, 1);
 	}
 
-	refresh(modelRuntime: ModelCatalogRuntime, signal: AbortSignal): Promise<ModelsRefreshResult> {
+	refresh(modelRuntime: ModelRuntime, signal: AbortSignal): Promise<ModelsRefreshResult> {
 		signal.throwIfAborted();
 		let active = this.findActive(modelRuntime);
 		if (!active) {
@@ -56,7 +54,7 @@ const modelCatalogRefreshCoordinator = new ModelCatalogRefreshCoordinator();
 
 /** Share concurrent interactive all-catalog refreshes while keeping each caller's cancellation independent. */
 export function refreshModelCatalogs(
-	modelRuntime: ModelCatalogRuntime,
+	modelRuntime: ModelRuntime,
 	signal: AbortSignal,
 ): Promise<ModelsRefreshResult> {
 	return modelCatalogRefreshCoordinator.refresh(modelRuntime, signal);

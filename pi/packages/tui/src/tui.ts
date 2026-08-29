@@ -1,3 +1,4 @@
+import { ProcessTerminal } from "./terminal.ts";
 /**
  * Minimal TUI implementation with differential rendering
  */
@@ -314,13 +315,10 @@ export interface TuiStopOptions {
 export interface TUI {
 	render(width: number): string[];
 	handleInput(data: string): void;
-	wantsKeyRelease: boolean;
 	invalidate(): void;
-	readonly mode: TuiMode;
-	children: Component[];
-	terminal: Terminal;
-	onDebug?: () => void;
-	readonly fullRedraws: number;
+	getMode(): TuiMode;
+	getTerminal(): ProcessTerminal;
+	setOnDebug(handler: (() => void) | undefined): void;
 	addChild(component: Component): void;
 	removeChild(component: Component): void;
 	clear(): void;
@@ -353,12 +351,24 @@ export interface ViewportTUI extends TUI {
 }
 
 export function isViewportTUI(tui: TUI): tui is ViewportTUI {
-	return tui.mode === "fullscreen";
+	return tui.getMode() === "fullscreen";
 }
 
 export abstract class TuiBase extends Container implements TUI {
 	readonly mode: TuiMode = "regular";
-	public terminal: Terminal;
+
+	getMode(): TuiMode {
+		return this.mode;
+	}
+
+	getTerminal(): ProcessTerminal {
+		return this.terminal;
+	}
+
+	setOnDebug(handler: (() => void) | undefined): void {
+		this.onDebug = handler;
+	}
+	public terminal: ProcessTerminal;
 	private focusedComponent: Component | null = null;
 	private inputListeners: TuiInputListener[] = [];
 
@@ -388,7 +398,7 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 	private overlayFocusRestore: OverlayFocusRestoreState = { status: "inactive", overlay: undefined };
 
-	constructor(terminal: Terminal, showHardwareCursor?: boolean, logDirectory?: string) {
+	constructor(terminal: ProcessTerminal, showHardwareCursor?: boolean, logDirectory?: string) {
 		super();
 		this.terminal = terminal;
 		this.logDirectory = logDirectory ?? process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), ".pi", "agent");
