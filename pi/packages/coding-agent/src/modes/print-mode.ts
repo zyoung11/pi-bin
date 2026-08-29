@@ -7,10 +7,18 @@
  */
 
 import type { AssistantMessage, ImageContent } from "../../../ai/src/index.ts";
+import type { AgentSession } from "../core/agent-session.ts";
 import type { AgentSessionRuntime } from "../core/agent-session-runtime.ts";
 import { flushRawStdout, writeRawStdout } from "../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../utils/shell.ts";
 import { toJsonEvent } from "./json-event.ts";
+
+/** Read the role field off a message without triggering union field-read walls. */
+function messageRoleOf(message: unknown): string {
+	const record = message as unknown as Record<string, unknown>;
+	const role = record["role"];
+	return typeof role === "string" ? role : "";
+}
 
 /**
  * Options for print mode.
@@ -60,14 +68,17 @@ export async function runPrintMode(runtimeHost: AgentSessionRuntime, options: Pr
 					process.exit(signal === "SIGHUP" ? 129 : 143);
 				});
 			};
-			process.on(signal, handler);
-			signalCleanupHandlers.push(() => process.off(signal, handler));
+			if (signal === "SIGINT") {
+				process.on("SIGINT", handler);
+			} else if (signal === "SIGTERM") {
+				process.on("SIGTERM", handler);
+			}
 		}
 	};
 
 	registerSignalHandlers();
 
-	runtimeHost.setRebindSession(async () => {
+	runtimeHost.setRebindSession(async (_session: AgentSession) => {
 		await rebindSession();
 	});
 
@@ -110,7 +121,7 @@ export async function runPrintMode(runtimeHost: AgentSessionRuntime, options: Pr
 			const state = session.state;
 			const lastMessage = state.messages[state.messages.length - 1];
 
-			if (lastMessage?.role === "assistant") {
+			if (lastMessage !== undefined && messageRoleOf(lastMessage) === "assistant") {
 				const assistantMsg = lastMessage as AssistantMessage;
 				if (assistantMsg.stopReason === "error" || assistantMsg.stopReason === "aborted") {
 					console.error(assistantMsg.errorMessage || `Request ${assistantMsg.stopReason}`);

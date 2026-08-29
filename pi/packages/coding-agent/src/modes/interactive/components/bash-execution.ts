@@ -9,7 +9,6 @@ import { Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
 import {
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,
-	type TruncationResult,
 	truncateTail,
 } from "../../../core/tools/truncate.ts";
 import { stripAnsi } from "../../../utils/ansi.ts";
@@ -53,7 +52,7 @@ export class BashExecutionComponent extends Container {
 	private status: "running" | "complete" | "cancelled" | "error" = "running";
 	private exitCode: number | undefined = undefined;
 	private loader: Loader;
-	private truncationResult?: TruncationResult;
+	private truncationResult?: { truncated: boolean };
 	private fullOutputPath?: string;
 	private expanded = false;
 	private contentContainer: Container;
@@ -114,8 +113,8 @@ export class BashExecutionComponent extends Container {
 		// Append to output lines
 		const newLines = clean.split("\n");
 		if (this.outputLines.length > 0 && newLines.length > 0) {
-			// Append first chunk to last line (incomplete line continuation)
-			this.outputLines[this.outputLines.length - 1] += newLines[0];
+			const last = this.outputLines.length - 1;
+			this.outputLines[last] = this.outputLines[last] + newLines[0];
 			this.outputLines.push(...newLines.slice(1));
 		} else {
 			this.outputLines.push(...newLines);
@@ -127,7 +126,7 @@ export class BashExecutionComponent extends Container {
 	setComplete(
 		exitCode: number | undefined,
 		cancelled: boolean,
-		truncationResult?: TruncationResult,
+		truncationResult?: { truncated: boolean },
 		fullOutputPath?: string,
 	): void {
 		this.exitCode = exitCode;

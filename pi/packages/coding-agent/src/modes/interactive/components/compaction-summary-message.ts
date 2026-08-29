@@ -6,6 +6,19 @@ import type { CompactionSummaryMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";
 
+/** Format a token count with thousands separators, matching the default locale grouping of toLocaleString. */
+function formatTokenCount(value: number): string {
+	const whole = Math.floor(Math.abs(value)).toString();
+	let out = "";
+	let count = 0;
+	for (let i = whole.length - 1; i >= 0; i--) {
+		out = whole[i] + out;
+		count++;
+		if (count % 3 === 0 && i > 0) out = "," + out;
+	}
+	return (value < 0 ? "-" : "") + out;
+}
+
 /**
  * Component that renders a compaction message with collapsed/expanded state.
  * Uses same background color as custom messages for visual consistency.
@@ -35,7 +48,7 @@ export class CompactionSummaryMessageComponent extends Box {
 	private updateDisplay(): void {
 		this.clear();
 
-		const tokenStr = this.message.tokensBefore.toLocaleString();
+		const tokenStr = formatTokenCount(this.message.tokensBefore);
 		const label = theme.fg("customMessageLabel", `\x1b[1m[compaction]\x1b[22m`);
 		this.addChild(new Text(label, 0, 0));
 		this.addChild(new Spacer(1));

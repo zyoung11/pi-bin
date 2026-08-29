@@ -12,7 +12,9 @@ export type AuthSelectorProvider = {
 	id: string;
 	name: string;
 	authType: "oauth" | "api_key";
-	method?: ApiKeyAuth | OAuthAuth;
+	oauthMethod?: OAuthAuth;
+	apiKeyMethod?: ApiKeyAuth;
+	methodName?: string;
 	status?: AuthCheck;
 };
 
@@ -101,7 +103,7 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 			? fuzzyFilter(
 					this.allProviders,
 					query,
-					(provider) => `${provider.name} ${provider.id} ${provider.authType} ${provider.method?.name ?? ""}`,
+					(provider) => `${provider.name} ${provider.id} ${provider.authType} ${provider.methodName ?? ""}`,
 				)
 			: this.allProviders;
 		this.selectedIndex = Math.max(0, Math.min(this.selectedIndex, Math.max(0, this.filteredProviders.length - 1)));

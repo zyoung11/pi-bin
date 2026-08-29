@@ -1,5 +1,6 @@
 import type { AssistantMessage } from "../../../ai/src/index.ts";
 import type { SessionEntry } from "./session-manager.ts";
+import type { ModelRuntime } from "./model-runtime.ts";
 
 /**
  * Prompt-cache TTL: idle gaps longer than this are worth mentioning as the
@@ -29,10 +30,6 @@ export interface CacheWasteTotals {
 	missCount: number;
 }
 
-/** Minimal pricing lookup, satisfied by ModelRuntime. Cost is $/million tokens. */
-export interface ModelPriceSource {
-	getModel(provider: string, modelId: string): { cost: { cacheRead: number } } | undefined;
-}
 
 /** The last request seen by the scan; everything in its prompt should be cached. */
 interface PreviousRequest {
@@ -56,7 +53,7 @@ interface PreviousRequest {
 function detectMiss(
 	prev: PreviousRequest | undefined,
 	message: AssistantMessage,
-	models: ModelPriceSource,
+	models: ModelRuntime,
 ): CacheMiss | undefined {
 	const usage = message.usage;
 	const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite;
@@ -108,7 +105,7 @@ export interface CacheMissEntry {
 
 function scan(
 	entries: SessionEntry[],
-	models: ModelPriceSource,
+	models: ModelRuntime,
 ): { prev: PreviousRequest | undefined; totals: CacheWasteTotals; misses: CacheMissEntry[] } {
 	let prev: PreviousRequest | undefined;
 	const totals: CacheWasteTotals = { missedTokens: 0, missedCost: 0, missCount: 0 };
@@ -140,7 +137,7 @@ function scan(
  * Cumulative cache waste across a session: prompt tokens that should have been
  * cache reads (they were in the previous turn's prompt) but were re-billed.
  */
-export function computeCacheWaste(entries: SessionEntry[], models: ModelPriceSource): CacheWasteTotals {
+export function computeCacheWaste(entries: SessionEntry[], models: ModelRuntime): CacheWasteTotals {
 	return scan(entries, models).totals;
 }
 
@@ -151,7 +148,7 @@ export function computeCacheWaste(entries: SessionEntry[], models: ModelPriceSou
  */
 export function collectCacheMisses(
 	entries: SessionEntry[],
-	models: ModelPriceSource,
+	models: ModelRuntime,
 ): CacheMissEntry[] {
 	return scan(entries, models).misses;
 }
@@ -163,7 +160,7 @@ export function collectCacheMisses(
 export function detectCacheMiss(
 	entries: SessionEntry[],
 	message: AssistantMessage,
-	models: ModelPriceSource,
+	models: ModelRuntime,
 ): CacheMiss | undefined {
 	return detectMiss(scan(entries, models).prev, message, models);
 }

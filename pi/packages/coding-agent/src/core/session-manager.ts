@@ -47,7 +47,8 @@ function entryParentIdOf(entry: unknown): string | null | undefined {
 	return typeof parentId === "string" || parentId === null ? parentId : undefined;
 }
 
-function entryTypeOf(entry: unknown): string | undefined {
+/** Read the discriminating type field off a session entry without triggering union field-read walls. */
+export function entryTypeOf(entry: unknown): string | undefined {
 	const record = entry as unknown as Record<string, unknown>;
 	const type = record["type"];
 	return typeof type === "string" ? type : undefined;

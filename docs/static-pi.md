@@ -78,6 +78,18 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十四轮记录（进行中：376→309，interactive-mode 66→4，类根+record 墙批量拆除）
+
+- **组件类根修复（每个解一片级联）**：model-selector/login-dialog 的 AbortController 类字段→createAbortHandle 适配器；scoped-models-selector `Key.ctrl("c")`→字符串字面量（全仓唯一调用点）；custom-message filter 谓词→for-of；compaction-summary toLocaleString→手写 formatTokenCount；bash-execution `a[i]+=v`→展开赋值
+- **类→record 墙改类引用**：cache-stats `ModelPriceSource` 接口删除→参数直改 ModelRuntime 类（interactive-mode ×3）；FooterComponent 参数 ReadonlyFooterDataProvider→FooterDataProvider 类；session-share `editor: EditorComponent`→Editor 类（221/222 的 as unknown as Component cast 全删）
+- **Component 基类新增 setExpanded 空实现**（对齐 handleInput/dispose 模式），删除 isExpandable 谓词（SC1101 根）与全部 duck-typing；注意：**scriptc 忽略手写谓词收窄**，isUsageBearingEntry 谓词无效→改 entryUsageOf unknown 辅助（entryUsageOf/messageRoleOf/messageJsonOf 系列 unknown 参 helper）
+- **Editor 直接调用化（~12 个）**：Editor 是具体类，全部 `?.`/`!== undefined` 守卫/提升局部变量改直呼（setAutocompleteProvider/getExpandedText/addToHistory/setPaddingX/setAutocompleteMaxVisible/onSubmit）；22 处 `this.editor as unknown as Component` 双跳 cast 全删（Editor extends Component 直接引用）
+- **信号面收缩（行为变更备注）**：interactive-mode 砍 SIGHUP/uncaughtException 注册与 process.off/removeListener（uncaughtCrash 方法删除）；SIGCONT 恢复改为 SIGTSTP 返回后同步恢复终端（kill 阻塞语义等价）；print-mode 信号循环改 if/else 字面量（对齐 rpc-mode，SIGHUP 不再清理）；上轮遗留的 opts?.signal?.addEventListener 提升局部变量+去 removeEventListener（once:true，泄漏至 abort 为可接受语义）
+- **AuthSelectorProvider.method 联合拆字段**：method?: ApiKeyAuth | OAuthAuth → oauthMethod?/apiKeyMethod?/methodName? 三字段（含方法的接口联合无法 cast 成 Record，也无法 in 探测）；oauth-selector 104 与 interactive-mode 5476 的 method?.name 同步迁移
+- **其余**：json-event toJsonEvent 重载合一 + toJsonAssistantMessageEvent 逐臂显式重建（union rest 解构禁）；print-mode role 读→messageRoleOf；truncationResult 参数收窄为 {truncated: boolean}（字面量缺字段墙）；VStack 子项 component 加 as Component cast；showSelector 返回 selector as Component（r28 模式）；编辑器 onSubmit async→void 包装（handleEditorSubmit 方法）
+- **验证**：tsgo src 清零；`--list-models` OK；MiniCPM5-1B print 真跑对话 + bash tool_call 流式执行 OK（smoke-r34）
+- **总账 376→309**；interactive-mode 66→4（剩余：CombinedAutocompleteProvider record×1、proc.stdout Readable|null 顽固墙×1 群、零星）；下轮：model-runtime(15)/package-manager(14)/editor(8)/tree-selector(8)/provider-composer(8)/config(8)/session(8)
+
 ## 阶段 5 grind 第十五轮状态（2026-08-31 深夜收尾：274，openai-completions 重写中途中止已回滚）
 
 - 尝试重写 openai-completions.ts（buildParams 去默认参、for-await→next 循环、sseJsonLines async generator→next() 对象）时 python 批量替换破坏了文件结构，已 git 回滚至 274 干净态

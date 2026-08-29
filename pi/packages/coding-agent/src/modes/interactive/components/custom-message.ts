@@ -1,4 +1,3 @@
-import type { TextContent } from "../../../../../ai/src/index.ts";
 import type { Component } from "../../../../../tui/src/tui.ts";
 import { Box } from "../../../../../tui/src/components/box.ts";
 import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
@@ -79,10 +78,12 @@ export class CustomMessageComponent extends Container {
 		if (typeof this.message.content === "string") {
 			text = this.message.content;
 		} else {
-			text = this.message.content
-				.filter((c): c is TextContent => c.type === "text")
-				.map((c) => c.text)
-				.join("\n");
+			text = "";
+			for (const c of this.message.content) {
+				if (c.type === "text") {
+					text += text === "" ? c.text : `\n${c.text}`;
+				}
+			}
 		}
 
 		this.box.addChild(

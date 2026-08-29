@@ -3,9 +3,9 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { EditorComponent } from "../../../../tui/src/editor-component.ts";
+import { Editor } from "../../../../tui/src/components/editor.ts";
 import { hyperlink } from "../../../../tui/src/terminal-image.ts";
-import type { Component, Container, TUI } from "../../../../tui/src/tui.ts";
+import type { Container, TUI } from "../../../../tui/src/tui.ts";
 import { getAuthCredential } from "../../cli/auth-command.ts";
 import { getShareViewerUrl } from "../../config.ts";
 import type { AgentSession } from "../../core/agent-session.ts";
@@ -18,7 +18,7 @@ interface SessionShareContext {
 	session: AgentSession;
 	ui: TUI;
 	editorContainer: Container;
-	editor: EditorComponent;
+	editor: Editor;
 	showStatus: (message: string) => void;
 	showError: (message: string) => void;
 }
@@ -218,6 +218,6 @@ async function shareViaGist(tmpFile: string, context: SessionShareContext): Prom
 function restoreEditor(loader: BorderedLoader, context: SessionShareContext): void {
 	loader.dispose();
 	context.editorContainer.clear();
-	context.editorContainer.addChild(context.editor as unknown as Component);
-	context.ui.setFocus(context.editor as unknown as Component);
+	context.editorContainer.addChild(context.editor);
+	context.ui.setFocus(context.editor);
 }

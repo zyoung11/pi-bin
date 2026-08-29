@@ -66,6 +66,12 @@ export abstract class Component {
 	 * with resources override it.
 	 */
 	dispose(): void {}
+
+	/**
+	 * Optional expand/collapse hook for output panels.
+	 * The base implementation is a no-op; collapsible components override it.
+	 */
+	setExpanded(_expanded: boolean): void {}
 }
 
 export type TuiInputListenerResult = { consume?: boolean; data?: string } | undefined;

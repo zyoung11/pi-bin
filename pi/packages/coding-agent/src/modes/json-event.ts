@@ -22,19 +22,43 @@ function toJsonAssistantMessageEvent(
 ): JsonMessageUpdateEvent["assistantMessageEvent"] {
 	if (event.type === "toolcall_start") {
 		const toolCall = event.partial.content[event.contentIndex];
-		if (toolCall?.type !== "toolCall") {
+		const toolCallRecord = toolCall as unknown as Record<string, unknown>;
+		const id = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["id"];
+		const toolName = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["name"];
+		const kind = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["type"];
+		if (kind !== "toolCall" || typeof id !== "string" || typeof toolName !== "string") {
 			throw new Error(`toolcall_start content at index ${event.contentIndex} is not a tool call`);
 		}
-		const { partial: _partial, ...deltaEvent } = event;
-		return { ...deltaEvent, id: toolCall.id, toolName: toolCall.name };
+		return { type: "toolcall_start", contentIndex: event.contentIndex, id, toolName };
 	}
-
-	if (!("partial" in event)) {
-		return event;
+	if (event.type === "start") {
+		return { type: "start" };
 	}
-
-	const { partial: _partial, ...deltaEvent } = event;
-	return deltaEvent;
+	if (event.type === "text_start") {
+		return { type: "text_start", contentIndex: event.contentIndex };
+	}
+	if (event.type === "text_delta") {
+		return { type: "text_delta", contentIndex: event.contentIndex, delta: event.delta };
+	}
+	if (event.type === "text_end") {
+		return { type: "text_end", contentIndex: event.contentIndex, content: event.content };
+	}
+	if (event.type === "thinking_start") {
+		return { type: "thinking_start", contentIndex: event.contentIndex };
+	}
+	if (event.type === "thinking_delta") {
+		return { type: "thinking_delta", contentIndex: event.contentIndex, delta: event.delta };
+	}
+	if (event.type === "thinking_end") {
+		return { type: "thinking_end", contentIndex: event.contentIndex, content: event.content };
+	}
+	if (event.type === "toolcall_delta") {
+		return { type: "toolcall_delta", contentIndex: event.contentIndex, delta: event.delta };
+	}
+	if (event.type === "toolcall_end") {
+		return { type: "toolcall_end", contentIndex: event.contentIndex, toolCall: event.toolCall };
+	}
+	return event;
 }
 
 /**
@@ -43,8 +67,6 @@ function toJsonAssistantMessageEvent(
  * `message_end` provides the final authoritative message. Cumulative usage,
  * tool-call ids, and tool names remain available because their size is constant.
  */
-export function toJsonEvent(event: MessageUpdateEvent): JsonMessageUpdateEvent;
-export function toJsonEvent(event: AgentSessionEvent): JsonAgentSessionEvent;
 export function toJsonEvent(event: AgentSessionEvent): JsonAgentSessionEvent {
 	if (event.type !== "message_update") {
 		return event;

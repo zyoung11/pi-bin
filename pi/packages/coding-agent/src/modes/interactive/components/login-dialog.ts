@@ -4,6 +4,7 @@ import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
 import { Container, type Focusable, type TUI } from "../../../../../tui/src/tui.ts";
+import { createAbortHandle } from "../../../../../tui/src/utils.ts";
 import { openBrowser } from "../../../utils/open-browser.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
@@ -16,7 +17,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 	private contentContainer: Container;
 	private input: Input;
 	private tui: TUI;
-	private abortController = new AbortController();
+	private abortHandle = createAbortHandle();
 	private inputResolver?: (value: string) => void;
 	private inputRejecter?: (error: Error) => void;
 	private onComplete: (success: boolean, message?: string) => void;
@@ -75,7 +76,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 	}
 
 	get signal(): AbortSignal {
-		return this.abortController.signal;
+		return this.abortHandle.signal;
 	}
 
 	private replaceInputWithSubmittedText(value: string): void {
@@ -85,7 +86,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 	}
 
 	private cancel(): void {
-		this.abortController.abort();
+		this.abortHandle.abort();
 		if (this.inputRejecter) {
 			this.inputRejecter(new Error("Login cancelled"));
 			this.inputResolver = undefined;

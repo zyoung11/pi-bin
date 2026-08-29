@@ -6,6 +6,7 @@ import { Text } from "../../../../../tui/src/components/text.ts";
 import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
 import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
 import { matchesKey } from "../../../../../tui/src/keys.ts";
+import { createAbortHandle } from "../../../../../tui/src/utils.ts";
 import { Container, type Focusable, type TUI } from "../../../../../tui/src/tui.ts";
 import type { ModelRuntime } from "../../../core/model-runtime.ts";
 import { refreshModelCatalogs } from "../model-catalog-refresh.ts";
@@ -67,7 +68,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private scope: ModelScope = "all";
 	private scopeText?: Text;
 	private scopeHintText?: Text;
-	private readonly refreshAbortController = new AbortController();
+	private readonly refreshAbort = createAbortHandle();
 	private refreshTimeout?: ReturnType<typeof setTimeout>;
 	private closed = false;
 
@@ -177,10 +178,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		let timedOut = false;
 		this.refreshTimeout = setTimeout(() => {
 			timedOut = true;
-			this.refreshAbortController.abort();
+			this.refreshAbort.abort();
 		}, timeoutMs);
 		try {
-			const result = await refreshModelCatalogs(this.modelRuntime, this.refreshAbortController.signal);
+			const result = await refreshModelCatalogs(this.modelRuntime, this.refreshAbort.signal);
 			if (this.closed) return;
 			this.refreshStatusMessage = "";
 			if (result.aborted && timedOut) {
@@ -216,7 +217,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		if (this.closed) return;
 		this.closed = true;
 		if (this.refreshTimeout) clearTimeout(this.refreshTimeout);
-		this.refreshAbortController.abort();
+		this.refreshAbort.abort();
 	}
 
 	private sortModels(models: ModelItem[]): ModelItem[] {
