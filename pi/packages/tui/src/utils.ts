@@ -29,6 +29,42 @@ export function createAbortHandle(): { signal: AbortSignal; abort: () => void } 
 	return { signal: controller.signal, abort: () => controller.abort() };
 }
 
+export function parseDecimalNumber(text: string): number | undefined {
+	const trimmed = text.trim();
+	let index = 0;
+	let sign = 1;
+	if (index < trimmed.length && (trimmed.charCodeAt(index) === 43 || trimmed.charCodeAt(index) === 45)) {
+		if (trimmed.charCodeAt(index) === 45) sign = -1;
+		index++;
+	}
+	let value = 0;
+	let digits = 0;
+	while (index < trimmed.length) {
+		const code = trimmed.charCodeAt(index);
+		if (code < 48 || code > 57) break;
+		value = value * 10 + (code - 48);
+		digits++;
+		index++;
+	}
+	if (digits === 0) return undefined;
+	if (index < trimmed.length && trimmed.charCodeAt(index) === 46) {
+		index++;
+		let scale = 0.1;
+		let fractionDigits = 0;
+		while (index < trimmed.length) {
+			const code = trimmed.charCodeAt(index);
+			if (code < 48 || code > 57) break;
+			value += (code - 48) * scale;
+			scale *= 0.1;
+			fractionDigits++;
+			index++;
+		}
+		if (fractionDigits === 0) return undefined;
+	}
+	if (index !== trimmed.length) return undefined;
+	return sign * value;
+}
+
 export function parseDecimalInt(text: string): number | undefined {
 	const trimmed = text.trim();
 	let index = 0;

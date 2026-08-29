@@ -91,6 +91,13 @@
 - **TuiForwarder→TUI 返回墙仍剩 1 个**：TuiForwarder 现为纯方法类仍 SC2002——待用 SCDBG width 输出定位具体失败字段（上面②③类的字段匹配问题同样适用）
 - 下轮：按 SCDBG 输出逐 record 修（selector options/focus 字段改 Component；VStack 调用字面量显式注解；EditorOptions 字段级排查）
 
+## 阶段 5 grind 第二十九轮记录（进行中：414→411，terminal stdin 面部分修复，TUI 核心硬依赖确认）
+
+- **terminal.ts 部分修复**：parseInt/Number(env)→parseDecimalInt/parseDecimalNumber（tui/utils 新增后者）；stdin data 监听参数 string→Uint8Array（setEncoding 删除后 stdin 直出字节流，TextDecoder 解码后进 StdinBuffer）；appendFileSync 3 参→2 参
+- **TUI 核心硬依赖确认（结构性，需 scriptc 支持）**：process.stdin 的 setRawMode/isRaw/setEncoding/resume/pause/removeListener、process.stdout 的 resize 事件/removeListener/columns/rows、process.prependListener——这些是 TUI 运行时必需（raw mode 是终端交互的前提），无降级路径。约 12 个诊断 + 跨文件同类（clipboard/package-manager 的 execSync/spawnSync 等）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r29-final）
+- **总账 414→411**；剩余大头：interactive-mode(67)/editor(25)/terminal(11 硬依赖)/clipboard(11)/package-manager(10)/model-runtime(10) 等，模式全部有解但量大
+
 ## 阶段 5 grind 第二十八轮记录（进行中：442→414，interactive-mode 95→67，结构性根因全部拆除）
 
 - **根因 3 彻底拆除：TuiForwarder 类删除→createInteractiveTuiReference 返回字面量 record**（29 个箭头函数字段逐一转发 self.getTui()，闭包捕获 self 实现动态转发）——类实例（classval）→接口 record 槽确认是 scriptc 死墙（SC2002 无 detail = requireExactShape 的 classval/record kind 不匹配），而**字面量 record→接口 width-coerce 可行**（函数值字段 lift ✓）——这是本会话最重要的架构发现：稳定引用用字面量 record 而非类实现

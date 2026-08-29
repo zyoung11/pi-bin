@@ -5,7 +5,7 @@ import { setKittyProtocolActive } from "./keys.ts";
 import { isNativeModifierPressed } from "./native-modifiers.ts";
 import { getNativeModuleCandidates } from "./native-module-path.ts";
 import { StdinBuffer } from "./stdin-buffer.ts";
-
+import { parseDecimalInt, parseDecimalNumber } from "./utils.ts";
 const cjsRequire = createRequire(import.meta.url);
 
 const TERMINAL_PROGRESS_KEEPALIVE_MS = 1000;
@@ -110,8 +110,8 @@ const DEFAULT_SSH_ESCAPE_TIMEOUT_MS = 100;
  * another byte, so high-latency transports need a longer reassembly window.
  */
 export function resolveEscapeTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
-	const configured = Number(env.PI_TUI_ESC_TIMEOUT);
-	if (Number.isFinite(configured) && configured > 0) {
+	const configured = parseDecimalNumber(env.PI_TUI_ESC_TIMEOUT ?? "");
+	if (configured !== undefined && configured > 0) {
 		return configured;
 	}
 	if (env.SSH_CONNECTION || env.SSH_TTY) {
@@ -133,7 +133,7 @@ export class ProcessTerminal implements Terminal {
 	private keyboardProtocolNegotiationBuffer = "";
 	private keyboardProtocolBufferFlushTimer?: ReturnType<typeof setTimeout>;
 	private stdinBuffer?: StdinBuffer;
-	private stdinDataHandler?: (data: string) => void;
+	private stdinDataHandler?: (data: Uint8Array) => void;
 	private progressInterval?: ReturnType<typeof setInterval>;
 	private writeLogPath = (() => {
 		const env = process.env.PI_TUI_WRITE_LOG || "";
@@ -226,8 +226,8 @@ export class ProcessTerminal implements Terminal {
 		});
 
 		// Handler that pipes stdin data through the buffer
-		this.stdinDataHandler = (data: string) => {
-			this.stdinBuffer!.process(data);
+		this.stdinDataHandler = (chunk: Uint8Array) => {
+			this.stdinBuffer?.process(new TextDecoder().decode(chunk));
 		};
 	}
 
@@ -246,7 +246,9 @@ export class ProcessTerminal implements Terminal {
 	 */
 	private queryAndEnableKittyProtocol(): void {
 		this.setupStdinBuffer();
-		process.stdin.on("data", this.stdinDataHandler!);
+		process.stdin.on("data", (chunk: Uint8Array) => {
+			this.stdinDataHandler?.(chunk);
+		});
 		this.keyboardProtocolPushed = true;
 		this.clearKeyboardProtocolNegotiationBuffer();
 		process.stdout.write(KITTY_KEYBOARD_PROTOCOL_QUERY);
@@ -477,7 +479,7 @@ export class ProcessTerminal implements Terminal {
 		process.stdout.write(data);
 		if (this.writeLogPath) {
 			try {
-				fs.appendFileSync(this.writeLogPath, data, { encoding: "utf8" });
+				fs.appendFileSync(this.writeLogPath, data);
 			} catch {
 				// Ignore logging errors
 			}
