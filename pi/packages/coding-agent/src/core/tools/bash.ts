@@ -1,5 +1,4 @@
 import { constants } from "node:fs";
-import { access as fsAccess } from "node:fs/promises";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
@@ -23,6 +22,7 @@ import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from "./truncate.ts";
+import { existsSync } from "node:fs";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
@@ -124,7 +124,7 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 			}
 			const shellConfig = resolveShellConfig();
 			try {
-				await fsAccess(cwd, constants.F_OK);
+				if (!existsSync(cwd)) throw new Error("working directory not found");
 			} catch {
 				throw new Error(`Working directory does not exist: ${cwd}\nCannot execute ${shellName} commands.`);
 			}

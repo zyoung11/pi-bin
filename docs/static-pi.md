@@ -101,6 +101,12 @@
 - **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r30-ok）
 - **总账 411→397**；剩余：editor compound/splice/replace 群、interactive-mode union/record 深层、clipboard/package-manager 等零星
 
+## 阶段 5 grind 第三十二轮记录（进行中：397→378）
+
+- **fs/promises.access 清零（×5）**：file-processor→existsSync；path-utils pathExists→existsSync（保留 async 签名兼容调用方）+ fileExists 删除；bash.ts fsAccess→existsSync throw；edit/read 的 access: 字段→existsSync Promise 包裹
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r32-ok）
+- **总账 397→378**
+
 ## 阶段 5 grind 第二十九轮记录（进行中：414→411，terminal stdin 面部分修复，TUI 核心硬依赖确认）
 
 - **terminal.ts 部分修复**：parseInt/Number(env)→parseDecimalInt/parseDecimalNumber（tui/utils 新增后者）；stdin data 监听参数 string→Uint8Array（setEncoding 删除后 stdin 直出字节流，TextDecoder 解码后进 StdinBuffer）；appendFileSync 3 参→2 参

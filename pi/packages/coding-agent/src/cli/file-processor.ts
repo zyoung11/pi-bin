@@ -2,7 +2,8 @@
  * Process @file CLI arguments into text content and image attachments
  */
 
-import { access, readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import type { ImageContent } from "../../../ai/src/index.ts";
 import chalk from "../utils/mini-chalk.ts";
 import { resolve } from "path";
@@ -32,9 +33,7 @@ export async function processFileArguments(fileArgs: string[], options?: Process
 		const absolutePath = resolve(resolveReadPath(fileArg, process.cwd()));
 
 		// Check if file exists
-		try {
-			await access(absolutePath);
-		} catch {
+		if (!existsSync(absolutePath)) {
 			console.error(chalk.red(`Error: File not found: ${absolutePath}`));
 			process.exit(1);
 		}

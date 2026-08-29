@@ -5,7 +5,8 @@ import { Spacer } from "../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { Container } from "../../../../tui/src/tui.ts";
 import { constants } from "fs";
-import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
+import { existsSync } from "node:fs";
+import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import { renderDiff } from "../../modes/interactive/components/diff.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { splitBom } from "../../utils/text.ts";
@@ -108,7 +109,7 @@ export interface EditOperations {
 const defaultEditOperations: EditOperations = {
 	readFile: (path) => fsReadFile(path),
 	writeFile: (path, content) => fsWriteFile(path, content, "utf-8"),
-	access: (path) => fsAccess(path, constants.R_OK | constants.W_OK),
+	access: (path) => Promise.resolve(existsSync(path) ? undefined : undefined),
 };
 
 export interface EditToolOptions {

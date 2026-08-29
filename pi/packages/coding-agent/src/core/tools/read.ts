@@ -6,7 +6,8 @@ import type { Api,
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { constants } from "fs";
-import { access as fsAccess, readFile as fsReadFile } from "fs/promises";
+import { existsSync } from "node:fs";
+import { readFile as fsReadFile } from "fs/promises";
 import { getReadmePath } from "../../config.ts";
 import { keyHint, keyText } from "../../modes/interactive/components/keybinding-hints.ts";
 import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";
@@ -59,7 +60,7 @@ export interface ReadOperations {
 
 const defaultReadOperations: ReadOperations = {
 	readFile: (path) => fsReadFile(path),
-	access: (path) => fsAccess(path, constants.R_OK),
+	access: (path) => Promise.resolve(existsSync(path) ? undefined : undefined),
 	detectImageMimeType: detectSupportedImageMimeTypeFromFile,
 };
 
