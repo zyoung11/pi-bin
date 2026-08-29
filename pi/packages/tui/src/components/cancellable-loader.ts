@@ -1,5 +1,6 @@
 import { getKeybindings } from "../keybindings.ts";
 import { Loader } from "./loader.ts";
+import { createAbortHandle } from "../utils.ts";
 
 /**
  * Loader that can be cancelled with Escape.
@@ -11,7 +12,7 @@ import { Loader } from "./loader.ts";
  * doWork(loader.signal).then(done);
  */
 export class CancellableLoader extends Loader {
-	private abortController = new AbortController();
+	private abortController = createAbortHandle();
 
 	/** Called when user presses Escape */
 	onAbort?: () => void;

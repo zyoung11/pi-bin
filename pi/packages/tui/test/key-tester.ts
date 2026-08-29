@@ -9,6 +9,7 @@ import { truncateToWidth } from "../src/utils.ts";
  * Simple key code logger component
  */
 class KeyLogger implements Component {
+	dispose(): void {}
 	private log: string[] = [];
 	private maxLines = 20;
 	private tui: TUI;

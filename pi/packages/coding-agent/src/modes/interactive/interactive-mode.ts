@@ -25,6 +25,7 @@ import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
 import { VStack } from "../../../../tui/src/components/v-stack.ts";
 import { type EditorComponent } from "../../../../tui/src/editor-component.ts";
+import { Editor } from "../../../../tui/src/components/editor.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
 import { type KeyId, matchesKey } from "../../../../tui/src/keys.ts";
@@ -35,8 +36,8 @@ import {
 	Container,
 	type OverlayHandle,
 	type OverlayOptions,
+	TuiBase,
 	type TUI,
-	isViewportTUI,
 } from "../../../../tui/src/tui.ts";
 import { TuiAltScreen } from "../../../../tui/src/tui-alt-screen.ts";
 import { TuiMainScreen, type TuiMainScreenRenderState } from "../../../../tui/src/tui-main-screen.ts";
@@ -258,8 +259,9 @@ export function formatResumeCommand(sessionManager: SessionManager): string | un
 	return args.join(" ");
 }
 
-function hasDefaultModelProvider(providerId: string): providerId is keyof typeof defaultModelPerProvider {
-	return providerId in defaultModelPerProvider;
+function hasDefaultModelProvider(providerId: string): boolean {
+	const table = defaultModelPerProvider as unknown as Record<string, string>;
+	return table[providerId] !== undefined;
 }
 
 function llamaCppPostLoginGuidance(actionLabel: string, loadedModelCount: number): string {
@@ -360,7 +362,7 @@ interface InteractiveTuiOptions {
 }
 
 /** Composition root for selecting the interactive terminal renderer. */
-export function createInteractiveTui(options: InteractiveTuiOptions): TuiMainScreen | TuiAltScreen {
+export function createInteractiveTui(options: InteractiveTuiOptions): TuiBase {
 	const terminal = options.terminal ?? new ProcessTerminal();
 	if (options.tuiMode === "fullscreen") {
 		const styleSearchMatch = (text: string) => theme.bg("searchMatchBg", theme.fg("searchMatchText", text));
@@ -400,7 +402,7 @@ interface WorkingIndicatorOptions {
 
 type AutocompleteProviderFactory = (current: AutocompleteProvider) => AutocompleteProvider;
 
-type EditorFactory = (tui: TUI, theme: ReturnType<typeof getEditorTheme>, keybindings: KeybindingsManager) => EditorComponent;
+type EditorFactory = (tui: TUI, theme: ReturnType<typeof getEditorTheme>, keybindings: KeybindingsManager) => Editor;
 
 /** Stable reference for components while InteractiveMode replaces the active renderer. */
 export function createInteractiveTuiReference(getTui: () => TUI): TUI {
@@ -433,17 +435,9 @@ export function createInteractiveTuiReference(getTui: () => TUI): TUI {
 	});
 }
 
-function disposeComponent(component: Component): void {
-	const record = component as unknown as Record<string, unknown>;
-	const dispose = record["dispose"];
-	if (typeof dispose === "function") {
-		(dispose as () => void)();
-	}
-}
-
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
-	private renderer: TuiMainScreen | TuiAltScreen;
+	private renderer: TuiBase;
 	private ui: TUI;
 	private mainScreenRenderState: TuiMainScreenRenderState | undefined;
 	private loadedResourcesContainer: Container;
@@ -454,7 +448,7 @@ export class InteractiveMode {
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
 	private defaultEditor: CustomEditor;
-	private editor: EditorComponent;
+	private editor: Editor;
 	private editorComponentFactory: EditorFactory | undefined;
 	private autocompleteProvider: AutocompleteProvider | undefined;
 	private autocompleteProviderWrappers: AutocompleteProviderFactory[] = [];
@@ -782,7 +776,7 @@ export class InteractiveMode {
 		this.autocompleteProvider = provider;
 		this.defaultEditor.setAutocompleteProvider(provider);
 		if (this.editor !== this.defaultEditor) {
-			this.editor.setAutocompleteProvider?.(provider);
+			this.editor.setAutocompleteProvider(provider);
 		}
 	}
 
@@ -816,9 +810,9 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new DynamicBorder());
 	}
 
-	private mountInteractiveTui(tui: TuiMainScreen | TuiAltScreen, components: readonly Component[]): void {
+	private mountInteractiveTui(tui: TuiBase, components: readonly Component[]): void {
 		for (const component of components) tui.addChild(component);
-		if (isViewportTUI(tui)) {
+		if (tui instanceof TuiAltScreen) {
 			if (!this.fullscreenLayoutRoot) throw new Error("Fullscreen layout is not initialized");
 			tui.setLayoutRoot(this.fullscreenLayoutRoot);
 		}
@@ -851,7 +845,7 @@ export class InteractiveMode {
 		previousUi.stopWithOptions({ preserveScreen: true });
 		previousUi.setFocus(null);
 		previousUi.clear();
-		if (isViewportTUI(previousUi)) previousUi.setLayoutRoot(undefined);
+		if (previousUi instanceof TuiAltScreen) previousUi.setLayoutRoot(undefined);
 
 		const nextUi = createInteractiveTui({
 			tuiMode: mode,
@@ -1876,8 +1870,8 @@ export class InteractiveMode {
 		this.defaultEditor.setPaddingX(editorPaddingX);
 		this.defaultEditor.setAutocompleteMaxVisible(autocompleteMaxVisible);
 		if (this.editor !== this.defaultEditor) {
-			this.editor.setPaddingX?.(editorPaddingX);
-			this.editor.setAutocompleteMaxVisible?.(autocompleteMaxVisible);
+			this.editor.setPaddingX(editorPaddingX);
+			this.editor.setAutocompleteMaxVisible(autocompleteMaxVisible);
 		}
 	}
 
@@ -2017,7 +2011,7 @@ export class InteractiveMode {
 		const placement = options?.placement ?? "aboveEditor";
 		const removeExisting = (map: Map<string, Component>) => {
 			const existing = map.get(key);
-			if (existing !== undefined) disposeComponent(existing);
+			if (existing !== undefined) existing.dispose();
 			map.delete(key);
 		};
 
@@ -2053,10 +2047,10 @@ export class InteractiveMode {
 
 	private clearExtensionWidgets(): void {
 		for (const widget of this.extensionWidgetsAbove.values()) {
-			disposeComponent(widget);
+			widget.dispose();
 		}
 		for (const widget of this.extensionWidgetsBelow.values()) {
-			disposeComponent(widget);
+			widget.dispose();
 		}
 		this.extensionWidgetsAbove.clear();
 		this.extensionWidgetsBelow.clear();
@@ -2141,7 +2135,7 @@ export class InteractiveMode {
 	): void {
 		// Dispose existing custom footer
 		if (this.customFooter !== undefined) {
-			disposeComponent(this.customFooter);
+			this.customFooter.dispose();
 		}
 
 		this.footerContainer.clear();
@@ -2167,7 +2161,7 @@ export class InteractiveMode {
 		}
 
 		if (this.customHeader !== undefined) {
-			disposeComponent(this.customHeader);
+			this.customHeader.dispose();
 		}
 
 		const currentHeader = this.customHeader || this.builtInHeader;
@@ -2409,54 +2403,43 @@ export class InteractiveMode {
 			newEditor.setText(currentText);
 
 			// Copy appearance settings if supported
-			if (newEditor.borderColor !== undefined) {
-				newEditor.borderColor = this.defaultEditor.borderColor;
-			}
-			if (newEditor.setPaddingX !== undefined) {
-				newEditor.setPaddingX(this.defaultEditor.getPaddingX());
-			}
-			if (newEditor.setAutocompleteMaxVisible !== undefined) {
-				newEditor.setAutocompleteMaxVisible(this.defaultEditor.getAutocompleteMaxVisible());
-			}
+			newEditor.setPaddingX(this.defaultEditor.getPaddingX());
+			newEditor.setAutocompleteMaxVisible(this.defaultEditor.getAutocompleteMaxVisible());
 
 			// Set autocomplete if supported
 			if (newEditor.setAutocompleteProvider !== undefined && this.autocompleteProvider !== undefined) {
 				newEditor.setAutocompleteProvider(this.autocompleteProvider);
 			}
 
-			// If extending CustomEditor, copy app-level handlers
-			const editorFields: unknown = newEditor;
-			const fields = editorFields as Record<string, unknown>;
-			const defaultFields = this.defaultEditor as unknown as Record<string, unknown>;
-			if (fields["actionHandlers"] !== undefined) {
-				const handlers = fields["actionHandlers"] as Record<string, () => void>;
-				if (fields["onEscape"] === undefined) {
-					fields["onEscape"] = () => {
-						const handler = defaultFields["onEscape"];
-						if (typeof handler === "function") handler();
+			if (newEditor instanceof CustomEditor) {
+				if (newEditor.onEscape === undefined) {
+					newEditor.onEscape = () => {
+						const handler = this.defaultEditor.onEscape;
+						if (handler !== undefined) handler();
 					};
 				}
-				if (fields["onCtrlD"] === undefined) {
-					fields["onCtrlD"] = () => {
-						const handler = defaultFields["onCtrlD"];
-						if (typeof handler === "function") handler();
+				if (newEditor.onCtrlD === undefined) {
+					newEditor.onCtrlD = () => {
+						const handler = this.defaultEditor.onCtrlD;
+						if (handler !== undefined) handler();
 					};
 				}
-				if (fields["onPasteImage"] === undefined) {
-					fields["onPasteImage"] = () => {
-						const handler = defaultFields["onPasteImage"];
-						if (typeof handler === "function") handler();
+				if (newEditor.onPasteImage === undefined) {
+					newEditor.onPasteImage = () => {
+						const handler = this.defaultEditor.onPasteImage;
+						if (handler !== undefined) handler();
 					};
 				}
-				if (fields["onExtensionShortcut"] === undefined) {
-					fields["onExtensionShortcut"] = (data: string) => {
-						const handler = defaultFields["onExtensionShortcut"];
-						if (typeof handler === "function") handler(data);
+				if (newEditor.onExtensionShortcut === undefined) {
+					newEditor.onExtensionShortcut = (data: string): boolean => {
+						const handler = this.defaultEditor.onExtensionShortcut;
+						if (handler !== undefined) return handler(data);
+						return false;
 					};
 				}
 				for (const action of Object.keys(this.defaultEditor.actionHandlers)) {
 					const handler = this.defaultEditor.actionHandlers[action];
-					if (handler !== undefined) handlers[action] = handler;
+					if (handler !== undefined) newEditor.actionHandlers[action] = handler;
 				}
 			}
 
@@ -2522,7 +2505,7 @@ export class InteractiveMode {
 				// Note: both branches above already call requestRender
 				resolve(result);
 				try {
-					if (component !== undefined) disposeComponent(component);
+					if (component !== undefined) component.dispose();
 				} catch {
 					// ignore dispose errors
 				}
@@ -2676,7 +2659,7 @@ export class InteractiveMode {
 		try {
 			const text = await readClipboardText();
 			if (text) {
-				this.editor.insertTextAtCursor?.(text);
+				this.editor.insertTextAtCursor(text);
 				this.ui.requestRender();
 			}
 		} catch {
@@ -2840,7 +2823,7 @@ export class InteractiveMode {
 						this.editor.setText(text);
 						return;
 					}
-					this.editor.addToHistory?.(text);
+					this.editor.addToHistory(text);
 					await this.handleBashCommand(command, isExcluded);
 					this.isBashMode = false;
 					this.updateEditorBorderColor();
@@ -2851,7 +2834,7 @@ export class InteractiveMode {
 			// Queue input during compaction (extension commands execute immediately)
 			if (this.session.isCompacting) {
 				if (this.isExtensionCommand(text)) {
-					this.editor.addToHistory?.(text);
+					this.editor.addToHistory(text);
 					this.editor.setText("");
 					await this.session.prompt(text);
 				} else {
@@ -2863,7 +2846,7 @@ export class InteractiveMode {
 			// If streaming, use prompt() with steer behavior
 			// This handles extension commands (execute immediately), prompt template expansion, and queueing
 			if (this.session.isStreaming) {
-				this.editor.addToHistory?.(text);
+				this.editor.addToHistory(text);
 				this.editor.setText("");
 				await this.session.prompt(text, { streamingBehavior: "steer" });
 				this.updatePendingMessagesDisplay();
@@ -2880,7 +2863,7 @@ export class InteractiveMode {
 			} else {
 				this.pendingUserInputs.push(text);
 			}
-			this.editor.addToHistory?.(text);
+			this.editor.addToHistory(text);
 		};
 	}
 
@@ -3355,7 +3338,7 @@ export class InteractiveMode {
 						this.chatContainer.addChild(userComponent);
 					}
 					if (options?.populateHistory) {
-						this.editor.addToHistory?.(textContent);
+						this.editor.addToHistory(textContent);
 					}
 				}
 				break;
@@ -3801,13 +3784,14 @@ export class InteractiveMode {
 	}
 
 	private async handleFollowUp(): Promise<void> {
-		const text = (this.editor.getExpandedText?.() ?? this.editor.getText()).trim();
+		const expandedText = this.editor.getExpandedText();
+		const text = (expandedText ?? this.editor.getText()).trim();
 		if (!text) return;
 
 		// Queue input during compaction (extension commands execute immediately)
 		if (this.session.isCompacting) {
 			if (this.isExtensionCommand(text)) {
-				this.editor.addToHistory?.(text);
+				this.editor.addToHistory(text);
 				this.editor.setText("");
 				await this.session.prompt(text);
 			} else {
@@ -3819,7 +3803,7 @@ export class InteractiveMode {
 		// Alt+Enter queues a follow-up message (waits until agent finishes)
 		// This handles extension commands (execute immediately), prompt template expansion, and queueing
 		if (this.session.isStreaming) {
-			this.editor.addToHistory?.(text);
+			this.editor.addToHistory(text);
 			this.editor.setText("");
 			await this.session.prompt(text, { streamingBehavior: "followUp" });
 			this.updatePendingMessagesDisplay();
@@ -5349,7 +5333,7 @@ export class InteractiveMode {
 			} else if (providerModels.length === 0) {
 				selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
 			} else {
-				const defaultModelId = defaultModelPerProvider[providerId];
+				const defaultModelId = (defaultModelPerProvider as unknown as Record<string, string>)[providerId];
 				selectedModel = providerModels.find((model) => model.id === defaultModelId);
 				if (!selectedModel) {
 					selectionError = `${actionLabel}, but its default model "${defaultModelId}" is not available. Use /model to select a model.`;

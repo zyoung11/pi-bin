@@ -84,6 +84,15 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十五轮记录（进行中：399→410，interactive-mode 145→103）
+
+- **renderer 联合→TuiBase 基类**：字段/createInteractiveTui 返回/mountInteractiveTui 参数全部改 TuiBase（union 方法调用/instanceof 全消）；isViewportTUI 调用点改 instanceof TuiAltScreen；TuiBase abstract mode→具体字段 `mode: TuiMode = "regular"`（abstract 属性 this 读不可用），TuiAltScreen override "fullscreen"（去 protected）；Component 基类新增空 dispose()（子类可 override），disposeComponent cast helper 删除，调用点直呼 dispose()
+- **setCustomEditorComponent 重写**：EditorFactory 返回类型 EditorComponent→Editor 类；duck-typing（unknown 中转/in/instanceof Map）全部删除→instanceof CustomEditor 收窄 + 直呼字段；this.editor 类型 EditorComponent→Editor，全部可选调用（setPaddingX?/addToHistory?/insertTextAtCursor?/getExpandedText?/setAutocompleteProvider?）改直呼
+- **hasDefaultModelProvider**：in with computed keys→bracket !==undefined + Record 双跳（KnownProvider 字面量键表）
+- **cancellable-loader**：AbortController 字段→createAbortHandle 适配器（tui/utils 导出）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK
+- **总账 399→410（renderer 解锁揭幕），interactive-mode 145→103**；剩余根因群：①toLocaleString×7→formatNumber②ChildProcessByStdio×5→spawnProcess③process.prependListener/WriteStream 交叉（退出恢复终端块）④组件 options record 墙（RefreshOptions/FooterDataProvider 等×8）⑤可选函数字段调用×6⑥record 形状×10；另：test/key-tester 补 dispose（Component 接口新增）
+
 ## 阶段 5 grind 第二十四轮记录（进行中：466→399，洋葱揭幕继续）
 
 - **armin(28→0)**：全文件重写——effectState 的精确形状 cast（Record→{pos}）改 bracket 读写 + typeof；rain 状态展平为 dropsY/dropsSettled 两个 number[]（unknown 槽数组读出后 cast number[]）；Array.from({length}, fn)→循环；glitch 的 map 回调 union→for-if-push 循环；shuffledPositions 提取模块级

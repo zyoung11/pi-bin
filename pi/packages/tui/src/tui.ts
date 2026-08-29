@@ -59,6 +59,12 @@ export abstract class Component {
 	 * The base implementation is a no-op; focused components override it.
 	 */
 	handleInput(_data: string): void {}
+
+	/**
+	 * Optional cleanup hook. The base implementation is a no-op; components
+	 * with resources override it.
+	 */
+	dispose(): void {}
 }
 
 export type TuiInputListenerResult = { consume?: boolean; data?: string } | undefined;
@@ -351,7 +357,7 @@ export function isViewportTUI(tui: TUI): tui is ViewportTUI {
 }
 
 export abstract class TuiBase extends Container implements TUI {
-	abstract readonly mode: TuiMode;
+	readonly mode: TuiMode = "regular";
 	public terminal: Terminal;
 	private focusedComponent: Component | null = null;
 	private inputListeners: TuiInputListener[] = [];

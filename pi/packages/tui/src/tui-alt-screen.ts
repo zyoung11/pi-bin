@@ -29,6 +29,7 @@ import {
 	type TerminalCapabilities,
 } from "./terminal-image.ts";
 import {
+	type TuiMode,
 	Component,
 	CURSOR_MARKER,
 	compositeTuiLine,
@@ -184,7 +185,7 @@ class ImplicitDocumentComponent extends Component {
 }
 
 export class TuiAltScreen extends TuiBase implements ViewportTUI {
-	readonly mode = "fullscreen" as const;
+	override readonly mode: TuiMode = "fullscreen";
 	private previousScreen: string[] = [];
 	private lastDocument: string[] = [];
 	private previousScreenWidth = 0;

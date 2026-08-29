@@ -24,6 +24,11 @@ export function getWordSegmenter(): TextSegmenter {
  * The tested Unicode blocks are deliberately broad to account for future
  * Unicode additions.
  */
+export function createAbortHandle(): { signal: AbortSignal; abort: () => void } {
+	const controller = new AbortController();
+	return { signal: controller.signal, abort: () => controller.abort() };
+}
+
 export function parseDecimalInt(text: string): number | undefined {
 	const trimmed = text.trim();
 	let index = 0;
