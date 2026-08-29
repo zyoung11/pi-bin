@@ -102,6 +102,7 @@
 - **interactive-mode 其余修复**：isDeadTerminalError 去 NodeJS.ErrnoException cast（bracket 读）；RenderSessionItem 谓词实现改 renderItemType 辅助（保留 is 谓词签名）；BUILTIN_SLASH_COMMANDS/promptTemplates 的 spread-after-explicit→条件赋值；byId.values()+Array.from→for-of 收集；disposeComponent（Component→Record cast 失败，待换方案）
 - **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑 + bash tool_call OK（r22-check）
 - **总账 263→360（揭幕）**，interactive-mode 剩 136；剩余根因模式：①TuiMainScreen|TuiAltScreen union 方法调用（renderer 字段）②Terminal 接口 getter 不可映射③new Proxy TUI 转发层需手写委托类④ChildProcessByStdio 类型⑤EditorFactory/autocomplete record 形状
+- **补充**：commit df3af2c；新增经验：①node type-stripping 对值导入做运行时校验，type-only 符号必须标 type②空数组字面量在 Record 注解推断中塌缩为 (null|undefined)[]③unionDisc 要求同名字段在三臂类型完全一致（含 |undefined），统一臂字段可解开④abstract 属性的 this 读不可用，下沉为子类方法⑤Symbol 协议（computed method/field）统一改普通方法
 
 ## 阶段 5 grind 第二十一轮记录（2026-09-01：263→221→362 揭幕，interactive-mode 专项待下轮）
 
