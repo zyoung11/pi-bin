@@ -1,9 +1,7 @@
 import { type SpawnSyncReturns, spawnSync } from "child_process";
-import { chmodSync, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from "fs";
-import { arch, platform } from "os";
+import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "fs";
+import { platform } from "os";
 import { join } from "path";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
 import { APP_NAME, getBinDir } from "../config.ts";
 import { fetchWithRetry } from "./management-http.ts";
 
@@ -73,7 +71,7 @@ const TOOLS: Record<string, ToolConfig> = {
 // Check if a command exists in PATH by trying to run it
 function commandExists(cmd: string): boolean {
 	try {
-		const result = spawnSync(cmd, ["--version"], { stdio: "pipe" });
+		const result = spawnSync(cmd, ["--version"], { stdio: "pipe", encoding: "utf8" });
 		// Check for ENOENT error (command not found)
 		return result.error === undefined || result.error === null;
 	} catch {
@@ -133,8 +131,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 		throw new Error("No response body");
 	}
 
-	const fileStream = createWriteStream(dest);
-	await pipeline(Readable.fromWeb(response.body as any), fileStream);
+	writeFileSync(dest, new Uint8Array(await response.arrayBuffer()));
 }
 
 function findBinaryRecursively(rootDir: string, binaryFileName: string): string | null {
@@ -159,15 +156,15 @@ function findBinaryRecursively(rootDir: string, binaryFileName: string): string 
 	return null;
 }
 
-function formatSpawnFailure(result: SpawnSyncReturns<Buffer>): string {
+function formatSpawnFailure(result: SpawnSyncReturns<string>): string {
 	if (result.error?.message) {
 		return result.error.message;
 	}
-	const stderr = result.stderr?.toString().trim();
+	const stderr = result.stderr?.trim();
 	if (stderr) {
 		return stderr;
 	}
-	const stdout = result.stdout?.toString().trim();
+	const stdout = result.stdout?.trim();
 	if (stdout) {
 		return stdout;
 	}
@@ -175,7 +172,7 @@ function formatSpawnFailure(result: SpawnSyncReturns<Buffer>): string {
 }
 
 function runExtractionCommand(command: string, args: string[]): string | null {
-	const result = spawnSync(command, args, { stdio: "pipe" });
+	const result = spawnSync(command, args, { stdio: "pipe", encoding: "utf8" });
 	if (!result.error && result.status === 0) {
 		return null;
 	}
@@ -244,7 +241,7 @@ async function downloadTool(tool: "fd" | "rg"): Promise<string> {
 	if (!config) throw new Error(`Unknown tool: ${tool}`);
 
 	const plat = platform();
-	const architecture = arch();
+	const architecture = process.arch;
 
 	// Get latest version
 	let version = await getLatestVersion(config.repo);

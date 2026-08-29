@@ -78,6 +78,17 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十八轮记录（进行中：241→204，config-selector/keys/tools 等小文件批量清零）
+
+- **config-selector（组件+CLI）11→0**：RESOURCE_TYPES satisfies→as const；FlatEntry 判别→`"item" in entry` in 守卫（纯数据 union 可用）；动态 keyed reads ×4 → resourceArrayFor helper（if 链具体键）；RESOURCE_TYPES.some → 显式 or 链；onToggle 回调补双参；find on packages union → for-of
+- **keybindings.ts 4→0**：satisfies KeybindingDefinitions 删除，KEYBINDINGS 改注解 KeybindingDefinitions（as const 的 readonly literal 不可赋回 Record）；KEYBINDING_NAME_MIGRATIONS 改 Record<string, string>，isLegacyKeybindingName 谓词→普通 boolean 查表
+- **tools-manager 5→0**：createWriteStream+pipeline+Readable.fromWeb 下载 → arrayBuffer + writeFileSync(Uint8Array)（行为变更：无流式写盘，工具二进制 ≤ 几 MB 可接受）；spawnSync 加 encoding utf8 消 stdout/stderr Buffer toString；os.arch→process.arch
+- **version-check 4→0**：Error.cause/AggregateError 链无 lowering → 只保留根 message（行为变更：错误详情少一层 cause）
+- **startup-ui/project-trust**：showStartupSelector 去泛型（unknown 值 + 调用点 cast）；ExtensionSelector/Input options 的 tui 字段 → requestRender 回调（CountdownTimer 同步改参数）；detectTerminalThemeForAuto 的 ui → 字面量 detector record 包装（类→record 墙绕过）；createStartupTui 返回 TuiBase
+- **session（agent harness）8→6**：SessionStorage.appendEntry/appendRecord 去泛型化 + commitEntry/commitRecord 去泛型；剩余 6 = SessionTree view 字面量×2（泛型类双实例化）+ 泛型级联，需编译器级调查
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r38/smoke-r38-ok）
+- **总账 241→204；本会话累计 376→204（-172，46%）**
+
 ## 阶段 5 grind 第三十七轮记录（进行中：241，package-manager/package-manager-cli/migrations/config/word-navigation 全清）
 
 - **config.ts 8→0**：getInferredNpmInstall 的 path 平台联合（path.win32 无 lowering）→ 直用 posix basename/dirname（Linux 静态目标下 win32 分支为死代码，行为备注）；3 处 filter 谓词 → 条件 push；Array.from(new Set([a,b])) → 手工去重

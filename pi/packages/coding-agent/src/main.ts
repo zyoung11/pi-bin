@@ -540,14 +540,14 @@ function resolveCliPaths(cwd: string, paths: string[] | undefined): string[] | u
 	return paths?.map((value) => (isLocalPath(value) ? resolvePath(value, cwd) : value));
 }
 
-async function promptForMissingSessionCwd(
+function promptForMissingSessionCwd(
 	issue: SessionCwdIssue,
 	settingsManager: SettingsManager,
 ): Promise<string | undefined> {
 	return showStartupSelector(settingsManager, formatMissingSessionCwdPrompt(issue), [
 		{ label: "Continue", value: issue.fallbackCwd },
 		{ label: "Cancel", value: undefined },
-	]);
+	]) as Promise<string | undefined>;
 }
 
 let processExitCode: number | undefined;

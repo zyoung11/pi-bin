@@ -1,6 +1,11 @@
 import type { Usage } from "../../../ai/src/index.ts";
 import type { AgentSessionEvent } from "../core/agent-session.ts";
 
+/** View an arbitrary value as a plain record (unions with index-signature arms resist casts). */
+function recordOf(value: unknown): Record<string, unknown> {
+	return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
 type WithoutPartial<T> = T extends { partial: unknown } ? Omit<T, "partial"> : T;
 
 type ToJsonAssistantMessageEvent<T> = T extends { type: "toolcall_start"; partial: unknown }
@@ -22,10 +27,13 @@ function toJsonAssistantMessageEvent(
 ): JsonMessageUpdateEvent["assistantMessageEvent"] {
 	if (event.type === "toolcall_start") {
 		const toolCall = event.partial.content[event.contentIndex];
-		const toolCallRecord = toolCall as unknown as Record<string, unknown>;
-		const id = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["id"];
-		const toolName = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["name"];
-		const kind = toolCallRecord === undefined || toolCallRecord === null ? undefined : toolCallRecord["type"];
+		if (toolCall === undefined || toolCall === null) {
+			throw new Error(`toolcall_start content at index ${event.contentIndex} is not a tool call`);
+		}
+		const toolCallRecord = recordOf(toolCall);
+		const id = toolCallRecord["id"];
+		const toolName = toolCallRecord["name"];
+		const kind = toolCallRecord["type"];
 		if (kind !== "toolCall" || typeof id !== "string" || typeof toolName !== "string") {
 			throw new Error(`toolcall_start content at index ${event.contentIndex} is not a tool call`);
 		}

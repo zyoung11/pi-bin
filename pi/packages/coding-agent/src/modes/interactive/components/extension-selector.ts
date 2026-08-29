@@ -6,15 +6,15 @@
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
-import { Container, type TUI } from "../../../../../tui/src/tui.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import { theme } from "../theme/theme.ts";
 import { CountdownTimer } from "./countdown-timer.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, rawKeyHint } from "./keybinding-hints.ts";
 
 export interface ExtensionSelectorOptions {
-	tui?: TUI;
 	timeout?: number;
+	requestRender?: () => void;
 	onToggleToolsExpanded?: () => void;
 }
 
@@ -51,10 +51,11 @@ export class ExtensionSelectorComponent extends Container {
 		this.addChild(this.titleText);
 		this.addChild(new Spacer(1));
 
-		if (opts?.timeout && opts.timeout > 0 && opts.tui) {
+		if (opts?.timeout && opts.timeout > 0 && opts.requestRender) {
+			const requestRender = opts.requestRender;
 			this.countdown = new CountdownTimer(
 				opts.timeout,
-				opts.tui,
+				requestRender,
 				(s) => this.titleText.setText(theme.fg("accent", theme.bold(`${this.baseTitle} (${s}s)`))),
 				() => this.onCancelCallback(),
 			);

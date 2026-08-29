@@ -1,7 +1,7 @@
 import { setKeybindings } from "../../../tui/src/keybindings.ts";
 import { ProcessTerminal } from "../../../tui/src/terminal.ts";
 import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
-import type { TUI } from "../../../tui/src/tui.ts";
+import type { TuiBase } from "../../../tui/src/tui.ts";
 import { existsSync } from "fs";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir, getSettingsPath, PACKAGE_NAME } from "../config.ts";
 import { areExperimentalFeaturesEnabled } from "../core/experimental.ts";
@@ -73,36 +73,42 @@ async function loadStartupThemes(settingsManager: SettingsManager): Promise<Them
 		agentDir: getAgentDir(),
 		settingsManager: globalSettingsManager,
 	});
-	const resolvedPaths = await packageManager.resolve(async () => "skip");
+	const resolvedPaths = await packageManager.resolve(async (_source: string) => "skip");
 	return loadThemes(resolvedPaths.themes);
 }
 
-export async function createStartupTui(settingsManager: SettingsManager): Promise<TUI> {
+export async function createStartupTui(settingsManager: SettingsManager): Promise<TuiBase> {
 	setRegisteredThemes(await loadStartupThemes(settingsManager));
 	const terminalTheme = detectTerminalBackgroundFromEnv().theme;
 	initTheme(resolveThemeSetting(settingsManager.getThemeSetting(), terminalTheme) ?? terminalTheme);
 	setKeybindings(KeybindingsManager.create());
-	const ui: TUI = new TuiMainScreen(new ProcessTerminal(), settingsManager.getShowHardwareCursor(), getAgentDir());
+	const ui: TuiBase = new TuiMainScreen(new ProcessTerminal(), settingsManager.getShowHardwareCursor(), getAgentDir());
 	ui.setClearOnShrink(settingsManager.getClearOnShrink());
 	return ui;
 }
 
-export function startStartupTui(ui: TUI, settingsManager: SettingsManager): void {
+export function startStartupTui(ui: TuiBase, settingsManager: SettingsManager): void {
 	ui.start();
 	void applyDetectedStartupTheme(ui, settingsManager);
 }
 
-async function applyDetectedStartupTheme(ui: TUI, settingsManager: SettingsManager): Promise<void> {
+async function applyDetectedStartupTheme(ui: TuiBase, settingsManager: SettingsManager): Promise<void> {
 	const themeSetting = settingsManager.getThemeSetting();
 	if (themeSetting && !parseAutoThemeSetting(themeSetting)) return;
 
-	const terminalTheme = await detectTerminalThemeForAuto({ ui, timeoutMs: 100 });
+	const terminalTheme = await detectTerminalThemeForAuto({
+		ui: {
+			queryTerminalBackgroundColor: (options) => ui.queryTerminalBackgroundColor(options),
+			queryTerminalColorScheme: (options) => ui.queryTerminalColorScheme(options),
+		},
+		timeoutMs: 100,
+	});
 	setTheme(resolveThemeSetting(themeSetting, terminalTheme) ?? terminalTheme);
 	ui.invalidate();
 	ui.requestRender();
 }
 
-async function clearStartupTui(ui: TUI): Promise<void> {
+async function clearStartupTui(ui: TuiBase): Promise<void> {
 	ui.clear();
 	ui.requestRender();
 	await new Promise((resolve) => setTimeout(resolve, 25));
@@ -134,15 +140,15 @@ export function shouldRunFirstTimeSetup(settingsPath: string = getSettingsPath()
 	return !existsSync(settingsPath);
 }
 
-export async function showStartupSelector<T>(
+export async function showStartupSelector(
 	settingsManager: SettingsManager,
 	title: string,
-	options: Array<{ label: string; value: T }>,
-): Promise<T | undefined> {
+	options: Array<{ label: string; value: unknown }>,
+): Promise<unknown> {
 	const ui = await createStartupTui(settingsManager);
 	return new Promise((resolve) => {
 		let settled = false;
-		const finish = async (result: T | undefined) => {
+		const finish = async (result: unknown) => {
 			if (settled) {
 				return;
 			}
@@ -157,7 +163,7 @@ export async function showStartupSelector<T>(
 			options.map((option) => option.label),
 			(option) => void finish(options.find((entry) => entry.label === option)?.value),
 			() => void finish(undefined),
-			{ tui: ui },
+			{ requestRender: () => ui.requestRender() },
 		);
 		ui.addChild(selector);
 		ui.setFocus(selector);
@@ -187,7 +193,13 @@ export async function showFirstTimeSetup(settingsManager: SettingsManager): Prom
 
 		const showSetup = async () => {
 			ui.start();
-			const detectedTheme = await detectTerminalThemeForAuto({ ui, timeoutMs: 100 });
+			const detectedTheme = await detectTerminalThemeForAuto({
+				ui: {
+					queryTerminalBackgroundColor: (options) => ui.queryTerminalBackgroundColor(options),
+					queryTerminalColorScheme: (options) => ui.queryTerminalColorScheme(options),
+				},
+				timeoutMs: 100,
+			});
 			setTheme(detectedTheme);
 			const component = new FirstTimeSetupComponent({
 				detectedTheme,
@@ -232,7 +244,7 @@ export async function showStartupInput(
 			(value) => void finish(value),
 			() => void finish(undefined),
 			{
-				tui: ui,
+				requestRender: () => ui.requestRender(),
 			},
 		);
 		ui.addChild(input);

@@ -31,7 +31,7 @@ type SettingsScope = "user" | "project";
 type ProjectOverrideState = "inherit" | "load" | "unload";
 export type ScopedResolvedPaths = Record<ConfigWriteScope, ResolvedPaths>;
 
-const RESOURCE_TYPES = ["extensions", "skills", "prompts", "themes"] as const satisfies readonly ResourceType[];
+const RESOURCE_TYPES = ["extensions", "skills", "prompts", "themes"] as const;
 
 const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
 	extensions: "Extensions",
@@ -503,11 +503,12 @@ class ResourceList extends Component implements Focusable {
 		}
 		if (data === " " || kb.matches(data, "tui.select.confirm")) {
 			const entry = this.filteredItems[this.selectedIndex];
-			if (entry?.type === "item" && (this.writeScope === "project" || this.getItemScope(entry.item) === "user")) {
-				const newEnabled = this.toggleResource(entry.item);
+			const item = entry !== undefined && "item" in entry ? entry.item : undefined;
+			if (item !== undefined && (this.writeScope === "project" || this.getItemScope(item) === "user")) {
+				const newEnabled = this.toggleResource(item);
 				if (newEnabled !== undefined) {
-					this.updateItem(entry.item, newEnabled);
-					this.onToggle?.(entry.item, newEnabled);
+					this.updateItem(item, newEnabled);
+					this.onToggle?.(item, newEnabled);
 				}
 			}
 			return;
@@ -539,8 +540,7 @@ class ResourceList extends Component implements Focusable {
 		const settings =
 			scope === "project" ? this.settingsManager.getProjectSettings() : this.settingsManager.getGlobalSettings();
 
-		const arrayKey = item.resourceType as "extensions" | "skills" | "prompts" | "themes";
-		const current = (settings[arrayKey] ?? []) as string[];
+		const current = this.resourceArrayFor(settings as unknown as Record<string, unknown>, item.resourceType);
 
 		// Generate pattern for this resource
 		const pattern = this.getResourcePattern(item);
@@ -560,23 +560,23 @@ class ResourceList extends Component implements Focusable {
 		}
 
 		if (scope === "project") {
-			if (arrayKey === "extensions") {
+			if (item.resourceType === "extensions") {
 				this.settingsManager.setProjectExtensionPaths(updated);
-			} else if (arrayKey === "skills") {
+			} else if (item.resourceType === "skills") {
 				this.settingsManager.setProjectSkillPaths(updated);
-			} else if (arrayKey === "prompts") {
+			} else if (item.resourceType === "prompts") {
 				this.settingsManager.setProjectPromptTemplatePaths(updated);
-			} else if (arrayKey === "themes") {
+			} else if (item.resourceType === "themes") {
 				this.settingsManager.setProjectThemePaths(updated);
 			}
 		} else {
-			if (arrayKey === "extensions") {
+			if (item.resourceType === "extensions") {
 				this.settingsManager.setExtensionPaths(updated);
-			} else if (arrayKey === "skills") {
+			} else if (item.resourceType === "skills") {
 				this.settingsManager.setSkillPaths(updated);
-			} else if (arrayKey === "prompts") {
+			} else if (item.resourceType === "prompts") {
 				this.settingsManager.setPromptTemplatePaths(updated);
-			} else if (arrayKey === "themes") {
+			} else if (item.resourceType === "themes") {
 				this.settingsManager.setThemePaths(updated);
 			}
 		}
@@ -604,8 +604,7 @@ class ResourceList extends Component implements Focusable {
 		}
 
 		// Get the resource array for this type
-		const arrayKey = item.resourceType as "extensions" | "skills" | "prompts" | "themes";
-		const current = (pkg[arrayKey] ?? []) as string[];
+		const current = this.resourceArrayFor(pkg as unknown as Record<string, unknown>, item.resourceType);
 
 		// Generate pattern relative to package root
 		const pattern = this.getPackageResourcePattern(item);
@@ -624,12 +623,15 @@ class ResourceList extends Component implements Focusable {
 			updated.push(disablePattern);
 		}
 
-		(pkg as Record<string, unknown>)[arrayKey] = updated.length > 0 ? updated : undefined;
+		const pkgRecord = pkg as unknown as Record<string, unknown>;
+		pkgRecord[item.resourceType] = updated.length > 0 ? updated : undefined;
 
 		// Clean up empty filter object
-		const hasFilters = ["extensions", "skills", "prompts", "themes"].some(
-			(k) => (pkg as Record<string, unknown>)[k] !== undefined,
-		);
+		const hasFilters =
+			pkgRecord["extensions"] !== undefined ||
+			pkgRecord["skills"] !== undefined ||
+			pkgRecord["prompts"] !== undefined ||
+			pkgRecord["themes"] !== undefined;
 		if (!hasFilters) {
 			packages[pkgIndex] = (pkg as { source: string }).source;
 		}
@@ -674,7 +676,10 @@ class ResourceList extends Component implements Focusable {
 	}
 
 	private setProjectTopLevelOverride(item: ResourceItem, state: ProjectOverrideState): boolean {
-		const current = (this.settingsManager.getProjectSettings()[item.resourceType] ?? []) as string[];
+		const current = this.resourceArrayFor(
+			this.settingsManager.getProjectSettings() as unknown as Record<string, unknown>,
+			item.resourceType,
+		);
 		const pattern = this.isInheritedGlobalItem(item) ? item.path : this.getResourcePatternForScope(item, "project");
 		const patterns = this.getTopLevelOverridePatterns(item, "project");
 		const updated = current.filter((entry) => {
@@ -720,12 +725,18 @@ class ResourceList extends Component implements Focusable {
 			packages[pkgIndex] = pkg;
 		}
 		const pattern = this.getPackageResourcePattern(item);
-		const updated = ((pkg[item.resourceType] ?? []) as string[]).filter(
+		const updated = this.resourceArrayFor(pkg as unknown as Record<string, unknown>, item.resourceType).filter(
 			(entry) => this.getPatternEntryTarget(entry) !== pattern,
 		);
 		if (state !== "inherit") updated.push(`${state === "load" ? "+" : "-"}${pattern}`);
 		(pkg as Record<string, unknown>)[item.resourceType] = updated.length > 0 ? updated : undefined;
-		if (!RESOURCE_TYPES.some((key) => (pkg as Record<string, unknown>)[key] !== undefined)) {
+		const pkgRecord = pkg as unknown as Record<string, unknown>;
+		const hasAnyResources =
+			pkgRecord["extensions"] !== undefined ||
+			pkgRecord["skills"] !== undefined ||
+			pkgRecord["prompts"] !== undefined ||
+			pkgRecord["themes"] !== undefined;
+		if (!hasAnyResources) {
 			if (pkg.autoload === false) packages.splice(pkgIndex, 1);
 			else packages[pkgIndex] = pkg.source;
 		}
@@ -826,19 +837,30 @@ class ResourceList extends Component implements Focusable {
 		return left === right;
 	}
 
+
+	/** Read one of the four resource arrays from a settings record without dynamic keyed reads. */
+	private resourceArrayFor(
+		record: Record<string, unknown>,
+		resourceType: ResourceItem["resourceType"],
+	): string[] {
+		if (resourceType === "extensions") return (record["extensions"] as string[] | undefined) ?? [];
+		if (resourceType === "skills") return (record["skills"] as string[] | undefined) ?? [];
+		if (resourceType === "prompts") return (record["prompts"] as string[] | undefined) ?? [];
+		return (record["themes"] as string[] | undefined) ?? [];
+	}
+
 	private findMatchingPackageSource(item: ResourceItem, targetScope: SettingsScope): PackageSource | undefined {
 		const settings =
 			targetScope === "project"
 				? this.settingsManager.getProjectSettings()
 				: this.settingsManager.getGlobalSettings();
-		return (settings.packages ?? []).find((pkg) =>
-			this.packageSourceStringMatches(
-				item.metadata.source,
-				this.getItemScope(item),
-				typeof pkg === "string" ? pkg : pkg.source,
-				targetScope,
-			),
-		);
+		for (const pkg of settings.packages ?? []) {
+			const pkgSource = typeof pkg === "string" ? pkg : pkg.source;
+			if (this.packageSourceStringMatches(item.metadata.source, this.getItemScope(item), pkgSource, targetScope)) {
+				return pkg;
+			}
+		}
+		return undefined;
 	}
 
 	private getPatternEntryTarget(entry: string): string {
@@ -922,7 +944,7 @@ export class ConfigSelectorComponent extends Container implements Focusable {
 		);
 		this.resourceList.onCancel = onClose;
 		this.resourceList.onExit = onExit;
-		this.resourceList.onToggle = () => requestRender();
+		this.resourceList.onToggle = (_item: ResourceItem, _enabled: boolean) => requestRender();
 		if (projectModeAvailable) {
 			this.resourceList.onSwitchMode = () => {
 				this.switchWriteScope();

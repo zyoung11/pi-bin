@@ -4,7 +4,6 @@
 
 import { ProcessTerminal } from "../../../tui/src/terminal.ts";
 import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
-import type { TUI } from "../../../tui/src/tui.ts";
 import type { SettingsManager } from "../core/settings-manager.ts";
 import { ConfigSelectorComponent, type ScopedResolvedPaths } from "../modes/interactive/components/config-selector.ts";
 import { initTheme, stopThemeWatcher } from "../modes/interactive/theme/theme.ts";
@@ -24,7 +23,7 @@ export async function selectConfig(options: ConfigSelectorOptions): Promise<void
 	initTheme(options.settingsManager.getTheme(), true);
 
 	return new Promise((resolve) => {
-		const ui: TUI = new TuiMainScreen(new ProcessTerminal(), undefined, options.agentDir);
+		const ui = new TuiMainScreen(new ProcessTerminal(), undefined, options.agentDir);
 		let resolved = false;
 
 		const selector = new ConfigSelectorComponent(

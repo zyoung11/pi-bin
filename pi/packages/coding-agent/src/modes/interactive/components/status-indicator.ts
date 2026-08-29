@@ -60,7 +60,7 @@ export class RetryStatusIndicator extends StatusIndicator {
 		);
 		this.countdown = new CountdownTimer(
 			delayMs,
-			ui,
+			() => ui.requestRender(),
 			(seconds) => {
 				this.setMessage(retryMessage(seconds));
 			},

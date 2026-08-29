@@ -72,7 +72,7 @@ declare module "../../../tui/src/index.ts" {
 
 const windowsKeybindings = useWindowsKeybindings();
 
-export const KEYBINDINGS = {
+export const KEYBINDINGS: KeybindingDefinitions = {
 	...TUI_KEYBINDINGS,
 	"tui.editor.undo": {
 		...TUI_KEYBINDINGS["tui.editor.undo"],
@@ -231,9 +231,9 @@ export const KEYBINDINGS = {
 		defaultKeys: "shift+ctrl+o",
 		description: "Tree filter: cycle backward",
 	},
-} as const satisfies KeybindingDefinitions;
+};
 
-const KEYBINDING_NAME_MIGRATIONS = {
+const KEYBINDING_NAME_MIGRATIONS_TABLE: Record<string, string> = {
 	cursorUp: "tui.editor.cursorUp",
 	cursorDown: "tui.editor.cursorDown",
 	cursorLeft: "tui.editor.cursorLeft",
@@ -293,10 +293,10 @@ const KEYBINDING_NAME_MIGRATIONS = {
 	renameSession: "app.session.rename",
 	deleteSession: "app.session.delete",
 	deleteSessionNoninvasive: "app.session.deleteNoninvasive",
-} as const satisfies Record<string, Keybinding>;
+};
 
-function isLegacyKeybindingName(key: string): key is keyof typeof KEYBINDING_NAME_MIGRATIONS {
-	return key in KEYBINDING_NAME_MIGRATIONS;
+function isLegacyKeybindingName(key: string): boolean {
+	return KEYBINDING_NAME_MIGRATIONS_TABLE[key] !== undefined;
 }
 
 function toKeybindingsConfig(value: Record<string, unknown>): KeybindingsConfig {
@@ -321,7 +321,7 @@ export function migrateKeybindingsConfig(rawConfig: Record<string, unknown>): {
 	let migrated = false;
 
 	for (const [key, value] of Object.entries(rawConfig)) {
-		const nextKey = isLegacyKeybindingName(key) ? KEYBINDING_NAME_MIGRATIONS[key] : key;
+		const nextKey = isLegacyKeybindingName(key) ? KEYBINDING_NAME_MIGRATIONS_TABLE[key] : key;
 		if (nextKey !== key) {
 			migrated = true;
 		}

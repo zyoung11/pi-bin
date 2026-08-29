@@ -335,12 +335,11 @@ class SessionList extends Component implements Focusable {
 		this.filterSessions("");
 
 		// Handle Enter in search input - select current item
-		this.searchInput.onSubmit = () => {
-			if (this.filteredSessions[this.selectedIndex]) {
-				const selected = this.filteredSessions[this.selectedIndex];
-				if (this.onSelect) {
-					this.onSelect(selected.session.path);
-				}
+		this.searchInput.onSubmit = (_value: string) => {
+			const selected = this.filteredSessions[this.selectedIndex];
+			const onSelect = this.onSelect;
+			if (selected && onSelect) {
+				onSelect(selected.session.path);
 			}
 		};
 	}
@@ -377,7 +376,7 @@ class SessionList extends Component implements Focusable {
 				session,
 				depth: 0,
 				isLast: true,
-				ancestorContinues: [],
+				ancestorContinues: [] as boolean[],
 			}));
 		}
 		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filteredSessions.length - 1));
@@ -546,8 +545,9 @@ class SessionList extends Component implements Focusable {
 		}
 
 		if (kb.matches(keyData, "tui.input.tab")) {
-			if (this.onToggleScope) {
-				this.onToggleScope();
+			const onToggleScope = this.onToggleScope;
+			if (onToggleScope) {
+				onToggleScope();
 			}
 			return;
 		}
@@ -616,14 +616,16 @@ class SessionList extends Component implements Focusable {
 		// Enter
 		else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selected = this.filteredSessions[this.selectedIndex];
-			if (selected && this.onSelect) {
-				this.onSelect(selected.session.path);
+			const onSelect = this.onSelect;
+			if (selected && onSelect) {
+				onSelect(selected.session.path);
 			}
 		}
 		// Escape - cancel
 		else if (kb.matches(keyData, "tui.select.cancel")) {
-			if (this.onCancel) {
-				this.onCancel();
+			const onCancel = this.onCancel;
+			if (onCancel) {
+				onCancel();
 			}
 		}
 		// Pass everything else to search input
