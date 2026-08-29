@@ -1609,7 +1609,11 @@ export class InteractiveMode {
 				lines.push(theme.fg("dim", `    ${options.formatPath(item)}`));
 			}
 
-			const sortedPackages = Array.from(group.packages.entries()).sort(([a], [b]) => a.localeCompare(b));
+			const sortedPackages: [string, (typeof group.packages) extends Map<string, infer V> ? V : never][] = [];
+			for (const entry of group.packages) {
+				sortedPackages.push([entry[0], entry[1]]);
+			}
+			sortedPackages.sort(([a], [b]) => a.localeCompare(b));
 			for (const [source, items] of sortedPackages) {
 				lines.push(`    ${theme.fg("mdLink", source)}`);
 				const sortedPackagePaths = [...items].sort((a, b) => a.path.localeCompare(b.path));

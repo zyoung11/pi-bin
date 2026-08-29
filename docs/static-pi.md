@@ -91,6 +91,16 @@
 - **TuiForwarder→TUI 返回墙仍剩 1 个**：TuiForwarder 现为纯方法类仍 SC2002——待用 SCDBG width 输出定位具体失败字段（上面②③类的字段匹配问题同样适用）
 - 下轮：按 SCDBG 输出逐 record 修（selector options/focus 字段改 Component；VStack 调用字面量显式注解；EditorOptions 字段级排查）
 
+## 阶段 5 grind 第三十轮记录（进行中：411→397）
+
+- **toString 清零**：hash.ts toString(36)→手写 toBase36；json-parse toString(16)→toHex4；tools-manager Math.random().toString(36)→去除随机段
+- **parseInt 清零**：changelog ×3→parseVersionPart；keys.ts Kitty CSI-u ×3→parseDecimalInt
+- **Array.from 变体清零**：uuid.ts Array.from(bytes, fn)→for-of+hexByte；usage-totals Array.from(map, fn)→for-of 收集+过滤；native-module-path Array.from(new Set)→去重循环；interactive-mode entries()→for-of 收集
+- **editor splice 插入**：splitLine 的 splice→push+后移循环
+- **keys.ts**：String.fromCodePoint×2→codePointToString（UTF-16 手写编码）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r30-ok）
+- **总账 411→397**；剩余：editor compound/splice/replace 群、interactive-mode union/record 深层、clipboard/package-manager 等零星
+
 ## 阶段 5 grind 第二十九轮记录（进行中：414→411，terminal stdin 面部分修复，TUI 核心硬依赖确认）
 
 - **terminal.ts 部分修复**：parseInt/Number(env)→parseDecimalInt/parseDecimalNumber（tui/utils 新增后者）；stdin data 监听参数 string→Uint8Array（setEncoding 删除后 stdin 直出字节流，TextDecoder 解码后进 StdinBuffer）；appendFileSync 3 参→2 参

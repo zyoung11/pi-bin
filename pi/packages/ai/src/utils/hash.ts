@@ -1,3 +1,15 @@
+
+function toBase36(value: number): string {
+	const digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+	let v = value >>> 0;
+	if (v === 0) return "0";
+	let out = "";
+	while (v > 0) {
+		out = digits[v % 36] + out;
+		v = Math.floor(v / 36);
+	}
+	return out;
+}
 /** Fast deterministic hash to shorten long strings */
 function imul(a: number, b: number): number {
 	const ah = (a >>> 16) & 0xffff;
@@ -17,5 +29,5 @@ export function shortHash(str: string): string {
 	}
 	h1 = imul(h1 ^ (h1 >>> 16), 2246822507) ^ imul(h2 ^ (h2 >>> 13), 3266489909);
 	h2 = imul(h2 ^ (h2 >>> 16), 2246822507) ^ imul(h1 ^ (h1 >>> 13), 3266489909);
-	return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
+	return toBase36(h2 >>> 0) + toBase36(h1 >>> 0);
 }

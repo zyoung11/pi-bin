@@ -27,5 +27,9 @@ export function getNativeModuleCandidates(nativePath: string, options: NativeMod
 		join(moduleDir, nativePath),
 		join(dirname(options.execPath ?? process.execPath), nativePath),
 	);
-	return Array.from(new Set(candidates));
+	const seen: string[] = [];
+	for (const candidate of candidates) {
+		if (!seen.includes(candidate)) seen.push(candidate);
+	}
+	return seen;
 }

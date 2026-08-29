@@ -60,11 +60,12 @@ export function getUsageCostBreakdown(entries: SessionEntry[]): UsageCostBreakdo
 		addUsageToTotals(totals, usage);
 	}
 
-	return Array.from(totalsByKey, ([key, totals]) => ({
-		key,
-		cost: totals.cost,
-		tokens: totals.input + totals.output + totals.cacheRead + totals.cacheWrite,
-	}))
-		.filter((entry) => entry.cost > 0 || entry.tokens > 0)
-		.sort((a, b) => b.cost - a.cost);
+	const result: { key: string; cost: number; tokens: number }[] = [];
+	for (const [key, totals] of totalsByKey) {
+		const tokens = totals.input + totals.output + totals.cacheRead + totals.cacheWrite;
+		if (totals.cost > 0 || tokens > 0) {
+			result.push({ key, cost: totals.cost, tokens });
+		}
+	}
+	return result.sort((a, b) => b.cost - a.cost);
 }

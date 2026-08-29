@@ -2,6 +2,16 @@ import { parse as partialParse } from "./partial-json.ts";
 
 const VALID_JSON_ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t", "u"]);
 
+function toHex4(value: number): string {
+	const digits = "0123456789abcdef";
+	let out = "";
+	let v = value;
+	for (let shift = 12; shift >= 0; shift -= 4) {
+		out += digits[(v >> shift) & 0xf];
+	}
+	return out;
+}
+
 function isControlCharacter(char: string): boolean {
 	const code = char.charCodeAt(0);
 	return code >= 0x00 && code <= 0x1f;
@@ -20,7 +30,7 @@ function escapeControlCharacter(char: string): string {
 		case "\t":
 			return "\\t";
 		default:
-			return `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
+			return `\\u${toHex4(char.charCodeAt(0))}`;
 	}
 }
 

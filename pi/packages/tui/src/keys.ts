@@ -1,3 +1,4 @@
+import { parseDecimalInt } from "./utils.ts";
 /**
  * Keyboard input handling for terminal applications.
  *
@@ -1348,16 +1349,29 @@ const KITTY_PRINTABLE_ALLOWED_MODIFIERS = MODIFIERS.shift | LOCK_MASK;
  * @param data - Raw input data from terminal
  * @returns The printable character, or undefined if not a printable CSI-u sequence
  */
+function codePointToString(codepoint: number): string | undefined {
+	if (codepoint < 0 || codepoint > 0x10ffff) return undefined;
+	if (codepoint < 0x10000) {
+		const s = String.fromCharCode(codepoint);
+		return s.length > 0 ? s : undefined;
+	}
+	const offset = codepoint - 0x10000;
+	const high = 0xd800 + Math.floor(offset / 0x400);
+	const low = 0xdc00 + (offset % 0x400);
+	const s = String.fromCharCode(high, low);
+	return s.length > 0 ? s : undefined;
+}
+
 export function decodeKittyPrintable(data: string): string | undefined {
 	const match = data.match(KITTY_CSI_U_REGEX);
 	if (!match) return undefined;
 
 	// CSI-u groups: <codepoint>[:<shifted>[:<base>]];<mod>[:<event>]u
-	const codepoint = Number.parseInt(match[1] ?? "", 10);
+	const codepoint = parseDecimalInt(match[1] ?? "") ?? 0;
 	if (!Number.isFinite(codepoint)) return undefined;
 
-	const shiftedKey = match[2] && match[2].length > 0 ? Number.parseInt(match[2], 10) : undefined;
-	const modValue = match[4] ? Number.parseInt(match[4], 10) : 1;
+	const shiftedKey = match[2] !== undefined && match[2].length > 0 ? parseDecimalInt(match[2]) : undefined;
+	const modValue = match[4] !== undefined && match[4].length > 0 ? (parseDecimalInt(match[4]) ?? 1) : 1;
 	// Modifiers are 1-indexed in CSI-u; normalize to our bitmask.
 	const modifier = Number.isFinite(modValue) ? modValue - 1 : 0;
 
@@ -1376,11 +1390,7 @@ export function decodeKittyPrintable(data: string): string | undefined {
 	// Drop control characters or invalid codepoints.
 	if (!Number.isFinite(effectiveCodepoint) || effectiveCodepoint < 32) return undefined;
 
-	try {
-		return String.fromCodePoint(effectiveCodepoint);
-	} catch {
-		return undefined;
-	}
+	return codePointToString(effectiveCodepoint);
 }
 
 function decodeModifyOtherKeysPrintable(data: string): string | undefined {
@@ -1390,11 +1400,7 @@ function decodeModifyOtherKeysPrintable(data: string): string | undefined {
 	if ((modifier & ~MODIFIERS.shift) !== 0) return undefined;
 	if (!Number.isFinite(parsed.codepoint) || parsed.codepoint < 32) return undefined;
 
-	try {
-		return String.fromCodePoint(parsed.codepoint);
-	} catch {
-		return undefined;
-	}
+	return codePointToString(parsed.codepoint);
 }
 
 export function decodePrintableKey(data: string): string | undefined {

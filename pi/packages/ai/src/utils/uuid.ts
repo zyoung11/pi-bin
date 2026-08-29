@@ -12,6 +12,11 @@ function fillRandomBytes(bytes: Uint8Array<ArrayBuffer>): void {
 }
 
 /** Generate a time-ordered UUIDv7. */
+function hexByte(byte: number): string {
+	const digits = "0123456789abcdef";
+	return digits[(byte >> 4) & 0xf] + digits[byte & 0xf];
+}
+
 export function uuidv7(): string {
 	const random = new Uint8Array(16);
 	fillRandomBytes(random);
@@ -43,6 +48,7 @@ export function uuidv7(): string {
 	bytes[14] = random[14];
 	bytes[15] = random[15];
 
-	const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+	const hex: string[] = [];
+	for (const byte of bytes) hex.push(hexByte(byte));
 	return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }

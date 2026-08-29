@@ -1,6 +1,17 @@
 import path from "node:path";
 import { existsSync, readFileSync } from "fs";
 
+function parseVersionPart(text: string | undefined): number {
+	if (text === undefined) return 0;
+	let value = 0;
+	for (let i = 0; i < text.length; i++) {
+		const code = text.charCodeAt(i);
+		if (code < 48 || code > 57) break;
+		value = value * 10 + (code - 48);
+	}
+	return value;
+}
+
 export interface ChangelogEntry {
 	major: number;
 	minor: number;
@@ -136,9 +147,9 @@ export function parseChangelog(changelogPath: string): ChangelogEntry[] {
 				const versionMatch = line.match(/##\s+\[?(\d+)\.(\d+)\.(\d+)\]?/);
 				if (versionMatch) {
 					currentVersion = {
-						major: Number.parseInt(versionMatch[1], 10),
-						minor: Number.parseInt(versionMatch[2], 10),
-						patch: Number.parseInt(versionMatch[3], 10),
+						major: parseVersionPart(versionMatch[1]),
+						minor: parseVersionPart(versionMatch[2]),
+						patch: parseVersionPart(versionMatch[3]),
 					};
 					currentLines = [line];
 				} else {

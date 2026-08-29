@@ -1274,7 +1274,11 @@ export class Editor extends Component implements Focusable {
 
 		// Split current line
 		this.state.lines[this.state.cursorLine] = before;
-		this.state.lines.splice(this.state.cursorLine + 1, 0, after);
+		this.state.lines.push("");
+		for (let i = this.state.lines.length - 1; i > this.state.cursorLine + 1; i--) {
+			this.state.lines[i] = this.state.lines[i - 1];
+		}
+		this.state.lines[this.state.cursorLine + 1] = after;
 
 		// Move cursor to start of new line
 		this.state.cursorLine++;

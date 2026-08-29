@@ -273,7 +273,7 @@ async function downloadTool(tool: "fd" | "rg"): Promise<string> {
 	// during startup, so sharing a fixed directory causes races.
 	const extractDir = join(
 		TOOLS_DIR,
-		`extract_tmp_${config.binaryName}_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+		`extract_tmp_${config.binaryName}_${process.pid}_${Date.now()}`,
 	);
 	mkdirSync(extractDir, { recursive: true });
 
