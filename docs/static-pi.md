@@ -101,6 +101,12 @@
 - **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r30-ok）
 - **总账 411→397**；剩余：editor compound/splice/replace 群、interactive-mode union/record 深层、clipboard/package-manager 等零星
 
+## 阶段 5 grind 第三十三轮记录（进行中：378→367）
+
+- **clipboard execSync 字面量化（×5→1）**：options 变量→逐调用点内联字面量（input/timeout/stdio）；copyToX11Clipboard 改收 text 参数；wl-copy 的 spawn+stdin.write 管道写→execSync with input（ChildProcessByStdio<Writable> 管道写不可映射）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r33-ok）
+- **总账 378→367**；clipboard 剩 5（clipboard-native createRequire×3 结构性+spawn stdio pipe×2 已消）
+
 ## 阶段 5 grind 第三十二轮记录（进行中：397→378）
 
 - **fs/promises.access 清零（×5）**：file-processor→existsSync；path-utils pathExists→existsSync（保留 async 签名兼容调用方）+ fileExists 删除；bash.ts fsAccess→existsSync throw；edit/read 的 access: 字段→existsSync Promise 包裹

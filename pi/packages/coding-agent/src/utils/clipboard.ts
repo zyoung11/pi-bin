@@ -12,11 +12,11 @@ type NativeClipboardExecOptions = {
 	stdio: ["pipe", "ignore", "ignore"];
 };
 
-function copyToX11Clipboard(options: NativeClipboardExecOptions): void {
+function copyToX11Clipboard(text: string): void {
 	try {
-		execSync("xclip -selection clipboard", options);
+		execSync("xclip -selection clipboard", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 	} catch {
-		execSync("xsel --clipboard --input", options);
+		execSync("xsel --clipboard --input", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 	}
 }
 
@@ -102,21 +102,21 @@ export async function copyToClipboard(text: string): Promise<void> {
 		return;
 	}
 
-	const options: NativeClipboardExecOptions = { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] };
+
 
 	if (!copied) {
 		try {
 			if (p === "darwin") {
-				execSync("pbcopy", options);
+				execSync("pbcopy", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 				copied = true;
 			} else if (p === "win32") {
-				execSync("clip", options);
+				execSync("clip", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 				copied = true;
 			} else {
 				// Linux. Try Termux, Wayland, or X11 clipboard tools.
 				if (process.env.TERMUX_VERSION) {
 					try {
-						execSync("termux-clipboard-set", options);
+						execSync("termux-clipboard-set", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 						copied = true;
 					} catch {
 						// Fall back to Wayland or X11 tools.
@@ -129,35 +129,14 @@ export async function copyToClipboard(text: string): Promise<void> {
 					const isWayland = isWaylandSession();
 					if (isWayland && hasWaylandDisplay) {
 						try {
-							// Verify wl-copy exists (spawn errors are async and won't be caught)
 							execSync("which wl-copy", { stdio: "ignore" });
-							// wl-copy with execSync hangs due to fork behavior; use spawn instead.
-							// Await the exit code and only claim success on a clean exit, so a
-							// failed wl-copy falls through to the xclip/OSC 52 fallbacks.
-							const wlCopyExit = await new Promise<number>((resolve) => {
-								const proc = spawn("wl-copy", [], { stdio: ["pipe", "ignore", "ignore"] });
-								proc.on("error", () => resolve(1));
-								proc.on("close", (code) => resolve(code ?? 1));
-								proc.stdin.on("error", () => {
-									// Ignore EPIPE errors if wl-copy exits early
-								});
-								proc.stdin.write(text);
-								proc.stdin.end();
-							});
-							if (wlCopyExit === 0) {
-								copied = true;
-							} else if (hasX11Display) {
-								copyToX11Clipboard(options);
-								copied = true;
-							}
+							execSync("wl-copy", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
+							copied = true;
 						} catch {
-							if (hasX11Display) {
-								copyToX11Clipboard(options);
-								copied = true;
-							}
+							// wl-copy failed — fall through to the xclip/OSC 52 fallbacks.
 						}
 					} else if (hasX11Display) {
-						copyToX11Clipboard(options);
+						copyToX11Clipboard(text);
 						copied = true;
 					}
 				}
