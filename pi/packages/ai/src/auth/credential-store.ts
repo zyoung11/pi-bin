@@ -2,6 +2,12 @@ import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
 import { CredentialStore } from "./types.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "./types.ts";
 
+/** Abort the pending operation when its request signal is already aborted. */
+function throwIfSignalAborted(options?: AuthOperationOptions): void {
+	const signal = options?.signal;
+	if (signal) signal.throwIfAborted();
+}
+
 /**
  * Default in-memory credential store. Apps inject persistent stores.
  * Keyed by `Provider.id`, one credential per provider; see `CredentialStore`.
@@ -28,13 +34,20 @@ export class InMemoryCredentialStore extends CredentialStore {
 		return raceWithAbortSignal(queued, signal);
 	}
 
-	async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
-		options?.signal?.throwIfAborted();
+	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		return Promise.resolve(this.readSync(providerId, options));
+	}
+
+	private readSync(providerId: string, options?: AuthOperationOptions): Credential | undefined {
+		throwIfSignalAborted(options);
 		return this.credentials.get(providerId);
 	}
 
-	async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
-		options?.signal?.throwIfAborted();
+	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		return Promise.resolve(this.listSync());
+	}
+
+	private listSync(): readonly CredentialInfo[] {
 		return [...this.credentials].map(([providerId, credential]) => ({ providerId, type: credential.type }));
 	}
 
@@ -48,7 +61,7 @@ export class InMemoryCredentialStore extends CredentialStore {
 			async () => {
 				const current = this.credentials.get(providerId);
 				const next = await fn(current);
-				options?.signal?.throwIfAborted();
+				throwIfSignalAborted(options);
 				if (next !== undefined) this.credentials.set(providerId, next);
 				return next ?? current;
 			},

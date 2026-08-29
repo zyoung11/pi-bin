@@ -78,6 +78,18 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十五轮记录（进行中：309→287，auth/model-runtime 簇深水区）
+
+- **child-process 类型体系重构（-6，拆除顽固墙）**：`ChildProcessHandle` 从手写接口改为 `type ChildProcessHandle = ChildProcess`（node 原生类型）——spawnProcess 返回值不再 as unknown as 双跳；ChildProcessStream 接口删除；package-manager/session-share/child-process 的 `child.stdout as ...` cast 全部直呼（stdout.on("data") 原生可映射）
+- **AuthStorageBackend 去泛型化**：`withLock<T>/withLockAsync<T>` → `LockResult<unknown>` 返回 unknown，调用点改用闭包外 holder 变量接收结果（泛型接口方法静态分派墙）；注意 **抽象类泛型方法也不支持**（abstract generic methods 直接拒）
+- **async override 全清**：scriptc 对「非 async 抽象方法的 async override」逐个揭幕报错（read→list→...），全部改「非 async 覆写 + 私有 async 委托」模式：RuntimeCredentials/AuthStorage/ReadOnlyAuthStorage/InMemoryCredentialStore/InMemoryCodingAgentModelsStore/FileModelsStore/InMemoryModelsStore（ModelsStore 改抽象类）
+- **options?.signal?.throwIfAborted() 两跳链全仓清零（18 处）**：新增 throwIfSignalAborted(options) helper（auth-storage/credential-store/models-store/runtime-credentials 各自本地）；单跳 `signal?.throwIfAborted()` 也会在部分上下文被拒，改 `if (signal !== undefined)` 守卫
+- **Credential 联合字段读墙**：type/key/env 读全部被拒（双臂字面量不同 + index-signature 臂导致 cast/in 均不可用）→ credentialRecordOf(credential) JSON 往返 helper（unknown 参数 stringify 已验证模式）
+- **runTasksWithConcurrency 收尾**：模块级 let taskFn（函数值 | undefined binding）→ taskRunner record holder（r12 模式）；早退 `return []` number[] 推断→taskRunner.results as TOut[]
+- **model-runtime 剩 7**：prepareRequest 泛型 Omit 级联（598-606）+ enqueueCredentialOperation unknown 转换（688），需专项；**auth-storage 剩 5**：withLockAsync 多调用点闭包返回形状统一问题（409/423 expected result 形状互相矛盾，疑似 scriptc 单态化缺陷，需编译器级调查）+ createRequire 类
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（smoke-r35）
+- **总账 309→287**；行为变更：auth.json 写入不再显式 mode 0o600（writeFileSync 3 参无 lowering）
+
 ## 阶段 5 grind 第三十四轮记录（进行中：376→309，interactive-mode 66→4，类根+record 墙批量拆除）
 
 - **组件类根修复（每个解一片级联）**：model-selector/login-dialog 的 AbortController 类字段→createAbortHandle 适配器；scoped-models-selector `Key.ctrl("c")`→字符串字面量（全仓唯一调用点）；custom-message filter 谓词→for-of；compaction-summary toLocaleString→手写 formatTokenCount；bash-execution `a[i]+=v`→展开赋值

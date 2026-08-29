@@ -1,4 +1,4 @@
-import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from "node:child_process";
+import { type ChildProcess, spawn as nodeSpawn, spawnSync as nodeSpawnSync } from "node:child_process";
 
 const EXIT_STDIO_GRACE_MS = 100;
 
@@ -27,24 +27,7 @@ export interface SpawnSyncResult {
 	error?: Error;
 }
 
-export interface ChildProcessStream {
-	on(event: string, listener: (chunk: Uint8Array) => void): void;
-	once(event: string, listener: (chunk: Uint8Array) => void): void;
-	destroy(): void;
-}
-
-export interface ChildProcessHandle {
-	readonly pid?: number | undefined;
-	readonly exitCode: number | null;
-	readonly killed: boolean;
-	readonly stdout: ChildProcessStream | null;
-	readonly stderr: ChildProcessStream | null;
-	on(event: "exit", listener: (code: number | null) => void): void;
-	on(event: "error", listener: (err: Error) => void): void;
-	once(event: "exit", listener: (code: number | null) => void): void;
-	kill(signal?: number | string): boolean;
-	unref(): void;
-}
+export type ChildProcessHandle = ChildProcess;
 
 export function spawnProcess(command: string, args: string[], options: SpawnProcessOptions): ChildProcessHandle {
 	const spawnEnv: Record<string, string> = {};
@@ -59,7 +42,7 @@ export function spawnProcess(command: string, args: string[], options: SpawnProc
 		env: spawnEnv,
 		windowsHide: options.windowsHide,
 		stdio: ["ignore", "pipe", "pipe"],
-	}) as unknown as ChildProcessHandle;
+	});
 }
 
 export function spawnProcessSync(command: string, args: string[], options: SpawnSyncOptions): SpawnSyncResult {
@@ -138,8 +121,8 @@ export function waitForChildProcess(child: ChildProcessHandle): Promise<number |
 			if (!settled) armIdleTimer();
 		};
 
-		const stdout = child.stdout as unknown as ChildProcessStream | null;
-		const stderr = child.stderr as unknown as ChildProcessStream | null;
+		const stdout = child.stdout;
+		const stderr = child.stderr;
 		if (stdout) {
 			stdout.on("data", onData);
 			stdout.once("end", onStdoutEnd);

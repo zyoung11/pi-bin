@@ -1,6 +1,12 @@
 import { CredentialStore } from "../../../ai/src/index.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
 
+/** Abort the pending operation when its request signal is already aborted. */
+function throwIfSignalAborted(options?: AuthOperationOptions): void {
+	const signal = options?.signal;
+	if (signal) signal.throwIfAborted();
+}
+
 /** Async credential store overlay for non-persistent runtime API keys. */
 export class RuntimeCredentials extends CredentialStore {
 	private readonly store: CredentialStore;
@@ -23,15 +29,19 @@ export class RuntimeCredentials extends CredentialStore {
 		return this.overrides.has(providerId);
 	}
 
-	async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
 		const signal = options?.signal;
 		if (signal) signal.throwIfAborted();
 		const override = this.overrides.get(providerId);
-		if (override) return { type: "api_key", key: override };
+		if (override) return Promise.resolve({ type: "api_key", key: override });
 		return this.store.read(providerId, options);
 	}
 
-	async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		return this.listAsync(options);
+	}
+
+	private async listAsync(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
 		const signal = options?.signal;
 		const entries = new Map<string, CredentialInfo>();
 		for (const entry of await this.store.list(options)) entries.set(entry.providerId, entry);
@@ -50,8 +60,12 @@ export class RuntimeCredentials extends CredentialStore {
 		return this.store.modify(providerId, fn, options);
 	}
 
-	async delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
-		options?.signal?.throwIfAborted();
+	delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
+		return this.deleteAsync(providerId, options);
+	}
+
+	private async deleteAsync(providerId: string, options?: AuthOperationOptions): Promise<void> {
+		throwIfSignalAborted(options);
 		await this.store.delete(providerId, options);
 		this.overrides.delete(providerId);
 	}

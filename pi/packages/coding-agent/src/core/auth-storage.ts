@@ -7,9 +7,8 @@ import { CredentialStore } from "../../../ai/src/index.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-import lockfile from "../utils/mini-lockfile.ts";
-import { setTimeout as sleep } from "timers/promises";
-import { getAgentDir } from "../config.ts";
+import lockfile, { LockError } from "../utils/mini-lockfile.ts";
+import { sleep } from "../utils/sleep.ts";import { getAgentDir } from "../config.ts";
 import { raceWithAbortSignal } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
@@ -22,8 +21,6 @@ type LockResult<T> = {
 	next?: string;
 };
 
-// The mode applies only on creation so administrator-managed modes and ACLs remain intact.
-const AUTH_FILE_WRITE_OPTIONS = { encoding: "utf-8", mode: 0o600 } as const;
 
 type AuthFileReload = {
 	controller: AbortController;
@@ -39,18 +36,30 @@ type AuthFileReadState = {
 
 let sharedAuthFileReadState: { authPath: string; readState: AuthFileReadState } | undefined;
 
-export interface AuthStorageBackend {
-	withLock<T>(fn: (current: string | undefined) => LockResult<T>): T;
-	withLockAsync<T>(
-		fn: (current: string | undefined) => Promise<LockResult<T>>,
+export abstract class AuthStorageBackend {
+	abstract withLock(fn: (current: string | undefined) => LockResult<unknown>): unknown;
+	abstract withLockAsync(
+		fn: (current: string | undefined) => Promise<LockResult<unknown>>,
 		options?: AuthOperationOptions,
-	): Promise<T>;
+	): Promise<unknown>;
 }
 
-export class FileAuthStorageBackend implements AuthStorageBackend {
+/** Abort the pending operation when its request signal is already aborted. */
+function throwIfSignalAborted(options?: AuthOperationOptions): void {
+	const signal = options?.signal;
+	if (signal) signal.throwIfAborted();
+}
+
+/** View a credential as a plain record (the Credential union resists direct field access). */
+function credentialRecordOf(credential: Credential): Record<string, unknown> {
+	return JSON.parse(JSON.stringify(credential)) as Record<string, unknown>;
+}
+
+export class FileAuthStorageBackend extends AuthStorageBackend {
 	private authPath: string;
 
 	constructor(authPath: string = join(getAgentDir(), "auth.json")) {
+		super();
 		this.authPath = normalizePath(authPath);
 	}
 
@@ -63,7 +72,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 
 	private ensureFileExists(): void {
 		if (!existsSync(this.authPath)) {
-			writeFileSync(this.authPath, "{}", AUTH_FILE_WRITE_OPTIONS);
+			writeFileSync(this.authPath, "{}");
 		}
 	}
 
@@ -76,10 +85,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			try {
 				return lockfile.lockSync(path, { realpath: false });
 			} catch (error) {
-				const code =
-					typeof error === "object" && error !== null && "code" in error
-						? String((error as { code?: unknown }).code)
-						: undefined;
+				const code = error instanceof LockError ? error.code : undefined;
 				if (code !== "ELOCKED" || attempt === maxAttempts) {
 					throw error;
 				}
@@ -91,10 +97,11 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			}
 		}
 
-		throw (lastError as Error) ?? new Error("Failed to acquire auth storage lock");
+		if (lastError instanceof LockError) throw lastError;
+		throw new Error("Failed to acquire auth storage lock");
 	}
 
-	withLock<T>(fn: (current: string | undefined) => LockResult<T>): T {
+	withLock(fn: (current: string | undefined) => LockResult<unknown>): unknown {
 		this.ensureParentDir();
 		this.ensureFileExists();
 
@@ -104,7 +111,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			const current = existsSync(this.authPath) ? readFileSync(this.authPath, "utf-8") : undefined;
 			const { result, next } = fn(current);
 			if (next !== undefined) {
-				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
+				writeFileSync(this.authPath, next);
 			}
 			return result;
 		} finally {
@@ -123,7 +130,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 		const deadline = Date.now() + staleMs;
 		let retry = 0;
 		while (true) {
-			signal?.throwIfAborted();
+			if (signal !== undefined) signal.throwIfAborted();
 			let release: (() => Promise<void>) | undefined;
 			try {
 				release = await lockfile.lock(this.authPath, {
@@ -133,21 +140,17 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 					onCompromised,
 				});
 			} catch (error) {
-				signal?.throwIfAborted();
-				const code =
-					typeof error === "object" && error !== null && "code" in error
-						? String((error as { code?: unknown }).code)
-						: undefined;
+				if (signal !== undefined) signal.throwIfAborted();
+				const code = error instanceof LockError ? error.code : undefined;
 				const remainingMs = deadline - Date.now();
 				if (code !== "ELOCKED" || remainingMs <= 0) throw error;
 				const baseDelayMs = Math.min(10 * 2 ** retry, maxDelayMs / 2);
 				retry++;
 				const delayMs = Math.min(Math.round(baseDelayMs * (1 + Math.random())), remainingMs);
-				if (signal) await sleep(delayMs, undefined, { signal });
-				else await sleep(delayMs);
+				await sleep(delayMs, signal);
 				continue;
 			}
-			if (signal?.aborted) {
+			if (signal !== undefined && signal.aborted) {
 				await release();
 				signal.throwIfAborted();
 			}
@@ -155,11 +158,18 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 		}
 	}
 
-	async withLockAsync<T>(
-		fn: (current: string | undefined) => Promise<LockResult<T>>,
+	withLockAsync(
+		fn: (current: string | undefined) => Promise<LockResult<unknown>>,
 		options?: AuthOperationOptions,
-	): Promise<T> {
-		options?.signal?.throwIfAborted();
+	): Promise<unknown> {
+		return this.withLockAsyncImpl(fn, options);
+	}
+
+	private async withLockAsyncImpl(
+		fn: (current: string | undefined) => Promise<LockResult<unknown>>,
+		options?: AuthOperationOptions,
+	): Promise<unknown> {
+		throwIfSignalAborted(options);
 		this.ensureParentDir();
 		this.ensureFileExists();
 
@@ -179,13 +189,13 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			});
 
 			throwIfCompromised();
-			options?.signal?.throwIfAborted();
+			throwIfSignalAborted(options);
 			const current = existsSync(this.authPath) ? readFileSync(this.authPath, "utf-8") : undefined;
 			const { result, next } = await fn(current);
 			throwIfCompromised();
-			options?.signal?.throwIfAborted();
+			throwIfSignalAborted(options);
 			if (next !== undefined) {
-				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
+				writeFileSync(this.authPath, next);
 			}
 			throwIfCompromised();
 			return result;
@@ -231,7 +241,7 @@ export class ReadOnlyAuthStorage extends CredentialStore {
 			if (typeof credential !== "object" || credential === null || Array.isArray(credential)) {
 				throw new Error(`Invalid auth.json credential for provider "${providerId}"`);
 			}
-			const value = credential as Record<string, unknown>;
+			const value = credentialRecordOf(credential);
 			if (value.type === "api_key") {
 				const validKey = value.key === undefined || typeof value.key === "string";
 				const validEnv =
@@ -257,45 +267,56 @@ export class ReadOnlyAuthStorage extends CredentialStore {
 		return this.data;
 	}
 
-	async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
-		options?.signal?.throwIfAborted();
-		const credential = this.load()[providerId];
-		options?.signal?.throwIfAborted();
-		if (!credential) return undefined;
-		if (credential.type !== "api_key" || !credential.key || isCommandConfigValue(credential.key)) {
-			return structuredClone(credential);
-		}
-		return { ...credential, key: resolveConfigValue(credential.key, credential.env) };
+	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		return this.readAsync(providerId, options);
 	}
 
-	async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
-		options?.signal?.throwIfAborted();
+	private async readAsync(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		throwIfSignalAborted(options);
+		const credential = this.load()[providerId];
+		throwIfSignalAborted(options);
+		if (!credential) return undefined;
+		const record = credentialRecordOf(credential);
+		if (record["type"] !== "api_key") return structuredClone(credential);
+		const key = record["key"];
+		if (typeof key !== "string" || key === "" || isCommandConfigValue(key)) return structuredClone(credential);
+		const env = record["env"];
+		const resolvedEnv = env === undefined || env === null ? undefined : (env as Record<string, string>);
+		return { type: "api_key", key: resolveConfigValue(key, resolvedEnv), env: resolvedEnv };
+	}
+
+	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		return Promise.resolve(this.listSync(options));
+	}
+
+	private listSync(options?: AuthOperationOptions): readonly CredentialInfo[] {
+		throwIfSignalAborted(options);
 		const credentials = Object.entries(this.load()).map(([providerId, credential]) => ({
 			providerId,
 			type: credential.type,
 		}));
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		return credentials;
 	}
 
-	async modify(
+	modify(
 		_providerId: string,
 		_fn: (current: Credential | undefined) => Promise<Credential | undefined>,
 		_options?: AuthOperationOptions,
 	): Promise<Credential | undefined> {
-		throw new Error("Read-only credential storage cannot modify auth.json");
+		return Promise.reject(new Error("Read-only credential storage cannot modify auth.json"));
 	}
 
-	async delete(_providerId: string, _options?: AuthOperationOptions): Promise<void> {
-		throw new Error("Read-only credential storage cannot modify auth.json");
+	delete(_providerId: string, _options?: AuthOperationOptions): Promise<void> {
+		return Promise.reject(new Error("Read-only credential storage cannot modify auth.json"));
 	}
 }
 
-export class InMemoryAuthStorageBackend implements AuthStorageBackend {
+export class InMemoryAuthStorageBackend extends AuthStorageBackend {
 	private value: string | undefined;
 	private asyncChain: Promise<unknown> = Promise.resolve();
 
-	withLock<T>(fn: (current: string | undefined) => LockResult<T>): T {
+	withLock(fn: (current: string | undefined) => LockResult<unknown>): unknown {
 		const { result, next } = fn(this.value);
 		if (next !== undefined) {
 			this.value = next;
@@ -303,16 +324,16 @@ export class InMemoryAuthStorageBackend implements AuthStorageBackend {
 		return result;
 	}
 
-	withLockAsync<T>(
-		fn: (current: string | undefined) => Promise<LockResult<T>>,
+	withLockAsync(
+		fn: (current: string | undefined) => Promise<LockResult<unknown>>,
 		options?: AuthOperationOptions,
-	): Promise<T> {
+	): Promise<unknown> {
 		const previous = this.asyncChain;
 		const operation = (async () => {
 			await previous.catch(() => {});
-			options?.signal?.throwIfAborted();
+			throwIfSignalAborted(options);
 			const { result, next } = await fn(this.value);
-			options?.signal?.throwIfAborted();
+			throwIfSignalAborted(options);
 			if (next !== undefined) {
 				this.value = next;
 			}
@@ -393,16 +414,19 @@ export class AuthStorage extends CredentialStore {
 	}
 
 	private async reloadFromStorageAsync(options?: AuthOperationOptions): Promise<AuthStorageData> {
-		return this.storage.withLockAsync(async (content) => {
+		let result: AuthStorageData = {};
+		await this.storage.withLockAsync(async (content) => {
 			const currentData = this.parseStorageData(content);
 			const revision = this.authPath ? getFileRevision(this.authPath) : undefined;
 			this.updateReadState(currentData, revision);
+			result = currentData;
 			return { result: currentData };
 		}, options);
+		return result;
 	}
 
 	private async readLatestData(options?: AuthOperationOptions): Promise<AuthStorageData> {
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		if (!this.authPath) {
 			const reload = this.reloadFromStorageAsync(options);
 			return options?.signal ? reload : reload.catch(() => this.readState.data);
@@ -417,14 +441,13 @@ export class AuthStorage extends CredentialStore {
 				readers: 0,
 			};
 			this.readState.reload = reload;
-			void reload.promise.then(
-				() => {
+			void reload.promise
+				.then(() => {
 					if (this.readState.reload === reload) this.readState.reload = undefined;
-				},
-				() => {
+				})
+				.catch(() => {
 					if (this.readState.reload === reload) this.readState.reload = undefined;
-				},
-			);
+				});
 		}
 
 		const reload = this.readState.reload;
@@ -441,39 +464,63 @@ export class AuthStorage extends CredentialStore {
 		}
 	}
 
-	async read(provider: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
-		const credential = (await this.readLatestData(options))[provider];
-		options?.signal?.throwIfAborted();
-		if (credential?.type !== "api_key") return credential;
-		if (credential.key === undefined) return credential;
-		return { ...credential, key: resolveConfigValue(credential.key, credential.env) };
+	read(provider: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		return this.readAsync(provider, options);
 	}
 
-	async modify(
+	private async readAsync(provider: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		const credential = (await this.readLatestData(options))[provider];
+		throwIfSignalAborted(options);
+		if (!credential) return undefined;
+		const record = credentialRecordOf(credential);
+		if (record["type"] !== "api_key") return credential;
+		const key = record["key"];
+		if (key === undefined || typeof key !== "string") return credential;
+		const env = record["env"];
+		const resolvedEnv = env === undefined || env === null ? undefined : (env as Record<string, string>);
+		return { type: "api_key", key: resolveConfigValue(key, resolvedEnv), env: resolvedEnv };
+	}
+
+	modify(
+		provider: string,
+		fn: (current: Credential | undefined) => Promise<Credential | undefined>,
+		options?: AuthOperationOptions,
+	): Promise<Credential | undefined> {
+		return this.modifyAsync(provider, fn, options);
+	}
+
+	private async modifyAsync(
 		provider: string,
 		fn: (current: Credential | undefined) => Promise<Credential | undefined>,
 		options?: AuthOperationOptions,
 	): Promise<Credential | undefined> {
 		let latestData = this.readState.data;
 		let revision: string | undefined;
-		const result = await this.storage.withLockAsync(async (content) => {
+		let result: Credential | undefined = undefined;
+		await this.storage.withLockAsync(async (content) => {
 			const currentData = this.parseStorageData(content);
 			const next = await fn(currentData[provider]);
 			if (next === undefined) {
 				latestData = currentData;
 				revision = this.authPath ? getFileRevision(this.authPath) : undefined;
+				result = currentData[provider];
 				return { result: currentData[provider] };
 			}
 
 			const merged: AuthStorageData = { ...currentData, [provider]: next };
 			latestData = merged;
+			result = next;
 			return { result: next, next: JSON.stringify(merged, null, 2) };
 		}, options);
 		this.updateReadState(latestData, revision);
 		return result;
 	}
 
-	async delete(provider: string, options?: AuthOperationOptions): Promise<void> {
+	delete(provider: string, options?: AuthOperationOptions): Promise<void> {
+		return this.deleteAsync(provider, options);
+	}
+
+	private async deleteAsync(provider: string, options?: AuthOperationOptions): Promise<void> {
 		let latestData = this.readState.data;
 		await this.storage.withLockAsync(async (content) => {
 			const currentData = this.parseStorageData(content);
@@ -485,9 +532,13 @@ export class AuthStorage extends CredentialStore {
 	}
 
 	/** List credential metadata without resolving configured key values. */
-	async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		return this.listAsync(options);
+	}
+
+	private async listAsync(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
 		const entries = Object.entries(await this.readLatestData(options));
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		return entries.map(([providerId, credential]) => ({ providerId, type: credential.type }));
 	}
 }

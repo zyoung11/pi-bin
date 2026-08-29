@@ -1,5 +1,11 @@
 import type { Api, Model } from "./types.ts";
 
+/** Abort the pending operation when its request signal is already aborted. */
+function throwIfSignalAborted(options?: ModelsStoreOperationOptions): void {
+	const signal = options?.signal;
+	if (signal) signal.throwIfAborted();
+}
+
 export interface ModelsStoreEntry {
 	models: readonly Model<Api>[];
 	/** Unix timestamp from the remote catalog's Last-Modified header. */
@@ -18,28 +24,31 @@ export interface ModelsStoreOperationOptions {
 }
 
 /** Persistent model catalogs keyed by provider ID. */
-export interface ModelsStore {
-	read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined>;
-	write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void>;
-	delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void>;
+export abstract class ModelsStore {
+	abstract read(
+		providerId: string,
+		options?: ModelsStoreOperationOptions,
+	): Promise<ModelsStoreEntry | undefined>;
+	abstract write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void>;
+	abstract delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void>;
 }
 
-export class InMemoryModelsStore implements ModelsStore {
+export class InMemoryModelsStore extends ModelsStore {
 	private readonly entries = new Map<string, ModelsStoreEntry>();
 
 	async read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		const entry = this.entries.get(providerId);
 		return entry ? structuredClone(entry) : undefined;
 	}
 
 	async write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		this.entries.set(providerId, structuredClone(entry));
 	}
 
 	async delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void> {
-		options?.signal?.throwIfAborted();
+		throwIfSignalAborted(options);
 		this.entries.delete(providerId);
 	}
 }

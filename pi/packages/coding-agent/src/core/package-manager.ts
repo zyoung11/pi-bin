@@ -40,7 +40,6 @@ import {
 	spawnProcessSync,
 	waitForChildProcess,
 	type ChildProcessHandle,
-	type ChildProcessStream,
 } from "../utils/child-process.ts";
 import { type GitSource, parseGitUrl } from "../utils/git.ts";
 import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
@@ -819,17 +818,19 @@ function applyAutoloadDisabledPatterns(allPaths: string[], patterns: string[], b
 	return result;
 }
 
-const taskResults: unknown[] = [];
-let taskNextIndex = 0;
-let taskInputs: unknown[] = [];
-let taskLimit = 1;
-let taskFn: ((input: unknown) => Promise<unknown>) | undefined;
+const taskRunner = {
+	results: [] as unknown[],
+	nextIndex: 0,
+	limit: 1,
+	inputs: [] as unknown[],
+	fn: (input: unknown): Promise<unknown> => Promise.resolve(undefined),
+};
 
 async function runTasksWorker(): Promise<void> {
-	while (taskNextIndex < taskInputs.length) {
-		const input = taskInputs[taskNextIndex];
-		taskNextIndex += 1;
-		if (taskFn !== undefined) taskResults.push(await taskFn(input));
+	while (taskRunner.nextIndex < taskRunner.inputs.length) {
+		const input = taskRunner.inputs[taskRunner.nextIndex];
+		taskRunner.nextIndex += 1;
+		taskRunner.results.push(await taskRunner.fn(input));
 	}
 }
 
@@ -838,21 +839,21 @@ async function runTasksWithConcurrency<TIn, TOut>(
 	limit: number,
 	task: (input: TIn) => Promise<TOut>,
 ): Promise<TOut[]> {
-	taskResults.length = 0;
+	taskRunner.results = [];
 	if (inputs.length === 0) {
-		return [];
+		return taskRunner.results as TOut[];
 	}
-	taskInputs = inputs as unknown as unknown[];
-	taskNextIndex = 0;
-	taskLimit = Math.max(1, Math.min(limit, inputs.length));
-	taskFn = task as (input: unknown) => Promise<unknown>;
+	taskRunner.inputs = inputs as unknown as unknown[];
+	taskRunner.nextIndex = 0;
+	taskRunner.limit = Math.max(1, Math.min(limit, inputs.length));
+	taskRunner.fn = task as (input: unknown) => Promise<unknown>;
 
 	const workers: Promise<void>[] = [];
-	for (let workerIndex = 0; workerIndex < taskLimit; workerIndex++) {
+	for (let workerIndex = 0; workerIndex < taskRunner.limit; workerIndex++) {
 		workers.push(runTasksWorker());
 	}
 	await Promise.all(workers);
-	return taskResults as TOut[];
+	return taskRunner.results as TOut[];
 }
 
 export class DefaultPackageManager implements PackageManager {
@@ -1235,8 +1236,9 @@ export class DefaultPackageManager implements PackageManager {
 	}
 
 	async checkForAvailableUpdates(): Promise<PackageUpdate[]> {
+		const noUpdates: PackageUpdate[] = [];
 		if (isOfflineModeEnabled()) {
-			return [];
+			return noUpdates;
 		}
 
 		const globalSettings = this.settingsManager.getGlobalSettings();
@@ -1259,7 +1261,10 @@ export class DefaultPackageManager implements PackageManager {
 		): Promise<PackageUpdate | undefined> => {
 			const source = typeof entry.pkg === "string" ? entry.pkg : entry.pkg.source;
 			const parsed = this.parseSource(source);
-			if (parsed.type === "local" || parsed.pinned) {
+			if (parsed.type === "local") {
+				return undefined;
+			}
+			if (parsed.pinned) {
 				return undefined;
 			}
 
@@ -2684,13 +2689,13 @@ export class DefaultPackageManager implements PackageManager {
 					}, options.timeoutMs)
 				: undefined;
 
-		const stdoutStream = child.stdout as ChildProcessStream | undefined;
+		const stdoutStream = child.stdout;
 		if (stdoutStream) {
 			stdoutStream.on("data", (data: Uint8Array) => {
 				stdout += data.toString();
 			});
 		}
-		const stderrStream = child.stderr as ChildProcessStream | undefined;
+		const stderrStream = child.stderr;
 		if (stderrStream) {
 			stderrStream.on("data", (data: Uint8Array) => {
 				stderr += data.toString();

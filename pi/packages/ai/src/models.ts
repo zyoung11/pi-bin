@@ -229,7 +229,7 @@ export interface MutableModels extends Models {
 }
 
 export interface CreateModelsOptions {
-	credentials?: CredentialStore;
+	credentials: CredentialStore;
 	modelsStore?: ModelsStore;
 	authContext?: AuthContext;
 }
