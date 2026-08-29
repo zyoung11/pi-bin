@@ -1,11 +1,13 @@
-import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "../../../ai/src/index.ts";
+import { CredentialStore } from "../../../ai/src/index.ts";
+import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
 
 /** Async credential store overlay for non-persistent runtime API keys. */
-export class RuntimeCredentials implements CredentialStore {
+export class RuntimeCredentials extends CredentialStore {
 	private readonly store: CredentialStore;
 	private readonly overrides = new Map<string, string>();
 
 	constructor(store: CredentialStore) {
+		super();
 		this.store = store;
 	}
 

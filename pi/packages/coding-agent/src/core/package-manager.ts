@@ -819,32 +819,40 @@ function applyAutoloadDisabledPatterns(allPaths: string[], patterns: string[], b
 	return result;
 }
 
+const taskResults: unknown[] = [];
+let taskNextIndex = 0;
+let taskInputs: unknown[] = [];
+let taskLimit = 1;
+let taskFn: ((input: unknown) => Promise<unknown>) | undefined;
+
+async function runTasksWorker(): Promise<void> {
+	while (taskNextIndex < taskInputs.length) {
+		const input = taskInputs[taskNextIndex];
+		taskNextIndex += 1;
+		if (taskFn !== undefined) taskResults.push(await taskFn(input));
+	}
+}
+
 async function runTasksWithConcurrency<TIn, TOut>(
 	inputs: TIn[],
 	limit: number,
 	task: (input: TIn) => Promise<TOut>,
 ): Promise<TOut[]> {
-	const results: TOut[] = [];
+	taskResults.length = 0;
 	if (inputs.length === 0) {
-		return results;
+		return [];
 	}
-	let nextIndex = 0;
-	const workerCount = Math.max(1, Math.min(limit, inputs.length));
-
-	const runWorker = async (): Promise<void> => {
-		while (nextIndex < inputs.length) {
-			const input = inputs[nextIndex];
-			nextIndex += 1;
-			results.push(await task(input));
-		}
-	};
+	taskInputs = inputs as unknown as unknown[];
+	taskNextIndex = 0;
+	taskLimit = Math.max(1, Math.min(limit, inputs.length));
+	taskFn = task as (input: unknown) => Promise<unknown>;
 
 	const workers: Promise<void>[] = [];
-	for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
-		workers.push(runWorker());
+	for (let workerIndex = 0; workerIndex < taskLimit; workerIndex++) {
+		workers.push(runTasksWorker());
 	}
 	await Promise.all(workers);
-	return results;
+	return taskResults as TOut[];
 }
 
 export class DefaultPackageManager implements PackageManager {

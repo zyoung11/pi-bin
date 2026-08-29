@@ -3,7 +3,8 @@
  * Provider auth orchestration belongs to ModelRuntime and pi-ai Models.
  */
 
-import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "../../../ai/src/index.ts";
+import { CredentialStore } from "../../../ai/src/index.ts";
+import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile from "../utils/mini-lockfile.ts";
@@ -200,11 +201,12 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 	}
 }
 
-export class ReadOnlyAuthStorage implements CredentialStore {
+export class ReadOnlyAuthStorage extends CredentialStore {
 	private readonly authPath: string;
 	private data: AuthStorageData | undefined;
 
 	constructor(authPath: string = join(getAgentDir(), "auth.json")) {
+		super();
 		this.authPath = normalizePath(authPath);
 	}
 
@@ -324,12 +326,13 @@ export class InMemoryAuthStorageBackend implements AuthStorageBackend {
 /**
  * Credential storage backed by a JSON file.
  */
-export class AuthStorage implements CredentialStore {
+export class AuthStorage extends CredentialStore {
 	private storage: AuthStorageBackend;
 	private authPath: string | undefined;
 	private readState: AuthFileReadState;
 
 	private constructor(storage: AuthStorageBackend, authPath?: string) {
+		super();
 		this.storage = storage;
 		this.authPath = authPath;
 		this.readState =

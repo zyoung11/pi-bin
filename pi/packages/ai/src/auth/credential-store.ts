@@ -1,12 +1,13 @@
 import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
-import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "./types.ts";
+import { CredentialStore } from "./types.ts";
+import type { AuthOperationOptions, Credential, CredentialInfo } from "./types.ts";
 
 /**
  * Default in-memory credential store. Apps inject persistent stores.
  * Keyed by `Provider.id`, one credential per provider; see `CredentialStore`.
  * Writes are serialized per provider through a promise chain.
  */
-export class InMemoryCredentialStore implements CredentialStore {
+export class InMemoryCredentialStore extends CredentialStore {
 	private credentials = new Map<string, Credential>();
 	private chains = new Map<string, Promise<unknown>>();
 

@@ -107,6 +107,14 @@
 - **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r33-ok）
 - **总账 378→367**；clipboard 剩 5（clipboard-native createRequire×3 结构性+spawn stdio pipe×2 已消）
 
+## 阶段 5 grind 第三十三轮补充（进行中：378→376，CredentialStore 接口→abstract class）
+
+- **CredentialStore 接口→abstract class**：实现者（RuntimeCredentials/ReadOnlyAuthStorage/AuthStorage/InMemoryCredentialStore）改 extends；构造器补 super()；import 拆分（value + type）；解锁 model-runtime 的类→接口参数墙（createModels({credentials...}) 的 classval→record 槽）
+- **package-manager 泛型修复**：runTasksWithConcurrency 泛型函数的 TOut[] 数组字段→模块级 unknown[] 中转（TOut[].push 不可映射）
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r32-final）
+- **总账 378→376**；model-runtime 10→15（泛型揭幕）
+- 注：git checkout 误滚后重做了 CredentialStore 类化与 package-manager 泛型修复
+
 ## 阶段 5 grind 第三十二轮记录（进行中：397→378）
 
 - **fs/promises.access 清零（×5）**：file-processor→existsSync；path-utils pathExists→existsSync（保留 async 签名兼容调用方）+ fileExists 删除；bash.ts fsAccess→existsSync throw；edit/read 的 access: 字段→existsSync Promise 包裹

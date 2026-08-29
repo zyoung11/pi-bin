@@ -62,18 +62,18 @@ export interface AuthOperationOptions {
  * view and record persistence errors internally (like coding-agent's
  * AuthStorage) are valid implementations.
  */
-export interface CredentialStore {
+export abstract class CredentialStore {
 	/**
 	 * Read the stored credential, possibly expired. Display/status use;
 	 * resolved request auth comes from `Models.getAuth()`.
 	 */
-	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined>;
+	abstract read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined>;
 
 	/**
 	 * List stored credential metadata without resolving or exposing secrets.
 	 * Implementations must not execute configured API-key commands while listing.
 	 */
-	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]>;
+	abstract list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]>;
 
 	/**
 	 * Serialized write — the only write path. `fn` sees the current credential
@@ -83,14 +83,14 @@ export interface CredentialStore {
 	 * store supports it (e.g. a file lock). Resolves with the post-write
 	 * credential. Rejections from `fn` propagate.
 	 */
-	modify(
+	abstract modify(
 		providerId: string,
 		fn: (current: Credential | undefined) => Promise<Credential | undefined>,
 		options?: AuthOperationOptions,
 	): Promise<Credential | undefined>;
 
 	/** Remove a credential (logout). Implementations serialize this against `modify`. */
-	delete(providerId: string, options?: AuthOperationOptions): Promise<void>;
+	abstract delete(providerId: string, options?: AuthOperationOptions): Promise<void>;
 }
 
 /** Environment access for auth resolution. Injectable for tests and browsers. */
