@@ -445,12 +445,14 @@ export class DefaultResourceLoader implements ResourceLoader {
 						agentDir: this.agentDir,
 					}),
 		};
-		const resolvedAgentsFiles = this.agentsFilesOverride ? this.agentsFilesOverride(agentsFiles) : agentsFiles;
+		const agentsFilesOverrideFn = this.agentsFilesOverride;
+		const resolvedAgentsFiles = agentsFilesOverrideFn ? agentsFilesOverrideFn(agentsFiles) : agentsFiles;
 		this.agentsFiles = resolvedAgentsFiles.agentsFiles;
 
 		const systemPromptSource = this.systemPromptSource ?? this.discoverSystemPromptFile();
 		const baseSystemPrompt = resolvePromptInput(systemPromptSource, "system prompt");
-		this.systemPrompt = this.systemPromptOverride ? this.systemPromptOverride(baseSystemPrompt) : baseSystemPrompt;
+		const systemPromptOverrideFn = this.systemPromptOverride;
+		this.systemPrompt = systemPromptOverrideFn ? systemPromptOverrideFn(baseSystemPrompt) : baseSystemPrompt;
 		this.systemPromptSourcePath =
 			systemPromptSource && existsSync(systemPromptSource) ? resolvePath(systemPromptSource) : undefined;
 
@@ -459,12 +461,13 @@ export class DefaultResourceLoader implements ResourceLoader {
 			const discoveredAppendSystemPromptFile = this.discoverAppendSystemPromptFile();
 			appendSources = discoveredAppendSystemPromptFile ? [discoveredAppendSystemPromptFile] : [];
 		}
-		const baseAppend = appendSources
-			.map((s) => resolvePromptInput(s, "append system prompt"))
-			.filter((s): s is string => s !== undefined);
-		this.appendSystemPrompt = this.appendSystemPromptOverride
-			? this.appendSystemPromptOverride(baseAppend)
-			: baseAppend;
+		const baseAppend: string[] = [];
+		for (const source of appendSources) {
+			const resolved = resolvePromptInput(source, "append system prompt");
+			if (resolved !== undefined) baseAppend.push(resolved);
+		}
+		const appendSystemPromptOverrideFn = this.appendSystemPromptOverride;
+		this.appendSystemPrompt = appendSystemPromptOverrideFn ? appendSystemPromptOverrideFn(baseAppend) : baseAppend;
 		this.appendSystemPromptSourcePaths = appendSources
 			.filter((source) => existsSync(source))
 			.map((source) => resolvePath(source));
@@ -519,7 +522,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 				includeDefaults: false,
 			});
 		}
-		const resolvedSkills = this.skillsOverride ? this.skillsOverride(skillsResult) : skillsResult;
+		const skillsOverrideFn = this.skillsOverride;
+		const resolvedSkills = skillsOverrideFn ? skillsOverrideFn(skillsResult) : skillsResult;
 		this.skills = resolvedSkills.skills.map((skill) => ({
 			...skill,
 			sourceInfo:
@@ -543,7 +547,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 			});
 			promptsResult = this.dedupePrompts(allPrompts);
 		}
-		const resolvedPrompts = this.promptsOverride ? this.promptsOverride(promptsResult) : promptsResult;
+		const promptsOverrideFn = this.promptsOverride;
+		const resolvedPrompts = promptsOverrideFn ? promptsOverrideFn(promptsResult) : promptsResult;
 		this.prompts = resolvedPrompts.prompts.map((prompt) => ({
 			...prompt,
 			sourceInfo:
@@ -563,7 +568,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 			const deduped = this.dedupeThemes(loaded.themes);
 			themesResult = { themes: deduped.themes, diagnostics: [...loaded.diagnostics, ...deduped.diagnostics] };
 		}
-		const resolvedThemes = this.themesOverride ? this.themesOverride(themesResult) : themesResult;
+		const themesOverrideFn = this.themesOverride;
+		const resolvedThemes = themesOverrideFn ? themesOverrideFn(themesResult) : themesResult;
 		this.themes = resolvedThemes.themes.map((theme) => {
 			const sourcePath = theme.sourcePath;
 			theme.sourceInfo = sourcePath
@@ -578,8 +584,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 	private findSourceInfoForPath(
 		resourcePath: string,
-		extraSourceInfos?: Map<string, SourceInfo>,
-		metadataByPath?: Map<string, PathMetadata>,
+		extraSourceInfos: Map<string, SourceInfo>,
+		metadataByPath: Map<string, PathMetadata>,
 	): SourceInfo | undefined {
 		if (!resourcePath) {
 			return undefined;
@@ -788,7 +794,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 			}
 		}
 
-		return { prompts: Array.from(seen.values()), diagnostics };
+		const uniquePrompts: typeof prompts = [];
+		for (const prompt of seen.values()) uniquePrompts.push(prompt);
+		return { prompts: uniquePrompts, diagnostics };
 	}
 
 	private dedupeThemes(themes: Theme[]): { themes: Theme[]; diagnostics: ResourceDiagnostic[] } {
@@ -815,7 +823,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 			}
 		}
 
-		return { themes: Array.from(seen.values()), diagnostics };
+		const uniqueThemes: Theme[] = [];
+		for (const theme of seen.values()) uniqueThemes.push(theme);
+		return { themes: uniqueThemes, diagnostics };
 	}
 
 	private discoverSystemPromptFile(): string | undefined {

@@ -76,7 +76,7 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 		if (initialSearchInput) {
 			this.searchInput.setValue(initialSearchInput);
 		}
-		this.searchInput.onSubmit = () => {
+		this.searchInput.onSubmit = (_value: string) => {
 			const selectedProvider = this.filteredProviders[this.selectedIndex];
 			if (selectedProvider) {
 				this.onSelectCallback(selectedProvider.id, selectedProvider.authType);

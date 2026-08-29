@@ -1,4 +1,4 @@
-import { existsSync as _existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir as _homedir } from "node:os";
 import { join as _join } from "node:path";
 
@@ -14,17 +14,17 @@ let cachedVertexAdcCredentialsExists: boolean | null = null;
 function hasVertexAdcCredentials(env?: ProviderEnv): boolean {
 	const explicitCredentialsPath = env?.GOOGLE_APPLICATION_CREDENTIALS;
 	if (explicitCredentialsPath) {
-		return _existsSync ? _existsSync(explicitCredentialsPath) : false;
+		return existsSync(explicitCredentialsPath);
 	}
 
 	if (cachedVertexAdcCredentialsExists === null) {
 		// Check GOOGLE_APPLICATION_CREDENTIALS env var first (standard way)
 		const gacPath = getProviderEnvValue("GOOGLE_APPLICATION_CREDENTIALS", env);
 		if (gacPath) {
-			cachedVertexAdcCredentialsExists = _existsSync(gacPath);
+			cachedVertexAdcCredentialsExists = existsSync(gacPath);
 		} else {
 			// Fall back to default ADC path (lazy evaluation)
-			cachedVertexAdcCredentialsExists = _existsSync(
+			cachedVertexAdcCredentialsExists = existsSync(
 				_join(_homedir(), ".config", "gcloud", "application_default_credentials.json"),
 			);
 		}

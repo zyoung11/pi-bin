@@ -273,7 +273,8 @@ class ThemeSubmenu extends Container {
 	}
 
 	handleInput(data: string): void {
-		this.inputComponent?.handleInput?.(data);
+		const inputComponent = this.inputComponent;
+		if (inputComponent !== undefined) inputComponent.handleInput(data);
 	}
 
 	private setContent(renderComponent: Component, inputComponent: Component = renderComponent): void {

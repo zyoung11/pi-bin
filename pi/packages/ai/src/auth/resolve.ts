@@ -27,7 +27,7 @@ export class ModelsError extends Error {
 	readonly code: ModelsErrorCode;
 
 	constructor(code: ModelsErrorCode, message: string, options?: { cause?: unknown }) {
-		super(withCauseDetail(message, options?.cause), options);
+		super(withCauseDetail(message, options?.cause));
 		this.name = "ModelsError";
 		this.code = code;
 	}

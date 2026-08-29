@@ -51,8 +51,13 @@ export function createProjectTrustContext(options: {
 			},
 			notify: (message, type = "info") => {
 				if (options.mode !== "interactive") {
-					const color = type === "error" ? chalk.red : type === "warning" ? chalk.yellow : chalk.cyan;
-					console.error(color(message));
+					if (type === "error") {
+						console.error(chalk.red(message));
+					} else if (type === "warning") {
+						console.error(chalk.yellow(message));
+					} else {
+						console.error(chalk.cyan(message));
+					}
 				}
 			},
 		},

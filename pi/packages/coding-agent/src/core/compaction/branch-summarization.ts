@@ -17,7 +17,7 @@ import {
 	createCompactionSummaryMessage,
 	createCustomMessage,
 } from "../messages.ts";
-import type { ReadonlySessionManager, SessionEntry } from "../session-manager.ts";
+import { entryParentIdOf, type ReadonlySessionManager, type SessionEntry } from "../session-manager.ts";
 import { completeSummarization, estimateTokens, getSummarizationFailure } from "./compaction.ts";
 import {
 	computeFileLists,
@@ -138,7 +138,7 @@ export function collectEntriesForBranchSummary(
 		const entry = session.getEntry(current);
 		if (!entry) break;
 		entries.push(entry);
-		current = entry.parentId;
+		current = entryParentIdOf(entry) ?? null;
 	}
 
 	// Reverse to get chronological order

@@ -167,7 +167,13 @@ function withEnvApiKey<TOptions extends StreamOptions>(
 	if (hasExplicitApiKey(options?.apiKey)) return options;
 	const apiKey = getEnvApiKey(model.provider, options?.env);
 	if (!apiKey || apiKey === AMBIENT_AUTH_MARKER) return options;
-	return { ...options, apiKey } as TOptions;
+	const merged: Record<string, unknown> = {};
+	const source = (options ?? {}) as unknown as Record<string, unknown>;
+	for (const key of Object.keys(source)) {
+		merged[key] = source[key];
+	}
+	merged["apiKey"] = apiKey;
+	return merged as TOptions;
 }
 
 function resolveApiProvider(api: Api) {

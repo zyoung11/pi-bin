@@ -48,8 +48,8 @@ export async function fetchWithRetry(
 		options.attemptTimeoutMs !== undefined && options.attemptTimeoutMs > 0 ? options.attemptTimeoutMs : undefined;
 
 	for (let attempt = 0; ; attempt++) {
-		parentSignal?.throwIfAborted();
-		timeoutSignal?.throwIfAborted();
+		if (parentSignal !== undefined) parentSignal.throwIfAborted();
+		if (timeoutSignal !== undefined) timeoutSignal.throwIfAborted();
 		const attemptTimeoutSignal = attemptTimeoutMs ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
 		const signals: AbortSignal[] = [];
 		if (parentSignal !== undefined) signals.push(parentSignal);
@@ -62,7 +62,8 @@ export async function fetchWithRetry(
 			const shouldRetry = retryOnStatus && RETRYABLE_STATUS_CODES.has(response.status) && attempt < maxRetries;
 			if (!shouldRetry) return response;
 			try {
-				await response.body?.cancel();
+				const body = response.body;
+				if (body !== null && body !== undefined) await body.cancel();
 			} catch {
 				// The response is being discarded before a retry. There is nothing useful to
 				// do if cancelling its body also fails.

@@ -34,7 +34,13 @@ export function parseHttpIdleTimeoutMs(value: unknown): number | undefined {
 }
 
 export function formatHttpIdleTimeoutMs(timeoutMs: number): string {
-	const choice = HTTP_IDLE_TIMEOUT_CHOICES.find((item) => item.timeoutMs === timeoutMs);
+	let choice: { label: string; timeoutMs: number } | undefined;
+	for (const item of HTTP_IDLE_TIMEOUT_CHOICES) {
+		if (item.timeoutMs === timeoutMs) {
+			choice = item;
+			break;
+		}
+	}
 	if (choice) {
 		return choice.label;
 	}
@@ -44,8 +50,8 @@ export function formatHttpIdleTimeoutMs(timeoutMs: number): string {
 export function applyHttpProxySettings(httpProxy: string | undefined): void {
 	const proxy = httpProxy?.trim();
 	if (!proxy) return;
-	process.env.HTTP_PROXY ??= proxy;
-	process.env.HTTPS_PROXY ??= proxy;
+	if (process.env.HTTP_PROXY === undefined) process.env.HTTP_PROXY = proxy;
+	if (process.env.HTTPS_PROXY === undefined) process.env.HTTPS_PROXY = proxy;
 }
 
 export function configureHttpDispatcher(timeoutMs: number = DEFAULT_HTTP_IDLE_TIMEOUT_MS): void {

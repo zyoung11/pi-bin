@@ -1205,22 +1205,33 @@ export class Editor extends Component implements Focusable {
 		// per-char filter below preserves newlines instead of stripping ESC and
 		// leaking the printable tail (e.g. "[106;5u") into the editor.
 		let decodedText = "";
-		const ctrlRegex = /\x1b\[(\d+);5u/g;
-		let lastIndex = 0;
-		let segment = pastedText;
-		let ctrlMatch = ctrlRegex.exec(segment);
-		while (ctrlMatch !== null) {
-			const matchStart = lastIndex + ctrlMatch.index;
-			decodedText += pastedText.slice(lastIndex, matchStart);
-			const cp = parseDecimalInt(ctrlMatch[1] ?? "") ?? 0;
-			if (cp >= 97 && cp <= 122) decodedText += String.fromCharCode(cp - 96);
-			else if (cp >= 65 && cp <= 90) decodedText += String.fromCharCode(cp - 64);
-			else decodedText += ctrlMatch[0];
-			lastIndex = matchStart + ctrlMatch[0].length;
-			segment = pastedText.slice(lastIndex);
-			ctrlMatch = ctrlRegex.exec(segment);
+		let scanPos = 0;
+		while (scanPos < pastedText.length) {
+			const escIdx = pastedText.indexOf("\x1b[", scanPos);
+			if (escIdx === -1) {
+				decodedText += pastedText.slice(scanPos);
+				break;
+			}
+			decodedText += pastedText.slice(scanPos, escIdx);
+			let digitsEnd = escIdx + 2;
+			let digits = "";
+			while (digitsEnd < pastedText.length) {
+				const code = pastedText.charCodeAt(digitsEnd);
+				if (code < 48 || code > 57) break;
+				digits += pastedText.charAt(digitsEnd);
+				digitsEnd++;
+			}
+			if (digits !== "" && pastedText.slice(digitsEnd, digitsEnd + 3) === ";5u") {
+				const cp = parseDecimalInt(digits) ?? 0;
+				if (cp >= 97 && cp <= 122) decodedText += String.fromCharCode(cp - 96);
+				else if (cp >= 65 && cp <= 90) decodedText += String.fromCharCode(cp - 64);
+				else decodedText += `\x1b[${digits};5u`;
+				scanPos = digitsEnd + 3;
+			} else {
+				decodedText += "\x1b[";
+				scanPos = escIdx + 2;
+			}
 		}
-		decodedText += pastedText.slice(lastIndex);
 
 		// Clean the pasted text: normalize line endings, expand tabs
 		const cleanText = this.normalizeText(decodedText);
@@ -1366,20 +1377,42 @@ export class Editor extends Component implements Focusable {
 				const renumbered: string[] = [];
 				for (const line of this.state.lines) {
 					let lineOut = "";
-					let scanIndex = 0;
-					const markerRegex = new RegExp("\\[paste #(\\d+)( (\\+\\d+ lines|\\d+ chars))?\\]", "g");
-					let segment = line;
-					let markerMatch = markerRegex.exec(segment);
-					while (markerMatch !== null) {
-						const matchStart = scanIndex + markerMatch.index;
-						const x = parseDecimalInt(markerMatch[1]) ?? 0;
-						const replacement = x <= targetId ? markerMatch[0] : `[paste #${x - 1}${markerMatch[2] ?? ""}]`;
-						lineOut += line.slice(scanIndex, matchStart) + replacement;
-						scanIndex = matchStart + markerMatch[0].length;
-						segment = line.slice(scanIndex);
-						markerMatch = markerRegex.exec(segment);
+					let scanFrom = 0;
+					while (scanFrom <= line.length) {
+						const openIdx = line.indexOf("[paste #", scanFrom);
+						if (openIdx === -1) break;
+						let cursor = openIdx + 8;
+						let digits = "";
+						while (cursor < line.length) {
+							const code = line.charCodeAt(cursor);
+							if (code < 48 || code > 57) break;
+							digits += line.charAt(cursor);
+							cursor++;
+						}
+						let suffix = "";
+						let closed = false;
+						if (digits !== "" && line.charAt(cursor) === " ") {
+							const closeIdx = line.indexOf("]", cursor);
+							if (closeIdx !== -1) {
+								suffix = line.slice(cursor, closeIdx);
+								cursor = closeIdx;
+								closed = true;
+							}
+						} else if (digits !== "" && line.charAt(cursor) === "]") {
+							closed = true;
+						}
+						if (!closed) {
+							lineOut += line.slice(scanFrom, openIdx + 1);
+							scanFrom = openIdx + 1;
+							continue;
+						}
+						const x = parseDecimalInt(digits) ?? 0;
+						const original = line.slice(openIdx, cursor + 1);
+						const replacement = x <= targetId ? original : `[paste #${x - 1}${suffix}]`;
+						lineOut += line.slice(scanFrom, openIdx) + replacement;
+						scanFrom = cursor + 1;
 					}
-					lineOut += line.slice(scanIndex);
+					lineOut += line.slice(scanFrom);
 					renumbered.push(lineOut);
 				}
 				this.state.lines = renumbered;
@@ -1450,7 +1483,7 @@ export class Editor extends Component implements Focusable {
 	): void {
 		const currentVL = visualLines[currentVisualLine];
 		const targetVL = visualLines[targetVisualLine];
-		if (!(currentVL && targetVL)) return;
+		if (currentVL === undefined || targetVL === undefined) return;
 
 		// When the cursor was snapped to a segment start, resolve the pre-snap
 		// position against the VL it belongs to. This gives the correct visual

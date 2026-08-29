@@ -125,14 +125,16 @@ export class SelectList extends Component {
 		// Enter
 		else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selectedItem = this.filteredItems[this.selectedIndex];
-			if (selectedItem && this.onSelect) {
-				this.onSelect(selectedItem);
+			const onSelect = this.onSelect;
+			if (selectedItem && onSelect) {
+				onSelect(selectedItem);
 			}
 		}
 		// Escape or Ctrl+C
 		else if (kb.matches(keyData, "tui.select.cancel")) {
-			if (this.onCancel) {
-				this.onCancel();
+			const onCancel = this.onCancel;
+			if (onCancel) {
+				onCancel();
 			}
 		}
 	}
@@ -227,6 +229,7 @@ export class SelectList extends Component {
 
 	getSelectedItem(): SelectItem | null {
 		const item = this.filteredItems[this.selectedIndex];
-		return item || null;
+		if (item !== undefined) return item;
+		return null;
 	}
 }

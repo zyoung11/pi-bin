@@ -1,14 +1,9 @@
+import { randomFillSync } from "node:crypto";
 let lastTimestamp = -Infinity;
 let sequence = 0;
 
 function fillRandomBytes(bytes: Uint8Array<ArrayBuffer>): void {
-	if (globalThis.crypto?.getRandomValues) {
-		globalThis.crypto.getRandomValues(bytes);
-		return;
-	}
-	for (let i = 0; i < bytes.length; i++) {
-		bytes[i] = Math.floor(Math.random() * 256);
-	}
+	randomFillSync(bytes);
 }
 
 /** Generate a time-ordered UUIDv7. */

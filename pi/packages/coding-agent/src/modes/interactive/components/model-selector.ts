@@ -116,7 +116,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		if (initialSearchInput) {
 			this.searchInput.setValue(initialSearchInput);
 		}
-		this.searchInput.onSubmit = () => {
+		this.searchInput.onSubmit = (_value: string) => {
 			// Enter on search input selects the first filtered item
 			if (this.filteredModels[this.selectedIndex]) {
 				this.handleSelect(this.filteredModels[this.selectedIndex].model);
@@ -187,7 +187,12 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			if (result.aborted && timedOut) {
 				this.errorMessage = "Model refresh timed out; showing cached models.";
 			} else if (result.errors.size === 1) {
-				this.errorMessage = `Could not refresh ${result.errors.keys().next().value}; showing cached models.`;
+				let onlyError = "";
+				for (const message of result.errors.values()) {
+					onlyError = message;
+					break;
+				}
+				this.errorMessage = `Could not refresh ${onlyError}; showing cached models.`;
 			} else if (result.errors.size > 1) {
 				this.errorMessage = `Could not refresh ${result.errors.size} model catalogs (${[...result.errors.keys()].join(", ")}); showing cached models.`;
 			} else {
@@ -400,7 +405,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			const selectedModel = this.filteredModels[this.selectedIndex];
 			if (selectedModel) {
 				this.dispose();
-				this.onSelectAsDefaultCallback(selectedModel.model);
+				const onSelectAsDefault = this.onSelectAsDefaultCallback;
+				if (onSelectAsDefault) onSelectAsDefault(selectedModel.model);
 			}
 		}
 		// Pass everything else to search input

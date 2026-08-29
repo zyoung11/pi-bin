@@ -383,7 +383,7 @@ export class SessionError extends Error {
 	readonly code: SessionErrorCode;
 
 	constructor(code: SessionErrorCode, message: string, cause?: Error) {
-		super(message, cause === undefined ? undefined : { cause });
+		super(message);
 		this.name = "SessionError";
 		this.code = code;
 	}

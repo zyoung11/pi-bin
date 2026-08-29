@@ -1,6 +1,11 @@
 import { parse } from "../../../ai/src/utils/mini-yaml.ts";
 import { stripBom } from "./text.ts";
 
+/** View an arbitrary value as a plain record (jsval unions resist casts). */
+function recordOf(value: unknown): Record<string, unknown> {
+	return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
 type ParsedFrontmatter<T extends Record<string, unknown>> = {
 	frontmatter: T;
 	body: string;
@@ -26,15 +31,18 @@ const extractFrontmatter = (content: string): { yamlString: string | null; body:
 	};
 };
 
-export const parseFrontmatter = <T extends Record<string, unknown> = Record<string, unknown>>(
+export function parseFrontmatter<T extends Record<string, unknown> = Record<string, unknown>>(
 	content: string,
-): ParsedFrontmatter<T> => {
-	const { yamlString, body } = extractFrontmatter(content);
+): ParsedFrontmatter<T> {
+	const extracted = extractFrontmatter(content);
+	const yamlString = extracted.yamlString;
 	if (!yamlString) {
-		return { frontmatter: {} as T, body };
+		return { frontmatter: {} as T, body: extracted.body };
 	}
-	const parsed = parse(yamlString);
-	return { frontmatter: (parsed ?? {}) as T, body };
-};
+	const raw = parse(yamlString);
+	const parsed = raw === undefined || raw === null ? undefined : (recordOf(raw) as Record<string, unknown>);
+	const frontmatter = parsed === undefined ? ({} as T) : (parsed as T);
+	return { frontmatter, body: extracted.body };
+}
 
 export const stripFrontmatter = (content: string): string => parseFrontmatter(content).body;

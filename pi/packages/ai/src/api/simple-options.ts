@@ -26,7 +26,7 @@ export function buildBaseOptions(
 ): StreamOptions {
 	const samplingParams =
 		model.samplingParams || options?.samplingParams
-			? { ...model.samplingParams, ...options?.samplingParams }
+			? mergeSamplingParams(model.samplingParams, options?.samplingParams)
 			: undefined;
 	return {
 		temperature: options?.temperature,
@@ -92,4 +92,19 @@ export function adjustMaxTokensForThinking(
 	}
 
 	return { maxTokens, thinkingBudget };
+}
+
+/** Merge two option records without index-signature spreads. */
+function mergeSamplingParams(
+	base: Record<string, unknown> | undefined,
+	override: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const key of Object.keys(base ?? {})) {
+		out[key] = (base as Record<string, unknown>)[key];
+	}
+	for (const key of Object.keys(override ?? {})) {
+		out[key] = (override as Record<string, unknown>)[key];
+	}
+	return out;
 }

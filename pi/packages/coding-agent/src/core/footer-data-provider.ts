@@ -1,5 +1,5 @@
-import { type ExecFileException, execFile, spawnSync } from "child_process";
-import { existsSync, type FSWatcher, readFileSync, type Stats, statSync, unwatchFile, watchFile } from "fs";
+import { spawnSync } from "child_process";
+import { existsSync, type FSWatcher, readFileSync, statSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { closeWatcher, FS_WATCH_RETRY_DELAY_MS, watchWithErrorHandler } from "../utils/fs-watch.ts";
 
@@ -49,35 +49,18 @@ export function findGitPaths(cwd: string): GitPaths | null {
 
 /** Ask git for the current branch. Returns null on detached HEAD or if git is unavailable. */
 function resolveBranchWithGitSync(repoDir: string): string | null {
-	const result = spawnSync("git", ["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"], {
-		cwd: repoDir,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
+	const result = spawnSync(
+		"git",
+		["-C", repoDir, "--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"],
+		{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+	);
 	const branch = result.status === 0 ? result.stdout.trim() : "";
 	return branch || null;
 }
 
 /** Ask git for the current branch asynchronously. Returns null on detached HEAD or if git is unavailable. */
 function resolveBranchWithGitAsync(repoDir: string): Promise<string | null> {
-	return new Promise((resolvePromise) => {
-		execFile(
-			"git",
-			["--no-optional-locks", "symbolic-ref", "--quiet", "--short", "HEAD"],
-			{
-				cwd: repoDir,
-				encoding: "utf8",
-			},
-			(error: ExecFileException | null, stdout: string) => {
-				if (error) {
-					resolvePromise(null);
-					return;
-				}
-				const branch = stdout.trim();
-				resolvePromise(branch || null);
-			},
-		);
-	});
+	return Promise.resolve(resolveBranchWithGitSync(repoDir));
 }
 
 function isWslEnvironment(): boolean {
@@ -104,11 +87,11 @@ export class FooterDataProvider {
 	private cachedBranch: string | null | undefined = undefined;
 	private gitPaths: GitPaths | null | undefined = undefined;
 	private headWatcher: FSWatcher | null = null;
-	private headWatchFilePath: string | null = null;
-	private headWatchFileListener: ((current: Stats, previous: Stats) => void) | null = null;
 	private reftableWatcher: FSWatcher | null = null;
 	private reftableTablesListWatcher: FSWatcher | null = null;
-	private reftableTablesListPath: string | null = null;
+	private gitPollTimers: Array<ReturnType<typeof setInterval>> = [];
+	private lastHeadContent: string | undefined = undefined;
+	private lastTablesListContent: string | undefined = undefined;
 	private branchChangeCallbacks: (() => void)[] = [];
 	private availableProviderCount = 0;
 	private refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -224,12 +207,14 @@ export class FooterDataProvider {
 		try {
 			const nextBranch = await this.resolveGitBranchAsync();
 			if (this.disposed) return;
-			if (this.cachedBranch !== undefined && this.cachedBranch !== nextBranch) {
-				this.cachedBranch = nextBranch;
+			const nextBranchValue = nextBranch === null ? undefined : nextBranch;
+			const previousBranch = this.cachedBranch === null ? undefined : this.cachedBranch;
+			if (previousBranch !== undefined && previousBranch !== nextBranchValue) {
+				this.cachedBranch = nextBranchValue;
 				this.notifyBranchChange();
 				return;
 			}
-			this.cachedBranch = nextBranch;
+			this.cachedBranch = nextBranchValue;
 		} finally {
 			this.refreshInFlight = false;
 			if (this.refreshPending && !this.disposed) {
@@ -272,19 +257,14 @@ export class FooterDataProvider {
 	private clearGitWatchers(): void {
 		closeWatcher(this.headWatcher);
 		this.headWatcher = null;
-		if (this.headWatchFilePath && this.headWatchFileListener) {
-			unwatchFile(this.headWatchFilePath, this.headWatchFileListener);
-			this.headWatchFilePath = null;
-			this.headWatchFileListener = null;
-		}
 		closeWatcher(this.reftableWatcher);
 		this.reftableWatcher = null;
 		closeWatcher(this.reftableTablesListWatcher);
 		this.reftableTablesListWatcher = null;
-		if (this.reftableTablesListPath) {
-			unwatchFile(this.reftableTablesListPath);
-			this.reftableTablesListPath = null;
-		}
+		for (const timer of this.gitPollTimers) clearInterval(timer);
+		this.gitPollTimers = [];
+		this.lastHeadContent = undefined;
+		this.lastTablesListContent = undefined;
 		if (this.gitWatcherRetryTimer) {
 			clearTimeout(this.gitWatcherRetryTimer);
 			this.gitWatcherRetryTimer = null;
@@ -326,17 +306,21 @@ export class FooterDataProvider {
 			() => this.handleGitWatcherError(),
 		);
 		if (pollGitHead) {
-			this.headWatchFilePath = this.gitPaths.headPath;
-			this.headWatchFileListener = (current, previous) => {
-				if (
-					current.mtimeMs !== previous.mtimeMs ||
-					current.ctimeMs !== previous.ctimeMs ||
-					current.size !== previous.size
-				) {
-					this.scheduleRefresh();
+			const gitPaths = this.gitPaths;
+			const headTimer = setInterval(() => {
+				let content: string | undefined;
+				try {
+					content = readFileSync(gitPaths.headPath, "utf8");
+				} catch {
+					content = undefined;
 				}
-			};
-			watchFile(this.headWatchFilePath, { interval: 1000 }, this.headWatchFileListener);
+				if (content !== this.lastHeadContent) {
+					const first = this.lastHeadContent === undefined;
+					this.lastHeadContent = content;
+					if (!first) this.scheduleRefresh();
+				}
+			}, 1000);
+			this.gitPollTimers.push(headTimer);
 		}
 		if (!this.headWatcher && !pollGitHead) {
 			return;
@@ -359,7 +343,6 @@ export class FooterDataProvider {
 
 			const tablesListPath = join(reftableDir, "tables.list");
 			if (existsSync(tablesListPath)) {
-				this.reftableTablesListPath = tablesListPath;
 				this.reftableTablesListWatcher = watchWithErrorHandler(
 					tablesListPath,
 					() => {
@@ -370,15 +353,20 @@ export class FooterDataProvider {
 				if (!this.reftableTablesListWatcher) {
 					return;
 				}
-				watchFile(tablesListPath, { interval: 250 }, (current, previous) => {
-					if (
-						current.mtimeMs !== previous.mtimeMs ||
-						current.ctimeMs !== previous.ctimeMs ||
-						current.size !== previous.size
-					) {
-						this.scheduleRefresh();
+				const tablesTimer = setInterval(() => {
+					let content: string | undefined;
+					try {
+						content = readFileSync(tablesListPath, "utf8");
+					} catch {
+						content = undefined;
 					}
-				});
+					if (content !== this.lastTablesListContent) {
+						const first = this.lastTablesListContent === undefined;
+						this.lastTablesListContent = content;
+						if (!first) this.scheduleRefresh();
+					}
+				}, 250);
+				this.gitPollTimers.push(tablesTimer);
 			}
 		}
 	}

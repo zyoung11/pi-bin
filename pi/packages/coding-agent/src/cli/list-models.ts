@@ -8,6 +8,16 @@ import chalk from "../utils/mini-chalk.ts";
 import { formatNoModelsAvailableMessage } from "../core/auth-guidance.ts";
 import type { ModelRuntime } from "../core/model-runtime.ts";
 
+/** Column width: header length vs the longest cell in the column. */
+function columnWidth(header: string, cells: string[]): number {
+	let max = header.length;
+	for (const cell of cells) {
+		if (cell.length > max) max = cell.length;
+	}
+	return max;
+}
+
+
 /**
  * Format a number as human-readable (e.g., 200000 -> "200K", 1000000 -> "1M")
  */
@@ -81,12 +91,12 @@ export async function listModels(
 	};
 
 	const widths = {
-		provider: Math.max(headers.provider.length, ...rows.map((r) => r.provider.length)),
-		model: Math.max(headers.model.length, ...rows.map((r) => r.model.length)),
-		context: Math.max(headers.context.length, ...rows.map((r) => r.context.length)),
-		maxOut: Math.max(headers.maxOut.length, ...rows.map((r) => r.maxOut.length)),
-		thinking: Math.max(headers.thinking.length, ...rows.map((r) => r.thinking.length)),
-		images: Math.max(headers.images.length, ...rows.map((r) => r.images.length)),
+		provider: columnWidth(headers.provider, rows.map((r) => r.provider)),
+		model: columnWidth(headers.model, rows.map((r) => r.model)),
+		context: columnWidth(headers.context, rows.map((r) => r.context)),
+		maxOut: columnWidth(headers.maxOut, rows.map((r) => r.maxOut)),
+		thinking: columnWidth(headers.thinking, rows.map((r) => r.thinking)),
+		images: columnWidth(headers.images, rows.map((r) => r.images)),
 	};
 
 	// Print header

@@ -58,11 +58,12 @@ export class LoginDialogComponent extends Container implements Focusable {
 
 		// Input (always present, used when needed)
 		this.input = new Input();
-		this.input.onSubmit = () => {
-			if (this.inputResolver) {
+		this.input.onSubmit = (_value: string) => {
+			const resolveInput = this.inputResolver;
+			if (resolveInput) {
 				const value = this.input.getValue();
 				this.replaceInputWithSubmittedText(value);
-				this.inputResolver(value);
+				resolveInput(value);
 				this.inputResolver = undefined;
 				this.inputRejecter = undefined;
 			}
@@ -87,8 +88,9 @@ export class LoginDialogComponent extends Container implements Focusable {
 
 	private cancel(): void {
 		this.abortHandle.abort();
-		if (this.inputRejecter) {
-			this.inputRejecter(new Error("Login cancelled"));
+		const rejectInput = this.inputRejecter;
+		if (rejectInput) {
+			rejectInput(new Error("Login cancelled"));
 			this.inputResolver = undefined;
 			this.inputRejecter = undefined;
 		}

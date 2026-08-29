@@ -48,7 +48,11 @@ export class InMemoryCredentialStore extends CredentialStore {
 	}
 
 	private listSync(): readonly CredentialInfo[] {
-		return [...this.credentials].map(([providerId, credential]) => ({ providerId, type: credential.type }));
+		const out: CredentialInfo[] = [];
+		for (const [providerId, credential] of this.credentials.entries()) {
+			out.push({ providerId, type: credential.type });
+		}
+		return out;
 	}
 
 	modify(

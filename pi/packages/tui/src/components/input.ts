@@ -56,7 +56,7 @@ export class Input extends Component implements Focusable {
 		if (data.includes("\x1b[200~")) {
 			this.isInPaste = true;
 			this.pasteBuffer = "";
-			data = data.replace("\x1b[200~", "");
+			data = data.split("\x1b[200~").join("");
 		}
 
 		// If we're in a paste, buffer the data
@@ -89,7 +89,8 @@ export class Input extends Component implements Focusable {
 
 		// Escape/Cancel
 		if (kb.matches(data, "tui.select.cancel")) {
-			if (this.onEscape) this.onEscape();
+			const onEscape = this.onEscape;
+			if (onEscape) onEscape();
 			return;
 		}
 
@@ -101,7 +102,8 @@ export class Input extends Component implements Focusable {
 
 		// Submit
 		if (kb.matches(data, "tui.input.submit") || data === "\n") {
-			if (this.onSubmit) this.onSubmit(this.value);
+			const onSubmit = this.onSubmit;
+			if (onSubmit) onSubmit(this.value);
 			return;
 		}
 

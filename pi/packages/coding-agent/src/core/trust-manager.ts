@@ -113,7 +113,7 @@ function readTrustFile(path: string): TrustFile {
 
 	const data: TrustFile = {};
 	for (const [key, value] of Object.entries(parsed)) {
-		if (value !== true && value !== false && value !== null) {
+		if (typeof value !== "boolean" && value !== null) {
 			throw new Error(`Invalid trust store ${path}: value for ${JSON.stringify(key)} must be true, false, or null`);
 		}
 		data[key] = value;
@@ -144,10 +144,7 @@ function acquireTrustLockSync(path: string): () => void {
 		try {
 			return lockfile.lockSync(trustDir, { realpath: false, lockfilePath: `${path}.lock` });
 		} catch (error) {
-			const code =
-				typeof error === "object" && error !== null && "code" in error
-					? String((error as { code?: unknown }).code)
-					: undefined;
+			const code = error instanceof Error && error.name === "LockError" ? "ELOCKED" : undefined;
 			if (code !== "ELOCKED" || attempt === maxAttempts) {
 				throw error;
 			}
@@ -187,8 +184,8 @@ export function hasTrustRequiringProjectResources(cwd: string): boolean {
 	let currentDir = canonicalizePath(resolvePath(cwd));
 
 	const configDir = join(currentDir, CONFIG_DIR_NAME);
-	if (TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES.some((entry) => existsSync(join(configDir, entry)))) {
-		return true;
+	for (const entry of TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES) {
+		if (existsSync(join(configDir, entry))) return true;
 	}
 
 	while (true) {

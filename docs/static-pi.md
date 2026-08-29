@@ -78,6 +78,16 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第三十九轮记录（进行中：204→157，footer git 轮询改造 + 长尾批量）
+
+- **footer-data-provider 8→0**：watchFile/unwatchFile/Stats 轮询 → setInterval + readFileSync 内容比对（两个 poller，首次读不触发）；spawnSync cwd → git -C；execFile 异步版 → 同步委托；cachedBranch 联合比较归一化为 string|undefined
+- **native 加载链 no-op 化（-8）**：clipboard-native loadClipboardNative → 返 null（exec 回退仍在）；tui native-modifiers/native-module-path → getNativeModuleCandidates 返 []，helper 恒 undefined（静态构建无 native 加速，回退路径保留）
+- **config-selector/keys/小文件批量**：config-selector 动态 keyed reads ×4 → resourceArrayFor helper；RESOURCE_TYPES.some → or 链；onToggle 双参；keybindings satisfies→显式注解、迁移表改 Record 查表；tools-manager 下载改 arrayBuffer+writeFileSync、spawnSync 加 utf8、os.arch→process.arch；version-check Error.cause 链降级
+- **startup-ui/project-trust**：showStartupSelector 去泛型；Extension options tui→requestRender 回调（CountdownTimer 参数同步）；detector 字面量 record 包装绕类→record 墙；createStartupTui 返 TuiBase
+- **agent harness session**：SessionStorage.appendEntry/appendRecord 去泛型化；frontmatter parseFrontmatter 去泛型 + JSON 往返（jsval 联合 cast 拒）
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r39/r39-bash-ok）
+- **总账 204→157；本会话累计 376→157（-219，58%）**；剩余大块：terminal(16 结构性)、provider-composer(8)、sdk(7)、model-runtime(7)、agent-session(7)、session(6)、abort(5)、event-stream/transform-messages(各4)
+
 ## 阶段 5 grind 第三十八轮记录（进行中：241→204，config-selector/keys/tools 等小文件批量清零）
 
 - **config-selector（组件+CLI）11→0**：RESOURCE_TYPES satisfies→as const；FlatEntry 判别→`"item" in entry` in 守卫（纯数据 union 可用）；动态 keyed reads ×4 → resourceArrayFor helper（if 链具体键）；RESOURCE_TYPES.some → 显式 or 链；onToggle 回调补双参；find on packages union → for-of
