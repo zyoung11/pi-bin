@@ -18,10 +18,6 @@ export interface OpenAIHttpOptions {
 }
 
 
-export interface OpenAIStreamResult {
-	response: Response;
-	processChunks: (onChunk: (chunk: ChatCompletionChunk) => Promise<void>) => Promise<void>;
-}
 
 function buildHeaders(apiKey: string | undefined, headers: ProviderHeaders | undefined): Record<string, string> {
 	const out: Record<string, string> = { "Content-Type": "application/json" };
@@ -62,7 +58,10 @@ function toHttpError(response: Response): Promise<Error> {
 	});
 }
 
-export async function streamOpenAIChatCompletions(options: OpenAIHttpOptions): Promise<OpenAIStreamResult> {
+export async function streamOpenAIChatCompletions(
+	options: OpenAIHttpOptions,
+	onChunk: (chunk: ChatCompletionChunk) => Promise<void>,
+): Promise<void> {
 	const fetchImpl = options.fetchImpl ?? globalThis.fetch;
 	const headers = buildHeaders(options.apiKey, options.headers);
 	const controller = new AbortController();
@@ -96,9 +95,7 @@ export async function streamOpenAIChatCompletions(options: OpenAIHttpOptions): P
 			throw await toHttpError(response);
 		}
 
-		const processChunks = async (
-			onChunk: (chunk: ChatCompletionChunk) => Promise<void>,
-		): Promise<void> => {
+		const readAndProcessChunks = async (): Promise<void> => {
 			const body = response.body;
 			if (!body) throw new Error("Response has no body");
 			const reader = body.getReader();
@@ -149,7 +146,7 @@ export async function streamOpenAIChatCompletions(options: OpenAIHttpOptions): P
 			}
 		};
 
-		return { response, processChunks };
+		await readAndProcessChunks();
 	} catch (error) {
 		if (timeoutId !== undefined) clearTimeout(timeoutId);
 		options.signal?.removeEventListener("abort", onUserAbort);
