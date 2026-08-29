@@ -1,6 +1,7 @@
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
 import type { Transport } from "../../../ai/src/index.ts";
-import type { TuiMode as RendererTuiMode, ScrollViewScrollbar } from "../../../tui/src/index.ts";
+import type { TuiMode as RendererTuiMode } from "../../../tui/src/tui.ts";
+import type { ScrollViewScrollbar } from "../../../tui/src/components/scroll-view.ts";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";

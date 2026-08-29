@@ -2,7 +2,10 @@
  * Component for displaying bash command execution with streaming output.
  */
 
-import { Component, Container, Loader, Spacer, Text, type TUI } from "../../../../../tui/src/index.ts";
+import { Loader } from "../../../../../tui/src/components/loader.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
 import {
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,

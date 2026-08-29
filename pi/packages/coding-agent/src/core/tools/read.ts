@@ -4,7 +4,7 @@ import type { Api,
 	ImageContent, Model, TextContent
 } from "../../../../ai/src/index.ts"
 import { Type, type Static } from "../../../../ai/src/schema.ts";
-import { Text } from "../../../../tui/src/index.ts";
+import { Text } from "../../../../tui/src/components/text.ts";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile } from "fs/promises";
 import { getReadmePath } from "../../config.ts";

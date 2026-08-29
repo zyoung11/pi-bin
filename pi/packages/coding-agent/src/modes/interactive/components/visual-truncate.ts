@@ -3,7 +3,7 @@
  * Used by both tool-execution.ts and bash-execution.ts for consistent behavior.
  */
 
-import { Text } from "../../../../../tui/src/index.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
 
 export interface VisualTruncateResult {
 	/** The visual lines to display */

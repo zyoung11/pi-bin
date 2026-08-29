@@ -2,17 +2,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import * as os from "node:os";
-import {
-	Component,
-	Container,
-	type Focusable,
-	getKeybindings,
-	Input,
-	Spacer,
-	Text,
-	truncateToWidth,
-	visibleWidth,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Component, Container, type Focusable } from "../../../../../tui/src/tui.ts";
+import { truncateToWidth, visibleWidth } from "../../../../../tui/src/utils.ts";
 import { KeybindingsManager } from "../../../core/keybindings.ts";
 import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
 import { canonicalizePath as _canonicalizePath } from "../../../utils/paths.ts";

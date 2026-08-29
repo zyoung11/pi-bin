@@ -84,6 +84,15 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十三轮记录（进行中：360→466 揭幕深水区，tui index 导入全仓迁移完成）
+
+- **重大发现：tui/index.ts re-export 产生双重类身份**。components/*.ts（tool-execution 等）仍从 tui/index.ts 导入，而 interactive-mode 已直连——同一 Component/Container/Box 类在编译图中存在两套模块身份（m80/m192/m97/m270…），跨身份赋值/构造全部被拒。这就是 interactive-mode 及其组件链大量 SC2002/m8x 诊断的统一根因
+- **全仓迁移**：58 个文件的 tui/index.ts 导入自动展开为直连（导出→源文件映射表 + 逐名 type 标记保留）；2 个 as 别名导入手动迁移；11 个 import type 内重号 type 修正；KeyId 从 keys.ts 导入
+- **custom-editor(1→0)**：actionHandlers Map<AppKeybinding, ()=>void>→Record<string, ()=>void>（Map 值函数不可映射→Record 动态键读写）；tui 导入直连
+- **tool-execution**：rendererState/args/details 的 any→Record<string, unknown>/unknown；ToolDefinition<any,any>→ToolDefinition；rendererContainer union（Container|Box 三元）→if/else 赋值 + instanceof Box 收窄
+- **剩余揭幕 466**：interactive-mode(145)、armin(28，彩蛋组件)、session-share(25)、settings-selector(13)、clipboard(11)、tree-selector(8)、tool-execution(9)等——全部为直连迁移后暴露的真实面；模式与已验证解法相同
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑 + bash tool_call OK（r23-ok）
+
 ## 阶段 5 grind 第二十二轮记录（进行中：263→360 揭幕，TUI 包全清，interactive-mode 剩 136）
 
 - **interactive-mode 导入直连收尾**：tui/index.ts 的全部导入（Component/Container/TuiAltScreen/TuiMainScreen/ScrollView/VStack/autocomplete/keys/keybindings/terminal-image/...）改为相对源文件直连，TuiLayouts namespace 删除（isViewportTUI/ScrollView/VStack 直连）；AutocompleteItem/SlashCommand 等 type-only 导入修正（node type-stripping 运行时校验）

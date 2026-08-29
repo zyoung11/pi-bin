@@ -1,17 +1,9 @@
-import {
-	Component,
-	Container,
-	type Focusable,
-	getKeybindings,
-	Input,
-	type Keybinding,
-	Spacer,
-	sliceByColumn,
-	Text,
-	truncateToWidth,
-	visibleWidth,
-	wrapTextWithAnsi,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings, type Keybinding } from "../../../../../tui/src/keybindings.ts";
+import { Component, Container, type Focusable } from "../../../../../tui/src/tui.ts";
+import { sliceByColumn, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "../../../../../tui/src/utils.ts";
 import type { SessionTreeNode } from "../../../core/session-manager.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

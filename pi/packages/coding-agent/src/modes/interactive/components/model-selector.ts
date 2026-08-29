@@ -1,16 +1,12 @@
 import type { Api } from "../../../../../ai/src/types.ts";
 import { type Model, modelsAreEqual } from "../../../../../ai/src/index.ts";
-import {
-	Container,
-	type Focusable,
-	fuzzyFilter,
-	getKeybindings,
-	Input,
-	matchesKey,
-	Spacer,
-	Text,
-	type TUI,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { matchesKey } from "../../../../../tui/src/keys.ts";
+import { Container, type Focusable, type TUI } from "../../../../../tui/src/tui.ts";
 import type { ModelRuntime } from "../../../core/model-runtime.ts";
 import { refreshModelCatalogs } from "../model-catalog-refresh.ts";
 import { getModelSelectorSearchText } from "../model-search.ts";

@@ -18,16 +18,12 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
-import {
-	Component,
-	Container,
-	Input,
-	matchesKey,
-	ProcessTerminal,
-	SelectList,
-	type TUI,
-	TuiMainScreen,
-} from "../../tui/src/index.ts";
+import { Input } from "../../tui/src/components/input.ts";
+import { SelectList } from "../../tui/src/components/select-list.ts";
+import { matchesKey } from "../../tui/src/keys.ts";
+import { ProcessTerminal } from "../../tui/src/terminal.ts";
+import { TuiMainScreen } from "../../tui/src/tui-main-screen.ts";
+import { Component, Container, type TUI } from "../../tui/src/tui.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

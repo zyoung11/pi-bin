@@ -1,17 +1,12 @@
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
-import {
-	Container,
-	type Focusable,
-	fuzzyFilter,
-	getKeybindings,
-	Input,
-	matchesKey,
-	type SelectItem,
-	SelectList,
-	type SelectListLayoutOptions,
-	Spacer,
-	Text,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { type SelectItem, SelectList, type SelectListLayoutOptions } from "../../../../../tui/src/components/select-list.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { matchesKey } from "../../../../../tui/src/keys.ts";
+import { Container, type Focusable } from "../../../../../tui/src/tui.ts";
 import { getSelectListTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";

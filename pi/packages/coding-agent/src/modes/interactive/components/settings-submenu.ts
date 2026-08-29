@@ -1,15 +1,10 @@
-import {
-	type Component,
-	Container,
-	fuzzyFilter,
-	getKeybindings,
-	Input,
-	type SelectItem,
-	SelectList,
-	type SelectListLayoutOptions,
-	Spacer,
-	Text,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { type SelectItem, SelectList, type SelectListLayoutOptions } from "../../../../../tui/src/components/select-list.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { type Component, Container } from "../../../../../tui/src/tui.ts";
 import { getSelectListTheme, theme } from "../theme/theme.ts";
 
 const SUBMENU_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {

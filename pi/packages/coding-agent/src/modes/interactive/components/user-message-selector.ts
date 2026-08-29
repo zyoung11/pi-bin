@@ -1,4 +1,8 @@
-import { Component, Container, getKeybindings, Spacer, Text, truncateToWidth } from "../../../../../tui/src/index.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Component, Container } from "../../../../../tui/src/tui.ts";
+import { truncateToWidth } from "../../../../../tui/src/utils.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 

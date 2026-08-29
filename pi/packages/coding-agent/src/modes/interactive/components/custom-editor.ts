@@ -1,4 +1,5 @@
-import { Editor, type EditorOptions, type EditorTheme, type TUI } from "../../../../../tui/src/index.ts";
+import { Editor, type EditorOptions, type EditorTheme } from "../../../../../tui/src/components/editor.ts";
+import type { TUI } from "../../../../../tui/src/tui.ts";
 import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.ts";
 
 /**
@@ -6,7 +7,7 @@ import type { AppKeybinding, KeybindingsManager } from "../../../core/keybinding
  */
 export class CustomEditor extends Editor {
 	private keybindings: KeybindingsManager;
-	public actionHandlers: Map<AppKeybinding, () => void> = new Map();
+	public actionHandlers: Record<string, () => void> = {};
 
 	// Special handlers that can be dynamically replaced
 	public onEscape?: () => void;
@@ -24,7 +25,7 @@ export class CustomEditor extends Editor {
 	 * Register a handler for an app action.
 	 */
 	onAction(action: AppKeybinding, handler: () => void): void {
-		this.actionHandlers.set(action, handler);
+		this.actionHandlers[action] = handler;
 	}
 
 	handleInput(data: string): void {
@@ -45,7 +46,8 @@ export class CustomEditor extends Editor {
 		if (this.keybindings.matches(data, "app.interrupt")) {
 			if (!this.isShowingAutocomplete()) {
 				// Use dynamic onEscape if set, otherwise registered handler
-				const handler = this.onEscape ?? this.actionHandlers.get("app.interrupt");
+				const interruptHandler = this.actionHandlers["app.interrupt"];
+				const handler = this.onEscape ?? interruptHandler;
 				if (handler) {
 					handler();
 					return;
@@ -59,7 +61,8 @@ export class CustomEditor extends Editor {
 		// Exit (Ctrl+D) - only when editor is empty
 		if (this.keybindings.matches(data, "app.exit")) {
 			if (this.getText().length === 0) {
-				const handler = this.onCtrlD ?? this.actionHandlers.get("app.exit");
+				const exitHandler = this.actionHandlers["app.exit"];
+				const handler = this.onCtrlD ?? exitHandler;
 				if (handler) handler();
 				return;
 			}
@@ -77,8 +80,10 @@ export class CustomEditor extends Editor {
 		}
 
 		// Check all other app actions
-		for (const [action, handler] of this.actionHandlers) {
-			if (action !== "app.interrupt" && action !== "app.exit" && this.keybindings.matches(data, action)) {
+		for (const action of Object.keys(this.actionHandlers)) {
+			if (action === "app.interrupt" || action === "app.exit") continue;
+			const handler = this.actionHandlers[action];
+			if (handler !== undefined && this.keybindings.matches(data, action)) {
 				handler();
 				return;
 			}

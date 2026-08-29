@@ -1,4 +1,6 @@
-import { Box, Container, Markdown, type MarkdownTheme } from "../../../../../tui/src/index.ts";
+import { Box } from "../../../../../tui/src/components/box.ts";
+import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import type { MarkdownTransformer } from "./markdown-transform.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";

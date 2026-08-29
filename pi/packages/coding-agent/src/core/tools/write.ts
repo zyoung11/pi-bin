@@ -1,6 +1,7 @@
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
-import { Container, Text } from "../../../../tui/src/index.ts";
+import { Text } from "../../../../tui/src/components/text.ts";
+import { Container } from "../../../../tui/src/tui.ts";
 import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
 import { dirname } from "path";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";

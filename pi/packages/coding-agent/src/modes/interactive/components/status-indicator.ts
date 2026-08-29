@@ -1,4 +1,5 @@
-import { Component, Loader, type TUI } from "../../../../../tui/src/index.ts";
+import { Loader } from "../../../../../tui/src/components/loader.ts";
+import { Component, type TUI } from "../../../../../tui/src/tui.ts";
 /** Working indicator configuration for the interactive streaming loader. */
 export interface WorkingIndicatorOptions {
 	frames?: string[];

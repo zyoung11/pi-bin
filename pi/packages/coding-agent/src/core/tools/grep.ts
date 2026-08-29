@@ -2,7 +2,7 @@ import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
-import { Text } from "../../../../tui/src/index.ts";
+import { Text } from "../../../../tui/src/components/text.ts";
 import { spawn } from "child_process";
 import path from "path";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";

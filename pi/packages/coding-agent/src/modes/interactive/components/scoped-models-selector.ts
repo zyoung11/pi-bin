@@ -1,17 +1,13 @@
 import type { Api,
 	Model
 } from "../../../../../ai/src/index.ts"
-import {
-	Container,
-	type Focusable,
-	fuzzyFilter,
-	getKeybindings,
-	Input,
-	Key,
-	matchesKey,
-	Spacer,
-	Text,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Key, matchesKey } from "../../../../../tui/src/keys.ts";
+import { Container, type Focusable } from "../../../../../tui/src/tui.ts";
 import { getModelSearchText } from "../model-search.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

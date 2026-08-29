@@ -1,4 +1,8 @@
-import { CancellableLoader, Container, Loader, Spacer, Text, type TUI } from "../../../../../tui/src/index.ts";
+import { CancellableLoader } from "../../../../../tui/src/components/cancellable-loader.ts";
+import { Loader } from "../../../../../tui/src/components/loader.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { Container, type TUI } from "../../../../../tui/src/tui.ts";
 import type { Theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint } from "./keybinding-hints.ts";

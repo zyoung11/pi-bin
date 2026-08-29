@@ -3,16 +3,11 @@
  * Supports Ctrl+G for external editor.
  */
 
-import {
-	Container,
-	Editor,
-	type EditorOptions,
-	type Focusable,
-	getKeybindings,
-	Spacer,
-	Text,
-	type TUI,
-} from "../../../../../tui/src/index.ts";
+import { Editor, type EditorOptions } from "../../../../../tui/src/components/editor.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Container, type Focusable, type TUI } from "../../../../../tui/src/tui.ts";
 import type { KeybindingsManager } from "../../../core/keybindings.ts";
 import { editInExternalEditor } from "../external-editor.ts";
 import { getEditorTheme, theme } from "../theme/theme.ts";

@@ -1,4 +1,7 @@
-import { ProcessTerminal, setKeybindings, type TUI, TuiMainScreen } from "../../../tui/src/index.ts";
+import { setKeybindings } from "../../../tui/src/keybindings.ts";
+import { ProcessTerminal } from "../../../tui/src/terminal.ts";
+import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
+import type { TUI } from "../../../tui/src/tui.ts";
 import { existsSync } from "fs";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir, getSettingsPath, PACKAGE_NAME } from "../config.ts";
 import { areExperimentalFeaturesEnabled } from "../core/experimental.ts";

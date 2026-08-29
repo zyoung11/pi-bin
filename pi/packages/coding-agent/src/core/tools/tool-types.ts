@@ -4,7 +4,7 @@
 
 import type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode } from "../../../../agent/src/index.ts";
 import type { ConstrainedSamplingConfig } from "../../../../ai/src/index.ts";
-import type { Component } from "../../../../tui/src/index.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import type { Static,  PiSchema as TSchema } from "../../../../ai/src/schema.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 

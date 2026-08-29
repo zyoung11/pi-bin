@@ -2420,29 +2420,43 @@ export class InteractiveMode {
 			}
 
 			// Set autocomplete if supported
-			if (newEditor.setAutocompleteProvider && this.autocompleteProvider) {
+			if (newEditor.setAutocompleteProvider !== undefined && this.autocompleteProvider !== undefined) {
 				newEditor.setAutocompleteProvider(this.autocompleteProvider);
 			}
 
 			// If extending CustomEditor, copy app-level handlers
-			// Use duck typing since instanceof fails across jiti module boundaries
-			const customEditor = newEditor as unknown as Record<string, unknown>;
-			if ("actionHandlers" in customEditor && customEditor.actionHandlers instanceof Map) {
-				if (!customEditor.onEscape) {
-					customEditor.onEscape = () => this.defaultEditor.onEscape?.();
+			const editorFields: unknown = newEditor;
+			const fields = editorFields as Record<string, unknown>;
+			const defaultFields = this.defaultEditor as unknown as Record<string, unknown>;
+			if (fields["actionHandlers"] !== undefined) {
+				const handlers = fields["actionHandlers"] as Record<string, () => void>;
+				if (fields["onEscape"] === undefined) {
+					fields["onEscape"] = () => {
+						const handler = defaultFields["onEscape"];
+						if (typeof handler === "function") handler();
+					};
 				}
-				if (!customEditor.onCtrlD) {
-					customEditor.onCtrlD = () => this.defaultEditor.onCtrlD?.();
+				if (fields["onCtrlD"] === undefined) {
+					fields["onCtrlD"] = () => {
+						const handler = defaultFields["onCtrlD"];
+						if (typeof handler === "function") handler();
+					};
 				}
-				if (!customEditor.onPasteImage) {
-					customEditor.onPasteImage = () => this.defaultEditor.onPasteImage?.();
+				if (fields["onPasteImage"] === undefined) {
+					fields["onPasteImage"] = () => {
+						const handler = defaultFields["onPasteImage"];
+						if (typeof handler === "function") handler();
+					};
 				}
-				if (!customEditor.onExtensionShortcut) {
-					customEditor.onExtensionShortcut = (data: string) => this.defaultEditor.onExtensionShortcut?.(data);
+				if (fields["onExtensionShortcut"] === undefined) {
+					fields["onExtensionShortcut"] = (data: string) => {
+						const handler = defaultFields["onExtensionShortcut"];
+						if (typeof handler === "function") handler(data);
+					};
 				}
-				// Copy action handlers (clear, suspend, model switching, etc.)
-				for (const [action, handler] of this.defaultEditor.actionHandlers) {
-					(customEditor.actionHandlers as Map<string, () => void>).set(action, handler);
+				for (const action of Object.keys(this.defaultEditor.actionHandlers)) {
+					const handler = this.defaultEditor.actionHandlers[action];
+					if (handler !== undefined) handlers[action] = handler;
 				}
 			}
 

@@ -4,17 +4,12 @@
 
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
-import {
-	Component,
-	Container,
-	type Focusable,
-	getKeybindings,
-	Input,
-	matchesKey,
-	Spacer,
-	truncateToWidth,
-	visibleWidth,
-} from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { matchesKey } from "../../../../../tui/src/keys.ts";
+import { Component, Container, type Focusable } from "../../../../../tui/src/tui.ts";
+import { truncateToWidth, visibleWidth } from "../../../../../tui/src/utils.ts";
 import { CONFIG_DIR_NAME } from "../../../config.ts";
 import type { PathMetadata, ResolvedPaths, ResolvedResource } from "../../../core/package-manager.ts";
 import type { PackageSource, SettingsManager } from "../../../core/settings-manager.ts";

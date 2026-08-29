@@ -2,7 +2,9 @@
  * TUI config selector for `pi config` command
  */
 
-import { ProcessTerminal, type TUI, TuiMainScreen } from "../../../tui/src/index.ts";
+import { ProcessTerminal } from "../../../tui/src/terminal.ts";
+import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
+import type { TUI } from "../../../tui/src/tui.ts";
 import type { SettingsManager } from "../core/settings-manager.ts";
 import { ConfigSelectorComponent, type ScopedResolvedPaths } from "../modes/interactive/components/config-selector.ts";
 import { initTheme, stopThemeWatcher } from "../modes/interactive/theme/theme.ts";

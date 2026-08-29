@@ -1,4 +1,5 @@
-import { Container, type SelectItem, SelectList, type SelectListLayoutOptions } from "../../../../../tui/src/index.ts";
+import { type SelectItem, SelectList, type SelectListLayoutOptions } from "../../../../../tui/src/components/select-list.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import { getAvailableThemes, getSelectListTheme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 

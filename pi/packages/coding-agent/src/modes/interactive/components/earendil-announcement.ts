@@ -1,5 +1,8 @@
 import * as fs from "node:fs";
-import { Container, Image, Spacer, Text } from "../../../../../tui/src/index.ts";
+import { Image } from "../../../../../tui/src/components/image.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import { getBundledInteractiveAssetPath } from "../../../config.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

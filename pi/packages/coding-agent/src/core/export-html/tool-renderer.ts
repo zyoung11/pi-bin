@@ -6,7 +6,7 @@
  */
 
 import type { ImageContent, TextContent } from "../../../../ai/src/index.ts";
-import type { Component } from "../../../../tui/src/index.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import type { ToolDefinition, ToolRenderContext } from "../tools/tool-types.ts";
 import { ansiLinesToHtml } from "./ansi-to-html.ts";

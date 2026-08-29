@@ -3,7 +3,7 @@
  */
 
 import type { Api, Model } from "../../../ai/src/index.ts";
-import { fuzzyFilter } from "../../../tui/src/index.ts";
+import { fuzzyFilter } from "../../../tui/src/fuzzy.ts";
 import chalk from "../utils/mini-chalk.ts";
 import { formatNoModelsAvailableMessage } from "../core/auth-guidance.ts";
 import type { ModelRuntime } from "../core/model-runtime.ts";

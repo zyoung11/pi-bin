@@ -1,5 +1,9 @@
 import type { AuthInfoLink, OAuthDeviceCodeInfo } from "../../../../../ai/src/index.ts";
-import { Container, type Focusable, getKeybindings, Input, Spacer, Text, type TUI } from "../../../../../tui/src/index.ts";
+import { Input } from "../../../../../tui/src/components/input.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Container, type Focusable, type TUI } from "../../../../../tui/src/tui.ts";
 import { openBrowser } from "../../../utils/open-browser.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

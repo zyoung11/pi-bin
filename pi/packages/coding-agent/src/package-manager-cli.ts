@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { Markdown, type MarkdownTheme } from "../../tui/src/index.ts";
+import { Markdown, type MarkdownTheme } from "../../tui/src/components/markdown.ts";
 import chalk from "./utils/mini-chalk.ts";
 import lockfile from "./utils/mini-lockfile.ts";
 import { selectConfig } from "./cli/config-selector.ts";

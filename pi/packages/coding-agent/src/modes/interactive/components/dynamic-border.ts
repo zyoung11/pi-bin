@@ -1,4 +1,4 @@
-import { Component } from "../../../../../tui/src/index.ts";
+import { Component } from "../../../../../tui/src/tui.ts";
 import { theme } from "../theme/theme.ts";
 
 /**

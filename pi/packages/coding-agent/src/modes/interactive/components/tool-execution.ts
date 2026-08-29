@@ -1,4 +1,9 @@
-import { Box, type Component, Container, getCapabilities, Image, Spacer, Text, type TUI } from "../../../../../tui/src/index.ts";
+import { Box } from "../../../../../tui/src/components/box.ts";
+import { Image } from "../../../../../tui/src/components/image.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
+import { type Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
 import type { ToolDefinition, ToolRenderContext } from "../../../core/tools/tool-types.ts";
 import { createAllToolDefinitions, type ToolName } from "../../../core/tools/index.ts";
 import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
@@ -18,18 +23,18 @@ export class ToolExecutionComponent extends Container {
 	private selfRenderContainer: Container;
 	private callRendererComponent?: Component;
 	private resultRendererComponent?: Component;
-	private rendererState: any = {};
+	private rendererState: Record<string, unknown> = {};
 	private imageComponents: Image[] = [];
 	private imageSpacers: Spacer[] = [];
 	private toolName: string;
 	private toolCallId: string;
-	private args: any;
+	private args: Record<string, unknown> = {};
 	private expanded = false;
 	private showImages: boolean;
 	private imageWidthCells: number;
 	private isPartial = true;
-	private toolDefinition?: ToolDefinition<any, any>;
-	private builtInToolDefinition?: ToolDefinition<any, any>;
+	private toolDefinition?: ToolDefinition;
+	private builtInToolDefinition?: ToolDefinition;
 	private ui: TUI;
 	private cwd: string;
 	private executionStarted = false;
@@ -37,7 +42,7 @@ export class ToolExecutionComponent extends Container {
 	private result?: {
 		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
 		isError: boolean;
-		details?: any;
+		details?: unknown;
 	};
 	private convertedImages: Map<number, { data: string; mimeType: string }> = new Map();
 	private hideComponent = false;
@@ -45,9 +50,9 @@ export class ToolExecutionComponent extends Container {
 	constructor(
 		toolName: string,
 		toolCallId: string,
-		args: any,
+		args: Record<string, unknown>,
 		options: ToolExecutionOptions = {},
-		toolDefinition: ToolDefinition<any, any> | undefined,
+		toolDefinition: ToolDefinition | undefined,
 		ui: TUI,
 		cwd: string,
 	) {
@@ -80,7 +85,7 @@ export class ToolExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
-	private getCallRenderer(): ToolDefinition<any, any>["renderCall"] | undefined {
+	private getCallRenderer(): ToolDefinition["renderCall"] | undefined {
 		if (!this.builtInToolDefinition) {
 			return this.toolDefinition?.renderCall;
 		}
@@ -90,7 +95,7 @@ export class ToolExecutionComponent extends Container {
 		return this.toolDefinition.renderCall ?? this.builtInToolDefinition.renderCall;
 	}
 
-	private getResultRenderer(): ToolDefinition<any, any>["renderResult"] | undefined {
+	private getResultRenderer(): ToolDefinition["renderResult"] | undefined {
 		if (!this.builtInToolDefinition) {
 			return this.toolDefinition?.renderResult;
 		}
@@ -154,7 +159,7 @@ export class ToolExecutionComponent extends Container {
 		return new Text(text, 0, 0);
 	}
 
-	updateArgs(args: any): void {
+	updateArgs(args: Record<string, unknown>): void {
 		this.args = args;
 		this.updateDisplay();
 	}
@@ -252,7 +257,12 @@ export class ToolExecutionComponent extends Container {
 		let hasContent = false;
 		this.hideComponent = false;
 		if (this.hasRendererDefinition()) {
-			const renderContainer = this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox;
+			let renderContainer: Container;
+			if (this.getRenderShell() === "self") {
+				renderContainer = this.selfRenderContainer;
+			} else {
+				renderContainer = this.contentBox;
+			}
 			if (renderContainer instanceof Box) {
 				renderContainer.setBgFn(bgFn);
 			}
@@ -286,7 +296,7 @@ export class ToolExecutionComponent extends Container {
 				} else {
 					try {
 						const component = resultRenderer(
-							{ content: this.result.content as any, details: this.result.details },
+							{ content: this.result.content as unknown as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0]["content"], details: this.result.details },
 							{ expanded: this.expanded, isPartial: this.isPartial },
 							theme,
 							this.getRenderContext(this.resultRendererComponent),

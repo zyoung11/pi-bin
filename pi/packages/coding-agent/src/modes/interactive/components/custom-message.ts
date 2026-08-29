@@ -1,6 +1,10 @@
 import type { TextContent } from "../../../../../ai/src/index.ts";
-import type { Component } from "../../../../../tui/src/index.ts";
-import { Box, Container, Markdown, type MarkdownTheme, Spacer, Text } from "../../../../../tui/src/index.ts";
+import type { Component } from "../../../../../tui/src/tui.ts";
+import { Box } from "../../../../../tui/src/components/box.ts";
+import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import type { CustomMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 

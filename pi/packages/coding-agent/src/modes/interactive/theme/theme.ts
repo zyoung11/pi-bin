@@ -2,14 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
 import { type Static, Compile, Type } from "../../../../../ai/src/schema.ts";
-import {
-	type EditorTheme,
-	getCapabilities,
-	type MarkdownTheme,
-	type RgbColor,
-	type SelectListTheme,
-	type SettingsListTheme,
-} from "../../../../../tui/src/index.ts";
+import type { EditorTheme } from "../../../../../tui/src/components/editor.ts";
+import type { MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
+import type { SelectListTheme } from "../../../../../tui/src/components/select-list.ts";
+import type { SettingsListTheme } from "../../../../../tui/src/components/settings-list.ts";
+import type { RgbColor } from "../../../../../tui/src/terminal-colors.ts";
+import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import chalk from "../../../utils/mini-chalk.ts";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";

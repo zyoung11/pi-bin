@@ -1,5 +1,8 @@
 import type { AssistantMessage } from "../../../../../ai/src/index.ts";
-import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "../../../../../tui/src/index.ts";
+import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import type { MarkdownTransformer } from "./markdown-transform.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";

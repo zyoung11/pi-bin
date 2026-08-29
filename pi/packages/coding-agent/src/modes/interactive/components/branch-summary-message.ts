@@ -1,4 +1,7 @@
-import { Box, Markdown, type MarkdownTheme, Spacer, Text } from "../../../../../tui/src/index.ts";
+import { Box } from "../../../../../tui/src/components/box.ts";
+import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
 import type { BranchSummaryMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";

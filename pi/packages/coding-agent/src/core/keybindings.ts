@@ -2,10 +2,11 @@ import {
 	type Keybinding,
 	type KeybindingDefinitions,
 	type KeybindingsConfig,
-	type KeyId,
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
-} from "../../../tui/src/index.ts";
+} from "../../../tui/src/keybindings.ts";
+import type { Keybindings } from "../../../tui/src/index.ts";
+import type { KeyId } from "../../../tui/src/keys.ts";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { getAgentDir } from "../config.ts";

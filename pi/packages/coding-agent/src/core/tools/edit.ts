@@ -1,6 +1,9 @@
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
-import { Box, Container, Spacer, Text } from "../../../../tui/src/index.ts";
+import { Box } from "../../../../tui/src/components/box.ts";
+import { Spacer } from "../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../tui/src/components/text.ts";
+import { Container } from "../../../../tui/src/tui.ts";
 import { constants } from "fs";
 import { access as fsAccess, readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import { renderDiff } from "../../modes/interactive/components/diff.ts";

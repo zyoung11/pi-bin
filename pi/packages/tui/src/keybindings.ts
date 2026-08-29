@@ -274,8 +274,8 @@ export class KeybindingsManager {
 		}
 	}
 
-	matches(data: string, keybinding: Keybinding): boolean {
-		const keys = this.keysById.get(keybinding) ?? [];
+	matches(data: string, keybinding: Keybinding | string): boolean {
+		const keys = this.keysById.get(keybinding as Keybinding) ?? [];
 		for (const key of keys) {
 			if (matchesKey(data, key)) return true;
 		}

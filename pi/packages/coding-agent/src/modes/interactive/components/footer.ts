@@ -1,5 +1,6 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { Component, truncateToWidth, visibleWidth } from "../../../../../tui/src/index.ts";
+import { Component } from "../../../../../tui/src/tui.ts";
+import { truncateToWidth, visibleWidth } from "../../../../../tui/src/utils.ts";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";

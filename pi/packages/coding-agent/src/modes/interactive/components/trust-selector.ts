@@ -1,4 +1,7 @@
-import { Container, getKeybindings, Spacer, Text } from "../../../../../tui/src/index.ts";
+import { Spacer } from "../../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../../tui/src/components/text.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Container } from "../../../../../tui/src/tui.ts";
 import {
 	getProjectTrustOptions,
 	type ProjectTrustOption,
