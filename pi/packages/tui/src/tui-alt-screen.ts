@@ -333,7 +333,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		if (options.preserveScreen) {
 			this.terminal.write(`${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}\x1b[?25h${END_SYNCHRONIZED_OUTPUT}`);
 		} else {
-			const width = Math.max(1, this.terminal.columns);
+			const width = Math.max(1, this.terminal.columns());
 			const documentLines = this.render(width).map((line) => line.replace(OSC133_ZONE_PREFIX, ""));
 			this.lastDocument = this.applyLineResets(documentLines.map((line) => line.split(CURSOR_MARKER).join(""))).map(
 				(line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)),
@@ -820,7 +820,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		if (!box || box.rect.height <= 0 || box.clip.height <= 0) return undefined;
 		const visibleTop = Math.max(0, box.rect.y, box.clip.y);
 		const visibleBottom = Math.min(
-			this.terminal.rows - 1,
+			this.terminal.rows() - 1,
 			box.rect.y + box.rect.height - 1,
 			box.clip.y + box.clip.height - 1,
 		);
@@ -840,8 +840,8 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			if (point) return point;
 		}
 		return {
-			row: Math.max(0, Math.min(this.terminal.rows - 1, event.y)),
-			col: Math.max(0, Math.min(this.terminal.columns - 1, event.x)),
+			row: Math.max(0, Math.min(this.terminal.rows() - 1, event.y)),
+			col: Math.max(0, Math.min(this.terminal.columns() - 1, event.x)),
 		};
 	}
 
@@ -956,7 +956,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		}
 		const visibleTop = Math.max(0, box.rect.y, box.clip.y);
 		const visibleBottom = Math.min(
-			this.terminal.rows - 1,
+			this.terminal.rows() - 1,
 			box.rect.y + box.rect.height - 1,
 			box.clip.y + box.clip.height - 1,
 		);
@@ -1061,8 +1061,8 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		this.pressedUrl = range
 			? undefined
 			: getOsc8LinkAtColumn(
-					this.previousScreen[Math.max(0, Math.min(this.terminal.rows - 1, event.y))] ?? "",
-					Math.max(0, Math.min(this.terminal.columns - 1, event.x)),
+					this.previousScreen[Math.max(0, Math.min(this.terminal.rows() - 1, event.y))] ?? "",
+					Math.max(0, Math.min(this.terminal.columns() - 1, event.x)),
 				);
 		this.requestRender();
 	}
@@ -1174,7 +1174,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		const maxRow = Math.min(screen.length, box.rect.y + box.rect.height, box.clip.y + box.clip.height);
 		const minColumn = Math.max(0, box.rect.x, box.clip.x);
 		const maxColumn = Math.min(
-			this.terminal.columns,
+			this.terminal.columns(),
 			box.rect.x + box.rect.width,
 			box.clip.x + box.clip.width,
 			scrollbarColumn ?? Number.POSITIVE_INFINITY,
@@ -1235,7 +1235,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		let minRow = 0;
 		let maxRow = screen.length - 1;
 		let minColumn = 0;
-		let maxColumn = this.terminal.columns;
+		let maxColumn = this.terminal.columns();
 		if (selection.start.scrollView) {
 			if (!layout) return screen;
 			const box = getScrollViewBox(layout, selection.start.scrollView);
@@ -1243,7 +1243,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 			minRow = Math.max(0, box.rect.y, box.clip.y);
 			maxRow = Math.min(screen.length - 1, box.rect.y + box.rect.height - 1, box.clip.y + box.clip.height - 1);
 			minColumn = Math.max(0, box.rect.x, box.clip.x);
-			maxColumn = Math.min(this.terminal.columns, box.rect.x + box.rect.width, box.clip.x + box.clip.width);
+			maxColumn = Math.min(this.terminal.columns(), box.rect.x + box.rect.width, box.clip.x + box.clip.width);
 			screenSelection = {
 				start: {
 					...selection.start,
@@ -1297,8 +1297,8 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 
 	protected override doRender(): void {
 		if (this.stopped || !this.altScreenActive) return;
-		const width = Math.max(1, this.terminal.columns);
-		const height = Math.max(1, this.terminal.rows);
+		const width = Math.max(1, this.terminal.columns());
+		const height = Math.max(1, this.terminal.rows());
 		const root = this.layoutRoot ?? this.implicitScrollView;
 		let nextLayout = renderLayoutFrame(root, width, height, () => this.requestRender());
 		if (this.refreshSearch(nextLayout)) {

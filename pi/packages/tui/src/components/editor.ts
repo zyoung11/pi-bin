@@ -520,7 +520,7 @@ export class Editor extends Component implements Focusable {
 		const layoutLines = this.layoutText(layoutWidth);
 
 		// Calculate max visible lines: 30% of terminal height, minimum 5 lines
-		const terminalRows = this.tui.terminal.rows;
+		const terminalRows = this.tui.terminal.rows();
 		const maxVisibleLines = Math.max(5, Math.floor(terminalRows * 0.3));
 
 		// Find the cursor line index in layoutLines
@@ -1902,7 +1902,7 @@ export class Editor extends Component implements Focusable {
 	 */
 	private pageScroll(direction: -1 | 1): void {
 		this.lastAction = null;
-		const terminalRows = this.tui.terminal.rows;
+		const terminalRows = this.tui.terminal.rows();
 		const pageSize = Math.max(5, Math.floor(terminalRows * 0.3));
 
 		const visualLines = this.buildVisualLineMap(this.lastWidth);

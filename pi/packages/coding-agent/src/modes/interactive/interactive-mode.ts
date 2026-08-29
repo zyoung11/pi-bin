@@ -44,6 +44,7 @@ import { TuiMainScreen, type TuiMainScreenRenderState } from "../../../../tui/sr
 import { visibleWidth } from "../../../../tui/src/utils.ts";
 import chalk from "../../utils/mini-chalk.ts";
 import { spawn } from "child_process";
+import { spawnProcess } from "../../utils/child-process.ts";
 import {
 	APP_NAME,
 	APP_TITLE,
@@ -257,6 +258,19 @@ export function formatResumeCommand(sessionManager: SessionManager): string | un
 	}
 	args.push("--session", sessionManager.getSessionId());
 	return args.join(" ");
+}
+
+function formatNumber(value: number): string {
+	const negative = value < 0;
+	const whole = Math.floor(Math.abs(value)).toString();
+	let out = "";
+	let count = 0;
+	for (let i = whole.length - 1; i >= 0; i--) {
+		out = whole[i] + out;
+		count++;
+		if (count % 3 === 0 && i > 0) out = "," + out;
+	}
+	return (negative ? "-" : "") + out;
 }
 
 function hasDefaultModelProvider(providerId: string): boolean {
@@ -1197,7 +1211,7 @@ export class InteractiveMode {
 
 		const runTmuxShow = (option: string): Promise<string | undefined> => {
 			return new Promise((resolve) => {
-				const proc = spawn("tmux", ["show", "-gv", option], {
+				const proc = spawnProcess("tmux", ["show", "-gv", option], {
 					stdio: ["ignore", "pipe", "ignore"],
 				});
 				let stdout = "";
@@ -1206,14 +1220,17 @@ export class InteractiveMode {
 					resolve(undefined);
 				}, 2000);
 
-				proc.stdout?.on("data", (data) => {
-					stdout += data.toString();
-				});
+				const out = proc.stdout;
+				if (out !== null) {
+					out.on("data", (data: Uint8Array) => {
+						stdout += new TextDecoder().decode(data);
+					});
+				}
 				proc.on("error", () => {
 					clearTimeout(timer);
 					resolve(undefined);
 				});
-				proc.on("close", (code) => {
+				proc.on("exit", (code: number | null) => {
 					clearTimeout(timer);
 					resolve(code === 0 ? stdout.trim() : undefined);
 				});
@@ -4865,7 +4882,7 @@ export class InteractiveMode {
 			const selector = new TreeSelectorComponent(
 				tree,
 				realLeafId,
-				this.ui.terminal.rows,
+				this.ui.terminal.rows(),
 				async (entryId) => {
 					// Selecting the current leaf is a no-op (already there)
 					if (entryId === this.sessionManager.getLeafId()) {
@@ -5843,16 +5860,16 @@ export class InteractiveMode {
 		// of the uncached portion.
 		const { input, cacheRead, cacheWrite } = stats.tokens;
 		const promptTokens = input + cacheRead + cacheWrite;
-		info += `${theme.fg("dim", "Input:")} ${promptTokens.toLocaleString()}\n`;
+		info += `${theme.fg("dim", "Input:")} ${formatNumber(promptTokens)}\n`;
 		if (promptTokens > 0 && (cacheRead > 0 || cacheWrite > 0)) {
 			const hitRate = theme.fg("dim", `(${((cacheRead / promptTokens) * 100).toFixed(1)}%)`);
-			info += `  ${theme.fg("dim", "Cached:")} ${cacheRead.toLocaleString()} ${hitRate}\n`;
+			info += `  ${theme.fg("dim", "Cached:")} ${formatNumber(cacheRead)} ${hitRate}\n`;
 			const written =
-				cacheWrite > 0 ? ` ${theme.fg("dim", `(${cacheWrite.toLocaleString()} written to cache)`)}` : "";
-			info += `  ${theme.fg("dim", "Uncached:")} ${(input + cacheWrite).toLocaleString()}${written}\n`;
+				cacheWrite > 0 ? ` ${theme.fg("dim", `(${formatNumber(cacheWrite)} written to cache)`)}` : "";
+			info += `  ${theme.fg("dim", "Uncached:")} ${formatNumber(input + cacheWrite)}${written}\n`;
 		}
-		info += `${theme.fg("dim", "Output:")} ${stats.tokens.output.toLocaleString()}\n`;
-		info += `${theme.fg("dim", "Total:")} ${stats.tokens.total.toLocaleString()}\n`;
+		info += `${theme.fg("dim", "Output:")} ${formatNumber(stats.tokens.output)}\n`;
+		info += `${theme.fg("dim", "Total:")} ${formatNumber(stats.tokens.total)}\n`;
 
 		if (stats.cost > 0 || cacheWaste.missedTokens > 0) {
 			info += `\n${theme.bold("Cost")}\n`;
@@ -5864,7 +5881,7 @@ export class InteractiveMode {
 			}
 			if (cacheWaste.missedTokens > 0) {
 				const missLabel = cacheWaste.missCount === 1 ? "1 miss" : `${cacheWaste.missCount} misses`;
-				const detail = `${cacheWaste.missedTokens.toLocaleString()} tokens, ${missLabel}`;
+				const detail = `${formatNumber(cacheWaste.missedTokens)} tokens, ${missLabel}`;
 				info +=
 					cacheWaste.missedCost >= 0.0001
 						? `\n${theme.fg("dim", "Cache Re-billed:")} $${cacheWaste.missedCost.toFixed(3)} ${theme.fg("dim", `(${detail})`)}`
@@ -6029,8 +6046,8 @@ export class InteractiveMode {
 	}
 
 	private handleDebugCommand(): void {
-		const width = this.ui.terminal.columns;
-		const height = this.ui.terminal.rows;
+		const width = this.ui.terminal.columns();
+		const height = this.ui.terminal.rows();
 		const allLines = this.ui.render(width);
 
 		const debugLogPath = getDebugLogPath();

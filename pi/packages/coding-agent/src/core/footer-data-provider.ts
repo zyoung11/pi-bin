@@ -109,7 +109,7 @@ export class FooterDataProvider {
 	private reftableWatcher: FSWatcher | null = null;
 	private reftableTablesListWatcher: FSWatcher | null = null;
 	private reftableTablesListPath: string | null = null;
-	private branchChangeCallbacks = new Set<() => void>();
+	private branchChangeCallbacks: (() => void)[] = [];
 	private availableProviderCount = 0;
 	private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 	private gitWatcherRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,8 +138,11 @@ export class FooterDataProvider {
 
 	/** Subscribe to git branch changes. Returns unsubscribe function. */
 	onBranchChange(callback: () => void): () => void {
-		this.branchChangeCallbacks.add(callback);
-		return () => this.branchChangeCallbacks.delete(callback);
+		this.branchChangeCallbacks.push(callback);
+		return () => {
+			const index = this.branchChangeCallbacks.indexOf(callback);
+			if (index !== -1) this.branchChangeCallbacks.splice(index, 1);
+		};
 	}
 
 	/** Internal: set extension status */
@@ -191,7 +194,7 @@ export class FooterDataProvider {
 			this.refreshTimer = null;
 		}
 		this.clearGitWatchers();
-		this.branchChangeCallbacks.clear();
+		this.branchChangeCallbacks = [];
 	}
 
 	private notifyBranchChange(): void {

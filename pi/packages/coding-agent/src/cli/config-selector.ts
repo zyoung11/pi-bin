@@ -46,7 +46,7 @@ export async function selectConfig(options: ConfigSelectorOptions): Promise<void
 				process.exit(0);
 			},
 			() => ui.requestRender(),
-			ui.terminal.rows,
+			ui.terminal.rows(),
 			options.writeScope,
 			options.projectModeAvailable,
 		);

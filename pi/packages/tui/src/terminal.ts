@@ -76,11 +76,11 @@ export interface Terminal {
 	write(data: string): void;
 
 	// Get terminal dimensions
-	get columns(): number;
-	get rows(): number;
+	columns(): number;
+	rows(): number;
 
 	// Whether Kitty keyboard protocol is active
-	get kittyProtocolActive(): boolean;
+	kittyProtocolActive(): boolean;
 
 	// Cursor positioning (relative to current position)
 	moveBy(lines: number): void; // Move cursor up (negative) or down (positive) by N lines
@@ -150,7 +150,7 @@ export class ProcessTerminal implements Terminal {
 		return env;
 	})();
 
-	get kittyProtocolActive(): boolean {
+	kittyProtocolActive(): boolean {
 		return this._kittyProtocolActive;
 	}
 
@@ -484,11 +484,11 @@ export class ProcessTerminal implements Terminal {
 		}
 	}
 
-	get columns(): number {
+	columns(): number {
 		return process.stdout.columns || Number(process.env.COLUMNS) || 80;
 	}
 
-	get rows(): number {
+	rows(): number {
 		return process.stdout.rows || Number(process.env.LINES) || 24;
 	}
 

@@ -709,7 +709,7 @@ export abstract class TuiBase extends Container implements TUI {
 		const options = entry.options;
 		if (options !== undefined) {
 			const visible = options.visible;
-			if (visible !== undefined) return visible(this.terminal.columns, this.terminal.rows);
+			if (visible !== undefined) return visible(this.terminal.columns(), this.terminal.rows());
 		}
 		return true;
 	}

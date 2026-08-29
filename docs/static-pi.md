@@ -84,6 +84,15 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十六轮记录（进行中：410→400，interactive-mode 108→87）
+
+- **Terminal 接口 getter→方法全仓迁移**：columns/rows/kittyProtocolActive getter 改方法（接口 getter 不可映射），ProcessTerminal 实现与 6 个文件全部调用点迁移
+- **FooterDataProvider**：branchChangeCallbacks Set<()=>void>→数组（Map/Set 值函数不可映射）
+- **hasDefaultModelProvider**：in with computed keys→bracket + Record 双跳
+- **tmux 键盘检测**：spawn 泛型返回→spawnProcess（ChildProcessHandle）+ exit 事件 + Uint8Array 监听
+- **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r26-ok）
+- **总账 410→400，interactive-mode 108→87**；剩余根因群（均有明确解法，下轮继续）：①new Proxy→TuiForwarder 手写委托类（TUI 接口 34 成员逐一转发）②footerDataProvider/组件 options record 墙（ReadonlyFooterDataProvider 等）→构造器参数改类引用③ChildProcessStream 接口 receiver（tmux stdout）→考虑接口改类④toLocaleString 已清；退出恢复终端块 process.prependListener/WriteStream 交叉⑥checkForAvailableUpdates number[]⑦零散
+
 ## 阶段 5 grind 第二十五轮记录（进行中：399→410，interactive-mode 145→103）
 
 - **renderer 联合→TuiBase 基类**：字段/createInteractiveTui 返回/mountInteractiveTui 参数全部改 TuiBase（union 方法调用/instanceof 全消）；isViewportTUI 调用点改 instanceof TuiAltScreen；TuiBase abstract mode→具体字段 `mode: TuiMode = "regular"`（abstract 属性 this 读不可用），TuiAltScreen override "fullscreen"（去 protected）；Component 基类新增空 dispose()（子类可 override），disposeComponent cast helper 删除，调用点直呼 dispose()
