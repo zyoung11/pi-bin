@@ -84,6 +84,15 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十轮记录（2026-09-01：280→263，ai 包四个文件全清）
+
+- **provider-retry(9→0)**：确认上轮重写丢失了 headers 字段（429/5xx 重试链路隐性回归）后重写；新增 `ProviderHttpError extends Error` 类（status + 预提取的 shouldRetry/retryAfterMs/retryAfter 三个字符串字段，对齐 OpenAI SDK 检查面）；`headers?: Headers` 字段被证明不可行（Headers 类型在 scriptc 中为 unknown，毒化整个类）；catch binding 经 `caught instanceof ProviderHttpError` 收窄后使用；`Number.parseFloat`/`Date.parse` → 手写 `parseDecimalNumber` + RFC1123 `parseHttpDateGmt`（days-fromCivil 算法）；abortableSleep 去 removeEventListener（settled 标志 + once:true）
+- **constrained-sampling(8→0)**：`JsonSchemaObject` 的 unknown 成员导致 checked cast 失败 → 按用户建议直接按已验证模式重写全文件：**所有联合/动态读一律经 unknown 参数辅助函数 + `as unknown as Record<string, unknown>` 双跳 + bracket 读写**（readConfigType/readConfigStrict/readConfigVariants/asSchemaRecord/stringArrayOf/arrayUnknown）；`new Set(values)`/`[...set]`/`Object.entries` 全部循环化；谓词收窄（isJsonSchemaObject 后读字段）被证实不可靠，一律不用
+- **openai-http(7→0)**：HttpError 类改用 ProviderHttpError；TextDecoder stream:true → 手写 UTF-8 尾部不完整序列缓冲（incompleteUtf8TailLength）；globalThis.fetch 值引用 → customFetch if/else 分支；removeEventListener 移除
+- **经验规则补充**：① export 函数体内的联合字段读（即使 typeof 收窄后）会被严格检查，非导出同码可过——但可靠解法是 unknown 辅助函数读；② 类型谓词收窄后的字段读在导出函数中不可靠；③ Headers 类型不可映射，fetch 响应头按需预提取为字符串字段
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call 流式 OK
+- **总账 280→263**；剩余分布：session-manager(12)/main(10)/model-runtime(9)/provider-composer(8)/package-manager(8)/config(8)/session(8)/package-manager-cli(7)/migrations(7)/sdk(7)/keybindings(7) 及长尾
+
 ## 阶段 5 grind 第十九轮记录（2026-09-01：290→280，openai-completions + openai-http 双双清零）
 
 - **发现并修复第十五轮事故残留的结构损坏**：`retryProviderRequest`/`onResponse`/start push 原被困在 onChunk 箭头函数体内（自引用→运行时无限递归），收尾逻辑边界错位；本轮归位为 onChunk（guard+chunk 处理）→ start push → retry → onResponse → 收尾的正确结构。HEAD 上的 290 基线实际是在该损坏状态上测得的（编译可过但运行时已死）
