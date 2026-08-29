@@ -84,6 +84,18 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十一轮记录（2026-09-01：263→221→362 揭幕，interactive-mode 专项待下轮）
+
+- **批量模板清零**：Math.imul×4→手写 imul（hash.ts）；codePointAt×7→手写代理对码点 helper（json-parse/tui utils/segmenter/shell）；Object.hasOwn×3→bracket !==undefined（keybindings）；MapIterator.next×3→for-of entries+break（auth-command/tui utils/terminal-image）；Object.freeze×2+isFrozen/values→deepFreeze 恒等降级（model-config/noop）；normalize("NFD")→恒等降级（path-utils，macOS NFD 文件名匹配功能损失备注）；globalThis.Buffer→删运行时分支（truncate，手算路径已验证等价）；WeakMap×3→线性数组引用等值查（file-mutation-queue/model-catalog-refresh）；AggregateError→自定义 SessionCleanupError 类
+- **error-body(5→0)**：SdkErrorShape 交叉类型删除，extractStatus/extractBody/pickBodyText 全部改 unknown 参数 + asRecord 双跳 + bracket 读；isPlainNonEmptyObject 去原型检查（真实图中错误产生者已全是 JSON 纯对象）
+- **pi-user-agent(4→0)**：node:os 动态加载删除，UA 简化为 process.platform/arch
+- **version-check(3→0)**：response.json() cast 改 asRecord 模式；spread-after-explicit 改显式赋值
+- **latex(3→0)**：LAYOUT_MARKER 循环体全部 Record 化（unknown 中转 + bracket 读 + typeof 判别），MatrixNode 的 Math.max spread→循环求宽
+- **session-manager(12→0)**：新增模块级 entryIdOf/entryParentIdOf/entryTypeOf/stringifyEntry 辅助（unknown 参数 + Record 读）；JSON.stringify(entry as unknown)→stringifyEntry（探针验证 unknown 参数的 stringify 可降低）；.find on union→for-of+break；循环携带变量加显式注解（TS7022）
+- **main.ts(10→6→揭开)**：chalk.red 绑定方法引用→if/else 直接调用；writableLength drain 等待删除（仅 benchmark 路径）；switch 多 case 合并→双跳 cast 读 path；resolved.path
+- **interactive-mode 揭幕 139 个**：Map<string, Component & {dispose?}> 交叉类型→Map<string, Component> + disposeComponent helper（bracket 读 dispose + typeof 守卫 + cast 调用，探针验证）解开 main.ts 类构建链后，该文件（最大最复杂，含 Proxy TUI 转发层/new Proxy/checked cast Error 等）全部显形。**下轮专攻 interactive-mode 139 个**，净账 362
+- **验证**：tsgo src 清零；MiniCPM5-1B print 真跑对话 OK；--list-models OK
+
 ## 阶段 5 grind 第二十轮记录（2026-09-01：280→263，ai 包四个文件全清）
 
 - **provider-retry(9→0)**：确认上轮重写丢失了 headers 字段（429/5xx 重试链路隐性回归）后重写；新增 `ProviderHttpError extends Error` 类（status + 预提取的 shouldRetry/retryAfterMs/retryAfter 三个字符串字段，对齐 OpenAI SDK 检查面）；`headers?: Headers` 字段被证明不可行（Headers 类型在 scriptc 中为 unknown，毒化整个类）；catch binding 经 `caught instanceof ProviderHttpError` 收窄后使用；`Number.parseFloat`/`Date.parse` → 手写 `parseDecimalNumber` + RFC1123 `parseHttpDateGmt`（days-fromCivil 算法）；abortableSleep 去 removeEventListener（settled 标志 + once:true）

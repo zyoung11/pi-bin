@@ -69,22 +69,24 @@ export async function getLatestPiRelease(
 	);
 	if (!response.ok) return undefined;
 
-	const data = (await response.json()) as {
-		packageName?: unknown;
-		version?: unknown;
-		note?: unknown;
-	};
-	if (typeof data.version !== "string" || !data.version.trim()) {
+	const dataValue: unknown = await response.json();
+	if (typeof dataValue !== "object" || dataValue === null) return undefined;
+	const data = dataValue as unknown as Record<string, unknown>;
+	const versionValue = data["version"];
+	if (typeof versionValue !== "string" || !versionValue.trim()) {
 		return undefined;
 	}
+	const packageNameValue = data["packageName"];
 	const packageName =
-		typeof data.packageName === "string" && data.packageName.trim() ? data.packageName.trim() : undefined;
-	const note = typeof data.note === "string" && data.note.trim() ? data.note.trim() : undefined;
-	return {
-		version: data.version.trim(),
+		typeof packageNameValue === "string" && packageNameValue.trim() ? packageNameValue.trim() : undefined;
+	const noteValue = data["note"];
+	const note = typeof noteValue === "string" && noteValue.trim() ? noteValue.trim() : undefined;
+	const release: LatestPiRelease = {
+		version: versionValue.trim(),
 		packageName,
-		...(note ? { note } : {}),
 	};
+	if (note !== undefined) release.note = note;
+	return release;
 }
 
 export async function getLatestPiVersion(

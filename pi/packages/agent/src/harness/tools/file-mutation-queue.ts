@@ -6,14 +6,16 @@ type MutationQueueState = {
 	registration: Promise<void>;
 };
 
-const states = new WeakMap<ExecutionEnv, MutationQueueState>();
+type MutationQueueEntry = { env: ExecutionEnv; state: MutationQueueState };
+
+const mutationQueueStates: MutationQueueEntry[] = [];
 
 function getState(env: ExecutionEnv): MutationQueueState {
-	let state = states.get(env);
-	if (!state) {
-		state = { queues: new Map(), registration: Promise.resolve() };
-		states.set(env, state);
+	for (const entry of mutationQueueStates) {
+		if (entry.env === env) return entry.state;
 	}
+	const state = { queues: new Map(), registration: Promise.resolve() };
+	mutationQueueStates.push({ env, state });
 	return state;
 }
 

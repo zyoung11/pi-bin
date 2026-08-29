@@ -3,8 +3,8 @@ import { parse as partialParse } from "./partial-json.ts";
 const VALID_JSON_ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t", "u"]);
 
 function isControlCharacter(char: string): boolean {
-	const codePoint = char.codePointAt(0);
-	return codePoint !== undefined && codePoint >= 0x00 && codePoint <= 0x1f;
+	const code = char.charCodeAt(0);
+	return code >= 0x00 && code <= 0x1f;
 }
 
 function escapeControlCharacter(char: string): string {
@@ -20,7 +20,7 @@ function escapeControlCharacter(char: string): string {
 		case "\t":
 			return "\\t";
 		default:
-			return `\\u${char.codePointAt(0)?.toString(16).padStart(4, "0") ?? "0000"}`;
+			return `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
 	}
 }
 

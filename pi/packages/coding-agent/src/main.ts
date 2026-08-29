@@ -367,8 +367,10 @@ export async function createSessionManager(
 		switch (resolved.type) {
 			case "path":
 			case "local":
-			case "global":
-				return forkSessionOrExit(resolved.path, cwd, sessionDir, parsed.sessionId);
+			case "global": {
+				const forkPath = (resolved as unknown as Record<string, unknown>)["path"];
+				return forkSessionOrExit(forkPath as string, cwd, sessionDir, parsed.sessionId);
+			}
 
 			case "not_found":
 				console.error(chalk.red(`No session found matching '${resolved.arg}'`));
@@ -600,8 +602,12 @@ export async function main(args: string[]) {
 	const parsed = parseArgs(args);
 	if (parsed.diagnostics.length > 0) {
 		for (const d of parsed.diagnostics) {
-			const colorFn = d.type === "error" ? chalk.red : chalk.yellow;
-			console.error(colorFn(`${d.type === "error" ? "Error" : "Warning"}: ${d.message}`));
+			const message = `${d.type === "error" ? "Error" : "Warning"}: ${d.message}`;
+			if (d.type === "error") {
+				console.error(chalk.red(message));
+			} else {
+				console.error(chalk.yellow(message));
+			}
 		}
 		if (parsed.diagnostics.some((d) => d.type === "error")) {
 			process.exit(1);
@@ -927,12 +933,6 @@ export async function main(args: string[]) {
 			interactiveMode.stop();
 			stopThemeWatcher();
 			printTimings();
-			if (process.stdout.writableLength > 0) {
-				await new Promise<void>((resolve) => process.stdout.once("drain", resolve));
-			}
-			if (process.stderr.writableLength > 0) {
-				await new Promise<void>((resolve) => process.stderr.once("drain", resolve));
-			}
 			return;
 		}
 

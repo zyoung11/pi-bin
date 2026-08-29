@@ -426,6 +426,14 @@ export function createInteractiveTuiReference(getTui: () => TUI): TUI {
 	});
 }
 
+function disposeComponent(component: Component): void {
+	const record = component as unknown as Record<string, unknown>;
+	const dispose = record["dispose"];
+	if (typeof dispose === "function") {
+		(dispose as () => void)();
+	}
+}
+
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiMainScreen | TuiAltScreen;
@@ -523,13 +531,13 @@ export class InteractiveMode {
 	private extensionEditor: ExtensionEditorComponent | undefined = undefined;
 
 	// Extension widgets (components rendered above/below the editor)
-	private extensionWidgetsAbove = new Map<string, Component & { dispose?(): void }>();
-	private extensionWidgetsBelow = new Map<string, Component & { dispose?(): void }>();
+	private extensionWidgetsAbove = new Map<string, Component>();
+	private extensionWidgetsBelow = new Map<string, Component>();
 	private widgetContainerAbove!: Container;
 	private widgetContainerBelow!: Container;
 
 	// Custom footer from extension (undefined = use built-in footer)
-	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
+	private customFooter: Component | undefined = undefined;
 
 	// Header container that holds the built-in or custom header
 	private headerContainer: Container;
@@ -538,7 +546,7 @@ export class InteractiveMode {
 	private builtInHeader: Component | undefined = undefined;
 
 	// Custom header from extension (undefined = use built-in header)
-	private customHeader: (Component & { dispose?(): void }) | undefined = undefined;
+	private customHeader: Component | undefined = undefined;
 
 	private options: InteractiveModeOptions;
 	private readonly onRightClickPaste = (): void => {
@@ -1990,13 +1998,13 @@ export class InteractiveMode {
 	 */
 	private setExtensionWidget(
 		key: string,
-		content: string[] | ((tui: TUI, thm: Theme) => Component & { dispose?(): void }) | undefined,
+		content: string[] | ((tui: TUI, thm: Theme) => Component) | undefined,
 		options?: ExtensionWidgetOptions,
 	): void {
 		const placement = options?.placement ?? "aboveEditor";
-		const removeExisting = (map: Map<string, Component & { dispose?(): void }>) => {
+		const removeExisting = (map: Map<string, Component>) => {
 			const existing = map.get(key);
-			if (existing?.dispose) existing.dispose();
+			if (existing !== undefined) disposeComponent(existing);
 			map.delete(key);
 		};
 
@@ -2008,7 +2016,7 @@ export class InteractiveMode {
 			return;
 		}
 
-		let component: Component & { dispose?(): void };
+		let component: Component;
 
 		if (Array.isArray(content)) {
 			// Wrap string array in a Container with Text components
@@ -2032,10 +2040,10 @@ export class InteractiveMode {
 
 	private clearExtensionWidgets(): void {
 		for (const widget of this.extensionWidgetsAbove.values()) {
-			widget.dispose?.();
+			disposeComponent(widget);
 		}
 		for (const widget of this.extensionWidgetsBelow.values()) {
-			widget.dispose?.();
+			disposeComponent(widget);
 		}
 		this.extensionWidgetsAbove.clear();
 		this.extensionWidgetsBelow.clear();
@@ -2089,7 +2097,7 @@ export class InteractiveMode {
 
 	private renderWidgetContainer(
 		container: Container,
-		widgets: Map<string, Component & { dispose?(): void }>,
+		widgets: Map<string, Component>,
 		spacerWhenEmpty: boolean,
 		leadingSpacer: boolean,
 	): void {
@@ -2115,12 +2123,12 @@ export class InteractiveMode {
 	 */
 	private setExtensionFooter(
 		factory:
-			| ((tui: TUI, thm: Theme, footerData: ReadonlyFooterDataProvider) => Component & { dispose?(): void })
+			| ((tui: TUI, thm: Theme, footerData: ReadonlyFooterDataProvider) => Component)
 			| undefined,
 	): void {
 		// Dispose existing custom footer
-		if (this.customFooter?.dispose) {
-			this.customFooter.dispose();
+		if (this.customFooter !== undefined) {
+			disposeComponent(this.customFooter);
 		}
 
 		this.footerContainer.clear();
@@ -2140,13 +2148,13 @@ export class InteractiveMode {
 	/**
 	 * Set a custom header component, or restore the built-in header.
 	 */
-	private setExtensionHeader(factory: ((tui: TUI, thm: Theme) => Component & { dispose?(): void }) | undefined): void {
+	private setExtensionHeader(factory: ((tui: TUI, thm: Theme) => Component) | undefined): void {
 		if (!this.builtInHeader) {
 			return;
 		}
 
-		if (this.customHeader?.dispose) {
-			this.customHeader.dispose();
+		if (this.customHeader !== undefined) {
+			disposeComponent(this.customHeader);
 		}
 
 		const currentHeader = this.customHeader || this.builtInHeader;
@@ -2476,7 +2484,7 @@ export class InteractiveMode {
 		};
 
 		return new Promise((resolve, reject) => {
-			let component: Component & { dispose?(): void };
+			let component: Component;
 			let closed = false;
 
 			const close = (result: T) => {
@@ -2487,9 +2495,9 @@ export class InteractiveMode {
 				// Note: both branches above already call requestRender
 				resolve(result);
 				try {
-					component?.dispose?.();
+					if (component !== undefined) disposeComponent(component);
 				} catch {
-					/* ignore dispose errors */
+					// ignore dispose errors
 				}
 			};
 

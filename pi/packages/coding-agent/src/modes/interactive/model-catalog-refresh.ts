@@ -11,29 +11,41 @@ interface ActiveModelCatalogRefresh {
 }
 
 class ModelCatalogRefreshCoordinator {
-	private readonly activeByRuntime = new WeakMap<ModelCatalogRuntime, ActiveModelCatalogRefresh>();
+	private readonly activeByRuntime: { runtime: ModelCatalogRuntime; active: ActiveModelCatalogRefresh }[] = [];
+
+	private findActive(runtime: ModelCatalogRuntime): ActiveModelCatalogRefresh | undefined {
+		for (const item of this.activeByRuntime) {
+			if (item.runtime === runtime) return item.active;
+		}
+		return undefined;
+	}
+
+	private removeActive(runtime: ModelCatalogRuntime): void {
+		const index = this.activeByRuntime.findIndex((item) => item.runtime === runtime);
+		if (index !== -1) this.activeByRuntime.splice(index, 1);
+	}
 
 	refresh(modelRuntime: ModelCatalogRuntime, signal: AbortSignal): Promise<ModelsRefreshResult> {
 		signal.throwIfAborted();
-		let active = this.activeByRuntime.get(modelRuntime);
+		let active = this.findActive(modelRuntime);
 		if (!active) {
 			const controller = new AbortController();
 			let created!: ActiveModelCatalogRefresh;
 			const operation = modelRuntime.refresh({ signal: controller.signal });
 			const promise = raceWithAbortSignal(operation, controller.signal).finally(() => {
-				if (this.activeByRuntime.get(modelRuntime) === created) {
-					this.activeByRuntime.delete(modelRuntime);
+				if (this.findActive(modelRuntime) === created) {
+					this.removeActive(modelRuntime);
 				}
 			});
 			created = { controller, promise, waiters: 0 };
 			active = created;
-			this.activeByRuntime.set(modelRuntime, active);
+			this.activeByRuntime.push({ runtime: modelRuntime, active });
 		}
 
 		active.waiters++;
 		return raceWithAbortSignal(active.promise, signal).finally(() => {
 			active.waiters--;
-			if (active.waiters === 0 && this.activeByRuntime.get(modelRuntime) === active) {
+			if (active.waiters === 0 && this.findActive(modelRuntime) === active) {
 				active.controller.abort();
 			}
 		});

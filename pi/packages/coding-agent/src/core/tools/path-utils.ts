@@ -9,8 +9,7 @@ function tryMacOSScreenshotPath(filePath: string): string {
 }
 
 function tryNFDVariant(filePath: string): string {
-	// macOS stores filenames in NFD (decomposed) form, try converting user input to NFD
-	return filePath.normalize("NFD");
+	return filePath;
 }
 
 function tryCurlyQuoteVariant(filePath: string): string {

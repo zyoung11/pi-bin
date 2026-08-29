@@ -35,6 +35,29 @@ import {
 	createCustomMessage,
 } from "./messages.ts";
 
+function entryIdOf(entry: unknown): string | undefined {
+	const record = entry as unknown as Record<string, unknown>;
+	const id = record["id"];
+	return typeof id === "string" ? id : undefined;
+}
+
+function entryParentIdOf(entry: unknown): string | null | undefined {
+	const record = entry as unknown as Record<string, unknown>;
+	const parentId = record["parentId"];
+	return typeof parentId === "string" || parentId === null ? parentId : undefined;
+}
+
+function entryTypeOf(entry: unknown): string | undefined {
+	const record = entry as unknown as Record<string, unknown>;
+	const type = record["type"];
+	return typeof type === "string" ? type : undefined;
+}
+
+function stringifyEntry(entry: unknown): string {
+	return JSON.stringify(entry) ?? "";
+}
+
+
 export const CURRENT_SESSION_VERSION = 3;
 
 export interface SessionHeader {
@@ -386,7 +409,7 @@ function buildSessionPath(
 	let current: SessionEntry | undefined = leaf;
 	while (current) {
 		path.push(current);
-		const currentParentId: string | null = (current as unknown as { parentId: string | null }).parentId;
+		const currentParentId: string | null = entryParentIdOf(current) ?? null;
 		current = currentParentId ? index.get(currentParentId) : undefined;
 	}
 	path.reverse();
@@ -1034,7 +1057,7 @@ export class SessionManager {
 		if (!this.persist || !this.sessionFile) return;
 		const lines: string[] = [];
 		for (const entry of this.fileEntries) {
-			lines.push(`${JSON.stringify(entry as unknown)}\n`);
+			lines.push(`${stringifyEntry(entry)}\n`);
 		}
 		writeFileSync(this.sessionFile, lines.join(""));
 	}
@@ -1069,7 +1092,7 @@ export class SessionManager {
 		const hasAssistant = this.fileEntries.some((e) => e.type === "message" && e.message.role === "assistant");
 		if (!hasAssistant) {
 			if (this.flushed) {
-				appendFileSync(this.sessionFile, `${JSON.stringify(entry as unknown)}\n`);
+				appendFileSync(this.sessionFile, `${stringifyEntry(entry)}\n`);
 			} else {
 				// Mark as not flushed so when assistant arrives, all entries get written
 				this.flushed = false;
@@ -1080,12 +1103,12 @@ export class SessionManager {
 		if (!this.flushed) {
 			const lines: string[] = [];
 			for (const e of this.fileEntries) {
-				lines.push(`${JSON.stringify(e as unknown)}\n`);
+				lines.push(`${stringifyEntry(e)}\n`);
 			}
 			writeFileSync(this.sessionFile, lines.join(""));
 			this.flushed = true;
 		} else {
-			appendFileSync(this.sessionFile, `${JSON.stringify(entry as unknown)}\n`);
+			appendFileSync(this.sessionFile, `${stringifyEntry(entry)}\n`);
 		}
 	}
 
@@ -1312,7 +1335,7 @@ export class SessionManager {
 		let current = startId ? this.byId.get(startId) : undefined;
 		while (current) {
 			path.push(current);
-			const currentParentId: string | null = (current as unknown as { parentId: string | null }).parentId;
+			const currentParentId: string | null = entryParentIdOf(current) ?? null;
 			current = currentParentId ? this.byId.get(currentParentId) : undefined;
 		}
 		path.reverse();
@@ -1374,7 +1397,8 @@ export class SessionManager {
 
 		// Create nodes with resolved labels
 		for (const entry of entries) {
-			const entryId = (entry as unknown as { id: string }).id;
+			const entryId = entryIdOf(entry);
+			if (entryId === undefined) continue;
 			const label = this.labelsById.get(entryId);
 			const labelTimestamp = this.labelTimestampsById.get(entryId);
 			nodeMap.set(entryId, { entry, children: [], label, labelTimestamp });
@@ -1514,7 +1538,7 @@ export class SessionManager {
 
 		if (this.persist) {
 			// Build label entries
-			const lastEntryId = pathWithoutLabels[pathWithoutLabels.length - 1]?.id || null;
+			const lastEntryId = entryIdOf(pathWithoutLabels[pathWithoutLabels.length - 1]) ?? null;
 			let parentId = lastEntryId;
 			const labelEntries: LabelEntry[] = [];
 			for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
@@ -1556,7 +1580,7 @@ export class SessionManager {
 
 		// In-memory mode: replace current session with the path + labels
 		const labelEntries: LabelEntry[] = [];
-		let parentId = pathWithoutLabels[pathWithoutLabels.length - 1]?.id || null;
+		let parentId = entryIdOf(pathWithoutLabels[pathWithoutLabels.length - 1]) ?? null;
 		for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
 			const labelKeys: string[] = [];
 			for (const id of pathEntryIds) labelKeys.push(id);
@@ -1607,7 +1631,7 @@ export class SessionManager {
 				// authoritative for legacy files with very large headers or prefixes.
 				preloadedFileEntries = loadEntriesFromFile(resolvedPath);
 				const firstEntry = preloadedFileEntries[0];
-				const firstType = (firstEntry as unknown as { type?: string } | undefined)?.type;
+				const firstType = entryTypeOf(firstEntry);
 				header = firstType === "session" ? (firstEntry as unknown as SessionHeader) : null;
 			}
 		}
@@ -1657,7 +1681,13 @@ export class SessionManager {
 			throw new Error(`Cannot fork: source session file is empty or invalid: ${resolvedSourcePath}`);
 		}
 
-		const sourceHeader = sourceEntries.find((e) => e.type === "session") as SessionHeader | undefined;
+			let sourceHeader: SessionHeader | undefined;
+	for (const sourceEntry of sourceEntries) {
+		if (entryTypeOf(sourceEntry) === "session") {
+			sourceHeader = sourceEntry as unknown as SessionHeader;
+			break;
+		}
+	}
 		if (!sourceHeader) {
 			throw new Error(`Cannot fork: source session has no header: ${resolvedSourcePath}`);
 		}
@@ -1693,7 +1723,7 @@ export class SessionManager {
 		// Copy all non-header entries from source
 		for (const entry of sourceEntries) {
 			if (entry.type !== "session") {
-				appendFileSync(newSessionFile, `${JSON.stringify(entry as unknown)}\n`);
+				appendFileSync(newSessionFile, `${stringifyEntry(entry)}\n`);
 			}
 		}
 

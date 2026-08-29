@@ -1,5 +1,15 @@
 export type SessionResourceCleanup = (sessionId?: string) => void;
 
+class SessionCleanupError extends Error {
+	errors: unknown[];
+
+	constructor(errors: unknown[]) {
+		super("Failed to cleanup session resources");
+		this.name = "SessionCleanupError";
+		this.errors = errors;
+	}
+}
+
 const sessionResourceCleanups: SessionResourceCleanup[] = [];
 
 export function registerSessionResourceCleanup(cleanup: SessionResourceCleanup): () => void {
@@ -20,6 +30,6 @@ export function cleanupSessionResources(sessionId?: string): void {
 		}
 	}
 	if (errors.length > 0) {
-		throw new AggregateError(errors, "Failed to cleanup session resources");
+		throw new SessionCleanupError(errors);
 	}
 }

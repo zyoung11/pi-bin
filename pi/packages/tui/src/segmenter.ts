@@ -20,11 +20,20 @@ interface CodePointInfo {
 	width: number;
 }
 
+function codePointAt(text: string, index: number): number | undefined {
+	const first = text.charCodeAt(index);
+	if (Number.isNaN(first)) return undefined;
+	if (first < 0xd800 || first > 0xdbff) return first;
+	const second = text.charCodeAt(index + 1);
+	if (Number.isNaN(second) || second < 0xdc00 || second > 0xdfff) return first;
+	return (first - 0xd800) * 0x400 + (second - 0xdc00) + 0x10000;
+}
+
 function codePointInfos(text: string): CodePointInfo[] {
 	const out: CodePointInfo[] = [];
 	let index = 0;
 	while (index < text.length) {
-		const cp = text.codePointAt(index) ?? 0;
+		const cp = codePointAt(text, index) ?? 0;
 		const width = cp > 0xffff ? 2 : 1;
 		out.push({ cp, text: text.slice(index, index + width), index, width });
 		index += width;

@@ -300,7 +300,11 @@ export function registerKittyImageMetadata(metadata: KittyImageMetadata): void {
 	kittyImageMetadata.delete(metadata.imageId);
 	kittyImageMetadata.set(metadata.imageId, { ...metadata, transmissionGeneration: kittyTransmissionGeneration });
 	if (kittyImageMetadata.size > 1000) {
-		const oldestImageId = kittyImageMetadata.keys().next().value;
+		let oldestImageId: number | undefined;
+		for (const entry of kittyImageMetadata) {
+			oldestImageId = entry[0];
+			break;
+		}
 		if (oldestImageId !== undefined) kittyImageMetadata.delete(oldestImageId);
 	}
 }

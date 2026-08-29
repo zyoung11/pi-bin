@@ -24,8 +24,17 @@ export function getWordSegmenter(): TextSegmenter {
  * The tested Unicode blocks are deliberately broad to account for future
  * Unicode additions.
  */
+function codePointAt(text: string, index: number): number | undefined {
+	const first = text.charCodeAt(index);
+	if (Number.isNaN(first)) return undefined;
+	if (first < 0xd800 || first > 0xdbff) return first;
+	const second = text.charCodeAt(index + 1);
+	if (Number.isNaN(second) || second < 0xdc00 || second > 0xdfff) return first;
+	return (first - 0xd800) * 0x400 + (second - 0xdc00) + 0x10000;
+}
+
 function couldBeEmoji(segment: string): boolean {
-	const cp = segment.codePointAt(0)!;
+	const cp = codePointAt(segment, 0) ?? 0;
 	return (
 		(cp >= 0x1f000 && cp <= 0x1fbff) || // Emoji and Pictograph
 		(cp >= 0x2300 && cp <= 0x23ff) || // Misc technical
@@ -207,7 +216,7 @@ function graphemeWidth(segment: string): number {
 
 	// Get base visible codepoint
 	const base = segment.replace(leadingNonPrintingRegex, "");
-	const cp = base.codePointAt(0);
+	const cp = codePointAt(base, 0);
 	if (cp === undefined) {
 		return 0;
 	}
@@ -234,7 +243,7 @@ function graphemeWidth(segment: string): number {
 		} else if (markCharRegex.test(char)) {
 			followsMark = true;
 		} else if (!nonPrintingCharRegex.test(char)) {
-			const c = char.codePointAt(0)!;
+			const c = codePointAt(char, 0) ?? 0;
 			if (followsMark || (c >= 0xff00 && c <= 0xffef)) {
 				// halfwidth + fullwidth forms
 				width += eastAsianWidth(c);
@@ -298,7 +307,11 @@ export function visibleWidth(str: string): number {
 
 	// Cache result
 	if (widthCache.size >= WIDTH_CACHE_SIZE) {
-		const firstKey = widthCache.keys().next().value;
+		let firstKey: string | undefined;
+		for (const entry of widthCache) {
+			firstKey = entry[0];
+			break;
+		}
 		if (firstKey !== undefined) {
 			widthCache.delete(firstKey);
 		}

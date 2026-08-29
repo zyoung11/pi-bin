@@ -717,15 +717,17 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 		let previousNodeIsMatrix = false;
 		for (const match of sourceLine.matchAll(LAYOUT_MARKER_PATTERN)) {
 			const index = match.index;
-			const node = nodes[Number(match[1])];
-			if (!node) {
+			const nodeValue: unknown = nodes[Number(match[1])];
+			const node = nodeValue as Record<string, unknown> | undefined;
+			if (node === undefined) {
 				continue;
 			}
+			const nodeType = node["type"];
 			if (index > position) {
 				const sliced = sourceLine.slice(position, index);
 				const trimmed = previousNodeIsMatrix ? sliced.trimStart() : sliced;
 				const preserveLeadingSpace = previousNodeIsMatrix && /^\s/.test(sliced);
-				const preserveTrailingSpace = node.type === "matrix" && /\s$/.test(sliced);
+				const preserveTrailingSpace = nodeType === "matrix" && /\s$/.test(sliced);
 				const text = trimmed
 					? `${preserveLeadingSpace ? " " : ""}${trimmed}${preserveTrailingSpace ? " " : ""}`
 					: preserveLeadingSpace || preserveTrailingSpace
@@ -733,9 +735,9 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 						: "";
 				layouts.push({ lines: [text], width: visibleWidth(text), baseline: 0 });
 			}
-			if (node.type === "fraction") {
-				const numerator = renderLayout(node.numerator, nodes);
-				const denominator = renderLayout(node.denominator, nodes);
+			if (nodeType === "fraction") {
+				const numerator = renderLayout(node["numerator"] as string, nodes);
+				const denominator = renderLayout(node["denominator"] as string, nodes);
 				const contentWidth = Math.max(numerator.width, denominator.width, 1);
 				const width = contentWidth + 2;
 				layouts.push({
@@ -747,35 +749,48 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 					width,
 					baseline: numerator.lines.length,
 				});
-			} else if (node.type === "operator") {
+			} else if (nodeType === "operator") {
+				const operatorText = node["operator"];
+				const lowerValue = node["lower"];
+				const upperValue = node["upper"];
+				const operator = typeof operatorText === "string" ? operatorText : "";
+				const lower = typeof lowerValue === "string" ? lowerValue : undefined;
+				const upper = typeof upperValue === "string" ? upperValue : undefined;
 				const contentWidth = Math.max(
-					visibleWidth(node.operator),
-					node.lower === undefined ? 0 : visibleWidth(node.lower),
-					node.upper === undefined ? 0 : visibleWidth(node.upper),
+					visibleWidth(operator),
+					lower === undefined ? 0 : visibleWidth(lower),
+					upper === undefined ? 0 : visibleWidth(upper),
 				);
 				const lines: string[] = [];
-				if (node.upper !== undefined) {
-					lines.push(`${padLayoutLine(node.upper, contentWidth, true)} `);
+				if (upper !== undefined) {
+					lines.push(`${padLayoutLine(upper, contentWidth, true)} `);
 				}
-				lines.push(`${padLayoutLine(node.operator, contentWidth, true)} `);
-				if (node.lower !== undefined) {
-					lines.push(`${padLayoutLine(node.lower, contentWidth, true)} `);
+				lines.push(`${padLayoutLine(operator, contentWidth, true)} `);
+				if (lower !== undefined) {
+					lines.push(`${padLayoutLine(lower, contentWidth, true)} `);
 				}
 				layouts.push({
 					lines,
 					width: contentWidth + 1,
-					baseline: node.upper === undefined ? 0 : 1,
+					baseline: upper === undefined ? 0 : 1,
 				});
 			} else {
-				const width = Math.max(0, ...node.lines.map((line) => visibleWidth(line)));
+				const linesValue = node["lines"];
+				const matrixLines = Array.isArray(linesValue) ? (linesValue as string[]) : [];
+				let width = 0;
+				for (const line of matrixLines) {
+					const lineWidth = visibleWidth(line);
+					if (lineWidth > width) width = lineWidth;
+				}
+				const baselineValue = node["baseline"];
 				layouts.push({
-					lines: node.lines.map((line) => padLayoutLine(line, width)),
+					lines: matrixLines.map((line) => padLayoutLine(line, width)),
 					width,
-					baseline: node.baseline,
+					baseline: typeof baselineValue === "number" ? baselineValue : 0,
 				});
 			}
 			position = index + match[0].length;
-			previousNodeIsMatrix = node.type === "matrix";
+			previousNodeIsMatrix = nodeType === "matrix";
 		}
 		if (position < sourceLine.length) {
 			const sliced = sourceLine.slice(position);

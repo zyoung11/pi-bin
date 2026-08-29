@@ -475,7 +475,7 @@ import type { PiSchema } from "./schema.ts";
 /** OpenAI grammar variants for constrained sampling. */
 export type GrammarFormat = "openai_lark" | "openai_regex";
 
-export type GrammarVariants = Partial<Record<GrammarFormat, string>>;
+export type GrammarVariants = { openai_lark?: string; openai_regex?: string };
 
 /**
  * Optional provider-side constrained sampling configs for a tool.

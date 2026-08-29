@@ -157,22 +157,20 @@ export function getShellEnv(): NodeJS.ProcessEnv {
  * - Unicode Format characters (crash string-width due to a bug)
  * - Characters with undefined code points
  */
+function codePointAt(text: string, index: number): number | undefined {
+	const first = text.charCodeAt(index);
+	if (Number.isNaN(first)) return undefined;
+	if (first < 0xd800 || first > 0xdbff) return first;
+	const second = text.charCodeAt(index + 1);
+	if (Number.isNaN(second) || second < 0xdc00 || second > 0xdfff) return first;
+	return (first - 0xd800) * 0x400 + (second - 0xdc00) + 0x10000;
+}
+
 export function sanitizeBinaryOutput(str: string): string {
-	// Use Array.from to properly iterate over code points (not code units)
-	// This handles surrogate pairs correctly and catches edge cases where
-	// codePointAt() might return undefined
 	return Array.from(str)
 		.filter((char) => {
-			// Filter out characters that cause string-width to crash
-			// This includes:
-			// - Unicode format characters
-			// - Lone surrogates (already filtered by Array.from)
-			// - Control chars except \t \n \r
-			// - Characters with undefined code points
+			const code = codePointAt(char, 0);
 
-			const code = char.codePointAt(0);
-
-			// Skip if code point is undefined (edge case with invalid strings)
 			if (code === undefined) return false;
 
 			// Allow tab, newline, carriage return

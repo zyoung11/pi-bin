@@ -324,7 +324,7 @@ export function migrateKeybindingsConfig(rawConfig: Record<string, unknown>): {
 		if (nextKey !== key) {
 			migrated = true;
 		}
-		if (key !== nextKey && Object.hasOwn(rawConfig, nextKey)) {
+		if (key !== nextKey && rawConfig[nextKey] !== undefined) {
 			migrated = true;
 			continue;
 		}
@@ -337,13 +337,13 @@ export function migrateKeybindingsConfig(rawConfig: Record<string, unknown>): {
 function orderKeybindingsConfig(config: Record<string, unknown>): Record<string, unknown> {
 	const ordered: Record<string, unknown> = {};
 	for (const keybinding of Object.keys(KEYBINDINGS)) {
-		if (Object.hasOwn(config, keybinding)) {
+		if (config[keybinding] !== undefined) {
 			ordered[keybinding] = config[keybinding];
 		}
 	}
 
 	const extras = Object.keys(config)
-		.filter((key) => !Object.hasOwn(ordered, key))
+		.filter((key) => ordered[key] === undefined)
 		.sort();
 	for (const key of extras) {
 		ordered[key] = config[key];
