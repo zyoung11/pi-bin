@@ -84,6 +84,16 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第十九轮记录（2026-09-01：290→280，openai-completions + openai-http 双双清零）
+
+- **发现并修复第十五轮事故残留的结构损坏**：`retryProviderRequest`/`onResponse`/start push 原被困在 onChunk 箭头函数体内（自引用→运行时无限递归），收尾逻辑边界错位；本轮归位为 onChunk（guard+chunk 处理）→ start push → retry → onResponse → 收尾的正确结构。HEAD 上的 290 基线实际是在该损坏状态上测得的（编译可过但运行时已死）
+- **openai npm 类型全量本地化**：删除 `openai/resources/chat/completions.js` import；chunk 类型（Chunk/Delta/Choice/Usage）定义在 openai-http.ts 并导出共用，消息参数类型（System/Developer/User/Tool/Assistant/MessageParam/ContentPart/MessageToolCall）本地化到 openai-completions.ts；ContentPart 文本臂加 cache_control 可选字段，彻底消除 WithReasoning/WithCacheControl 交叉别名
+- **SC2009 变参误判根因定位（探针二分 + 编译器源码）**：`bodyReadsArgumentsLocal` 把函数体中**任何名为 `arguments` 的标识符**判为读取 arguments 对象——对象字面量键 `arguments:` 也命中（仅 `x.arguments` 属性访问豁免）；且读取 `.function` 成员同样触发（函数值被上下文引用时）。解法：① 字面量键改 `"["arguments"]:` 字符串键形式 ② `StreamingToolCallDelta` 改名 fn/args + normalizeToolCallDelta（unknown 入参 + Record 双跳读）在 onChunk 入口归一化 ③ StreamingToolCallBlock 本地化不 extends ToolCall
+- **buildParams 完成括号写改造**：全部 `(params as any).x = v` 与 cast 别名（zaiParams/basetenParams/openRouterParams/togetherParams/stringThinkingParams）改为 `params["x"] = v` bracket 写；`Object.assign(params, {[field]: budget})` 改 `params[field] = budget`；resolveClampedThinkingBudget 参数改 Record<string, unknown> + typeof 读
+- **其余模式**：filter 类型谓词/回调值收窄→for-of + 判别式 push（assistantTextParts/thinkingBlocks/toolCalls/legacyReasoningDetails/textParts）；transformMessages 回调补全 3 参签名；`.find` on union、`??=`/`||=` 全部写出；switch on unknown → if/else bracket 读；OpenAIReasoningDetail 三臂扁平化（消 Record 交叉）+ structuredClone 替代 union spread；getToolsByName 重写（去 Iterable/Array.from）；catch 绑定 cast → readRawMetadata(unknown) 辅助 + HttpError extends Error 类（对齐 SessionError 模式）；TextDecoder stream:true → 手写 UTF-8 尾部不完整序列缓冲（incompleteUtf8TailLength）；globalThis.fetch 值引用 → customFetch if/else 分支；removeEventListener 无 lowering 直接移除（abort 监听器一次性语义不变）
+- **验证**：tsgo --noEmit src 清零；`--list-models` OK；MiniCPM5-1B print 模式真跑对话往返 + bash tool_call 流式执行 OK
+- **总账 290→280**，openai-completions.ts（28→0）与 openai-http.ts（揭开 7→0）清零；剩余分布：session-manager(12)/main(10)/model-runtime(9)/provider-retry(9 揭幕新增)/provider-composer(8)/package-manager(8)/config(8)/constrained-sampling(8)
+
 ## 阶段 5 grind 第十八轮记录（2026-08-31 深夜终五：274→290）
 
 - **openai-completions 回调化完成**：streamOpenAIChatCompletions 改为接受 onChunk 回调参数并返回 void；Response/AsyncGenerator/迭代器协议完全消除；SSE 解析内嵌
