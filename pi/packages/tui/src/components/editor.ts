@@ -9,6 +9,7 @@ import {
 	getGraphemeSegmenter,
 	getWordSegmenter,
 	isWhitespaceChar,
+	parseDecimalInt,
 	sliceByColumn,
 	visibleWidth,
 } from "../utils.ts";
@@ -50,8 +51,8 @@ function segmentWithMarkers(
 	// Find all marker spans with valid IDs.
 	const markers: Array<{ start: number; end: number }> = [];
 	for (const m of text.matchAll(PASTE_MARKER_REGEX)) {
-		const id = Number.parseInt(m[1]!, 10);
-		if (!validIds.has(id)) continue;
+		const id = parseDecimalInt(m[1] ?? "");
+		if (id === undefined || !validIds.has(id)) continue;
 		markers.push({ start: m.index, end: m.index + m[0].length });
 	}
 	if (markers.length === 0) {
@@ -298,7 +299,7 @@ export class Editor extends Component implements Focusable {
 	private autocompleteState: "regular" | "force" | null = null;
 	private autocompletePrefix: string = "";
 	private autocompleteMaxVisible: number = 5;
-	private autocompleteAbort?: AbortController;
+	private autocompleteAbort?: { abort: () => void };
 	private autocompleteDebounceTimer?: ReturnType<typeof setTimeout>;
 	private autocompleteRequestTask: Promise<void> = Promise.resolve();
 	private autocompleteStartToken: number = 0;
@@ -335,7 +336,23 @@ export class Editor extends Component implements Focusable {
 	private snappedFromCursorCol: number | null = null;
 
 	// Undo support
-	private undoStack = new UndoStack<EditorSnapshot>();
+	private cloneSnapshot = (snapshot: EditorSnapshot): EditorSnapshot => {
+		const pastesCopy: Map<number, string> = new Map();
+		for (const [pasteId, pasteContent] of snapshot.pastes) {
+			pastesCopy.set(pasteId, pasteContent);
+		}
+		return {
+			state: {
+				lines: [...snapshot.state.lines],
+				cursorLine: snapshot.state.cursorLine,
+				cursorCol: snapshot.state.cursorCol,
+			},
+			pastes: pastesCopy,
+			pasteCounter: snapshot.pasteCounter,
+		};
+	};
+
+	private undoStack = new UndoStack<EditorSnapshot>((snapshot) => this.cloneSnapshot(snapshot));
 
 	public onSubmit?: (text: string) => void;
 	public onChange?: (text: string) => void;
@@ -354,7 +371,11 @@ export class Editor extends Component implements Focusable {
 
 	/** Set of currently valid paste IDs, for marker-aware segmentation. */
 	private validPasteIds(): Set<number> {
-		return new Set(this.pastes.keys());
+		const ids = new Set<number>();
+		for (const [id] of this.pastes) {
+			ids.add(id);
+		}
+		return ids;
 	}
 
 	/** Segment text with paste-marker awareness, only merging markers with valid IDs. */
@@ -2217,7 +2238,7 @@ export class Editor extends Component implements Focusable {
 			}
 
 			const controller = new AbortController();
-			this.autocompleteAbort = controller;
+			this.autocompleteAbort = { abort: () => controller.abort() };
 			const requestId = ++this.autocompleteRequestId;
 			const snapshotText = this.getText();
 			const snapshotLine = this.state.cursorLine;
@@ -2337,7 +2358,8 @@ export class Editor extends Component implements Focusable {
 			clearTimeout(this.autocompleteDebounceTimer);
 			this.autocompleteDebounceTimer = undefined;
 		}
-		this.autocompleteAbort?.abort();
+		const pendingAbort = this.autocompleteAbort;
+		if (pendingAbort !== undefined) pendingAbort.abort();
 		this.autocompleteAbort = undefined;
 	}
 

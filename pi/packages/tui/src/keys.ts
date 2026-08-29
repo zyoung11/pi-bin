@@ -1140,8 +1140,9 @@ export function matchesKey(data: string, keyId: KeyId): boolean {
 			if (modifier !== 0) {
 				return false;
 			}
-			const functionKey = key as keyof typeof LEGACY_KEY_SEQUENCES;
-			return matchesLegacySequence(data, LEGACY_KEY_SEQUENCES[functionKey]);
+			const legacyTable = LEGACY_KEY_SEQUENCES as unknown as Record<string, readonly string[]>;
+			const sequences = legacyTable[key];
+			return sequences !== undefined ? matchesLegacySequence(data, sequences) : false;
 		}
 	}
 

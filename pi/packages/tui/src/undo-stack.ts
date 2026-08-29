@@ -6,10 +6,15 @@
  */
 export class UndoStack<S> {
 	private stack: S[] = [];
+	private cloneState: (state: S) => S;
+
+	constructor(cloneState: (state: S) => S) {
+		this.cloneState = cloneState;
+	}
 
 	/** Push a deep clone of the given state onto the stack. */
 	push(state: S): void {
-		this.stack.push(structuredClone(state));
+		this.stack.push(this.cloneState(state));
 	}
 
 	/** Pop and return the most recent snapshot, or undefined if empty. */
@@ -19,7 +24,7 @@ export class UndoStack<S> {
 
 	/** Remove all snapshots. */
 	clear(): void {
-		this.stack.length = 0;
+		this.stack = [];
 	}
 
 	get length(): number {

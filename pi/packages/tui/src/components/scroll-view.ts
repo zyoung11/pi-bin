@@ -1,4 +1,4 @@
-import { LAYOUT_NODE, type ScrollLayoutNode } from "../layout-node.ts";
+import { type ScrollLayoutNode } from "../layout-node.ts";
 import { type Component, Container } from "../tui.ts";
 
 export type ScrollViewScrollbar = "hidden" | "auto" | "always";
@@ -210,7 +210,7 @@ export class ScrollView extends Container {
 		return contentWidth === width ? lines : lines.map((line) => `${line} `);
 	}
 
-	[LAYOUT_NODE](): ScrollLayoutNode {
+	getLayoutNode(): ScrollLayoutNode {
 		return { type: "scroll", component: this.child, state: this };
 	}
 }

@@ -12,39 +12,35 @@ import type { Api,
 	AuthEvent, AuthPrompt
 } from "../../../../ai/src/index.ts"
 import type { AssistantMessage, ImageContent, Message, Model, Usage } from "../../../../ai/src/compat.ts";
-import type {
-	AutocompleteItem,
-	AutocompleteProvider,
-	EditorComponent,
-	Keybinding,
-	KeyId,
-	MarkdownTheme,
-	OverlayHandle,
-	OverlayOptions,
-	SlashCommand,
-	Terminal,
-	TuiMainScreenRenderState,
-} from "../../../../tui/src/index.ts";
-import * as TuiLayouts from "../../../../tui/src/index.ts";
 import {
+	type AutocompleteItem,
+	type AutocompleteProvider,
 	CombinedAutocompleteProvider,
+	type SlashCommand,
+} from "../../../../tui/src/autocomplete.ts";
+import { Markdown, type MarkdownTheme } from "../../../../tui/src/components/markdown.ts";
+import { ScrollView } from "../../../../tui/src/components/scroll-view.ts";
+import { Spacer } from "../../../../tui/src/components/spacer.ts";
+import { Text } from "../../../../tui/src/components/text.ts";
+import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
+import { VStack } from "../../../../tui/src/components/v-stack.ts";
+import { type EditorComponent } from "../../../../tui/src/editor-component.ts";
+import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
+import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
+import { type KeyId, matchesKey } from "../../../../tui/src/keys.ts";
+import { ProcessTerminal, type Terminal } from "../../../../tui/src/terminal.ts";
+import { getCapabilities, hyperlink } from "../../../../tui/src/terminal-image.ts";
+import {
 	type Component,
 	Container,
-	fuzzyFilter,
-	getCapabilities,
-	hyperlink,
-	Markdown,
-	matchesKey,
-	ProcessTerminal,
-	Spacer,
-	setKeybindings,
-	Text,
-	TruncatedText,
+	type OverlayHandle,
+	type OverlayOptions,
 	type TUI,
-	TuiAltScreen,
-	TuiMainScreen,
-	visibleWidth,
-} from "../../../../tui/src/index.ts";
+	isViewportTUI,
+} from "../../../../tui/src/tui.ts";
+import { TuiAltScreen } from "../../../../tui/src/tui-alt-screen.ts";
+import { TuiMainScreen, type TuiMainScreenRenderState } from "../../../../tui/src/tui-main-screen.ts";
+import { visibleWidth } from "../../../../tui/src/utils.ts";
 import chalk from "../../utils/mini-chalk.ts";
 import { spawn } from "child_process";
 import {
@@ -204,22 +200,29 @@ type CompactionCostNotice = {
 
 type RenderSessionItem = AgentMessage | Extract<SessionEntry, { type: "custom" }> | CompactionCostNotice;
 
+function renderItemType(item: unknown): string | undefined {
+	const record = item as unknown as Record<string, unknown>;
+	const type = record["type"];
+	return typeof type === "string" ? type : undefined;
+}
+
 function isCustomSessionEntry(item: RenderSessionItem): item is Extract<SessionEntry, { type: "custom" }> {
-	return "type" in item && item.type === "custom";
+	return renderItemType(item) === "custom";
 }
 
 function isCompactionCostNotice(item: RenderSessionItem): item is CompactionCostNotice {
-	return "type" in item && item.type === "compaction_cost";
+	return renderItemType(item) === "compaction_cost";
 }
 
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN"]);
 
 function isDeadTerminalError(error: unknown): boolean {
-	if (!error || typeof error !== "object" || !("code" in error)) {
+	if (!error || typeof error !== "object") {
 		return false;
 	}
-	const code = (error as NodeJS.ErrnoException).code;
-	return code !== undefined && DEAD_TERMINAL_ERROR_CODES.has(code);
+	const record = error as unknown as Record<string, unknown>;
+	const code = record["code"];
+	return typeof code === "string" && DEAD_TERMINAL_ERROR_CODES.has(code);
 }
 
 const ANTHROPIC_SUBSCRIPTION_AUTH_WARNING =
@@ -303,7 +306,11 @@ function getLoginProviderCompletionOptions(
 			authTypes: [provider.authType],
 		});
 	}
-	return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+	const providerList: LoginProviderCompletionOption[] = [];
+	for (const value of byId.values()) {
+		providerList.push(value);
+	}
+	return providerList.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getLoginProviderSearchText(provider: LoginProviderCompletionOption): string {
@@ -442,7 +449,7 @@ export class InteractiveMode {
 	private loadedResourcesContainer: Container;
 	private chatContainer: Container;
 	private documentContainer: Container;
-	private transcriptScrollView: TuiLayouts.ScrollView | undefined;
+	private transcriptScrollView: ScrollView | undefined;
 	private fullscreenLayoutRoot: Component | undefined;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
@@ -668,11 +675,14 @@ export class InteractiveMode {
 
 	private createBaseAutocompleteProvider(): AutocompleteProvider {
 		// Define commands for autocomplete
-		const slashCommands: SlashCommand[] = BUILTIN_SLASH_COMMANDS.map((command) => ({
-			name: command.name,
-			description: command.description,
-			...(command.argumentHint && { argumentHint: command.argumentHint }),
-		}));
+		const slashCommands: SlashCommand[] = BUILTIN_SLASH_COMMANDS.map((command) => {
+			const item: SlashCommand = {
+				name: command.name,
+				description: command.description,
+			};
+			if (command.argumentHint !== undefined) item.argumentHint = command.argumentHint;
+			return item;
+		});
 
 		const modelCommand = slashCommands.find((command) => command.name === "model");
 		if (modelCommand) {
@@ -728,11 +738,14 @@ export class InteractiveMode {
 		}
 
 		// Convert prompt templates to SlashCommand format for autocomplete
-		const templateCommands: SlashCommand[] = this.session.promptTemplates.map((cmd) => ({
-			name: cmd.name,
-			description: this.prefixAutocompleteDescription(cmd.description, cmd.sourceInfo),
-			...(cmd.argumentHint && { argumentHint: cmd.argumentHint }),
-		}));
+		const templateCommands: SlashCommand[] = this.session.promptTemplates.map((cmd) => {
+			const item: SlashCommand = {
+				name: cmd.name,
+				description: this.prefixAutocompleteDescription(cmd.description, cmd.sourceInfo),
+			};
+			if (cmd.argumentHint !== undefined) item.argumentHint = cmd.argumentHint;
+			return item;
+		});
 
 		// Build skill commands from session.skills (if enabled)
 		this.skillCommands.clear();
@@ -805,7 +818,7 @@ export class InteractiveMode {
 
 	private mountInteractiveTui(tui: TuiMainScreen | TuiAltScreen, components: readonly Component[]): void {
 		for (const component of components) tui.addChild(component);
-		if (TuiLayouts.isViewportTUI(tui)) {
+		if (isViewportTUI(tui)) {
 			if (!this.fullscreenLayoutRoot) throw new Error("Fullscreen layout is not initialized");
 			tui.setLayoutRoot(this.fullscreenLayoutRoot);
 		}
@@ -838,7 +851,7 @@ export class InteractiveMode {
 		previousUi.stopWithOptions({ preserveScreen: true });
 		previousUi.setFocus(null);
 		previousUi.clear();
-		if (TuiLayouts.isViewportTUI(previousUi)) previousUi.setLayoutRoot(undefined);
+		if (isViewportTUI(previousUi)) previousUi.setLayoutRoot(undefined);
 
 		const nextUi = createInteractiveTui({
 			tuiMode: mode,
@@ -895,14 +908,14 @@ export class InteractiveMode {
 
 		// Keep one component tree and remount it when changing renderers.
 		this.renderWidgets(); // Initialize with default spacer
-		this.transcriptScrollView = new TuiLayouts.ScrollView(this.documentContainer, {
+		this.transcriptScrollView = new ScrollView(this.documentContainer, {
 			follow: "end",
 			primary: true,
 			overscroll: "chain",
 			scrollbar: this.settingsManager.getFullscreenScrollbar(),
 			scrollbarStyle: (text) => theme.bg("scrollbarThumb", text),
 		});
-		const dock = new TuiLayouts.VStack([
+		const dock = new VStack([
 			{ component: this.pendingMessagesContainer, shrink: 1, minSize: 0 },
 			{ component: this.statusContainer, shrink: 1, minSize: 0 },
 			{ component: this.widgetContainerAbove, shrink: 1, minSize: 0 },
@@ -910,7 +923,7 @@ export class InteractiveMode {
 			{ component: this.widgetContainerBelow, shrink: 1, minSize: 0 },
 			{ component: this.footerContainer, shrink: 1, minSize: 1 },
 		]);
-		this.fullscreenLayoutRoot = new TuiLayouts.VStack([
+		this.fullscreenLayoutRoot = new VStack([
 			{ component: this.transcriptScrollView, basis: 0, grow: 1, shrink: 1, minSize: 1 },
 			{ component: dock, basis: "auto", grow: 0, shrink: 1, minSize: 1 },
 		]);

@@ -31,7 +31,12 @@ export class Input extends Component implements Focusable {
 	private lastAction: "kill" | "yank" | "type-word" | null = null;
 
 	// Undo support
-	private undoStack = new UndoStack<InputState>();
+	private cloneInputState = (state: InputState): InputState => ({
+		value: state.value,
+		cursor: state.cursor,
+	});
+
+	private undoStack = new UndoStack<InputState>((state) => this.cloneInputState(state));
 
 	getValue(): string {
 		return this.value;

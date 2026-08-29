@@ -90,7 +90,7 @@ export class SettingsList extends Component {
 	}
 
 	invalidate(): void {
-		this.submenuComponent?.invalidate?.();
+		if (this.submenuComponent !== undefined && this.submenuComponent !== null) this.submenuComponent.invalidate();
 	}
 
 	render(width: number): string[] {

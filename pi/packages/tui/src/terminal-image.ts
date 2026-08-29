@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { isAbsolute } from "node:path";
-import { pathToFileURL } from "node:url";
+import { parseDecimalInt } from "./utils.ts";
 
 export type ImageProtocol = "kitty" | "iterm2" | null;
 
@@ -313,7 +313,9 @@ function getRegisteredKittyImageMetadata(line: string): RegisteredKittyImageMeta
 	const controls = /\x1b_G([^;]*);/.exec(line)?.[1];
 	if (!controls) return undefined;
 	const imageId = /(?:^|,)i=(\d+)(?:,|$)/.exec(controls)?.[1];
-	return imageId === undefined ? undefined : kittyImageMetadata.get(Number.parseInt(imageId, 10));
+	if (imageId === undefined) return undefined;
+	const parsedImageId = parseDecimalInt(imageId);
+	return parsedImageId === undefined ? undefined : kittyImageMetadata.get(parsedImageId);
 }
 
 export function getKittyImageMetadata(line: string): KittyImageMetadata | undefined {
@@ -354,7 +356,9 @@ export function getKittyImagePlacement(line: string): KittyImagePlacement | unde
 	const metadata = getRegisteredKittyImageMetadata(line);
 	if (!match || !metadata) return undefined;
 
-	let commandStart = match.index;
+	const matchIndex = line.indexOf("\x1b_G");
+	if (matchIndex === -1) return undefined;
+	let commandStart = matchIndex;
 	let commandControls = match[1];
 	let transmissionEnd: number;
 	while (true) {
@@ -363,7 +367,7 @@ export function getKittyImagePlacement(line: string): KittyImagePlacement | unde
 		transmissionEnd = terminator + 2;
 		if (!/(?:^|,)m=1(?:,|$)/.test(commandControls)) break;
 		commandStart = transmissionEnd;
-		if (!line.startsWith(KITTY_PREFIX, commandStart)) return undefined;
+		if (!line.slice(commandStart).startsWith(KITTY_PREFIX)) return undefined;
 		const controlsEnd = line.indexOf(";", commandStart + KITTY_PREFIX.length);
 		if (controlsEnd === -1) return undefined;
 		commandControls = line.slice(commandStart + KITTY_PREFIX.length, controlsEnd);
@@ -376,10 +380,10 @@ export function getKittyImagePlacement(line: string): KittyImagePlacement | unde
 	return {
 		imageId: metadata.imageId,
 		transmissionGeneration: metadata.transmissionGeneration,
-		transmissionBytes: transmissionEnd - match.index,
+		transmissionBytes: transmissionEnd - matchIndex,
 		estimatedDecodedBytes: metadata.widthPx * metadata.heightPx * 4,
 		sequence,
-		replacementLine: `${line.slice(0, match.index)}${sequence}${line.slice(transmissionEnd)}`,
+		replacementLine: `${line.slice(0, matchIndex)}${sequence}${line.slice(transmissionEnd)}`,
 	};
 }
 
@@ -394,7 +398,9 @@ export function cropKittyImageLine(line: string, hiddenRows: number, visibleRows
 	const sourceHeight = Math.max(1, Math.min(metadata.heightPx, sourceEnd) - sourceY);
 	const controls = match[1].split(",").filter((control) => !/^[yhr]=/.test(control));
 	controls.push(`y=${sourceY}`, `h=${sourceHeight}`, `r=${croppedRows}`);
-	return `${line.slice(0, match.index)}\x1b_G${controls.join(",")};${line.slice(match.index + match[0].length)}`;
+	const matchIndex = line.indexOf("\x1b_G");
+	if (matchIndex === -1) return "";
+	return `${line.slice(0, matchIndex)}\x1b_G${controls.join(",")};${line.slice(matchIndex + match[0].length)}`;
 }
 
 export function calculateImageCellSize(
@@ -650,7 +656,7 @@ export function imageFallback(mimeType: string, dimensions?: ImageDimensions, fi
 	if (filename) {
 		const display = shortenImagePath(filename);
 		if (getCapabilities().hyperlinks && isAbsolute(filename)) {
-			parts.push(hyperlink(display, pathToFileURL(filename).href));
+			parts.push(hyperlink(display, `file://${filename}`));
 		} else {
 			parts.push(display);
 		}

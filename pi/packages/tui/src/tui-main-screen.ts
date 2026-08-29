@@ -184,7 +184,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		return ids;
 	}
 
-	private deleteKittyImages(ids: Iterable<number>): string {
+	private deleteKittyImages(ids: Set<number>): string {
 		let buffer = "";
 		for (const id of ids) {
 			buffer += deleteKittyImage(id);
@@ -568,7 +568,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		if (process.env.PI_TUI_DEBUG === "1") {
 			const debugDir = "/tmp/tui";
 			fs.mkdirSync(debugDir, { recursive: true });
-			const debugPath = path.join(debugDir, `render-${Date.now()}-${Math.random().toString(36).slice(2)}.log`);
+			const debugPath = path.join(debugDir, `render-${Date.now()}.log`);
 			const debugData = [
 				`firstChanged: ${firstChanged}`,
 				`viewportTop: ${viewportTop}`,

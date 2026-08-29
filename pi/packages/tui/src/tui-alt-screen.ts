@@ -35,7 +35,6 @@ import {
 	type OverlayHandle,
 	TuiBase,
 	type TuiStopOptions,
-	VIEWPORT_TUI,
 	type ViewportTUI,
 } from "./tui.ts";
 import {
@@ -46,6 +45,7 @@ import {
 	sliceByColumn,
 	stripTerminalSequences,
 	visibleWidth,
+	parseDecimalInt,
 } from "./utils.ts";
 
 const ENTER_ALT_SCREEN = "\x1b[?1049h";
@@ -185,7 +185,6 @@ class ImplicitDocumentComponent extends Component {
 
 export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	readonly mode = "fullscreen" as const;
-	readonly [VIEWPORT_TUI] = true as const;
 	private previousScreen: string[] = [];
 	private lastDocument: string[] = [];
 	private previousScreenWidth = 0;
@@ -335,7 +334,7 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		} else {
 			const width = Math.max(1, this.terminal.columns);
 			const documentLines = this.render(width).map((line) => line.replace(OSC133_ZONE_PREFIX, ""));
-			this.lastDocument = this.applyLineResets(documentLines.map((line) => line.replaceAll(CURSOR_MARKER, ""))).map(
+			this.lastDocument = this.applyLineResets(documentLines.map((line) => line.split(CURSOR_MARKER).join(""))).map(
 				(line) => (isImageLine(line) || visibleWidth(line) <= width ? line : sliceByColumn(line, 0, width, true)),
 			);
 			let buffer = `${BEGIN_SYNCHRONIZED_OUTPUT}${EXIT_ALT_SCREEN}${DISABLE_AUTOWRAP}`;
@@ -667,14 +666,14 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 	private parseWheelEvent(data: string): WheelEvent | undefined {
 		const sgr = /^\x1b\[<(\d+);(\d+);(\d+)[Mm]$/.exec(data);
 		if (sgr) {
-			const button = Number.parseInt(sgr[1], 10);
+			const button = parseDecimalInt(sgr[1]) ?? 0;
 			if ((button & 64) === 0) return undefined;
 			const direction = button & 3;
 			if (direction !== 0 && direction !== 1) return undefined;
 			return {
 				direction: direction === 0 ? -1 : 1,
-				x: Number.parseInt(sgr[2], 10) - 1,
-				y: Number.parseInt(sgr[3], 10) - 1,
+				x: (parseDecimalInt(sgr[2]) ?? 1) - 1,
+				y: (parseDecimalInt(sgr[3]) ?? 1) - 1,
 			};
 		}
 		if (data.length === 6 && data.startsWith("\x1b[M")) {
@@ -693,14 +692,14 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 
 	private routeWheel(event: WheelEvent): void {
 		let remaining = event.direction * this.wheelScrollLines;
-		const seen = new Set<ScrollView>();
+		const seen: ScrollView[] = [];
 		for (const scrollView of this.currentLayout ? getScrollViewsAt(this.currentLayout, event.x, event.y) : []) {
-			seen.add(scrollView);
+			seen.push(scrollView);
 			remaining = scrollView.scrollBy(remaining);
 			if (remaining === 0 || scrollView.overscroll === "contain") break;
 		}
 		const primary = this.getPrimaryScrollView();
-		if (remaining !== 0 && !seen.has(primary)) primary.scrollBy(remaining);
+		if (remaining !== 0 && !seen.includes(primary)) primary.scrollBy(remaining);
 		this.updateScrollbarHover(event.x, event.y);
 		this.requestRender();
 	}
@@ -709,9 +708,9 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		const match = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/.exec(data);
 		if (!match) return undefined;
 		return {
-			button: Number.parseInt(match[1], 10),
-			x: Number.parseInt(match[2], 10) - 1,
-			y: Number.parseInt(match[3], 10) - 1,
+			button: parseDecimalInt(match[1]) ?? 0,
+			x: (parseDecimalInt(match[2]) ?? 1) - 1,
+			y: (parseDecimalInt(match[3]) ?? 1) - 1,
 			release: match[4] === "m",
 		};
 	}
@@ -726,8 +725,9 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		) {
 			return false;
 		}
+		const onRightClickPaste = this.onRightClickPaste;
 		try {
-			this.onRightClickPaste();
+			if (onRightClickPaste !== undefined) onRightClickPaste();
 		} catch {
 			// Clipboard paste is best-effort.
 		}
@@ -1016,11 +1016,12 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 					? this.pressedUrl
 					: undefined;
 			this.pressedUrl = undefined;
-			if (clickedUrl && this.openUrl) {
+			const openUrl = this.openUrl;
+			if (clickedUrl && openUrl !== undefined) {
 				this.selectionAnchor = undefined;
 				this.selectionFocus = undefined;
 				try {
-					this.openUrl(clickedUrl);
+					openUrl(clickedUrl);
 				} catch {
 					// URL activation is best-effort.
 				}
@@ -1129,8 +1130,9 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		// verified success path) when the host app provides one. A bare OSC 52 write can show
 		// "Copied!" while leaving the system clipboard untouched (e.g. macOS Terminal.app, tmux
 		// without OSC 52 clipboard passthrough), so only report success when it actually copies.
-		if (this.copySelection) {
-			const ok = await this.copySelection(text);
+		const copySelection = this.copySelection;
+		if (copySelection !== undefined) {
+			const ok = await copySelection(text);
 			this.flash(ok ? "Copied!" : "Copy failed");
 			return;
 		}

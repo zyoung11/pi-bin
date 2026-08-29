@@ -1,11 +1,21 @@
 import { compositeTuiLine } from "../tui.ts";
 import { visibleWidth } from "../utils.ts";
-import { allocateStackSizes, Stack, type StackChild, type StackOptions, visibleStackEntries } from "./stack.ts";
+import { allocateStackSizes, Stack, type StackEntry, type StackOptions, visibleStackEntries } from "./stack.ts";
+import type { StackLayoutNode } from "../layout-node.ts";
 
 export class HStack extends Stack {
 	protected readonly layoutType = "hstack" as const;
 
-	constructor(children: StackChild[] = [], options: StackOptions = {}) {
+	protected makeLayoutNode(): StackLayoutNode {
+		return {
+			type: this.layoutType,
+			entries: this.entries,
+			gap: this.gap,
+			align: this.align,
+		};
+	}
+
+	constructor(children: StackEntry[] = [], options: StackOptions = {}) {
 		super(children, options);
 	}
 

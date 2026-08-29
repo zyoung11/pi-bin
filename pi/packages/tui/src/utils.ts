@@ -24,6 +24,27 @@ export function getWordSegmenter(): TextSegmenter {
  * The tested Unicode blocks are deliberately broad to account for future
  * Unicode additions.
  */
+export function parseDecimalInt(text: string): number | undefined {
+	const trimmed = text.trim();
+	let index = 0;
+	let sign = 1;
+	if (index < trimmed.length && (trimmed.charCodeAt(index) === 43 || trimmed.charCodeAt(index) === 45)) {
+		if (trimmed.charCodeAt(index) === 45) sign = -1;
+		index++;
+	}
+	let value = 0;
+	let digits = 0;
+	while (index < trimmed.length) {
+		const code = trimmed.charCodeAt(index);
+		if (code < 48 || code > 57) return undefined;
+		value = value * 10 + (code - 48);
+		digits++;
+		index++;
+	}
+	if (digits === 0) return undefined;
+	return sign * value;
+}
+
 function codePointAt(text: string, index: number): number | undefined {
 	const first = text.charCodeAt(index);
 	if (Number.isNaN(first)) return undefined;
@@ -406,9 +427,7 @@ const THAI_LAO_AM_GLOBAL_REGEX = /[\u0e33\u0eb3]/g;
 export function normalizeTerminalOutput(str: string): string {
 	let normalized = str;
 	if (THAI_LAO_AM_REGEX.test(normalized)) {
-		normalized = normalized.replace(THAI_LAO_AM_GLOBAL_REGEX, (char) =>
-			char === "\u0e33" ? "\u0e4d\u0e32" : "\u0ecd\u0eb2",
-		);
+		normalized = normalized.split("\u0e33").join("\u0e4d\u0e32").split("\u0eb3").join("\u0ecd\u0eb2");
 	}
 	if (!normalized.includes("\t")) return normalized;
 
@@ -575,7 +594,8 @@ class AnsiCodeTracker {
 		const parts = params.split(";");
 		let i = 0;
 		while (i < parts.length) {
-			const code = Number.parseInt(parts[i], 10);
+			const parsed = parseDecimalInt(parts[i]);
+			const code = parsed ?? 0;
 
 			// Handle 256-color and RGB codes which consume multiple parameters
 			if (code === 38 || code === 48) {
@@ -832,7 +852,8 @@ function splitIntoTokensWithAnsi(text: string): string[] {
 		if (current) {
 			current += pendingAnsi;
 		} else if (tokens.length > 0) {
-			tokens[tokens.length - 1] += pendingAnsi;
+			const lastToken = tokens[tokens.length - 1];
+			tokens[tokens.length - 1] = lastToken + pendingAnsi;
 		} else {
 			current = pendingAnsi;
 		}

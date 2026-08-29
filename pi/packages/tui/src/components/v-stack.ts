@@ -1,9 +1,19 @@
-import { allocateStackSizes, Stack, type StackChild, type StackOptions, visibleStackEntries } from "./stack.ts";
+import { allocateStackSizes, Stack, type StackEntry, type StackOptions, visibleStackEntries } from "./stack.ts";
+import type { StackLayoutNode } from "../layout-node.ts";
 
 export class VStack extends Stack {
 	protected readonly layoutType = "vstack" as const;
 
-	constructor(children: StackChild[] = [], options: StackOptions = {}) {
+	protected makeLayoutNode(): StackLayoutNode {
+		return {
+			type: this.layoutType,
+			entries: this.entries,
+			gap: this.gap,
+			align: this.align,
+		};
+	}
+
+	constructor(children: StackEntry[] = [], options: StackOptions = {}) {
 		super(children, options);
 	}
 

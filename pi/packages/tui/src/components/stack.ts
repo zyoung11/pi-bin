@@ -1,4 +1,4 @@
-import { LAYOUT_NODE, type LayoutViewport, type StackLayoutEntry, type StackLayoutNode } from "../layout-node.ts";
+import { type LayoutViewport, type StackLayoutEntry, type StackLayoutNode } from "../layout-node.ts";
 import { type Component, Container } from "../tui.ts";
 
 export interface StackEntryOptions {
@@ -21,41 +21,41 @@ export interface StackOptions {
 	align?: "stretch" | "start" | "center" | "end";
 }
 
-function isStackEntry(child: StackChild): child is StackEntry {
-	return !("render" in child);
-}
-
 function normalizeSize(value: number | undefined, fallback: number): number {
 	return value === undefined || !Number.isFinite(value) ? fallback : Math.max(0, Math.floor(value));
 }
 
 export abstract class Stack extends Container {
-	protected readonly entries: StackLayoutEntry[] = [];
+	protected entries: StackLayoutEntry[] = [];
 	protected readonly gap: number;
 	protected readonly align: "stretch" | "start" | "center" | "end";
 	protected abstract readonly layoutType: "vstack" | "hstack";
 
-	constructor(children: StackChild[] = [], options: StackOptions = {}) {
+	protected abstract makeLayoutNode(): StackLayoutNode;
+
+	constructor(children: StackEntry[] = [], options: StackOptions = {}) {
 		super();
 		this.gap = normalizeSize(options.gap, 0);
 		this.align = options.align ?? "stretch";
 		for (const child of children) {
-			if (isStackEntry(child)) this.addChild(child.component, child);
-			else this.addChild(child);
+			this.addChildWithStackOptions(child.component, child);
 		}
 	}
 
-	override addChild(component: Component, options: StackEntryOptions = {}): void {
+	override addChild(component: Component): void {
+		this.addChildWithStackOptions(component);
+	}
+
+	private addChildWithStackOptions(component: Component, options: StackEntryOptions = {}): void {
 		super.addChild(component);
-		this.entries.push({
-			component,
-			...(options.basis === undefined ? {} : { basis: options.basis }),
-			...(options.grow === undefined ? {} : { grow: normalizeSize(options.grow, 0) }),
-			...(options.shrink === undefined ? {} : { shrink: normalizeSize(options.shrink, 1) }),
-			...(options.minSize === undefined ? {} : { minSize: normalizeSize(options.minSize, 0) }),
-			...(options.maxSize === undefined ? {} : { maxSize: normalizeSize(options.maxSize, Number.MAX_SAFE_INTEGER) }),
-			...(options.visible === undefined ? {} : { visible: options.visible }),
-		});
+		const entry: StackEntry = { component };
+		if (options.basis !== undefined) entry.basis = options.basis;
+		if (options.grow !== undefined) entry.grow = normalizeSize(options.grow, 0);
+		if (options.shrink !== undefined) entry.shrink = normalizeSize(options.shrink, 1);
+		if (options.minSize !== undefined) entry.minSize = normalizeSize(options.minSize, 0);
+		if (options.maxSize !== undefined) entry.maxSize = normalizeSize(options.maxSize, Number.MAX_SAFE_INTEGER);
+		if (options.visible !== undefined) entry.visible = options.visible;
+		this.entries.push(entry);
 	}
 
 	override removeChild(component: Component): void {
@@ -66,16 +66,11 @@ export abstract class Stack extends Container {
 
 	override clear(): void {
 		super.clear();
-		this.entries.length = 0;
+		this.entries = [];
 	}
 
-	[LAYOUT_NODE](): StackLayoutNode {
-		return {
-			type: this.layoutType,
-			entries: this.entries,
-			gap: this.gap,
-			align: this.align,
-		};
+	getLayoutNode(): StackLayoutNode {
+		return this.makeLayoutNode();
 	}
 }
 

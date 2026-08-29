@@ -11,7 +11,7 @@ interface FlashEntry {
 
 /** Transient messages composited by the alternate-screen renderer. */
 export class AltScreenFlashContainer extends Component {
-	private readonly entries: FlashEntry[] = [];
+	private entries: FlashEntry[] = [];
 	private nextId = 0;
 	private readonly requestRender: () => void;
 
@@ -38,7 +38,7 @@ export class AltScreenFlashContainer extends Component {
 
 	dispose(): void {
 		for (const entry of this.entries) clearTimeout(entry.timer);
-		this.entries.length = 0;
+		this.entries = [];
 	}
 
 	invalidate(): void {}

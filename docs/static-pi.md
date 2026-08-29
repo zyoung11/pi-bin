@@ -84,6 +84,25 @@
 - **下轮首批工作（openai-completions.ts 内部重写，约 18 个诊断）**：① buildParams 三个默认参数（Map/compat/cacheRetention）提升为必选，调用点已传入全部实参 ② sseJsonLines async generator（openai-http.ts:96）改 next() 对象（已验证草案，需小心手改）③ for-await chunk 循环改 while+next ④ delete×4→重建对象 ⑤ indexOf on union array→循环 ⑥ catch instanceof ⑦ computed spread bind const ⑧ index-sig spread 循环化
 - 注意：python 批量替换大段代码时，断言失败后不会写盘，但跨多次 patch 的脚本一旦中途抛出，已完成部分丢失——**大改动一律单 patch 单验证**
 
+## 阶段 5 grind 第二十二轮记录（进行中：263→360 揭幕，TUI 包全清，interactive-mode 剩 136）
+
+- **interactive-mode 导入直连收尾**：tui/index.ts 的全部导入（Component/Container/TuiAltScreen/TuiMainScreen/ScrollView/VStack/autocomplete/keys/keybindings/terminal-image/...）改为相对源文件直连，TuiLayouts namespace 删除（isViewportTUI/ScrollView/VStack 直连）；AutocompleteItem/SlashCommand 等 type-only 导入修正（node type-stripping 运行时校验）
+- **tui 包全清（揭幕 25→0）**：
+  - editor.ts：autocompleteAbort AbortController 类字段→适配器 record `{abort: () => controller.abort()}`（字段值 AbortController 不可映射）；Number.parseInt→parseDecimalInt（tui/utils 导出）；validPasteIds 的 new Set(values)→for-of add
+  - stack.ts：addChild override 双参签名→单参 override + 私有 addChildWithStackOptions（泛型 override 签名墙）；entries.push 的 spread-after-explicit→显式赋值；clear 的 length=0→重赋值；isStackEntry 谓词的实现（union cast/unknown 中转/in 探测均不可用）→ 构造器参数收窄为 StackEntry[] 后直接访问，谓词删除
+  - stack/v-stack/h-stack：abstract layoutType 经 this 读→子类 makeLayoutNode() 实现（abstract 属性 this 读不可用）；getLayoutNode 下沉
+  - scroll-view/layout-node：getLayoutNode 返回 state: this→ScrollLayoutNode.state: ScrollView（type-only 循环 import 安全）；移除 LAYOUT_NODE/VIEWPORT_TUI Symbol 协议（computed method/field 不支持）——isViewportTUI 改 mode 判断；getLayoutNodeFrom helper 删除，layout.ts 改 instanceof Stack/ScrollView 收窄（instanceof 右侧须程序内声明的类 ✓）
+  - layout.ts：primaryScrollView 经 node.state 直取（消接口→类 cast）；LayoutFrame 构造 spread-after-explicit→显式赋值；translateBox 嵌套字段复合赋值展开
+  - box/tui/alt-screen-flash/settings-list：invalidate 可选方法调用→直接调用/undefined 守卫；length=0→重赋值
+  - keybindings.ts：TUI_KEYBINDINGS 空数组推断毒化（(null|undefined)[]）→ [] as KeyId[] + 显式 KeybindingDefinitions 注解；rebuild 的 Map<KeyId, Set<Keybinding>>→Map<KeyId, Keybinding[]>（Map 值 Set 不可映射）；Object.entries over index-signature→keys 循环+bracket 读；in 检查→bracket !==undefined
+  - stdin-buffer：去泛型 extends EventEmitter<...>→EventEmitter
+  - tui.ts：OverlayFocusRestoreState 三臂统一 overlay 字段类型（unionDisc 要求同型字段）+ 构造点补 overlay: undefined；margin ?? {} 联合→if/else；isOverlayVisible 提升 options.visible；Set<Component>→数组 includes；deleteKittyImages Iterable<number>→Set<number>
+  - tui-alt-screen：replaceAll→split/join；parseInt→parseDecimalInt×4；Set<ScrollView>→数组；onRightClickPaste/openUrl/copySelection 可选函数字段调用→提升局部变量
+  - terminal-image：pathToFileURL().href→file:// 拼接（URL 类不可映射）；parseInt→parseDecimalInt；RegExpExecArray.index→indexOf 前置匹配×3；startsWith 2-arg→slice+startsWith
+- **interactive-mode 其余修复**：isDeadTerminalError 去 NodeJS.ErrnoException cast（bracket 读）；RenderSessionItem 谓词实现改 renderItemType 辅助（保留 is 谓词签名）；BUILTIN_SLASH_COMMANDS/promptTemplates 的 spread-after-explicit→条件赋值；byId.values()+Array.from→for-of 收集；disposeComponent（Component→Record cast 失败，待换方案）
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑 + bash tool_call OK（r22-check）
+- **总账 263→360（揭幕）**，interactive-mode 剩 136；剩余根因模式：①TuiMainScreen|TuiAltScreen union 方法调用（renderer 字段）②Terminal 接口 getter 不可映射③new Proxy TUI 转发层需手写委托类④ChildProcessByStdio 类型⑤EditorFactory/autocomplete record 形状
+
 ## 阶段 5 grind 第二十一轮记录（2026-09-01：263→221→362 揭幕，interactive-mode 专项待下轮）
 
 - **批量模板清零**：Math.imul×4→手写 imul（hash.ts）；codePointAt×7→手写代理对码点 helper（json-parse/tui utils/segmenter/shell）；Object.hasOwn×3→bracket !==undefined（keybindings）；MapIterator.next×3→for-of entries+break（auth-command/tui utils/terminal-image）；Object.freeze×2+isFrozen/values→deepFreeze 恒等降级（model-config/noop）；normalize("NFD")→恒等降级（path-utils，macOS NFD 文件名匹配功能损失备注）；globalThis.Buffer→删运行时分支（truncate，手算路径已验证等价）；WeakMap×3→线性数组引用等值查（file-mutation-queue/model-catalog-refresh）；AggregateError→自定义 SessionCleanupError 类

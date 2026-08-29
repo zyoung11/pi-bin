@@ -68,15 +68,15 @@ export interface KeybindingDefinition {
 export type KeybindingDefinitions = Record<string, KeybindingDefinition>;
 export type KeybindingsConfig = Record<string, KeyId | KeyId[] | undefined>;
 
-export const TUI_KEYBINDINGS = {
+export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 	"tui.editor.cursorUp": { defaultKeys: "up", description: "Move cursor up" },
 	"tui.editor.cursorDown": { defaultKeys: "down", description: "Move cursor down" },
 	"tui.editor.historyPrevious": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Select previous prompt history entry",
 	},
 	"tui.editor.historyNext": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Select next prompt history entry",
 	},
 	"tui.editor.cursorLeft": {
@@ -166,19 +166,19 @@ export const TUI_KEYBINDINGS = {
 		description: "Scroll viewport down one page",
 	},
 	"tui.altScreen.halfPageUp": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Scroll viewport up half a page",
 	},
 	"tui.altScreen.halfPageDown": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Scroll viewport down half a page",
 	},
 	"tui.altScreen.lineUp": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Scroll viewport up one line",
 	},
 	"tui.altScreen.lineDown": {
-		defaultKeys: [],
+		defaultKeys: [] as KeyId[],
 		description: "Scroll viewport down one line",
 	},
 	"tui.altScreen.previousPrompt": {
@@ -244,19 +244,26 @@ export class KeybindingsManager {
 		this.keysById.clear();
 		this.conflicts = [];
 
-		const userClaims = new Map<KeyId, Set<Keybinding>>();
-		for (const [keybinding, keys] of Object.entries(this.userBindings)) {
-			if (!(keybinding in this.definitions)) continue;
-			for (const key of normalizeKeys(keys)) {
-				const claimants = userClaims.get(key) ?? new Set<Keybinding>();
-				claimants.add(keybinding as Keybinding);
-				userClaims.set(key, claimants);
+		const userClaims = new Map<KeyId, Keybinding[]>();
+		for (const keybinding of Object.keys(this.userBindings)) {
+			if (this.definitions[keybinding] === undefined) continue;
+			const boundKeys = this.userBindings[keybinding];
+			if (boundKeys === undefined) continue;
+			for (const key of normalizeKeys(boundKeys)) {
+				const claimants = userClaims.get(key);
+				if (claimants === undefined) {
+					const fresh: Keybinding[] = [];
+					fresh.push(keybinding as Keybinding);
+					userClaims.set(key, fresh);
+				} else {
+					claimants.push(keybinding as Keybinding);
+				}
 			}
 		}
 
-		for (const [key, keybindings] of userClaims) {
-			if (keybindings.size > 1) {
-				this.conflicts.push({ key, keybindings: [...keybindings] });
+		for (const [key, claimed] of userClaims) {
+			if (claimed.length > 1) {
+				this.conflicts.push({ key, keybindings: [...claimed] });
 			}
 		}
 
@@ -314,7 +321,7 @@ export function setKeybindings(keybindings: KeybindingsManager): void {
 
 export function getKeybindings(): KeybindingsManager {
 	if (!globalKeybindings) {
-		globalKeybindings = new KeybindingsManager(TUI_KEYBINDINGS);
+		globalKeybindings = new KeybindingsManager(TUI_KEYBINDINGS as unknown as KeybindingDefinitions);
 	}
 	return globalKeybindings;
 }

@@ -68,7 +68,7 @@ export class Box extends Component {
 	invalidate(): void {
 		this.invalidateCache();
 		for (const child of this.children) {
-			child.invalidate?.();
+			child.invalidate();
 		}
 	}
 
@@ -93,8 +93,8 @@ export class Box extends Component {
 			return [];
 		}
 
-		// Check if bgFn output changed by sampling
-		const bgSample = this.bgFn ? this.bgFn("test") : undefined;
+		const activeBgFn = this.bgFn;
+		const bgSample = activeBgFn !== undefined ? activeBgFn("test") : undefined;
 
 		// Check cache validity
 		if (this.matchCache(width, childLines, bgSample)) {

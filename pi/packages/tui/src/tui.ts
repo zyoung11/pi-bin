@@ -209,15 +209,17 @@ type OverlayStackEntry = {
 };
 
 type OverlayBlockedFocusResume = { status: "restore-overlay" } | { status: "focus-target"; target: Component | null };
-type EligibleOverlayFocusRestoreState = { status: "eligible"; overlay: OverlayStackEntry };
+type EligibleOverlayFocusRestoreState = { status: "eligible"; overlay: OverlayStackEntry | undefined };
 type BlockedOverlayFocusRestoreState = {
 	status: "blocked";
-	overlay: OverlayStackEntry;
+	overlay: OverlayStackEntry | undefined;
 	blockedBy: Component;
 	resume: OverlayBlockedFocusResume;
 };
 type ActiveOverlayFocusRestoreState = EligibleOverlayFocusRestoreState | BlockedOverlayFocusRestoreState;
-type OverlayFocusRestoreState = { status: "inactive" } | ActiveOverlayFocusRestoreState;
+type OverlayFocusRestoreState =
+	| { status: "inactive"; overlay: OverlayStackEntry | undefined }
+	| ActiveOverlayFocusRestoreState;
 type OverlayFocusRestorePolicy = "clear" | "preserve";
 
 /**
@@ -243,7 +245,7 @@ export class Container extends Component {
 
 	invalidate(): void {
 		for (const child of this.children) {
-			child.invalidate?.();
+			child.invalidate();
 		}
 	}
 
@@ -339,15 +341,13 @@ export interface TUI {
 	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined>;
 }
 
-export const VIEWPORT_TUI = Symbol.for("@earendil-works/pi-tui/viewport");
 
 export interface ViewportTUI extends TUI {
-	readonly [VIEWPORT_TUI]: true;
 	setLayoutRoot(component: Component | undefined): void;
 }
 
 export function isViewportTUI(tui: TUI): tui is ViewportTUI {
-	return (tui as Partial<ViewportTUI>)[VIEWPORT_TUI] === true;
+	return tui.mode === "fullscreen";
 }
 
 export abstract class TuiBase extends Container implements TUI {
@@ -380,7 +380,7 @@ export abstract class TuiBase extends Container implements TUI {
 	get hasOverlayEntries(): boolean {
 		return this.overlayStack.length > 0;
 	}
-	private overlayFocusRestore: OverlayFocusRestoreState = { status: "inactive" };
+	private overlayFocusRestore: OverlayFocusRestoreState = { status: "inactive", overlay: undefined };
 
 	constructor(terminal: Terminal, showHardwareCursor?: boolean, logDirectory?: string) {
 		super();
@@ -507,7 +507,7 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 
 	private clearOverlayFocusRestore(): void {
-		this.overlayFocusRestore = { status: "inactive" };
+		this.overlayFocusRestore = { status: "inactive", overlay: undefined };
 	}
 
 	private clearOverlayFocusRestoreFor(overlay: OverlayStackEntry): void {
@@ -517,25 +517,31 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 
 	private resolveBlockedOverlayFocusResume(restoreState: BlockedOverlayFocusRestoreState): Component | null {
-		if (restoreState.resume.status === "restore-overlay") return restoreState.overlay.component;
-		this.clearOverlayFocusRestore();
+		const blockedOverlay = restoreState.overlay;
+		if (restoreState.resume.status === "restore-overlay") {
+			if (blockedOverlay !== undefined) return blockedOverlay.component;
+			this.clearOverlayFocusRestore();
+			return null;
+		}
 		return restoreState.resume.target;
 	}
 
 	private getVisibleOverlayFocusRestore(): OverlayFocusRestoreState {
 		const restoreState = this.overlayFocusRestore;
-		if (restoreState.status === "inactive") return restoreState;
-		if (!this.overlayStack.includes(restoreState.overlay) || !this.isOverlayVisible(restoreState.overlay)) {
-			return { status: "inactive" };
+		if (restoreState.status === "inactive") return { status: "inactive", overlay: undefined };
+		const visibleOverlay = restoreState.overlay;
+		if (visibleOverlay === undefined) return { status: "inactive", overlay: undefined };
+		if (!this.overlayStack.includes(visibleOverlay) || !this.isOverlayVisible(visibleOverlay)) {
+			return { status: "inactive", overlay: undefined };
 		}
 		return restoreState;
 	}
 
 	private isOverlayFocusAncestor(entry: OverlayStackEntry, component: Component): boolean {
-		const visited = new Set<Component>();
+		const visited: Component[] = [];
 		let current = entry.preFocus;
-		while (current && !visited.has(current)) {
-			visited.add(current);
+		while (current && !visited.includes(current)) {
+			visited.push(current);
 			if (current === component) return true;
 			current = this.overlayStack.find((overlay) => overlay.component === current)?.preFocus ?? null;
 		}
@@ -694,8 +700,10 @@ export abstract class TuiBase extends Container implements TUI {
 	/** Check if an overlay entry is currently visible */
 	private isOverlayVisible(entry: OverlayStackEntry): boolean {
 		if (entry.hidden) return false;
-		if (entry.options?.visible) {
-			return entry.options.visible(this.terminal.columns, this.terminal.rows);
+		const options = entry.options;
+		if (options !== undefined) {
+			const visible = options.visible;
+			if (visible !== undefined) return visible(this.terminal.columns, this.terminal.rows);
 		}
 		return true;
 	}
@@ -912,11 +920,12 @@ export abstract class TuiBase extends Container implements TUI {
 		const focusIsOverlay = this.overlayStack.some((o) => o.component === this.focusedComponent);
 		if (!focusIsOverlay) {
 			const restoreState = this.getVisibleOverlayFocusRestore();
-			if (restoreState.status === "eligible") {
-				this.setFocus(restoreState.overlay.component);
+			const restoreOverlay = restoreState.overlay;
+			if (restoreState.status === "eligible" && restoreOverlay !== undefined) {
+				this.setFocus(restoreOverlay.component);
 			} else if (restoreState.status === "blocked" && restoreState.blockedBy !== this.focusedComponent) {
 				if (restoreState.resume.status === "restore-overlay") {
-					this.setFocus(restoreState.overlay.component);
+					if (restoreOverlay !== undefined) this.setFocus(restoreOverlay.component);
 				} else {
 					this.clearOverlayFocusRestore();
 					this.setFocus(restoreState.resume.target);
@@ -1007,10 +1016,14 @@ export abstract class TuiBase extends Container implements TUI {
 		const opt = options ?? {};
 
 		// Parse margin (clamp to non-negative)
-		const margin =
-			typeof opt.margin === "number"
-				? { top: opt.margin, right: opt.margin, bottom: opt.margin, left: opt.margin }
-				: (opt.margin ?? {});
+		let margin: { top?: number; right?: number; bottom?: number; left?: number };
+		if (typeof opt.margin === "number") {
+			margin = { top: opt.margin, right: opt.margin, bottom: opt.margin, left: opt.margin };
+		} else if (opt.margin !== undefined) {
+			margin = opt.margin;
+		} else {
+			margin = {};
+		}
 		const marginTop = Math.max(0, margin.top ?? 0);
 		const marginRight = Math.max(0, margin.right ?? 0);
 		const marginBottom = Math.max(0, margin.bottom ?? 0);

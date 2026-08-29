@@ -278,7 +278,7 @@ export type StdinBufferEventMap = {
  * Buffers stdin input and emits complete sequences via the 'data' event.
  * Handles partial escape sequences that arrive across multiple chunks.
  */
-export class StdinBuffer extends EventEmitter<StdinBufferEventMap> {
+export class StdinBuffer extends EventEmitter {
 	private buffer: string = "";
 	private timeout: ReturnType<typeof setTimeout> | null = null;
 	private readonly timeoutMs: number;

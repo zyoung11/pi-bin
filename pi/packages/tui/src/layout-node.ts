@@ -1,6 +1,5 @@
 import type { Component } from "./tui.ts";
-
-export const LAYOUT_NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
+import type { ScrollView } from "./components/scroll-view.ts";
 
 export interface LayoutViewport {
 	width: number;
@@ -36,16 +35,9 @@ export interface ScrollLayoutState {
 export interface ScrollLayoutNode {
 	type: "scroll";
 	component: Component;
-	state: ScrollLayoutState;
+	state: ScrollView;
 }
 
 export type LayoutNode = StackLayoutNode | ScrollLayoutNode;
 
-export interface LayoutComponent extends Component {
-	[LAYOUT_NODE](): LayoutNode;
-}
 
-export function getLayoutNode(component: Component): LayoutNode | undefined {
-	const candidate = component as Partial<LayoutComponent>;
-	return typeof candidate[LAYOUT_NODE] === "function" ? candidate[LAYOUT_NODE]() : undefined;
-}

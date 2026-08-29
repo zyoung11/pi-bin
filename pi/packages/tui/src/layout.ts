@@ -1,6 +1,6 @@
-import type { ScrollView } from "./components/scroll-view.ts";
-import { allocateStackSizes, visibleStackEntries } from "./components/stack.ts";
-import { getLayoutNode } from "./layout-node.ts";
+import { ScrollView } from "./components/scroll-view.ts";
+import { allocateStackSizes, Stack, visibleStackEntries } from "./components/stack.ts";
+import type { LayoutNode } from "./layout-node.ts";
 import { cropKittyImageLine, getKittyImageMetadata, isImageLine } from "./terminal-image.ts";
 import { type Component, CURSOR_MARKER, compositeTuiLine } from "./tui.ts";
 import { extractAnsiCode, getGraphemeCellRange, sliceByColumn, visibleWidth } from "./utils.ts";
@@ -99,7 +99,7 @@ function withParent(box: LayoutBox, parent: LayoutBox): LayoutBox {
 }
 
 function translateBox(box: LayoutBox, deltaY: number): void {
-	box.rect.y += deltaY;
+	box.rect.y = box.rect.y + deltaY;
 	for (const child of box.children) translateBox(child, deltaY);
 }
 
@@ -118,7 +118,12 @@ function layoutComponent(
 	clip: LayoutRect,
 ): LayoutBox {
 	const safeWidth = Math.max(1, Math.floor(width));
-	const node = getLayoutNode(component);
+	const node =
+		component instanceof Stack
+			? component.getLayoutNode()
+			: component instanceof ScrollView
+				? component.getLayoutNode()
+				: undefined;
 	if (!node) {
 		const lines = renderCached(context, component, safeWidth);
 		const allocatedHeight = height === undefined ? lines.length : Math.max(0, Math.floor(height));
@@ -154,7 +159,7 @@ function layoutComponent(
 		const viewportHeight = height === undefined ? contentHeight : Math.max(0, Math.floor(height));
 		node.state.updateLayout(contentHeight, viewportHeight, context.requestRender);
 		translateBox(childBox, previousScrollTop - node.state.scrollTop);
-		const scrollView = node.state as ScrollView;
+		const scrollView = node.state;
 		if (node.state.primary || !context.primaryScrollView) context.primaryScrollView = scrollView;
 		const rect = { x, y, width: safeWidth, height: viewportHeight };
 		const childClip = intersect(clip, rect);
@@ -383,13 +388,14 @@ export function renderLayoutFrame(
 	});
 	const lines = Array.from({ length: safeHeight }, () => "");
 	paintBox(rootBox, lines, safeWidth);
-	return {
+	const result: LayoutFrame = {
 		root: rootBox,
 		width: safeWidth,
 		height: safeHeight,
 		lines,
-		...(context.primaryScrollView === undefined ? {} : { primaryScrollView: context.primaryScrollView }),
 	};
+	if (context.primaryScrollView !== undefined) result.primaryScrollView = context.primaryScrollView;
+	return result;
 }
 
 function containsPoint(rect: LayoutRect, x: number, y: number): boolean {
