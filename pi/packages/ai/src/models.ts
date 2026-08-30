@@ -12,6 +12,8 @@ import type {
 	Credential,
 	CredentialStore,
 	ProviderAuth,
+	ProviderAuthInteraction,
+	ApiKeyCredential,
 } from "./auth/types.ts";
 import { InMemoryModelsStore, type ModelsStore, type ModelsStoreEntry } from "./models-store.ts";
 import type {
@@ -33,9 +35,19 @@ import type {
 	StreamOptions,
 	Usage,
 } from "./types.ts";
-import { operationSignal, raceWithAbortSignal } from "./utils/abort.ts";
+import {
+	operationSignal,
+	raceAuthCheckWithAbort,
+	raceBooleanArrayWithAbort,
+	raceBooleanWithAbort,
+	raceCredentialWithAbort,
+	raceModelsWithAbort,
+	raceUnknownWithAbort,
+	raceVoidWithAbort,
+} from "./utils/abort.ts";
 
 export { ModelsError, type ModelsErrorCode } from "./auth/resolve.ts";
+
 
 export interface ModelsPublication {
 	/** Provider-selected persisted catalog. Omit to leave storage unchanged; null deletes it. */
@@ -399,7 +411,7 @@ export class ModelsImpl implements MutableModels {
 		void tail.then(() => {
 			if (this.publicationChains.get(providerId) === tail) this.publicationChains.delete(providerId);
 		});
-		return raceWithAbortSignal<boolean>(queued, signal);
+		return raceBooleanWithAbort(queued, signal);
 	}
 
 	private async runProviderRefreshPhase(
@@ -411,8 +423,9 @@ export class ModelsImpl implements MutableModels {
 		signal: AbortSignal,
 	): Promise<void> {
 		const stored = await this.modelsStore.read(provider.id, { signal });
-		if (provider.refreshModels === undefined) return;
-		await provider.refreshModels({
+		const refreshModels = provider.refreshModels;
+		if (refreshModels === undefined) return;
+		await refreshModels({
 			credential,
 			stored: stored ? structuredClone(stored) : undefined,
 			publish: (publication) => this.publishProviderModels(provider.id, generation, signal, publication),
@@ -437,7 +450,7 @@ export class ModelsImpl implements MutableModels {
 		}
 
 		const refresh = Promise.all(
-			refreshable.map(async (provider): Promise<null> => {
+			refreshable.map(async (provider): Promise<boolean> => {
 				const { generation, controller } = this.beginProviderRefresh(provider.id);
 				const signal = AbortSignal.any([callerSignal, controller.signal]);
 				const operation = (async () => {
@@ -460,7 +473,7 @@ export class ModelsImpl implements MutableModels {
 				})();
 
 				try {
-					await raceWithAbortSignal(operation, signal);
+					await raceVoidWithAbort(operation, signal);
 				} catch (error) {
 					if (!signal.aborted) {
 						errors.set(
@@ -475,12 +488,12 @@ export class ModelsImpl implements MutableModels {
 						this.deleteRefreshController(provider.id);
 					}
 				}
-				return null;
+				return true;
 			}),
 		);
 
 		try {
-			await raceWithAbortSignal(refresh, callerSignal);
+			await raceBooleanArrayWithAbort(refresh, callerSignal);
 		} catch (error) {
 			if (!callerSignal.aborted) throw error;
 		}
@@ -509,7 +522,13 @@ export class ModelsImpl implements MutableModels {
 				},
 				{ signal },
 			);
-			return post?.type === "oauth" ? post : undefined;
+			if (post === undefined) {
+				return undefined;
+			}
+			if (post.type !== "oauth") {
+				return undefined;
+			}
+			return post;
 		}
 
 		const apiKey = provider.auth.apiKey;
@@ -538,9 +557,10 @@ export class ModelsImpl implements MutableModels {
 		}
 		const apiKey = provider.auth.apiKey;
 		if (!apiKey) return undefined;
-		if (apiKey.check) {
+		const check = apiKey.check;
+		if (check !== undefined) {
 			try {
-				return await apiKey.check({
+				return await check({
 					ctx: this.authContext,
 					credential: credential !== undefined && credential.type === "api_key" ? credential : undefined,
 					signal,
@@ -562,7 +582,7 @@ export class ModelsImpl implements MutableModels {
 			if (!provider) return undefined;
 			return this.checkProviderAuth(provider, await this.readCredential(providerId, signal), signal);
 		})();
-		return raceWithAbortSignal(check, signal) as Promise<AuthCheck | undefined>;
+		return raceAuthCheckWithAbort(check, signal);
 	}
 
 	getAvailable(providerId?: string, options?: AuthOperationOptions): Promise<readonly Model<Api>[]> {
@@ -584,7 +604,7 @@ export class ModelsImpl implements MutableModels {
 				return provider.filterModels?.(models, credential) ?? models;
 			});
 		})();
-		return raceWithAbortSignal(available, signal) as Promise<readonly Model<Api>[]>;
+		return raceModelsWithAbort(available, signal);
 	}
 
 	getAuth(providerOrModel: string | Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
@@ -615,18 +635,28 @@ export class ModelsImpl implements MutableModels {
 		let loginOperation: Promise<Credential>;
 		if (type === "oauth") {
 			const method = provider.auth.oauth;
-			if (method === undefined || method.login === undefined) {
+			if (method === undefined) {
 				throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
 			}
-			loginOperation = method.login({ ...interaction, signal }) as Promise<Credential>;
+			const loginInteraction: ProviderAuthInteraction = {
+				signal,
+				prompt: interaction.prompt,
+				notify: interaction.notify,
+			};
+			loginOperation = method.login!(loginInteraction).then((credential) => credential as Credential);
 		} else {
 			const method = provider.auth.apiKey;
 			if (method === undefined || method.login === undefined) {
 				throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
 			}
-			loginOperation = method.login({ ...interaction, signal }) as Promise<Credential>;
+			const loginInteraction: ProviderAuthInteraction = {
+				signal,
+				prompt: interaction.prompt,
+				notify: interaction.notify,
+			};
+			loginOperation = method.login!(loginInteraction).then((credential) => credential as Credential);
 		}
-		const credential = await raceWithAbortSignal(loginOperation, signal) as Credential;
+		const credential = await raceCredentialWithAbort(loginOperation, signal);
 		let mutationStarted = false;
 		let markMutationStarted: (() => void) | undefined;
 		const started = new Promise<void>((resolve) => {

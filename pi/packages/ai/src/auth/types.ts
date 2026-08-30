@@ -169,7 +169,12 @@ export interface AuthInteraction {
 }
 
 /** Normalized interaction passed to provider login implementations. */
-export type ProviderAuthInteraction = AuthInteraction & { signal: AbortSignal };
+export interface ProviderAuthInteraction {
+	signal: AbortSignal;
+
+	prompt(prompt: AuthPrompt): Promise<string>;
+	notify(event: AuthEvent): void;
+}
 
 /**
  * Api-key auth: stored key/provider env plus ambient sources (env vars, AWS

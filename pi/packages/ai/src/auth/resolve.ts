@@ -1,5 +1,5 @@
 import type { ProviderEnv } from "../types.ts";
-import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
+import { operationSignal, raceAuthResultWithAbort } from "../utils/abort.ts";
 import { formatThrownValue } from "../utils/diagnostics.ts";
 import type {
 	ApiKeyAuth,
@@ -54,10 +54,10 @@ export function resolveProviderAuth(
 	overrides?: AuthResolutionOverrides,
 ): Promise<AuthResult | undefined> {
 	const signal = operationSignal(overrides?.signal);
-	return raceWithAbortSignal(
+	return raceAuthResultWithAbort(
 		resolveProviderAuthWithSignal(provider, credentials, authContext, overrides, signal),
 		signal,
-	) as Promise<AuthResult | undefined>;
+	);
 }
 
 async function resolveProviderAuthWithSignal(
@@ -110,9 +110,10 @@ async function resolveProviderAuthWithSignal(
 	}
 
 	// Ambient (env vars, AWS profiles, ADC files).
-	return provider.auth.apiKey
-		? resolveApiKey(requestAuthContext, provider.auth.apiKey, provider.id, undefined, signal)
-		: undefined;
+	if (provider.auth.apiKey === undefined) {
+		return undefined;
+	}
+	return await resolveApiKey(requestAuthContext, provider.auth.apiKey, provider.id, undefined, signal);
 }
 
 function overlayEnvAuthContext(base: AuthContext, env: ProviderEnv): AuthContext {

@@ -1,4 +1,4 @@
-import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
+import { operationSignal, raceUnknownWithAbort } from "../utils/abort.ts";
 import { CredentialStore } from "./types.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "./types.ts";
 
@@ -32,7 +32,7 @@ export class InMemoryCredentialStore extends CredentialStore {
 		void tail.then(() => {
 			if (this.chains.get(providerId) === tail) this.chains.delete(providerId);
 		});
-		return raceWithAbortSignal(queued, signal);
+		return raceUnknownWithAbort(queued, signal);
 	}
 
 	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
