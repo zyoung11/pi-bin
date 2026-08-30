@@ -202,8 +202,8 @@ export function createWriteToolDefinition(
 		async execute(
 			_toolCallId,
 			{ path, content }: { path: string; content: string },
-			signal?: AbortSignal,
-			_onUpdate?,
+			signal,
+			_onUpdate,
 		) {
 			const absolutePath = resolveToCwd(path, cwd);
 			const dir = dirname(absolutePath);

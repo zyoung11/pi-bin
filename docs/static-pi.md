@@ -97,6 +97,16 @@
 - **TextDecoder 怪癖（未解，下轮定位）**：`new TextDecoder("utf-8")` 构造后 decode 调用在 diag8 中全部通过、diag9 又复现（grep 250/311/400），疑似图序/声明解析浮动——需用 instrumented compiler 定位；output-accumulator 的字段形式 `private readonly decoder = new TextDecoder()` 确认不可映射（字段值透明句柄），改为方法内局部构造 + `incompleteUtf8TailLength`（已从 openai-http 导出）手写尾部缓冲替 `decode(stream:true)`。
 - **renderCall/renderResult lastComponent 复用模式定型**（read/grep/find/ls 应用，grep/ls 已随砍除消失，read/find 保留）：`?? new Text(...)` → 早返回结构（undefined→新建+return；instanceof Text→就地 setText+return；兜底新建），**scriptc 对 `!==undefined && instanceof` 复合守卫不收窄**（赋值 `text = last` 报 got Component|undefined），必须拆开且赋值改早返回。
 - **验证**：tsgo src 清零；MiniCPM5-1B print 真跑 + bash tool_call OK（OK-r44）。
+- **剩余台账（diag10 全量，71 个）**：
+  ① **ai 包 raceWithAbortSignal 调用点回归（~15，最大簇）**：ai/abort.ts 去泛型化后 `Promise<unknown>` 参数的内层 lift 规则比预期严格——`Promise<void>`（models.ts:452）、`Promise<boolean>`（:395，**调用点已 cast 仍报，cast 不抑制 arg 检查**）、`Promise<Set|undefined>`（:422/423）等全部被拒；coding-agent 同签名同实参却通过——**同代码不同包结果不同，需 SC_DEBUG_WIDTH=1 定位**。备选解法：仿 model-catalog-refresh/auth-storage 的「每调用点具体类型本地 race 助手」（机械但可靠，~8 处）。
+  ② **bash.ts 输出累积器消费群（8）**：output-accumulator 类形状变化后揭幕——output.append/finish/snapshot/closeTempFile/getLastLine 方法链、new OutputAccumulator() 构造、renderResult ??/SC2003。
+  ③ **edit.ts legacy 块（6）**：146-154 SC2002/SC2004 级联（rest/legacy 解构）。
+  ④ **models-store（6）**：reload.promise 传参（需同 auth-storage 的具体类型 race 助手）、2 参 then、options?.signal?.throwIfAborted、SC2002 群。
+  ⑤ **tools/index（4）**：ToolDef 值通道（return 通道也报了，需 SC_DEBUG_WIDTH）。
+  ⑥ **settings 簇（5）**：settings-list:221、settings-submenu:217/218（**精确接口 SteppedSelections 作函数值参数仍 dynamic-only**，推翻本轮早前假设）、settings-selector:414（done(undefined,undefined) 的 SC2001，需 typed 常量中转）、interactive-mode:801（双跳仍拒）、tool-execution:301（unknown→含 unknown 字段记录双跳无效）。
+  ⑦ 散点：runtime-credentials:38、write:202（已修）、output-accumulator:56（WriteStream 字段）、export-html:222（result 需双跳 cast）、auth-storage:445/460/567（LockResult 形状）、provider-composer:606/607（ProviderStreams cast 级联）、ai/models.ts 其余（?: 探测、new Map(entries)、values() spread、object spread union）。
+- **本轮新增规则**：⑪ typed→unknown 转换（v as unknown）被 SC1101 拒 ⑫ as Promise<X> cast 不抑制实参 Promise 内层 lift 检查 ⑬ TextDecoder 构造/decode 存在跨构建浮动，需 SC_DEBUG 定位 ⑭ 类字段形式 TextDecoder 不可映射，方法内局部构造可 ⑮ 精确接口作函数值参数仍 dynamic-only（接口含函数值字段时整体无静态表示）。
+- **验证**：tsgo src 清零；MiniCPM5-1B print 真跑 + bash tool_call OK（OK-r44）。
 - **总账 116→71；剩余台账**：bash.ts 输出累积器消费群（8，output-accumulator 类形状变化后揭幕）、edit.ts legacy 块（6）、tools/index 4（ToolDef 值通道，见 r43）、settings 簇残余（5）、runtime-credentials 1、write 1、散点（interactive-mode/tool-execution/settings-list 等）。
 
 ## 阶段 5 grind 第四十三轮记录（进行中：73→116 揭幕期，两大文件重复实现合并 + 工具 execute 体揭幕）
