@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import type { AgentTool } from "../../../../agent/src/index.ts";
+import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { Component, Container } from "../../../../tui/src/tui.ts";
@@ -270,10 +270,7 @@ function formatShellCall(args: { command?: string; timeout?: number } | undefine
 
 function rebuildBashResultRenderComponent(
 	component: BashResultRenderComponent,
-	result: {
-		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
-		details?: BashToolDetails;
-	},
+	result: AgentToolResult<BashToolDetails | undefined>,
 	options: ToolRenderResultOptions,
 	showImages: boolean,
 	startedAt: number | undefined,
@@ -282,7 +279,7 @@ function rebuildBashResultRenderComponent(
 	const state = component.state;
 	component.clear();
 
-	let output = getTextOutput(result as any, showImages).trim();
+	let output = getTextOutput(result, showImages).trim();
 	const truncation = result.details?.truncation;
 	const fullOutputPath = result.details?.fullOutputPath;
 	if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {
@@ -515,31 +512,51 @@ export function createShellToolDefinition(
 				state.interval = setInterval(() => context.invalidate(), 1000);
 			}
 			if (!options.isPartial || context.isError) {
-				state.endedAt ??= Date.now();
+				if (state.endedAt === undefined) {
+					state.endedAt = Date.now();
+				}
 				if (state.interval) {
 					clearInterval(state.interval);
 					state.interval = undefined;
 				}
 			}
 			const last: Component | undefined = context.lastComponent;
-			let component: BashResultRenderComponent;
 			if (last === undefined) {
-				component = new BashResultRenderComponent();
-			} else if (last instanceof BashResultRenderComponent) {
-				component = last;
-			} else {
-				component = new BashResultRenderComponent();
+				const component = new BashResultRenderComponent();
+				rebuildBashResultRenderComponent(
+					component,
+					result,
+					options,
+					context.showImages,
+					state.startedAt,
+					state.endedAt,
+				);
+				component.invalidate();
+				return component as Component;
 			}
+			if (last instanceof BashResultRenderComponent) {
+				rebuildBashResultRenderComponent(
+					last,
+					result,
+					options,
+					context.showImages,
+					state.startedAt,
+					state.endedAt,
+				);
+				last.invalidate();
+				return last as Component;
+			}
+			const component = new BashResultRenderComponent();
 			rebuildBashResultRenderComponent(
 				component,
-				result as any,
+				result,
 				options,
 				context.showImages,
 				state.startedAt,
 				state.endedAt,
 			);
 			component.invalidate();
-			return component;
+			return component as Component;
 		},
 	};
 }

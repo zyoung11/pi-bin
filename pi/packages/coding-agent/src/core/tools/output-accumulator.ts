@@ -40,7 +40,7 @@ export class OutputAccumulator {
 	private readonly tempFilePrefix: string;
 	private pendingTail: Uint8Array = new Uint8Array(0);
 
-	private rawChunks: Buffer[] = [];
+	private rawChunks: string[] = [];
 	private tailText = "";
 	private tailBytes = 0;
 	private tailStartsAtLineBoundary = true;
@@ -76,17 +76,19 @@ export class OutputAccumulator {
 		const bytes = new Uint8Array(combined);
 		const tailLength = incompleteUtf8TailLength(bytes);
 		const split = bytes.length - tailLength;
+		const decoder = new TextDecoder("utf-8");
+		let decodedChunk = "";
 		if (split > 0) {
-			const decoder = new TextDecoder("utf-8");
-			this.appendDecodedText(decoder.decode(bytes.subarray(0, split)));
+			decodedChunk = decoder.decode(bytes.subarray(0, split));
+			this.appendDecodedText(decodedChunk);
 		}
 		this.pendingTail = bytes.subarray(split);
 
 		if (this.tempFileCreated || this.shouldUseTempFile()) {
 			this.ensureTempFile();
-			writeFileSync(this.tempFilePath as string, data, { flag: "a" });
-		} else if (data.length > 0) {
-			this.rawChunks.push(data);
+			if (decodedChunk !== "") appendFileSync(this.tempFilePath as string, decodedChunk);
+		} else if (decodedChunk !== "") {
+			this.rawChunks.push(decodedChunk);
 		}
 	}
 
@@ -97,8 +99,12 @@ export class OutputAccumulator {
 		this.finished = true;
 		if (this.pendingTail.length > 0) {
 			const decoder = new TextDecoder("utf-8");
-			this.appendDecodedText(decoder.decode(this.pendingTail));
+			const tailText = decoder.decode(this.pendingTail);
+			this.appendDecodedText(tailText);
 			this.pendingTail = new Uint8Array(0);
+			if (this.tempFileCreated && tailText !== "") {
+				appendFileSync(this.tempFilePath as string, tailText);
+			}
 		}
 		if (this.shouldUseTempFile()) {
 			this.ensureTempFile();
@@ -213,9 +219,9 @@ export class OutputAccumulator {
 			return;
 		}
 		this.tempFilePath = defaultTempFilePath(this.tempFilePrefix);
-		writeFileSync(this.tempFilePath, new Uint8Array(0));
+		writeFileSync(this.tempFilePath, "");
 		for (const chunk of this.rawChunks) {
-			writeFileSync(this.tempFilePath, chunk, { flag: "a" });
+			appendFileSync(this.tempFilePath, chunk);
 		}
 		this.rawChunks = [];
 		this.tempFileCreated = true;

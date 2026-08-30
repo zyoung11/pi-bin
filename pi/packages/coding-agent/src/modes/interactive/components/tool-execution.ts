@@ -1,3 +1,4 @@
+import type { ImageContent, TextContent } from "../../../../../ai/src/index.ts";
 import { Box } from "../../../../../tui/src/components/box.ts";
 import { Image } from "../../../../../tui/src/components/image.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
@@ -363,7 +364,17 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	private getTextOutput(): string {
-		return getRenderedTextOutput(this.result, this.showImages);
+		const result = this.result;
+		if (result === undefined) return "";
+		const content: (TextContent | ImageContent)[] = [];
+		for (const block of result.content) {
+			if (block.type === "text") {
+				content.push({ type: "text", text: block.text ?? "" });
+			} else if (block.data !== undefined && block.mimeType !== undefined) {
+				content.push({ type: "image", data: block.data, mimeType: block.mimeType });
+			}
+		}
+		return getRenderedTextOutput({ content }, this.showImages);
 	}
 
 	private formatToolExecution(): string {

@@ -237,32 +237,33 @@ export function createWriteToolDefinition(
 			const renderArgs = args as { path?: string; file_path?: string; content?: string } | undefined;
 			const rawPath = str(renderArgs?.file_path ?? renderArgs?.path);
 			const fileContent = str(renderArgs?.content);
+			const apply = (component: WriteCallRenderComponent): Component => {
+				if (fileContent !== null) {
+					component.cache = context.argsComplete
+						? rebuildWriteHighlightCacheFull(rawPath, fileContent)
+						: updateWriteHighlightCacheIncremental(component.cache, rawPath, fileContent);
+				} else {
+					component.cache = undefined;
+				}
+				component.setText(
+					formatWriteCall(
+						renderArgs,
+						{ expanded: context.expanded, isPartial: context.isPartial },
+						theme,
+						component.cache,
+						context.cwd,
+					),
+				);
+				return component as Component;
+			};
 			const last: Component | undefined = context.lastComponent;
-			let component: WriteCallRenderComponent;
 			if (last === undefined) {
-				component = new WriteCallRenderComponent();
-			} else if (last instanceof WriteCallRenderComponent) {
-				component = last;
-			} else {
-				component = new WriteCallRenderComponent();
+				return apply(new WriteCallRenderComponent());
 			}
-			if (fileContent !== null) {
-				component.cache = context.argsComplete
-					? rebuildWriteHighlightCacheFull(rawPath, fileContent)
-					: updateWriteHighlightCacheIncremental(component.cache, rawPath, fileContent);
-			} else {
-				component.cache = undefined;
+			if (last instanceof WriteCallRenderComponent) {
+				return apply(last);
 			}
-			component.setText(
-				formatWriteCall(
-					renderArgs,
-					{ expanded: context.expanded, isPartial: context.isPartial },
-					theme,
-					component.cache,
-					context.cwd,
-				),
-			);
-			return component as Component;
+			return apply(new WriteCallRenderComponent());
 		},
 		renderResult(result, _options, theme, context) {
 			const output = formatWriteResult({ ...result, isError: context.isError }, theme);

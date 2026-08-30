@@ -38,15 +38,22 @@ export function normalizeDisplayText(text: string): string {
 }
 
 export function getTextOutput(
-	result: { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> } | undefined,
+	result: { content: (TextContent | ImageContent)[] } | undefined,
 	showImages: boolean,
 ): string {
 	if (!result) return "";
 
-	const textBlocks = result.content.filter((c) => c.type === "text");
-	const imageBlocks = result.content.filter((c) => c.type === "image");
+	const textBlocks: string[] = [];
+	const imageBlocks: ImageContent[] = [];
+	for (const block of result.content) {
+		if (block.type === "text") {
+			textBlocks.push(block.text);
+			continue;
+		}
+		imageBlocks.push(block);
+	}
 
-	let output = textBlocks.map((c) => sanitizeBinaryOutput(stripAnsi(c.text || "")).replace(/\r/g, "")).join("\n");
+	let output = textBlocks.map((t) => sanitizeBinaryOutput(stripAnsi(t)).replace(/\r/g, "")).join("\n");
 
 	const caps = getCapabilities();
 	if (imageBlocks.length > 0 && (!caps.images || !showImages)) {
