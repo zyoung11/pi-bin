@@ -10,9 +10,11 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 		const timeout = setTimeout(resolve, ms);
 
-		signal?.addEventListener("abort", () => {
-			clearTimeout(timeout);
-			reject(new Error("Aborted"));
-		});
+		if (signal !== undefined) {
+			signal.addEventListener("abort", () => {
+				clearTimeout(timeout);
+				reject(new Error("Aborted"));
+			});
+		}
 	});
 }

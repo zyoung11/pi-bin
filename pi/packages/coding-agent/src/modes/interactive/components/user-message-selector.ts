@@ -96,14 +96,16 @@ class UserMessageList extends Component {
 		// Enter - select message and branch
 		else if (kb.matches(keyData, "tui.select.confirm")) {
 			const selected = this.messages[this.selectedIndex];
-			if (selected && this.onSelect) {
-				this.onSelect(selected.id);
+			const onSelect = this.onSelect;
+			if (selected && onSelect) {
+				onSelect(selected.id);
 			}
 		}
 		// Escape - cancel
 		else if (kb.matches(keyData, "tui.select.cancel")) {
-			if (this.onCancel) {
-				this.onCancel();
+			const onCancel = this.onCancel;
+			if (onCancel) {
+				onCancel();
 			}
 		}
 	}

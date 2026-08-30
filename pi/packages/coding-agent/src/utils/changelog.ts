@@ -52,7 +52,7 @@ function splitLocalTarget(target: string): { fragment: string; pathPart: string;
 }
 
 function normalizePathPart(value: string): string {
-	return value.replaceAll("\\", "/");
+	return value.split("\\").join("/");
 }
 
 function resolveRepositoryPath(targetPath: string): string | undefined {
@@ -110,9 +110,64 @@ function normalizeChangelogLinkTarget(target: string, tag: string): string {
 
 export function normalizeChangelogLinks(markdown: string, version: string | ChangelogEntry): string {
 	const tag = normalizeTag(version);
-	return markdown.replace(INLINE_MARKDOWN_LINK_RE, (_match, prefix, target, suffix) => {
-		return `${prefix}${normalizeChangelogLinkTarget(target, tag)}${suffix}`;
-	});
+	let out = "";
+	let i = 0;
+	while (i < markdown.length) {
+		let start = i;
+		if (markdown.charAt(i) === "!") start = i + 1;
+		if (markdown.charAt(start) !== "[") {
+			out += markdown.charAt(i);
+			i++;
+			continue;
+		}
+		const closeBracketIdx = markdown.indexOf("]", start + 1);
+		const newlineIdx = markdown.indexOf("\n", start + 1);
+		if (
+			closeBracketIdx === -1 ||
+			(newlineIdx !== -1 && newlineIdx < closeBracketIdx) ||
+			markdown.charAt(closeBracketIdx + 1) !== "("
+		) {
+			out += markdown.charAt(i);
+			i++;
+			continue;
+		}
+		const targetStart = closeBracketIdx + 2;
+		let targetEnd = targetStart;
+		while (targetEnd < markdown.length) {
+			const c = markdown.charAt(targetEnd);
+			if (c === " " || c === "\t" || c === "\n" || c === "\r" || c === ")") break;
+			targetEnd++;
+		}
+		if (targetEnd === targetStart) {
+			out += markdown.charAt(i);
+			i++;
+			continue;
+		}
+		let suffixEnd: number;
+		if (markdown.charAt(targetEnd) === ")") {
+			suffixEnd = targetEnd + 1;
+		} else {
+			let j = targetEnd;
+			while (j < markdown.length) {
+				const c = markdown.charAt(j);
+				if (c === " " || c === "\t" || c === "\n" || c === "\r") j++;
+				else break;
+			}
+			const closeIdx = markdown.indexOf(")", j);
+			if (j === targetEnd || closeIdx === -1) {
+				out += markdown.charAt(i);
+				i++;
+				continue;
+			}
+			suffixEnd = closeIdx + 1;
+		}
+		const prefix = markdown.slice(i, closeBracketIdx + 2);
+		const target = markdown.slice(targetStart, targetEnd);
+		const normalized = normalizeChangelogLinkTarget(target, tag);
+		out += `${prefix}${normalized})`;
+		i = suffixEnd;
+	}
+	return out;
 }
 
 /**

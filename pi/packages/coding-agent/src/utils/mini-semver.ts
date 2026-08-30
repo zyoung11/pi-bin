@@ -81,7 +81,7 @@ function parseComparator(token: string): Comparator | null {
 	const minorText = match[3];
 	const patchText = match[4];
 	if (majorText === "x" || majorText === "X" || majorText === "*") {
-		return { op: ">=", ver: { major: 0, minor: 0, patch: 0, prerelease: [] } };
+		return { op: ">=", ver: { major: 0, minor: 0, patch: 0, prerelease: [] as string[] } };
 	}
 	const major = Number(majorText);
 	const minorIsAny = minorText === undefined || minorText === "x" || minorText === "X" || minorText === "*";
@@ -90,24 +90,24 @@ function parseComparator(token: string): Comparator | null {
 	const patch = patchIsAny ? 0 : Number(patchText);
 	const base: SemVer = { major, minor, patch, prerelease: match[5] ? match[5].split(".") : [] };
 	if (minorIsAny) {
-		if (opText === "<") return { op: "<", ver: { major, minor: 0, patch: 0, prerelease: [] } };
+		if (opText === "<") return { op: "<", ver: { major, minor: 0, patch: 0, prerelease: [] as string[] } };
 		return { op: ">=", ver: base };
 	}
 	if (patchIsAny) {
-		if (opText === "<") return { op: "<", ver: { major, minor, patch: 0, prerelease: [] } };
+		if (opText === "<") return { op: "<", ver: { major, minor, patch: 0, prerelease: [] as string[] } };
 		return { op: ">=", ver: base };
 	}
 	if (opText === "^") {
 		const upper =
 			major > 0
-				? { major: major + 1, minor: 0, patch: 0, prerelease: [] }
+				? { major: major + 1, minor: 0, patch: 0, prerelease: [] as string[] }
 				: minor > 0
-					? { major: 0, minor: minor + 1, patch: 0, prerelease: [] }
-					: { major: 0, minor: 0, patch: patch + 1, prerelease: [] };
+					? { major: 0, minor: minor + 1, patch: 0, prerelease: [] as string[] }
+					: { major: 0, minor: 0, patch: patch + 1, prerelease: [] as string[] };
 		return { op: "<", ver: upper };
 	}
 	if (opText === "~") {
-		return { op: "<", ver: { major, minor: minor + 1, patch: 0, prerelease: [] } };
+		return { op: "<", ver: { major, minor: minor + 1, patch: 0, prerelease: [] as string[] } };
 	}
 	return { op: opText === "" ? "=" : (opText as ">" | ">=" | "<" | "<=" | "="), ver: base };
 }

@@ -45,7 +45,7 @@ export interface LsOperations {
 
 const defaultLsOperations: LsOperations = {
 	exists: pathExists,
-	stat: fsStat,
+	stat: (path: string) => fsStat(path),
 	readdir: fsReaddir,
 };
 

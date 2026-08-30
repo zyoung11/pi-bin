@@ -1,9 +1,12 @@
-import { randomFillSync } from "node:crypto";
+import { randomBytes } from "node:crypto";
 let lastTimestamp = -Infinity;
 let sequence = 0;
 
 function fillRandomBytes(bytes: Uint8Array<ArrayBuffer>): void {
-	randomFillSync(bytes);
+	const hex = randomBytes(bytes.length).toString("hex");
+	for (let i = 0; i < bytes.length; i++) {
+		bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+	}
 }
 
 /** Generate a time-ordered UUIDv7. */

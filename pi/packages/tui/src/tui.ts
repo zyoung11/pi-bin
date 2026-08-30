@@ -921,8 +921,9 @@ export abstract class TuiBase extends Container implements TUI {
 		}
 
 		// Global debug key handler (Shift+Ctrl+D)
-		if (matchesKey(data, "shift+ctrl+d") && this.onDebug) {
-			this.onDebug();
+		if (matchesKey(data, "shift+ctrl+d")) {
+			const onDebug = this.onDebug;
+			if (onDebug) onDebug();
 			return;
 		}
 

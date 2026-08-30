@@ -24,7 +24,7 @@ export function createProjectTrustContext(options: {
 					options.settingsManager,
 					title,
 					selectOptions.map((option) => ({ label: option, value: option })),
-				) as Promise<string | undefined>;
+				);
 			},
 			confirm: async (title, message) => {
 				if (!options.hasUI) {
@@ -33,12 +33,11 @@ export function createProjectTrustContext(options: {
 				if (options.mode !== "interactive") {
 					return false;
 				}
-				return (
-					((await showStartupSelector(options.settingsManager, `${title}\n${message}`, [
-						{ label: "Yes", value: true },
-						{ label: "No", value: false },
-					])) as boolean | undefined) ?? false
-				);
+				const answer = await showStartupSelector(options.settingsManager, `${title}\n${message}`, [
+					{ label: "Yes", value: "Yes" },
+					{ label: "No", value: "No" },
+				]);
+				return answer === "Yes";
 			},
 			input: async (title, placeholder) => {
 				if (!options.hasUI) {

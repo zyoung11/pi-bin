@@ -458,7 +458,7 @@ export class AgentSession {
 
 	/** Normalizes image content in tool results so inline images respect the auto-resize setting. */
 	private _installAgentToolHooks(): void {
-		this.agent.afterToolCall = async (context) => {
+		this.agent.afterToolCall = async (context, _signal) => {
 			const { result } = context;
 			const originalContent: (TextContent | ImageContent)[] = result.content ?? [];
 			const normalizedContent = await normalizeToolResultImages(originalContent, {

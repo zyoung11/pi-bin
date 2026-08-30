@@ -11,12 +11,7 @@ import { contentText, type RetryCallbacks, type RetryPolicy, retryAssistantCall,
 import type { AssistantMessage, Context, Model, SimpleStreamOptions, Usage } from "../../../../ai/src/compat.ts";
 import { completeSimple } from "../../../../ai/src/compat.ts";
 import { convertToLlm } from "../messages.ts";
-import {
-	buildSessionContext,
-	type CompactionEntry,
-	type SessionEntry,
-	sessionEntryToContextMessages,
-} from "../session-manager.ts";
+import { entryIdOf, buildSessionContext, type CompactionEntry, type SessionEntry, sessionEntryToContextMessages,  } from "../session-manager.ts";
 import {
 	computeFileLists,
 	createFileOps,
@@ -247,14 +242,18 @@ export function shouldCompact(contextTokens: number, contextWindow: number, sett
 
 const ESTIMATED_IMAGE_CHARS = 4800;
 
-function estimateTextAndImageContentChars(content: string | Array<{ type: string; text?: string }>): number {
+function estimateTextAndImageContentChars(content: unknown): number {
 	if (typeof content === "string") {
 		return content.length;
 	}
+	if (!Array.isArray(content)) {
+		return 0;
+	}
 
 	let chars = 0;
-	for (const block of content) {
-		if (block.type === "text" && block.text) {
+	for (const item of content) {
+		const block = item as { type?: unknown; text?: unknown };
+		if (block.type === "text" && typeof block.text === "string") {
 			chars += block.text.length;
 		} else if (block.type === "image") {
 			chars += ESTIMATED_IMAGE_CHARS;
@@ -802,10 +801,10 @@ export function prepareCompaction(
 
 	// Get UUID of first kept entry
 	const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
-	if (!firstKeptEntry?.id) {
+	const firstKeptEntryId = firstKeptEntry === undefined ? undefined : entryIdOf(firstKeptEntry);
+	if (firstKeptEntryId === undefined) {
 		return undefined; // Session needs migration
 	}
-	const firstKeptEntryId = (firstKeptEntry as unknown as { id: string }).id;
 
 	const historyEnd = cutPoint.isSplitTurn ? cutPoint.turnStartIndex : cutPoint.firstKeptEntryIndex;
 

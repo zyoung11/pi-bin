@@ -28,17 +28,17 @@ export interface ResourceLoaderReloadOptions {
 	resolveProjectTrust?: () => Promise<boolean>;
 }
 
-export interface ResourceLoader {
-	getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
-	getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] };
-	getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] };
-	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
-	getSystemPrompt(): string | undefined;
-	getSystemPromptSource(): { path: string } | undefined;
-	getAppendSystemPrompt(): string[];
-	getAppendSystemPromptSources(): Array<{ path: string }>;
-	extendResources(paths: ResourceExtensionPaths): void;
-	reload(options?: ResourceLoaderReloadOptions): Promise<void>;
+export abstract class ResourceLoader {
+	abstract getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
+	abstract getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] };
+	abstract getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] };
+	abstract getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
+	abstract getSystemPrompt(): string | undefined;
+	abstract getSystemPromptSource(): { path: string } | undefined;
+	abstract getAppendSystemPrompt(): string[];
+	abstract getAppendSystemPromptSources(): Array<{ path: string }>;
+	abstract extendResources(paths: ResourceExtensionPaths): void;
+	abstract reload(options?: ResourceLoaderReloadOptions): Promise<void>;
 }
 
 function resolvePromptInput(input: string | undefined, description: string): string | undefined {
@@ -178,7 +178,7 @@ export interface DefaultResourceLoaderOptions {
 	appendSystemPromptOverride?: (base: string[]) => string[];
 }
 
-export class DefaultResourceLoader implements ResourceLoader {
+export class DefaultResourceLoader extends ResourceLoader {
 	private cwd: string;
 	private agentDir: string;
 	private settingsManager: SettingsManager;
@@ -231,6 +231,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private loaded: boolean;
 
 	constructor(options: DefaultResourceLoaderOptions) {
+		super();
 		this.cwd = resolvePath(options.cwd);
 		this.agentDir = resolvePath(options.agentDir);
 		this.settingsManager = options.settingsManager ?? SettingsManager.create(this.cwd, this.agentDir);
@@ -346,7 +347,11 @@ export class DefaultResourceLoader implements ResourceLoader {
 		}
 	}
 
-	async reload(options?: ResourceLoaderReloadOptions): Promise<void> {
+	reload(options?: ResourceLoaderReloadOptions): Promise<void> {
+		return this.reloadAsync(options);
+	}
+
+	private async reloadAsync(options?: ResourceLoaderReloadOptions): Promise<void> {
 		if (options?.resolveProjectTrust) {
 			// Force untrusted project settings for the bootstrap pass. This keeps project-local
 			// resources out while still loading user/global ones.

@@ -53,10 +53,11 @@ function addIgnoreRules(ig: IgnoreMatcher, dir: string, rootDir: string): void {
 		if (!existsSync(ignorePath)) continue;
 		try {
 			const content = readFileSync(ignorePath, "utf-8");
-			const patterns = content
-				.split(/\r?\n/)
-				.map((line) => prefixIgnorePattern(line, prefix))
-				.filter((line): line is string => Boolean(line));
+			const patterns: string[] = [];
+			for (const line of content.split(/\r?\n/)) {
+				const prefixed = prefixIgnorePattern(line, prefix);
+				if (prefixed !== null && prefixed !== undefined && prefixed !== "") patterns.push(prefixed);
+			}
 			if (patterns.length > 0) {
 				ig.add(patterns);
 			}
@@ -500,8 +501,10 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
 		}
 	}
 
+	const skillList: Skill[] = [];
+	for (const skill of skillMap.values()) skillList.push(skill);
 	return {
-		skills: Array.from(skillMap.values()),
+		skills: skillList,
 		diagnostics: [...allDiagnostics, ...collisionDiagnostics],
 	};
 }

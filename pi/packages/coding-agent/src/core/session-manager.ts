@@ -35,7 +35,8 @@ import {
 	createCustomMessage,
 } from "./messages.ts";
 
-function entryIdOf(entry: unknown): string | undefined {
+/** Read the id off a session entry without triggering union field-read walls. */
+export function entryIdOf(entry: unknown): string | undefined {
 	const record = entry as unknown as Record<string, unknown>;
 	const id = record["id"];
 	return typeof id === "string" ? id : undefined;

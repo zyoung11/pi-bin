@@ -40,6 +40,7 @@ import {
 	createAgentSessionServices,
 } from "./core/agent-session-services.ts";
 import { formatNoModelsAvailableMessage } from "./core/auth-guidance.ts";
+import type { CredentialStore } from "../../ai/src/auth/types.ts";
 import { AuthStorage, ReadOnlyAuthStorage } from "./core/auth-storage.ts";
 import { exportFromFile } from "./core/export-html/index.ts";
 import { applyHttpProxySettings, configureHttpDispatcher } from "./core/http-dispatcher.ts";
@@ -169,7 +170,7 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 		let result: AuthCheckResult;
 		let credential: string | undefined;
 		try {
-			const credentials = command.noRefresh ? new ReadOnlyAuthStorage() : AuthStorage.create();
+			const credentials: CredentialStore = command.noRefresh ? new ReadOnlyAuthStorage() : AuthStorage.create();
 			const modelRuntime = await createAuthCheckModelRuntime(credentials);
 			result = await checkProviderAuth(parsed, modelRuntime, { refresh: !command.noRefresh });
 			if (command.credentials && result.status === "ready") {
@@ -546,8 +547,7 @@ function promptForMissingSessionCwd(
 ): Promise<string | undefined> {
 	return showStartupSelector(settingsManager, formatMissingSessionCwdPrompt(issue), [
 		{ label: "Continue", value: issue.fallbackCwd },
-		{ label: "Cancel", value: undefined },
-	]) as Promise<string | undefined>;
+	]);
 }
 
 let processExitCode: number | undefined;

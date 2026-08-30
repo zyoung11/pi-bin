@@ -109,7 +109,7 @@ export interface EditOperations {
 const defaultEditOperations: EditOperations = {
 	readFile: (path) => fsReadFile(path),
 	writeFile: (path, content) => fsWriteFile(path, content, "utf-8"),
-	access: (path) => Promise.resolve(existsSync(path) ? undefined : undefined),
+	access: async (path) => (existsSync(path) ? undefined : undefined),
 };
 
 export interface EditToolOptions {

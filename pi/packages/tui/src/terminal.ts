@@ -25,7 +25,7 @@ export function parseKeyboardProtocolNegotiationSequence(
 ): KeyboardProtocolNegotiationSequence | undefined {
 	const kittyFlags = sequence.match(/^\x1b\[\?(\d+)u$/);
 	if (kittyFlags) {
-		return { type: "kitty-flags", flags: Number.parseInt(kittyFlags[1]!, 10) };
+		return { type: "kitty-flags", flags: parseDecimalInt(kittyFlags[1]!) ?? 0 };
 	}
 	if (/^\x1b\[\?[\d;]*c$/.test(sequence)) {
 		return { type: "device-attributes" };
@@ -220,8 +220,9 @@ export class ProcessTerminal implements Terminal {
 
 		// Re-wrap paste content with bracketed paste markers for existing editor handling
 		this.stdinBuffer.on("paste", (content) => {
-			if (this.inputHandler) {
-				this.inputHandler(`\x1b[200~${content}\x1b[201~`);
+			const inputHandler = this.inputHandler;
+			if (inputHandler) {
+				inputHandler(`\x1b[200~${content}\x1b[201~`);
 			}
 		});
 

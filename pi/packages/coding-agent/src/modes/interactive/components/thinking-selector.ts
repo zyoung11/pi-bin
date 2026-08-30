@@ -77,7 +77,7 @@ export class ThinkingSelectorComponent extends Container implements Focusable {
 		this.addChild(new Spacer(1));
 
 		this.searchInput = new Input();
-		this.searchInput.onSubmit = () => this.selectList.handleInput("\r");
+		this.searchInput.onSubmit = (_value: string) => this.selectList.handleInput("\r");
 		this.addChild(this.searchInput);
 		this.addChild(new Spacer(1));
 
@@ -114,9 +114,10 @@ export class ThinkingSelectorComponent extends Container implements Focusable {
 	}
 
 	handleInput(keyData: string): void {
-		if (matchesKey(keyData, "ctrl+s") && this.onSelectAsDefault) {
+		if (matchesKey(keyData, "ctrl+s")) {
+			const onSelectAsDefault = this.onSelectAsDefault;
 			const item = this.selectList.getSelectedItem();
-			if (item) this.onSelectAsDefault(item.value as ThinkingLevel);
+			if (onSelectAsDefault && item) onSelectAsDefault(item.value as ThinkingLevel);
 			return;
 		}
 

@@ -143,12 +143,12 @@ export function shouldRunFirstTimeSetup(settingsPath: string = getSettingsPath()
 export async function showStartupSelector(
 	settingsManager: SettingsManager,
 	title: string,
-	options: Array<{ label: string; value: unknown }>,
-): Promise<unknown> {
+	options: Array<{ label: string; value: string }>,
+): Promise<string | undefined> {
 	const ui = await createStartupTui(settingsManager);
 	return new Promise((resolve) => {
 		let settled = false;
-		const finish = async (result: unknown) => {
+		const finish = async (result: string | undefined) => {
 			if (settled) {
 				return;
 			}

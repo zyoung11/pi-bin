@@ -397,7 +397,7 @@ export class StdinBuffer extends EventEmitter {
 	}
 
 	private emitDataSequence(sequence: string): void {
-		const rawCodepoint = sequence.length === 1 ? sequence.codePointAt(0) : undefined;
+		const rawCodepoint = sequence.length === 1 ? sequence.charCodeAt(0) : undefined;
 		if (rawCodepoint !== undefined && rawCodepoint === this.pendingKittyPrintableCodepoint) {
 			this.pendingKittyPrintableCodepoint = undefined;
 			return;

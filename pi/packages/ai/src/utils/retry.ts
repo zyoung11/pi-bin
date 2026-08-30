@@ -131,14 +131,16 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 			return;
 		}
 		const timeout = setTimeout(resolve, ms);
-		signal?.addEventListener(
-			"abort",
-			() => {
-				clearTimeout(timeout);
-				reject(new RetrySleepAbortError());
-			},
-			{ once: true },
-		);
+		if (signal !== undefined) {
+			signal.addEventListener(
+				"abort",
+				() => {
+					clearTimeout(timeout);
+					reject(new RetrySleepAbortError());
+				},
+				{ once: true },
+			);
+		}
 	});
 }
 
@@ -175,13 +177,15 @@ export async function retryAssistantCall(
 
 		// Abort: terminal but not successful. Never retry an aborted message.
 		if (response.stopReason === "aborted") {
-			if (lastRetry) await callbacks?.onRetryFinished?.(false, lastRetry.attempt);
+			const onFinish = callbacks?.onRetryFinished;
+			if (lastRetry && onFinish) onFinish(false, lastRetry.attempt, undefined);
 			return response;
 		}
 
 		// Success: non-error, non-abort responses return as-is.
 		if (response.stopReason !== "error") {
-			if (lastRetry) await callbacks?.onRetryFinished?.(true, lastRetry.attempt);
+			const onFinish = callbacks?.onRetryFinished;
+			if (lastRetry && onFinish) onFinish(true, lastRetry.attempt, undefined);
 			return response;
 		}
 

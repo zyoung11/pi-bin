@@ -2,6 +2,7 @@ import type { Api } from "../../../ai/src/types.ts";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "../../../agent/src/index.ts";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "../../../ai/src/compat.ts";
+import type { ImageContent, TextContent } from "../../../ai/src/types.ts";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { AgentSession } from "./agent-session.ts";
@@ -171,8 +172,9 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	const sessionManager = options.sessionManager ?? SessionManager.create(cwd, getDefaultSessionDir(cwd, agentDir));
 
 	if (!resourceLoader) {
-		resourceLoader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
-		await resourceLoader.reload();
+		const defaultLoader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+		await defaultLoader.reload();
+		resourceLoader = defaultLoader;
 		time("resourceLoader.reload");
 	}
 
@@ -207,9 +209,9 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			modelRuntime,
 		});
 		model = result.model;
-		if (!model) {
+		if (model === undefined) {
 			modelFallbackMessage = formatNoModelsAvailableMessage();
-		} else if (modelFallbackMessage) {
+		} else if (modelFallbackMessage !== undefined) {
 			modelFallbackMessage += `. Using ${model.provider}/${model.id}`;
 		}
 	}
@@ -245,10 +247,9 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	const configuredDefaultToolNames = settingsManager.getDefaultTools();
 	const allowedToolNames = options.tools ?? (options.noTools === "all" ? [] : undefined);
 	const excludedToolNames = options.excludeTools;
-	const excludedToolNameSet = excludedToolNames ? new Set(excludedToolNames) : undefined;
 	const initialActiveToolNames = (
 		options.tools ?? (options.noTools ? [] : (configuredDefaultToolNames ?? defaultActiveToolNames))
-	).filter((name) => !excludedToolNameSet?.has(name));
+	).filter((name) => excludedToolNames?.includes(name) !== true);
 
 	let agent: Agent;
 
@@ -291,21 +292,23 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				if (Array.isArray(content)) {
 					const hasImages = content.some((c) => c.type === "image");
 					if (hasImages) {
-						const filteredContent = content
-							.map((c) =>
-								c.type === "image" ? { type: "text" as const, text: "Image reading is disabled." } : c,
-							)
-							.filter(
-								(c, i, arr) =>
-									// Dedupe consecutive "Image reading is disabled." texts
-									!(
-										c.type === "text" &&
-										c.text === "Image reading is disabled." &&
-										i > 0 &&
-										arr[i - 1].type === "text" &&
-										(arr[i - 1] as { type: "text"; text: string }).text === "Image reading is disabled."
-									),
-							);
+						const filteredContent: Array<TextContent | ImageContent> = [];
+						for (const c of content) {
+							if (c.type === "image") {
+								const placeholder: TextContent = { type: "text", text: "Image reading is disabled." };
+								const previous = filteredContent[filteredContent.length - 1];
+								if (
+									previous !== undefined &&
+									previous.type === "text" &&
+									previous.text === "Image reading is disabled."
+								) {
+									continue;
+								}
+								filteredContent.push(placeholder);
+							} else {
+								filteredContent.push(c);
+							}
+						}
 						return { ...msg, content: filteredContent };
 					}
 				}
@@ -333,6 +336,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				options?.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs();
 			return modelRuntime.streamSimple(model, context, {
 				...options,
+				signal: options?.signal,
 				timeoutMs,
 				websocketConnectTimeoutMs,
 				maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,

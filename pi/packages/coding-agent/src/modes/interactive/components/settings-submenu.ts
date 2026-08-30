@@ -244,10 +244,12 @@ export class SteppedSubmenu extends Container {
 	}
 
 	handleInput(data: string): void {
-		this.activeComponent.handleInput?.(data);
+		const active = this.activeComponent;
+		if (active !== undefined) active.handleInput(data);
 	}
 
 	invalidate(): void {
-		this.activeComponent.invalidate?.();
+		const active = this.activeComponent;
+		if (active !== undefined) active.invalidate();
 	}
 }

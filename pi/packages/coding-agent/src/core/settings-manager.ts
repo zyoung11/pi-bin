@@ -1359,14 +1359,16 @@ export class SettingsManager {
 	}
 
 	setMermaidRenderingMode(mode: MermaidRenderingMode): void {
-		this.globalSettings.markdown ??= {};
+		if (this.globalSettings.markdown === undefined) this.globalSettings.markdown = {};
 		this.globalSettings.markdown.mermaid = mode;
 		this.markModified("markdown", "mermaid");
 		this.save();
 	}
 
 	getWarnings(): WarningSettings {
-		return { ...(this.settings.warnings ?? {}) };
+		const warnings = this.settings.warnings;
+		if (warnings === undefined) return {};
+		return { ...warnings };
 	}
 
 	setWarnings(warnings: WarningSettings): void {

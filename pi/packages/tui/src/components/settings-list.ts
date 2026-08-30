@@ -183,8 +183,9 @@ export class SettingsList extends Component {
 	handleInput(data: string): void {
 		// If submenu is active, delegate all input to it
 		// The submenu's onCancel (triggered by escape) will call done() which closes it
-		if (this.submenuComponent) {
-			this.submenuComponent.handleInput?.(data);
+		const submenu = this.submenuComponent;
+		if (submenu !== null && submenu !== undefined) {
+			submenu.handleInput(data);
 			return;
 		}
 

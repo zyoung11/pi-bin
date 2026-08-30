@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { basename, dirname, join, resolve, sep } from "path";
 import { CONFIG_DIR_NAME } from "../config.ts";
 import { parseFrontmatter } from "../utils/frontmatter.ts";
+import { parseDecimalInt } from "../../../tui/src/utils.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 
@@ -70,35 +71,77 @@ export function parseCommandArgs(argsString: string): string[] {
 export function substituteArgs(content: string, args: string[]): string {
 	const allArgs = args.join(" ");
 
-	return content.replace(
-		/\$\{(\d+|ARGUMENTS|@):-([^}]*)\}|\$\{@:(\d+)(?::(\d+))?\}|\$(ARGUMENTS|@|\d+)/g,
-		(_match, defaultTarget, defaultValue, sliceStart, sliceLength, simple) => {
-			if (defaultTarget) {
-				const value =
-					defaultTarget === "@" || defaultTarget === "ARGUMENTS" ? allArgs : args[parseInt(defaultTarget, 10) - 1];
-				return value ? value : defaultValue;
-			}
+	let out = "";
+	let i = 0;
+	while (i < content.length) {
+		const ch = content.charAt(i);
+		if (ch !== "$") {
+			out += ch;
+			i++;
+			continue;
+		}
+		const next = content.charAt(i + 1);
 
-			if (sliceStart) {
-				let start = parseInt(sliceStart, 10) - 1; // Convert to 0-indexed (user provides 1-indexed)
-				// Treat 0 as 1 (bash convention: args start at 1)
-				if (start < 0) start = 0;
-
-				if (sliceLength) {
-					const length = parseInt(sliceLength, 10);
-					return args.slice(start, start + length).join(" ");
+		if (next === "{") {
+			const closeIdx = content.indexOf("}", i + 2);
+			if (closeIdx !== -1) {
+				const inner = content.slice(i + 2, closeIdx);
+				const sepIdx = inner.indexOf(":-");
+				if (sepIdx !== -1) {
+					const target = inner.slice(0, sepIdx);
+					const defaultValue = inner.slice(sepIdx + 2);
+					const digitsOnly = target !== "" && /^[0-9]+$/.test(target);
+					if (target === "@" || target === "ARGUMENTS" || digitsOnly) {
+						const value = target === "@" || target === "ARGUMENTS" ? allArgs : args[(parseDecimalInt(target) ?? 1) - 1];
+						out += value ? value : defaultValue;
+						i = closeIdx + 1;
+						continue;
+					}
+				} else if (inner.startsWith("@:")) {
+					const spec = inner.slice(2);
+					const colonIdx = spec.indexOf(":");
+					const parsedStart = parseDecimalInt(colonIdx === -1 ? spec : spec.slice(0, colonIdx)) ?? 1;
+					let start = parsedStart - 1;
+					if (start < 0) start = 0;
+					if (colonIdx !== -1) {
+						const length = parseDecimalInt(spec.slice(colonIdx + 1)) ?? 0;
+						out += args.slice(start, start + length).join(" ");
+					} else {
+						out += args.slice(start).join(" ");
+					}
+					i = closeIdx + 1;
+					continue;
 				}
-				return args.slice(start).join(" ");
 			}
+		}
 
-			if (simple === "ARGUMENTS" || simple === "@") {
-				return allArgs;
+		if (next === "A" && content.slice(i + 1, i + 10) === "ARGUMENTS") {
+			out += allArgs;
+			i += 10;
+			continue;
+		}
+		if (next === "@") {
+			out += allArgs;
+			i += 2;
+			continue;
+		}
+		if (next >= "0" && next <= "9") {
+			let digitsEnd = i + 1;
+			while (digitsEnd < content.length) {
+				const d = content.charAt(digitsEnd);
+				if (d < "0" || d > "9") break;
+				digitsEnd++;
 			}
+			const index = (parseDecimalInt(content.slice(i + 1, digitsEnd)) ?? 1) - 1;
+			out += args[index] ?? "";
+			i = digitsEnd;
+			continue;
+		}
 
-			const index = parseInt(simple, 10) - 1;
-			return args[index] ?? "";
-		},
-	);
+		out += ch;
+		i++;
+	}
+	return out;
 }
 
 function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptTemplate | null {
@@ -119,10 +162,11 @@ function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptT
 			}
 		}
 
+		const argumentHint = frontmatter["argument-hint"];
 		return {
 			name,
 			description,
-			...(frontmatter["argument-hint"] && { argumentHint: frontmatter["argument-hint"] }),
+			argumentHint: typeof argumentHint === "string" ? argumentHint : undefined,
 			content: body,
 			sourceInfo,
 			filePath,

@@ -303,7 +303,7 @@ export function validateToolCall(tools: Tool[], toolCall: ToolCall): any {
  * @throws Error with formatted message if validation fails
  */
 export function validateToolArguments(tool: Tool, toolCall: ToolCall): unknown {
-	const args = structuredClone(toolCall.arguments);
+	const args = structuredClone(toolCall.arguments) as { [key: string]: unknown };
 	normalizeOptionalNulls(args, tool.parameters as JsonSchemaObject);
 	Value.Convert(tool.parameters, args);
 
@@ -311,9 +311,8 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): unknown {
 	const coercedArgs = coerceWithJsonSchema(args, tool.parameters as JsonSchemaObject);
 	if (coercedArgs !== args) {
 		if (typeof args === "object" && args !== null && typeof coercedArgs === "object" && coercedArgs !== null) {
-			const argsRecord = args as Record<string, unknown>;
-			for (const key of Object.keys(argsRecord)) {
-				delete argsRecord[key];
+			for (const key of Object.keys(args)) {
+				delete args[key];
 			}
 			Object.assign(args, coercedArgs);
 		} else {
