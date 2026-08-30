@@ -78,6 +78,56 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
+## 阶段 5 grind 第四十六轮记录（34→2，scriptc SC9001 ICE 阻塞收尾）
+
+- **基线确认 34 → 收官 2**（tsgo src 全程清零；3 个 commit：b861742 tools 群 16 个、a18cdf3 settings/interactive/autocomplete 12 个 + Provider 去泛型化、8edfe34 ai 包 race/login 6 个→2）。所有改动均经探针矩阵实证，无黑箱猜测。总账 712→2（99.7%）。
+
+### 破局方法论：probe46 极速探针（本轮最重要资产）
+
+- `packages/coding-agent/src/probe46.ts` 独立入口，`scriptc build probe46.ts` 仅 **0.9s**（cli.ts 全图数分钟），本轮所有机制结论均由它矩阵实验实证，已固化为 route W 回归测试。
+- **探针三铁律**（违者假通过/假阳性）：①被测函数必须 `export`（未导出且未被调用的函数体被 lowerer 跳过——静默不检查，会得出“此模式可行”的假结论，本轮 s1–s5/v4–v6 曾因此误导）②被测表达式必须真实可达 ③探针必须包含与目标相同的 `declare module` augmentation（否则 keyof 增强缺失报 SC0001 假阳性）。
+- 仅被 `import type` 引用的类不会被 value-collect：Theme 只经 type-only 边进入探针图时，`copyStateFrom(other: Theme)` 自引用方法误报“方法不可编译”；补一个 value import（`import { theme }`）后消失。
+- “图上下文浮动”现象（同代码小图过/全图崩）大多可还原为上述探针缺陷或 record 注册顺序差；少数为真编译器 bug（见 SC9001）。
+
+### 新规则库（探针矩阵实证，编号续接 r44）
+
+- ⑯ **ToolDef lift 死墙 = 函数值字段 contravariant 参数位的 unknown→specific**：execute 的 onUpdate、renderResult 的 result、renderCall 的 context 三处参数（内含 `details: unknown`/`state: unknown`）无法被具体类型定义 lift；covariant 位 specific→unknown ✓（`parameters` 字段/属性赋值均过）。SCDBG 佐证：width-shapes from/to 字段集完全一致时，错误在函数类型内部。
+- ⑰ **Route W（宽边界+窄内部）定型**：四个工具定义统一 `ToolDefinition<typeof schema>`（TDetails/TState 取默认 unknown），边界函数参数一律宽类型，内部经模块级 unknown 参数 helper（bashStateOf/bashDetailsOf/editStateOf/editDetailsOf/readDetailsOf）还原具体类型——cast 写在 helper（unknown 参数）内可过，写在对象字面量成员内直接对 `context.state` cast 被拒。
+- ⑱ **checked cast 目标禁含用户类字段**：`state as { c?: TextSub }`/`{ c?: BoxSub }` 拒（类实例非 JSON-representable，checked cast 只答 number/string/boolean/record/array/union）；core 类字段（Text）实测可行但勿依赖。edit 因此放弃 state 持组件，改纯 JSON state（preview/previewArgsKey/previewPending/settledError 上移）+ 每渲染重建组件（buildEditCallComponent 本就全量重建，行为等价；renderResult 变更后 context.invalidate() 触发下一轮 callRenderer 重绘）。
+- ⑲ **成员内经 instanceof 收窄的 union 值**：方法调用/字段读 ✓（bash `last.rebuild(...)`、read `last.setText(...)`）；**传入闭包参数/直接 return ✗**（write `return apply(last)` SC2003）。工作替代：①改为类方法 `last.apply(...)` ②中间注解 const。另：复合守卫 `a === undefined || b === undefined` scriptc 不收窄（TS 收窄），需拆独立 if。
+- ⑳ **对象字面量成员函数直接 return 对象字面量**：scriptc 以“裸推断”（上下文无关：content 元素 `{type:string; text:string}`、details `null|undefined`、缺 optional 字段）作为 expected，与上下文推断的 got（全 AgentToolResult 形状）永奔，bash:482/defQ/defR 同源。修复 = 显式返回类型注解（`): Promise<AgentToolResult<unknown>> {`）或注解局部变量——defT/defS/defU 实证两者均过。
+- ㉑ **runtime-optional capture 补全**：step.titleFn/item.submenu/method.login 第二次属性读值 → 提升局部变量（titleFn/descriptionFn/submenuFn）；`method.login!(...)` 非空断言单读亦可（`!` 走 unchecked 通道，无 capture）。⚠️ 但“局部持有可选方法 + 调用”在 models.ts 上下文触发 SC9001 ICE（见下），同型在独立 helper 内亦崩——提防。
+- ㉒ **泛型函数声明期死墙确认并绕过**：raceWithAbortSignal<T> 体内 `new Promise<T>` 与 `.catch` 在任何形式下声明期即拒（<T> 未解析实例化检查，复核 r45 结论）；解法 = 按调用点具体类型展开 8 个 race 助手（raceVoid/Boolean/BooleanArray/Unknown/AuthCheck/Models/Credential/AuthResultWithAbort），体为 `Promise.race([operation, once-abort Promise<X>])`——race 同内层 ✓ 实证；信号已 abort 需先短路 `return Promise.reject`（once 监听不会对已 abort 信号触发）。
+- ㉓ **Provider.stream 去泛型化（r44 指明正解落地）**：`stream<T extends TApi>(...)` → `stream(model: Model<TApi>, options?: StreamOptions)`。消失三墙：generic 方法调用“receiver runtime class 不可证明”、ProviderStreams width-check 的 stream MISSING、泛型实例化揭幕链。provider-composer 回归 `base.stream(model, context, options)` 直呼。
+- ㉔ **泛型方法实例化 = 隐性揭幕源**：经具体类接收者调用泛型方法（`baseModels.stream(...)`）会以实参实例化并 lowering 调用链体内全部函数（applyAuth 的 transformHeaders 函数值/`??` 类型改变/Omit 交叉 SC2008 墙群显形）；接口 signature-only 泛型方法调用则不实例化。嵌套泛型调用链的主体类型设计时即应避免 Omit/交叉/条件类型。
+- ㉕ **上下文类型裸推断失配机制**（⑳ 的机制化）：scriptc 对 return/arg 字面量先做上下文无关推断再 coerce，与 TS 上下文类型拼写不一致时永远失配——注解是对齐手段。
+- ㉖ **keybindings.ts 残留 tui/src/index.ts barrel 导入** = Keybindings 类型双身份毒源（declare module 增强路径同步迁移到 keybindings.ts 直连）。
+- ㉗ autocomplete fd 子进程重写定型：`const child: ChildProcess = spawn(...)` 显式注解避开 ChildProcessByStdio；exit+stdout end 握手替 close（close 不存在）；kill 去 exitCode 守卫；TextDecoder.decode 在 tui 图浮动 → 手写增量 UTF-8 解码（pendingBytes 尾部不完整序列缓冲 + fromCharCode 代理对）。
+
+### SC9001 ICE（scriptc 编译器 bug，本轮唯一未解）
+
+- **现象**：models.ts publishProviderModels 的 tail/emptyChain/publicationChains 类型簇做任何非平凡改动（typed `catch(() => undefined)`、then/catch 返回 `undefined as unknown`、helper 返回 unknown、`Map<string, Promise<boolean|undefined>>`、executor emptyChain、wrapper 对象、数组重构——共 8 种变体实测），全图 38 个 SC9001 在无关文件爆发：`internal compiler error: in normalizeOptionalNulls: recordGet receiver: expected record:r1656, got record:r788`（package-manager/session-manager/validation/compaction/config-selector/tui 等处的 `as unknown as Record<string, unknown>[key]` 桥点）。
+- **根因**：`Record<string, unknown>` 索引签名 record 被 double 注册（r2 早期 / r194 后期），lowering 产出的 recordGet shapeId 与 receiver 映射 type 的 shapeId 不一致；validate.ts:3166 `expectType(e.obj, {kind:"record", shapeId:e.shapeId}, "recordGet receiver")` 全等比较崩。注册顺序对 models.ts 代码形状极端敏感（加删几行即翻转），呈“刀锋”行为；与启动缓存无关（清 ~/.cache/scriptc 与 out 目录均复现），与浮动无关（连续 4 次构建 38 稳定）。
+- **已锁定触发矩阵（8 次构建对照）**：`catch(() => {})` 原样 ✓；任何 typed/变体 ✗；login 窄化（local/helper-arg/cast）✗；直呼 + 复合守卫 ✓。
+- **缓解**：该簇保持 committed 原样（map `Promise<unknown>` + emptyChain `Promise.resolve(undefined as unknown)` + `catch(() => {})`），遗留 2 个 lift 错误。
+- **下轮正解（编译器级三选一，SC_DEBUG_FAIL 路线）**：①record 注册按结构去重（index-signature 归一化进 byKey）②validate 对 record-vs-record 做 shape 结构等价回退（fields/indexValue 递归 typeEquals）③前端放行 `Promise<X> → Promise<unknown>` 内层 lift（unknown=dyn 吸收语义，与 boundarySafe 对齐）。推荐 ①，根治整类“注册顺序浮动”。
+
+### 遗留 2 个（models.ts:410/412，同根因）
+
+```ts
+const tail = queued.catch(() => {});              // Promise<boolean | undefined>
+this.publicationChains.set(providerId, tail);      // Map<string, Promise<unknown>>：boolean|undefined → unknown 内层 lift 死墙
+void tail.then(() => { ... === tail ... });        // 412 同源
+```
+
+修复形态已备（typed catch / wrapper 二选一），仅等编译器解锁。race 助手/登录流程/发布链路运行时语义均已保持（race 差异：输家 rejection 由 race 内部处理，无 unhandled rejection；已 abort 短路路径等价）。
+
+### 下轮入口
+
+1. scriptc 编译器级：SC9001 record 双重注册修复（上述三选一）→ 解锁 tail cluster → 0 错误。
+2. 全量构建 + 冒烟：MiniCPM5-1B print 对话 + bash tool_call（r45 口径）+ `--list-models`。
+3. 阶段 6 --npm-static 收尾 → 阶段 7 全量构建。
+
 ## 阶段 5 grind 第四十轮记录（进行中：204→96，长尾批量清零 + ResourceLoader 抽象类）
 
 - **长尾批量（~90 个散点）**：armin/bash-execution/compaction/custom-message/energy 等 30+ 文件的 RegExpExecArray.index、filter 谓词、可选方法提升、Promise.resolve(void)、replaceAll、Math.max spread、Error cause、??= 写出等已验证模式全部套用
@@ -716,7 +766,7 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
-- [ ] 阶段 5 诊断清单批量修复（进行中；r44 工具裁剪+grep 重写后基线 **71**（116→71），台账见第四十四轮记录）
+- [ ] 阶段 5 诊断清单批量修复（进行中；r46 后基线 **2**（34→2，99.7%），唯一残留 = models.ts publishProviderModels tail 簇，被 scriptc SC9001 ICE（Record<string,unknown> 双重注册）阻塞，修复形态已备，待编译器级修复，台账见第四十六轮记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 
