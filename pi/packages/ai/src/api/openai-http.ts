@@ -89,7 +89,8 @@ function toHttpError(response: Response): Promise<ProviderHttpError> {
 	});
 }
 
-function incompleteUtf8TailLength(bytes: Uint8Array): number {
+/** Number of trailing bytes forming an incomplete multi-byte UTF-8 sequence. */
+export function incompleteUtf8TailLength(bytes: Uint8Array): number {
 	for (let back = 1; back <= 3 && back <= bytes.length; back++) {
 		const b = bytes[bytes.length - back];
 		if (b === undefined) return 0;

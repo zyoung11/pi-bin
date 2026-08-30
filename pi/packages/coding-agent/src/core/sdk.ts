@@ -22,10 +22,6 @@ import {
 	createBashTool,
 	createCodingTools,
 	createEditTool,
-	createFindTool,
-	createGrepTool,
-	createLsTool,
-	createPowerShellTool,
 	createReadOnlyTools,
 	createReadTool,
 	createWriteTool,
@@ -112,10 +108,6 @@ export {
 	createBashTool,
 	createEditTool,
 	createWriteTool,
-	createGrepTool,
-	createFindTool,
-	createLsTool,
-	createPowerShellTool,
 };
 
 // Helper Functions

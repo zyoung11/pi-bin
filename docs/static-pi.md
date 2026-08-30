@@ -89,6 +89,16 @@
 - **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r41）
 - **总账 157→96；本会话累计 376→96（-280，74%）**；剩余：provider-composer 8、model-runtime 7、session 6、abort 5、agent-session 5、event-stream/transform-messages 各 4，及散点约 50
 
+## 阶段 5 grind 第四十四轮记录（进行中：116→71，工具裁剪 + grep 子进程重写）
+
+- **用户决策：只保留 read/bash/edit/write 四个基本工具**。删除 tools/grep.ts、tools/find.ts、tools/ls.ts、tools/powershell.ts；tools/index.ts 裁剪（ToolName/allToolNames/ToolsOptions/switch/工厂函数全部收敛到 4 工具）；包 index.ts、sdk.ts 导出清理；cli/args.ts 帮助文本同步。createCodingToolDefinitions/createReadOnlyToolDefinitions/createAllToolDefinitions/createAllTools 保留但收敛；interactive-mode 的 fd/rg ensureTool 保留（fd 供 autocomplete，rg 供 bash 内使用）。净消 ~29 个诊断。
+- **grep 子进程簇（已随砍除消失，但重写经验保留）**：spawn+readline → spawnProcess + 字节级行切分（LF 分割 + 逐行 decode，`
+` 不会出现在多字节 UTF-8 内部）+ exit/stdout-end 握手替 close 事件；运行时验证通过（工具真跑返回结果）。ChildProcessByStdio/createInterface/readline.Interface.on 全部避开。
+- **TextDecoder 怪癖（未解，下轮定位）**：`new TextDecoder("utf-8")` 构造后 decode 调用在 diag8 中全部通过、diag9 又复现（grep 250/311/400），疑似图序/声明解析浮动——需用 instrumented compiler 定位；output-accumulator 的字段形式 `private readonly decoder = new TextDecoder()` 确认不可映射（字段值透明句柄），改为方法内局部构造 + `incompleteUtf8TailLength`（已从 openai-http 导出）手写尾部缓冲替 `decode(stream:true)`。
+- **renderCall/renderResult lastComponent 复用模式定型**（read/grep/find/ls 应用，grep/ls 已随砍除消失，read/find 保留）：`?? new Text(...)` → 早返回结构（undefined→新建+return；instanceof Text→就地 setText+return；兜底新建），**scriptc 对 `!==undefined && instanceof` 复合守卫不收窄**（赋值 `text = last` 报 got Component|undefined），必须拆开且赋值改早返回。
+- **验证**：tsgo src 清零；MiniCPM5-1B print 真跑 + bash tool_call OK（OK-r44）。
+- **总账 116→71；剩余台账**：bash.ts 输出累积器消费群（8，output-accumulator 类形状变化后揭幕）、edit.ts legacy 块（6）、tools/index 4（ToolDef 值通道，见 r43）、settings 簇残余（5）、runtime-credentials 1、write 1、散点（interactive-mode/tool-execution/settings-list 等）。
+
 ## 阶段 5 grind 第四十三轮记录（进行中：73→116 揭幕期，两大文件重复实现合并 + 工具 execute 体揭幕）
 
 - **raceWithAbortSignal 去泛型化 ×2**：发现 coding-agent 与 ai 两包各有一份实现（同函数双实现），均已去泛型化（`Promise<unknown>` 返回 + 单参 then/catch 链）+ 全部调用点 `as Promise<T>` cast（14 处）。新规则：**Promise 内层 lift 限制**——`Promise<void>`、内层含 Map 字段（ModelsRefreshResult）、内层为 index-signature 记录（AuthStorageData）的 Promise 均不能流入 `Promise<unknown>` 参数，且 `as unknown as Promise<unknown>` 双跳被看穿无效；解法 = 具体类型的本地 race 助手（model-catalog-refresh 新增 raceRefreshWithAbort、auth-storage 新增 raceAuthDataWithAbort，~20 行×2）。
@@ -686,7 +696,7 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
-- [ ] 阶段 5 诊断清单批量修复（进行中；r43 揭幕期，表面基线 **116**（r42 收官 73 → 拆除工具 execute 可选参/双 abort 实现/fs.watch 等根因后揭幕），台账见第四十三轮记录）
+- [ ] 阶段 5 诊断清单批量修复（进行中；r44 工具裁剪+grep 重写后基线 **71**（116→71），台账见第四十四轮记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 

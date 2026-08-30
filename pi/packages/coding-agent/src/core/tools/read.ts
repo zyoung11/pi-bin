@@ -345,29 +345,39 @@ export function createReadToolDefinition(
 			);
 		},
 		renderCall(args, theme, context) {
-			const last: Component | undefined = context.lastComponent;
-			let text = new Text("", 0, 0);
-			if (last !== undefined && last instanceof Text) {
-				text = last;
-			}
 			const renderArgs = args as ReadRenderArgs | undefined;
 			const classification = !context.expanded ? getCompactReadClassification(renderArgs, context.cwd) : undefined;
-			text.setText(
-				classification
-					? formatCompactReadCall(classification, renderArgs, theme)
-					: formatReadCall(renderArgs, theme, context.cwd),
-			);
+			const formatted = classification
+				? formatCompactReadCall(classification, renderArgs, theme)
+				: formatReadCall(renderArgs, theme, context.cwd);
+			const last: Component | undefined = context.lastComponent;
+			if (last === undefined) {
+				const text = new Text("", 0, 0);
+				text.setText(formatted);
+				return text as Component;
+			}
+			if (last instanceof Text) {
+				last.setText(formatted);
+				return last as Component;
+			}
+			const text = new Text("", 0, 0);
+			text.setText(formatted);
 			return text as Component;
 		},
 		renderResult(result, options, theme, context) {
+			const formatted = formatReadResult(context.args as ReadRenderArgs | undefined, result, options, theme, context.showImages, context.cwd, context.isError);
 			const last: Component | undefined = context.lastComponent;
-			let text = new Text("", 0, 0);
-			if (last !== undefined && last instanceof Text) {
-				text = last;
+			if (last === undefined) {
+				const text = new Text("", 0, 0);
+				text.setText(formatted);
+				return text as Component;
 			}
-			text.setText(
-				formatReadResult(context.args as ReadRenderArgs | undefined, result, options, theme, context.showImages, context.cwd, context.isError),
-			);
+			if (last instanceof Text) {
+				last.setText(formatted);
+				return last as Component;
+			}
+			const text = new Text("", 0, 0);
+			text.setText(formatted);
 			return text as Component;
 		},
 	};

@@ -3,6 +3,7 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult, truncateTail } from "./truncate.ts";
+import { incompleteUtf8TailLength } from "../../../../ai/src/api/openai-http.ts";
 
 export interface OutputAccumulatorOptions {
 	maxLines?: number;
@@ -37,7 +38,7 @@ export class OutputAccumulator {
 	private readonly maxBytes: number;
 	private readonly maxRollingBytes: number;
 	private readonly tempFilePrefix: string;
-	private readonly decoder = new TextDecoder();
+	private pendingTail: Uint8Array = new Uint8Array(0);
 
 	private rawChunks: Buffer[] = [];
 	private tailText = "";
@@ -67,7 +68,19 @@ export class OutputAccumulator {
 		}
 
 		this.totalRawBytes += data.length;
-		this.appendDecodedText(this.decoder.decode(data, { stream: true }));
+		// Decode only complete UTF-8 sequences: hold back an incomplete multi-byte
+		// tail until the next append or finish (decode stream:true has no lowering).
+		const combined: number[] = [];
+		for (let index = 0; index < this.pendingTail.length; index++) combined.push(this.pendingTail[index]);
+		for (let index = 0; index < data.length; index++) combined.push(data[index]);
+		const bytes = new Uint8Array(combined);
+		const tailLength = incompleteUtf8TailLength(bytes);
+		const split = bytes.length - tailLength;
+		if (split > 0) {
+			const decoder = new TextDecoder("utf-8");
+			this.appendDecodedText(decoder.decode(bytes.subarray(0, split)));
+		}
+		this.pendingTail = bytes.subarray(split);
 
 		if (this.tempFileStream || this.shouldUseTempFile()) {
 			this.ensureTempFile();
@@ -82,7 +95,11 @@ export class OutputAccumulator {
 			return;
 		}
 		this.finished = true;
-		this.appendDecodedText(this.decoder.decode());
+		if (this.pendingTail.length > 0) {
+			const decoder = new TextDecoder("utf-8");
+			this.appendDecodedText(decoder.decode(this.pendingTail));
+			this.pendingTail = new Uint8Array(0);
+		}
 		if (this.shouldUseTempFile()) {
 			this.ensureTempFile();
 		}
