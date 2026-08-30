@@ -2,7 +2,6 @@ import type {
 	ExactTelemetryAttributes,
 	SchemaTelemetrySpan,
 	TelemetryContext,
-	TelemetrySchemaDefinition,
 	TelemetrySchemaSpanEndAttributes,
 	TelemetrySchemaSpanEventAttributes,
 	TelemetrySchemaSpanEventName,
@@ -26,7 +25,6 @@ export type {
 	TelemetryEventAttributeDefinition,
 	TelemetryEventDefinition,
 	TelemetryParentDefinition,
-	TelemetrySchemaDefinition,
 	TelemetrySchemaSpanEndAttributes,
 	TelemetrySchemaSpanEventAttributes,
 	TelemetrySchemaSpanEventName,
@@ -115,7 +113,7 @@ export const AI_TELEMETRY_SCHEMA = {
 			status: { default: "ok", errorWhen: "The operation throws or returns an error result" },
 		},
 	},
-} as const satisfies TelemetrySchemaDefinition;
+} as const;
 
 export type AiSpanName = TelemetrySchemaSpanName<typeof AI_TELEMETRY_SCHEMA>;
 export type AiSpanStartAttributes<Name extends AiSpanName> = TelemetrySchemaSpanStartAttributes<
@@ -190,45 +188,6 @@ const EVENT_TYPES = [
 	"usage",
 ] as const;
 
-const operationStartAttributes = {
-	"pi.session.id": {
-		type: "string",
-		required: true,
-		cardinality: "high",
-		description: "Session id",
-	},
-	"pi.lane.name": {
-		type: "string",
-		required: true,
-		cardinality: "high",
-		description: "Lane name",
-	},
-	"pi.operation.id": {
-		type: "string",
-		required: true,
-		cardinality: "high",
-		description: "Durable operation id",
-	},
-	"pi.operation.recovery": {
-		type: "boolean",
-		required: true,
-		description: "Whether this invocation resumes durable work",
-	},
-} as const;
-
-const operationErrorAttributes = {
-	"pi.error.code": {
-		type: "string",
-		cardinality: "low",
-		description: "Stable operation error code",
-	},
-	"pi.error.type": {
-		type: "string",
-		cardinality: "low",
-		description: "Low-cardinality operation error class",
-	},
-} as const;
-
 export const HARNESS_TELEMETRY_SCHEMA = {
 	version: 1,
 	spans: {
@@ -236,7 +195,29 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 			description: "One admitted in-process run invocation",
 			parents: { kind: "root_or_external" },
 			startAttributes: {
-				...operationStartAttributes,
+				"pi.session.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Session id",
+				},
+				"pi.lane.name": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Lane name",
+				},
+				"pi.operation.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Durable operation id",
+				},
+				"pi.operation.recovery": {
+					type: "boolean",
+					required: true,
+					description: "Whether this invocation resumes durable work",
+				},
 				"pi.operation.kind": {
 					type: "string",
 					required: true,
@@ -250,7 +231,16 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 					values: ["completed", "aborted", "failed", "suspended"],
 					description: "Run invocation outcome",
 				},
-				...operationErrorAttributes,
+				"pi.error.code": {
+					type: "string",
+					cardinality: "low",
+					description: "Stable operation error code",
+				},
+				"pi.error.type": {
+					type: "string",
+					cardinality: "low",
+					description: "Low-cardinality operation error class",
+				},
 			},
 			status: { default: "ok", errorWhen: "The run fails or throws" },
 		},
@@ -258,7 +248,29 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 			description: "One admitted in-process manual compaction invocation",
 			parents: { kind: "root_or_external" },
 			startAttributes: {
-				...operationStartAttributes,
+				"pi.session.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Session id",
+				},
+				"pi.lane.name": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Lane name",
+				},
+				"pi.operation.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Durable operation id",
+				},
+				"pi.operation.recovery": {
+					type: "boolean",
+					required: true,
+					description: "Whether this invocation resumes durable work",
+				},
 				"pi.operation.kind": {
 					type: "string",
 					required: true,
@@ -272,7 +284,16 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 					values: ["completed", "declined", "aborted", "failed"],
 					description: "Compaction invocation outcome",
 				},
-				...operationErrorAttributes,
+				"pi.error.code": {
+					type: "string",
+					cardinality: "low",
+					description: "Stable operation error code",
+				},
+				"pi.error.type": {
+					type: "string",
+					cardinality: "low",
+					description: "Low-cardinality operation error class",
+				},
 			},
 			status: { default: "ok", errorWhen: "The compaction fails or throws" },
 		},
@@ -280,7 +301,29 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 			description: "One admitted in-process navigation invocation",
 			parents: { kind: "root_or_external" },
 			startAttributes: {
-				...operationStartAttributes,
+				"pi.session.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Session id",
+				},
+				"pi.lane.name": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Lane name",
+				},
+				"pi.operation.id": {
+					type: "string",
+					required: true,
+					cardinality: "high",
+					description: "Durable operation id",
+				},
+				"pi.operation.recovery": {
+					type: "boolean",
+					required: true,
+					description: "Whether this invocation resumes durable work",
+				},
 				"pi.operation.kind": {
 					type: "string",
 					required: true,
@@ -294,7 +337,16 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 					values: ["completed", "declined", "aborted", "failed"],
 					description: "Navigation invocation outcome",
 				},
-				...operationErrorAttributes,
+				"pi.error.code": {
+					type: "string",
+					cardinality: "low",
+					description: "Stable operation error code",
+				},
+				"pi.error.type": {
+					type: "string",
+					cardinality: "low",
+					description: "Low-cardinality operation error class",
+				},
 			},
 			status: { default: "ok", errorWhen: "The navigation fails or throws" },
 		},
@@ -569,7 +621,7 @@ export const HARNESS_TELEMETRY_SCHEMA = {
 			status: { default: "ok", errorWhen: "Storage rejects the mutation" },
 		},
 	},
-} as const satisfies TelemetrySchemaDefinition;
+} as const;
 
 /** Combined typed span vocabulary for agent-owned AI-request and harness telemetry. */
 export const AGENT_TELEMETRY_SCHEMAS = [AI_TELEMETRY_SCHEMA, HARNESS_TELEMETRY_SCHEMA] as const;

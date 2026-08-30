@@ -2,6 +2,7 @@ import { readdir as fsReaddir, stat as fsStat } from "node:fs/promises";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import nodePath from "path";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
@@ -108,7 +109,7 @@ export function createLsToolDefinition(
 		description: `List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles. Output is truncated to ${DEFAULT_LIMIT} entries or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first).`,
 		promptSnippet: lsToolSystemPromptContribution.snippet,
 		parameters: lsSchema,
-		async execute(_toolCallId, { path, limit }: { path?: string; limit?: number }, signal?: AbortSignal, _onUpdate?) {
+		async execute(_toolCallId, { path, limit }: { path?: string; limit?: number }, signal, _onUpdate) {
 			return new Promise((resolve, reject) => {
 				if (signal?.aborted) {
 					reject(new Error("Operation aborted"));
@@ -207,9 +208,13 @@ export function createLsToolDefinition(
 			});
 		},
 		renderCall(args, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const last: Component | undefined = context.lastComponent;
+			let text = new Text("", 0, 0);
+			if (last !== undefined && last instanceof Text) {
+				text = last;
+			}
 			text.setText(formatLsCall(args as { path?: string; limit?: number } | undefined, theme, context.cwd));
-			return text;
+			return text as Component;
 		},
 		renderResult(result, options, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);

@@ -127,17 +127,17 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 		throw new Error(`Failed to download: ${response.status}`);
 	}
 
-	if (!response.body) {
+	const body = response.body;
+	if (!body) {
 		throw new Error("No response body");
 	}
-
-	const reader = response.body.getReader();
+	const reader = body.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
 	for (;;) {
 		const chunk = await reader.read();
-		if (chunk.done || chunk.value === undefined) break;
-		const bytes = chunk.value;
+		if (chunk.done) break;
+		const bytes: Uint8Array = chunk.value;
 		chunks.push(bytes);
 		total += bytes.length;
 	}

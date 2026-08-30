@@ -1,17 +1,16 @@
 import { parse } from "../../../ai/src/utils/mini-yaml.ts";
 import { stripBom } from "./text.ts";
-
-/** View an arbitrary value as a plain record (jsval unions resist casts). */
-function recordOf(value: unknown): Record<string, unknown> {
-	return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
-}
-
 type ParsedFrontmatter<T extends Record<string, unknown>> = {
 	frontmatter: T;
 	body: string;
 };
 
 const normalizeNewlines = (value: string): string => value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+/** JSON.stringify via an unknown parameter (union args resist direct stringify). */
+function stringifyUnknown(value: unknown): string {
+	return JSON.stringify(value);
+}
 
 const extractFrontmatter = (content: string): { yamlString: string | null; body: string } => {
 	const normalized = normalizeNewlines(stripBom(content));
@@ -40,8 +39,7 @@ export function parseFrontmatter<T extends Record<string, unknown> = Record<stri
 		return { frontmatter: {} as T, body: extracted.body };
 	}
 	const raw = parse(yamlString);
-	const parsed = raw === undefined || raw === null ? undefined : (recordOf(raw) as Record<string, unknown>);
-	const frontmatter = parsed === undefined ? ({} as T) : (parsed as T);
+	const frontmatter = raw === undefined || raw === null ? ({} as T) : (JSON.parse(stringifyUnknown(raw)) as T);
 	return { frontmatter, body: extracted.body };
 }
 

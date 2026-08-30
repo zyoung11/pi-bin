@@ -64,7 +64,7 @@ export class SelectSubmenu extends Container {
 		if (submenuOptions?.searchable) {
 			this.addChild(new Spacer(1));
 			this.searchInput = new Input();
-			this.searchInput.onSubmit = () => {
+			this.searchInput.onSubmit = (_value: string) => {
 				this.selectList.handleInput("\r");
 			};
 			this.addChild(this.searchInput);
@@ -136,18 +136,25 @@ export class SelectSubmenu extends Container {
 // SteppedSubmenu — reusable multi-step selector
 // ============================================================================
 
+/** Precise view of prior selections handed to step callbacks (Record-keyed function
+ *  params are dynamic-only in scriptc; the concrete keys are model/level). */
+export interface SteppedSelections {
+	model: string;
+	level: string;
+}
+
 /** One step in a {@link SteppedSubmenu}. */
 export interface SteppedSubmenuStep {
 	/** Unique key \u2014 the selected value is stored in the result context under this key. */
 	key: string;
 	/** Title shown at the top of the step. Receives prior selections. */
-	title: string | ((context: Record<string, string>) => string);
+	title: string | ((context: SteppedSelections) => string);
 	/** Description shown below the title. Receives prior selections. */
-	description: string | ((context: Record<string, string>) => string);
+	description: string | ((context: SteppedSelections) => string);
 	/** Build the option list for this step. Called fresh each time the step is shown. */
-	options: (context: Record<string, string>) => SelectItem[];
+	options: (context: SteppedSelections) => SelectItem[];
 	/** Optionally pre-select a value when entering this step. */
-	preselect?: (context: Record<string, string>) => string | undefined;
+	preselect?: (context: SteppedSelections) => string | undefined;
 	/** Enable type-to-search fuzzy filtering for this step. */
 	searchable?: boolean;
 	/** Override the select list layout (column widths) for this step. */
@@ -172,15 +179,15 @@ interface SteppedSubmenuOptions {
  */
 export class SteppedSubmenu extends Container {
 	private readonly steps: SteppedSubmenuStep[];
-	private readonly onComplete: (context: Record<string, string>) => void;
+	private readonly onComplete: (context: SteppedSelections) => void;
 	private readonly onCancel: () => void;
 	private readonly opts: SteppedSubmenuOptions;
 	private activeComponent: Component;
-	private context: Record<string, string>;
+	private selections: Record<string, string>;
 
 	constructor(
 		steps: SteppedSubmenuStep[],
-		onComplete: (context: Record<string, string>) => void,
+		onComplete: (context: SteppedSelections) => void,
 		onCancel: () => void,
 		opts: SteppedSubmenuOptions = {},
 	) {
@@ -189,19 +196,28 @@ export class SteppedSubmenu extends Container {
 		this.onComplete = onComplete;
 		this.onCancel = onCancel;
 		this.opts = opts;
-		this.context = { ...(opts.initialContext ?? {}) };
+		this.selections = { ...(opts.initialContext ?? {}) };
 		this.activeComponent = this.buildStep(opts.startAtStep ?? 0);
+	}
+
+	/** Build the precise callback view from the dynamic selection storage. */
+	private buildContext(): SteppedSelections {
+		return {
+			model: this.selections["model"] ?? "",
+			level: this.selections["level"] ?? "",
+		};
 	}
 
 	private buildStep(stepIndex: number): Component {
 		const step = this.steps[stepIndex];
 		const total = this.steps.length;
 		const stepLabel = total > 1 ? `Step ${stepIndex + 1}/${total} \u00b7 ` : "";
+		const context = this.buildContext();
 
-		const title = typeof step.title === "function" ? step.title(this.context) : step.title;
-		const desc = typeof step.description === "function" ? step.description(this.context) : step.description;
-		const items = step.options(this.context);
-		const preselect = step.preselect?.(this.context) ?? "";
+		const title = typeof step.title === "function" ? step.title(context) : step.title;
+		const desc = typeof step.description === "function" ? step.description(context) : step.description;
+		const items = step.options(context);
+		const preselect = step.preselect?.(context) ?? "";
 
 		return new SelectSubmenu(
 			title,
@@ -209,17 +225,17 @@ export class SteppedSubmenu extends Container {
 			items,
 			preselect,
 			(value) => {
-				this.context[step.key] = value;
+				this.selections[step.key] = value;
 
 				if (stepIndex < total - 1) {
 					// Advance to next step
 					this.activeComponent = this.buildStep(stepIndex + 1);
 				} else {
 					// Final step \u2014 deliver result
-					this.onComplete({ ...this.context });
+					this.onComplete(this.buildContext());
 
 					if (this.opts.loop) {
-						this.context = {};
+						this.selections = {};
 						this.activeComponent = this.buildStep(0);
 					} else {
 						this.onCancel();
@@ -228,7 +244,7 @@ export class SteppedSubmenu extends Container {
 			},
 			() => {
 				if (stepIndex > 0) {
-					delete this.context[step.key];
+					this.selections[step.key] = undefined as unknown as string;
 					this.activeComponent = this.buildStep(stepIndex - 1);
 				} else {
 					this.onCancel();

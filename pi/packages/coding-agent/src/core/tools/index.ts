@@ -182,14 +182,14 @@ export function createReadOnlyToolDefinitions(cwd: string, options?: ToolsOption
 
 export function createAllToolDefinitions(cwd: string, options?: ToolsOptions): Record<ToolName, ToolDef> {
 	return {
-		read: createReadToolDefinition(cwd, options?.read),
-		bash: createBashToolDefinition(cwd, options?.bash),
-		powershell: createPowerShellToolDefinition(cwd, options?.powershell),
-		edit: createEditToolDefinition(cwd, options?.edit),
-		write: createWriteToolDefinition(cwd, options?.write),
-		grep: createGrepToolDefinition(cwd, options?.grep),
-		find: createFindToolDefinition(cwd, options?.find),
-		ls: createLsToolDefinition(cwd, options?.ls),
+		read: createToolDefinition("read", cwd, options),
+		bash: createToolDefinition("bash", cwd, options),
+		powershell: createToolDefinition("powershell", cwd, options),
+		edit: createToolDefinition("edit", cwd, options),
+		write: createToolDefinition("write", cwd, options),
+		grep: createToolDefinition("grep", cwd, options),
+		find: createToolDefinition("find", cwd, options),
+		ls: createToolDefinition("ls", cwd, options),
 	};
 }
 

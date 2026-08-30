@@ -298,7 +298,7 @@ export class ToolExecutionComponent extends Container {
 							details: this.result.details,
 						};
 						const component = resultRenderer(
-							renderPayload as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0],
+							renderPayload as unknown as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0],
 							{ expanded: this.expanded, isPartial: this.isPartial },
 							theme,
 							this.getRenderContext(this.resultRendererComponent),

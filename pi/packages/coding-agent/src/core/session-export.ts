@@ -36,7 +36,7 @@ export function exportSessionToJsonl(
 
 	let parentId: string | null = null;
 	for (const entry of sessionManager.getBranch()) {
-			const record = JSON.parse(JSON.stringify(entry)) as Record<string, unknown>;
+		const record = JSON.parse(jsonOf(entry)) as Record<string, unknown>;
 		record["parentId"] = parentId;
 		lines.push(jsonOf(record));
 		parentId = entryIdOf(entry) ?? null;

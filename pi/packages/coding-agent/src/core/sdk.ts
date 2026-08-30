@@ -212,7 +212,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		if (model === undefined) {
 			modelFallbackMessage = formatNoModelsAvailableMessage();
 		} else if (modelFallbackMessage !== undefined) {
-			modelFallbackMessage += `. Using ${model.provider}/${model.id}`;
+			const current = modelFallbackMessage;
+			modelFallbackMessage = current + `. Using ${model.provider}/${model.id}`;
 		}
 	}
 

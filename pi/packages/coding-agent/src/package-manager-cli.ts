@@ -595,8 +595,11 @@ async function refreshModelCatalogs(agentDir: string): Promise<void> {
 			throw new Error("Model catalog refresh timed out.");
 		}
 		if (result.errors.size > 0) {
-			const details = Array.from(result.errors, ([provider, error]) => `${provider}: ${error}`).join("; ");
-			throw new Error(`Could not refresh model catalogs: ${details}`);
+			const detailsParts: string[] = [];
+			for (const pair of result.errors.entries()) {
+				detailsParts.push(`${pair[0]}: ${pair[1]}`);
+			}
+			throw new Error(`Could not refresh model catalogs: ${detailsParts.join("; ")}`);
 		}
 	} finally {
 		clearTimeout(timeout);
@@ -884,7 +887,8 @@ export async function handlePackageCommand(
 		return true;
 	}
 
-	if (options.command === "update" && options.updateTarget?.type === "models") {
+	const updateTarget = options.updateTarget;
+	if (options.command === "update" && updateTarget !== undefined && updateTarget.type === "models") {
 		try {
 			await refreshModelCatalogs(getAgentDir());
 		} catch (error: unknown) {

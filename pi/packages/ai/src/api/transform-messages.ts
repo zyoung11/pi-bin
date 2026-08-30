@@ -5,6 +5,7 @@ import type {
 	Message,
 	Model,
 	TextContent,
+	ThinkingContent,
 	ToolCall,
 	ToolResultMessage,
 } from "../types.ts";
@@ -37,23 +38,34 @@ function downgradeUnsupportedImages<TApi extends Api>(messages: Message[], model
 		return messages;
 	}
 
-	return messages.map((msg) => {
+	const result: Message[] = [];
+	for (const msg of messages) {
 		if (msg.role === "user" && Array.isArray(msg.content)) {
-			return {
+			result.push({
 				...msg,
 				content: replaceImagesWithPlaceholder(msg.content, NON_VISION_USER_IMAGE_PLACEHOLDER),
-			};
+			});
+			continue;
 		}
-
 		if (msg.role === "toolResult") {
-			return {
-				...msg,
-				content: replaceImagesWithPlaceholder(msg.content, NON_VISION_TOOL_IMAGE_PLACEHOLDER),
+			const placeholderContent = replaceImagesWithPlaceholder(msg.content, NON_VISION_TOOL_IMAGE_PLACEHOLDER);
+			const copy: ToolResultMessage = {
+				role: "toolResult",
+				toolCallId: msg.toolCallId,
+				toolName: msg.toolName,
+				content: placeholderContent,
+				details: msg.details,
+				usage: msg.usage,
+				addedToolNames: msg.addedToolNames,
+				isError: msg.isError,
+				timestamp: msg.timestamp,
 			};
+			result.push(copy);
+			continue;
 		}
-
-		return msg;
-	});
+		result.push(msg);
+	}
+	return result;
 }
 
 /**
@@ -70,7 +82,33 @@ export function transformMessages<TApi extends Api>(
 	const toolCallIdMap = new Map<string, string>();
 	// Normalize null/undefined content from untyped callers (custom tools, hand-built
 	// histories, old session files) so downstream code can rely on the type contract.
-	const normalizedMessages = messages.map((msg) => (msg.content == null ? { ...msg, content: [] } : msg));
+	const normalizedMessages: Message[] = [];
+	for (const msg of messages) {
+		if (msg.role === "user") {
+			if (msg.content === undefined || msg.content === null) {
+				const empty: (TextContent | ImageContent)[] = [];
+				normalizedMessages.push({ ...msg, content: empty });
+			} else {
+				normalizedMessages.push(msg);
+			}
+			continue;
+		}
+		if (msg.role === "toolResult") {
+			if (msg.content === undefined || msg.content === null) {
+				const empty: (TextContent | ImageContent)[] = [];
+				normalizedMessages.push({ ...msg, content: empty });
+			} else {
+				normalizedMessages.push(msg);
+			}
+			continue;
+		}
+		if (msg.content === undefined || msg.content === null) {
+			const empty: (TextContent | ThinkingContent | ToolCall)[] = [];
+			normalizedMessages.push({ ...msg, content: empty });
+		} else {
+			normalizedMessages.push(msg);
+		}
+	}
 	const imageAwareMessages = downgradeUnsupportedImages(normalizedMessages, model);
 
 	// First pass: transform messages (unsupported image downgrade, thinking blocks, tool call ID normalization)
@@ -97,31 +135,44 @@ export function transformMessages<TApi extends Api>(
 				assistantMsg.api === model.api &&
 				assistantMsg.model === model.id;
 
-			const transformedContent = assistantMsg.content.flatMap((block) => {
+			const transformedContent: (TextContent | ThinkingContent | ToolCall)[] = [];
+			for (const block of assistantMsg.content) {
 				if (block.type === "thinking") {
 					// Redacted thinking is opaque encrypted content, only valid for the same model.
 					// Drop it for cross-model to avoid API errors.
 					if (block.redacted) {
-						return isSameModel ? block : [];
+						if (isSameModel) transformedContent.push(block);
+						continue;
 					}
 					// For same model: keep thinking blocks with signatures (needed for replay)
 					// even if the thinking text is empty (OpenAI encrypted reasoning)
-					if (isSameModel && block.thinkingSignature) return block;
+					if (isSameModel && block.thinkingSignature) {
+						transformedContent.push(block);
+						continue;
+					}
 					// Skip empty thinking blocks, convert others to plain text
-					if (!block.thinking || block.thinking.trim() === "") return [];
-					if (isSameModel) return block;
-					return {
-						type: "text" as const,
+					if (!block.thinking || block.thinking.trim() === "") continue;
+					if (isSameModel) {
+						transformedContent.push(block);
+						continue;
+					}
+					transformedContent.push({
+						type: "text",
 						text: block.thinking,
-					};
+					});
+					continue;
 				}
 
 				if (block.type === "text") {
-					if (isSameModel) return block;
-					return {
-						type: "text" as const,
+					if (isSameModel) {
+						transformedContent.push(block);
+						continue;
+					}
+					transformedContent.push({
+						type: "text",
 						text: block.text,
-					};
+					});
+					continue;
 				}
 
 				if (block.type === "toolCall") {
@@ -141,11 +192,12 @@ export function transformMessages<TApi extends Api>(
 						}
 					}
 
-					return normalizedToolCall;
+					transformedContent.push(normalizedToolCall);
+					continue;
 				}
 
-				return block;
-			});
+				transformedContent.push(block);
+			}
 
 			return {
 				...assistantMsg,

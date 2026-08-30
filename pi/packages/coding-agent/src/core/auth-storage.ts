@@ -9,12 +9,49 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile, { LockError } from "../utils/mini-lockfile.ts";
 import { sleep } from "../utils/sleep.ts";import { getAgentDir } from "../config.ts";
-import { raceWithAbortSignal } from "../utils/abort.ts";
+import { abortReason, raceWithAbortSignal } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { isCommandConfigValue, resolveConfigValue } from "./resolve-config-value.ts";
 
 type AuthStorageData = Record<string, Credential>;
+
+/** Concrete-typed race with abort (generic Promise<unknown> slots reject index-signature inners). */
+function raceAuthDataWithAbort(
+	operation: Promise<AuthStorageData>,
+	signal: AbortSignal | undefined,
+): Promise<AuthStorageData> {
+	if (!signal) return operation;
+	if (signal.aborted) {
+		void operation.catch(() => {});
+		return Promise.reject(abortReason(signal));
+	}
+	return new Promise<AuthStorageData>((resolve, reject) => {
+		let settled = false;
+		const cleanup = () => signal.removeEventListener("abort", onAbort);
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			reject(abortReason(signal));
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+		void operation
+			.then((value) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				resolve(value);
+			})
+			.catch((error: unknown) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				reject(error);
+			});
+		if (signal.aborted) onAbort();
+	});
+}
 
 type LockResult<T> = {
 	result: T;
@@ -453,8 +490,9 @@ export class AuthStorage extends CredentialStore {
 		const reload = this.readState.reload;
 		reload.readers++;
 		try {
-			const result = raceWithAbortSignal(reload.promise, options?.signal);
-			return options?.signal ? await result : await result.catch(() => this.readState.data);
+			const result = raceAuthDataWithAbort(reload.promise, options?.signal);
+			const data: unknown = options?.signal ? await result : await result.catch(() => this.readState.data);
+			return data as AuthStorageData;
 		} finally {
 			reload.readers--;
 			if (reload.readers === 0 && this.readState.reload === reload) {

@@ -11,7 +11,7 @@ import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import chalk from "../../../utils/mini-chalk.ts";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
-import { closeWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";
+import { closeWatcher, watchWithErrorHandler, type FsPollWatcher } from "../../../utils/fs-watch.ts";
 import { highlight, supportsLanguage } from "../../../utils/syntax-highlight.ts";
 import { stripBom } from "../../../utils/text.ts";
 
@@ -888,7 +888,7 @@ function setGlobalTheme(t: Theme): void {
 }
 
 let currentThemeName: string | undefined;
-let themeWatcher: fs.FSWatcher | undefined;
+let themeWatcher: FsPollWatcher | undefined;
 let themeReloadTimer: NodeJS.Timeout | undefined;
 let onThemeChangeCallback: (() => void) | undefined;
 const registeredThemes = new Map<string, Theme>();

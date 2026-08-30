@@ -1,9 +1,15 @@
 import type { AssistantMessage, AssistantMessageEvent } from "../types.ts";
 
+/** Iterator-shaped next() result (the lib IteratorResult union has no scriptc mapping). */
+export interface EventStreamNextResult<T> {
+	done: boolean;
+	value: T;
+}
+
 // Generic event stream class for async iteration
 export class EventStream<T, R = T> {
 	private queue: T[] = [];
-	private waiting: ((value: IteratorResult<T>) => void)[] = [];
+	private waiting: ((value: EventStreamNextResult<T>) => void)[] = [];
 	private resultWaiters: ((result: R) => void)[] = [];
 	private done = false;
 	private finalResult: R | undefined;
@@ -60,7 +66,7 @@ export class EventStream<T, R = T> {
 		}
 	}
 
-	next(): Promise<IteratorResult<T>> {
+	next(): Promise<EventStreamNextResult<T>> {
 		if (this.queue.length > 0) {
 			const value: T = this.queue[0];
 			this.queue.splice(0, 1);
@@ -69,7 +75,7 @@ export class EventStream<T, R = T> {
 		if (this.done) {
 			return Promise.resolve({ value: undefined as unknown as T, done: true });
 		}
-		return new Promise<IteratorResult<T>>((resolve) => {
+		return new Promise<EventStreamNextResult<T>>((resolve) => {
 			this.waiting.push(resolve);
 		});
 	}

@@ -219,7 +219,7 @@ function preRenderCustomTools(
 				const rendered = toolRenderer.renderResult(
 					msg.toolCallId,
 					toolName,
-					msg.content as Array<{ type: string; text?: string }>,
+					msg.content as unknown as Array<{ type: string; text?: string }>,
 					msg.details,
 					msg.isError || false,
 				);

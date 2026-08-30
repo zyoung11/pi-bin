@@ -111,7 +111,9 @@ const defaultEditOperations: EditOperations = {
 	writeFile: async (path, content) => {
 		fsWriteFile(path, content, "utf-8");
 	},
-	access: async (path) => (existsSync(path) ? undefined : undefined),
+	access: async (path) => {
+		if (!existsSync(path)) return;
+	},
 };
 
 export interface EditToolOptions {
@@ -329,7 +331,7 @@ export function createEditToolDefinition(
 		description:
 			"Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
 		promptSnippet: editToolSystemPromptContribution.snippet,
-		promptGuidelines: [...editToolSystemPromptContribution.guidelines],
+		promptGuidelines: editToolSystemPromptContribution.guidelines.slice(),
 		parameters: editSchema,
 		constrainedSampling: getExperimentalToolSampling(),
 		renderShell: "self",

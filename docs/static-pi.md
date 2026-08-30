@@ -89,6 +89,20 @@
 - **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r41）
 - **总账 157→96；本会话累计 376→96（-280，74%）**；剩余：provider-composer 8、model-runtime 7、session 6、abort 5、agent-session 5、event-stream/transform-messages 各 4，及散点约 50
 
+## 阶段 5 grind 第四十三轮记录（进行中：73→116 揭幕期，两大文件重复实现合并 + 工具 execute 体揭幕）
+
+- **raceWithAbortSignal 去泛型化 ×2**：发现 coding-agent 与 ai 两包各有一份实现（同函数双实现），均已去泛型化（`Promise<unknown>` 返回 + 单参 then/catch 链）+ 全部调用点 `as Promise<T>` cast（14 处）。新规则：**Promise 内层 lift 限制**——`Promise<void>`、内层含 Map 字段（ModelsRefreshResult）、内层为 index-signature 记录（AuthStorageData）的 Promise 均不能流入 `Promise<unknown>` 参数，且 `as unknown as Promise<unknown>` 双跳被看穿无效；解法 = 具体类型的本地 race 助手（model-catalog-refresh 新增 raceRefreshWithAbort、auth-storage 新增 raceAuthDataWithAbort，~20 行×2）。
+- **abort.ts 体内重写**：`new Promise<T>` 执行器 → `new Promise<unknown>`；2 参 then → `.then(handler).catch(handler)` 链（单参形式支持）。
+- **fs-watch.ts 整体重写（fs.watch 无 lowering）**：轮询实现——文件走内容快照、目录走 `readdirSync().sort().join()` 列表快照，`setInterval` 1s 比对，`listener("change", null)`；返回 `FsPollWatcher{close()}`。footer-data-provider 的 headWatcher 改为轮询 HEAD 文件本身（原子写内容变化仍可检出）；theme.ts 改 `FsPollWatcher` 类型。
+- **telemetry.ts**：`as const satisfies TelemetrySchemaDefinition` 两处删除（index-signature 接口→精确字面量的 checked cast 必拒）；`...operationStartAttributes`/`...operationErrorAttributes` spread（precise const 源不可合并）→ 显式键拷贝展开到三个 span；operationStart/ErrorAttributes 常量删除。
+- **external-editor**：spawn `shell` 选项删除（win32 死代码）；`child.on("close")` → `"exit"`（stdio inherit 下等价）。
+- **resolve-config-value**：appendLiteral 的 `previousPart?.type`（union|undefined 上的 `?.` 读）→ undefined 前置守卫 + 判别直读；spawnSync `input`（无 lowering，仅 legacy WSL bash stdin 传输使用）→ `bash -c <cmd>` argv 等价形式；`shell: false` 选项删除（默认即 false）。
+- **其他清零**：context.ts（globalThis→process 直用、fs/promises.access→existsSync）、compaction estimateTextAndImageContentChars（unknown→Record 双跳 + bracket 读）、validation.ts:312（unknown===record 比较墙 → unknown 恒等中转变量）、frontmatter（`as unknown as T` 对泛型实例化无效 → `JSON.parse(stringifyUnknown(raw)) as T`，stringifyUnknown 为 unknown 参数助手——**union 实参直接 stringify 被拒但 unknown 形参可 lowering**）、tools/edit access 箭头、session-resources（unknown[] 类字段→string[]）、resource-loader（resolveProjectTrust 可选捕获提升）、session.ts view()（`return this` 类→接口 return 墙 → main lane 复用同一字面量转发，getLeafIdForLane("main") 语义等价）、queryBranchEntries（?? 类型改变墙 → if/else；`return []` → typed 空数组）、agent-session compaction_end 事件改走 _emitCompactionEnd 助手、transform-messages（map 回调 union re-tag → for-of + 单臂收窄克隆；flatMap 数组臂 → 循环；toolResult 臂显式字段克隆——spread 含 details: unknown 字段的消息被 re-tag 拒）、event-stream（IteratorResult 无映射 → 自定义 `EventStreamNextResult<T>{done; value: T}`，**value 不能是 `T | undefined`**（未解析 T 的 union 臂使接口不可映射）；agent-loop/lazy 消费点适配）、models.ts（createModels 返回类型改 ModelsImpl 并导出类，绕开 class→interface return 墙；model-runtime 字段同步改 ModelsImpl）、sdk.ts（`string|undefined` 上的 `+=` — **复合赋值目标用声明类型而非 CFA 收窄类型** → 收窄局部变量 + 纯 =）、tools-manager downloadFile（arrayBuffer() 亦无 lowering → 回退 reader.read() 循环 + `const bytes: Uint8Array = chunk.value` 显式注解，对齐 openai-http 模式）、render-utils（pathToFileURL().href → 手工 file:// + encodeURIComponent 分段）、package-manager-cli（Map entries Array.from → for-of entries + pair 索引读；updateTarget ?. 判别 → 守卫 + 直读）、settings-list/settings-selector/submenu（done 回调拼写完成签名 `(string|undefined, options|undefined) => void`；0 参箭头流入 1 参槽被禁；SteppedSubmenuStep 回调参数 Record<string,string> 函数值 dynamic-only → 精确 `SteppedSelections{model,level}` 接口 + machinery buildContext()）、read/grep/find/ls renderCall（lastComponent 复用：`instanceof` 左值 union|undefined 被拒 → undefined 守卫 + instanceof Text；返回 `text as Component`）。
+- **tools/index.ts:184 残余**：specific ToolDefinition → ToolDef 的赋值/字面量字段通道被拒而 return 通道可行 → 改为逐工具调用 `createToolDefinition(toolName, cwd, options)`（return 通道），但仍报 8 个（待查，疑 ToolDef 内 execute 返回 AgentToolResult<unknown> 的 details: unknown 字段）。
+- **验证**：tsgo src 清零；`--list-models` OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r43）。
+- **总账 73→116**（表面数上升为揭幕：工具 execute 可选参签名拆除后，grep/ls/find/write 体内 ChildProcessByStdio/createInterface/readline、signal.addEventListener/removeEventListener 群、catch 绑定、?? 群全部显形）。**新揭幕大块**：grep.ts 子进程簇（~12，需迁 spawnProcess + data 事件，同 bash-executor 模式）、ls.ts（~8）、tools/index（8）、settings 簇残余（~6，ThemeSubmenu/SteppedSubmenu as Component 与 done(undefined) 的 SC2001 void|undefined）。
+- **本轮新增规则库**：①`+=`/复合赋值目标用声明类型（union 声明即拒）②方法 `?.` 调用禁（属性 `?.` 读可）③catch 绑定禁 `: any` 注解④0 参箭头禁流入 1 参槽⑤可选参函数值作实参必须拼写完成签名⑥union 源的 as-unknown-as 双跳对 Record 目标无效⑦unknown→含 unknown 字段记录的 cast 拒⑧`value as unknown`（typed→unknown）亦被拒（SC1101）⑨fs.watch/Response.arrayBuffer()/spawnSync input/shell 为新确认的无 lowering 项⑩spawnSync/execSync 选项必须字面量且无 undefined 臂。
+
 ## 阶段 5 grind 第四十二轮记录（进行中：85→73，继续散点）
 
 - **ResourceLoader 抽象类**：修复 sdk/agent-session-services 类→record 墙；DefaultResourceLoader async reload→reloadAsync 委托
@@ -672,7 +686,7 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
-- [ ] 阶段 5 诊断清单批量修复（进行中；最新基线 **73**（r42），全程 712→73，台账见第四十二轮记录及各轮记录）
+- [ ] 阶段 5 诊断清单批量修复（进行中；r43 揭幕期，表面基线 **116**（r42 收官 73 → 拆除工具 execute 可选参/双 abort 实现/fs.watch 等根因后揭幕），台账见第四十三轮记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 

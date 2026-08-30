@@ -81,7 +81,6 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 	}
 
 	view(lane: string): SessionTree {
-		if (lane === "main") return this;
 		return {
 			getLeafId: () => this.getLeafIdForLane(lane),
 			getEntry: (id) => this.getEntry(id),
@@ -212,8 +211,16 @@ export class Session<TMetadata extends SessionMetadata = SessionMetadata> implem
 	): Promise<Entry[]> {
 		assertValidLimit(query.limit);
 		assertValidCursor(query.cursor?.afterSeq);
-		const start: string | null = query.start ?? (await this.getLeafIdForLane(defaultLane));
-		if (start === null) return [];
+		let start: string | null;
+		if (query.start !== undefined) {
+			start = query.start;
+		} else {
+			start = await this.getLeafIdForLane(defaultLane);
+		}
+		if (start === null) {
+			const empty: Entry[] = [];
+			return empty;
+		}
 		const storageQuery = resultLimit === query.limit ? query : { ...query, limit: resultLimit };
 		return this.storage.findEntriesOnBranch({ ...storageQuery, start });
 	}

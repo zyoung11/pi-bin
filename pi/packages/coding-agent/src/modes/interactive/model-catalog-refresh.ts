@@ -1,11 +1,46 @@
 import type { ModelsRefreshResult } from "../../../../ai/src/index.ts";
 import type { ModelRuntime } from "../../core/model-runtime.ts";
-import { raceWithAbortSignal } from "../../utils/abort.ts";
+import { abortReason } from "../../utils/abort.ts";
 
 interface ActiveModelCatalogRefresh {
 	controller: AbortController;
 	promise: Promise<ModelsRefreshResult>;
 	waiters: number;
+}
+
+
+/** Concrete-typed race with abort (the generic helper's Promise<unknown> slots reject
+ * ModelsRefreshResult's Map-bearing record; a local concrete executor lowers cleanly). */
+function raceRefreshWithAbort(operation: Promise<ModelsRefreshResult>, signal: AbortSignal): Promise<ModelsRefreshResult> {
+	if (signal.aborted) {
+		void operation.catch(() => {});
+		return Promise.reject(abortReason(signal));
+	}
+	return new Promise<ModelsRefreshResult>((resolve, reject) => {
+		let settled = false;
+		const cleanup = () => signal.removeEventListener("abort", onAbort);
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			reject(abortReason(signal));
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+		void operation
+			.then((value) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				resolve(value);
+			})
+			.catch((error: unknown) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				reject(error);
+			});
+		if (signal.aborted) onAbort();
+	});
 }
 
 class ModelCatalogRefreshCoordinator {
@@ -30,7 +65,7 @@ class ModelCatalogRefreshCoordinator {
 			const controller = new AbortController();
 			let created!: ActiveModelCatalogRefresh;
 			const operation = modelRuntime.refresh({ signal: controller.signal });
-			const promise = raceWithAbortSignal(operation, controller.signal).finally(() => {
+			const promise = raceRefreshWithAbort(operation, controller.signal).finally(() => {
 				if (this.findActive(modelRuntime) === created) {
 					this.removeActive(modelRuntime);
 				}
@@ -41,7 +76,7 @@ class ModelCatalogRefreshCoordinator {
 		}
 
 		active.waiters++;
-		return raceWithAbortSignal(active.promise, signal).finally(() => {
+		return raceRefreshWithAbort(active.promise, signal).finally(() => {
 			active.waiters--;
 			if (active.waiters === 0 && this.findActive(modelRuntime) === active) {
 				active.controller.abort();

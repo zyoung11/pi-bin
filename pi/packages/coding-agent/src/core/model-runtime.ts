@@ -14,6 +14,7 @@ import {
 	type CredentialInfo,
 	type CredentialStore,
 	createModels,
+	ModelsImpl,
 	type DeferredCancelOptions,
 	type DeferredFetchOptions,
 	type DeferredHandle,
@@ -29,7 +30,6 @@ import {
 	type ModelsRequestTransforms,
 	type ModelsSimpleStreamOptions,
 	type ModelsStore,
-	type MutableModels,
 	type Provider,
 	type ProviderHeaders,
 	type ProviderRequestOptions,
@@ -141,8 +141,8 @@ async function enqueueCredentialOperation(
 	task: () => Promise<unknown>,
 ): Promise<unknown> {
 	const previous = operations.get(providerId);
-	let markStarted: (() => void) | undefined;
-	const started = new Promise<void>((resolve) => {
+	let markStarted: ((value: unknown) => void) | undefined;
+	const started = new Promise<unknown>((resolve) => {
 		markStarted = resolve;
 	});
 	const operation = (async () => {
@@ -154,7 +154,7 @@ async function enqueueCredentialOperation(
 			}
 		}
 		signal.throwIfAborted();
-		markStarted?.();
+		markStarted?.(undefined);
 		return task();
 	})();
 	const tail: Promise<void> = (async () => {
@@ -172,7 +172,7 @@ async function enqueueCredentialOperation(
 }
 
 export class ModelRuntime implements Models {
-	private readonly models: MutableModels;
+	private readonly models: ModelsImpl;
 	private readonly credentials: RuntimeCredentials;
 	private readonly defaultBuiltins: ReadonlyMap<string, Provider>;
 	private readonly builtins = new Map<string, Provider>();
@@ -578,13 +578,13 @@ export class ModelRuntime implements Models {
 		return check ? { configured: true, source: "environment", label: check.source } : { configured: false };
 	}
 
-	private async prepareRequest<TOptions extends ProviderRequestOptions & ModelsRequestTransforms>(
+	private async prepareRequest(
 		model: Model<Api>,
-		options: TOptions | undefined,
+		options: (ProviderRequestOptions & ModelsRequestTransforms) | undefined,
 	): Promise<{
 		provider: Provider;
 		model: Model<Api>;
-		options: Omit<TOptions, "transformHeaders"> & ProviderRequestOptions;
+		options: ProviderRequestOptions;
 	}> {
 		const provider = this.models.getProvider(model.provider);
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
@@ -595,10 +595,18 @@ export class ModelRuntime implements Models {
 		});
 		if (!resolution) throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
 
-		const { transformHeaders, ...rawProviderOptions } = options ?? {};
-		const providerOptions = rawProviderOptions as Omit<TOptions, "transformHeaders"> & ProviderRequestOptions;
+		const emptyOptions: ProviderRequestOptions = {};
+		let providerOptions: ProviderRequestOptions;
+		if (options !== undefined) {
+			providerOptions = options;
+		} else {
+			providerOptions = emptyOptions;
+		}
 		let headers = mergeHeaders(resolution.auth.headers, providerOptions.headers);
-		if (transformHeaders) headers = await transformHeaders(headers ?? {});
+		const transformHeaders = options?.transformHeaders;
+		if (transformHeaders !== undefined) {
+			headers = await transformHeaders(headers ?? {});
+		}
 		const env =
 			resolution.env || providerOptions.env
 				? { ...(resolution.env ?? {}), ...(providerOptions.env ?? {}) }
@@ -611,7 +619,7 @@ export class ModelRuntime implements Models {
 				apiKey: providerOptions.apiKey ?? resolution.auth.apiKey,
 				headers,
 				env,
-			} as Omit<TOptions, "transformHeaders"> & ProviderRequestOptions,
+			},
 		};
 	}
 
@@ -628,7 +636,7 @@ export class ModelRuntime implements Models {
 			return prepared.provider.stream(
 				prepared.model as Model<TApi>,
 				context,
-				prepared.options as ApiStreamOptions<TApi>,
+				prepared.options as unknown as ApiStreamOptions<TApi>,
 			);
 		});
 	}
@@ -644,7 +652,7 @@ export class ModelRuntime implements Models {
 	streamSimple(model: Model<Api>, context: Context, options?: ModelsSimpleStreamOptions): AssistantMessageEventStream {
 		return lazyStream(model, async () => {
 			const prepared = await this.prepareRequest(model, options);
-			return prepared.provider.streamSimple(prepared.model, context, prepared.options as SimpleStreamOptions);
+			return prepared.provider.streamSimple(prepared.model, context, prepared.options as unknown as SimpleStreamOptions);
 		});
 	}
 
@@ -662,7 +670,7 @@ export class ModelRuntime implements Models {
 			if (!prepared.provider.fetchDeferred) {
 				throw new ModelsError("provider", `Provider ${model.provider} does not support deferred responses`);
 			}
-			return prepared.provider.fetchDeferred(prepared.model, handle, prepared.options as DeferredFetchOptions);
+			return prepared.provider.fetchDeferred(prepared.model, handle, prepared.options as unknown as DeferredFetchOptions);
 		}).result();
 	}
 
@@ -675,17 +683,23 @@ export class ModelRuntime implements Models {
 		if (!prepared.provider.cancelDeferred) {
 			throw new ModelsError("provider", `Provider ${model.provider} does not support deferred responses`);
 		}
-		await prepared.provider.cancelDeferred(prepared.model, handle, prepared.options as DeferredCancelOptions);
+		await prepared.provider.cancelDeferred(prepared.model, handle, prepared.options as unknown as DeferredCancelOptions);
 	}
 
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
 		const signal = operationSignal(interaction.signal);
+		let credentialHolder: Credential | undefined;
 		const credentialPromise = enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
 			const credential = await this.models.login(providerId, type, { ...interaction, signal });
 			await this.synchronizeCredentialState(providerId, "login", credential, signal);
-			return credential;
+			credentialHolder = credential;
 		});
-		return credentialPromise as Promise<Credential>;
+		return credentialPromise.then(() => {
+			if (credentialHolder === undefined) {
+				throw new Error(`Login for provider ${providerId} did not produce a credential`);
+			}
+			return credentialHolder;
+		});
 	}
 
 	logout(providerId: string, options: AuthOperationOptions = {}): Promise<void> {

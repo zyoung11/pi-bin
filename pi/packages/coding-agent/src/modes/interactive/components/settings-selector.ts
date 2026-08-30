@@ -19,7 +19,7 @@ import type {
 import { getSettingsListTheme, parseAutoThemeSetting, type TerminalTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";
-import { SelectSubmenu, SteppedSubmenu, type SteppedSubmenuStep } from "./settings-submenu.ts";
+import { SelectSubmenu, SteppedSubmenu, type SteppedSelections, type SteppedSubmenuStep } from "./settings-submenu.ts";
 
 const MODEL_PICKER_LAYOUT = { minPrimaryColumnWidth: 12, maxPrimaryColumnWidth: 46 };
 
@@ -233,7 +233,7 @@ class ThemeSubmenu extends Container {
 	private readonly callbacks: SettingsCallbacks;
 	private readonly availableThemes: string[];
 	private readonly terminalTheme: TerminalTheme;
-	private readonly onDone: (selectedValue?: string) => void;
+	private readonly onDone: (selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => void;
 	private readonly originalThemeSetting: string;
 	private mode: "single" | "automatic";
 	private singleTheme: string;
@@ -245,7 +245,7 @@ class ThemeSubmenu extends Container {
 		terminalTheme: TerminalTheme,
 		availableThemes: string[],
 		callbacks: SettingsCallbacks,
-		onDone: (selectedValue?: string) => void,
+		onDone: (selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => void,
 	) {
 		super();
 		this.callbacks = callbacks;
@@ -333,9 +333,9 @@ class ThemeSubmenu extends Container {
 						(value) => {
 							this.lightTheme = value;
 							this.callbacks.onThemePreview?.(this.getThemeSetting());
-							done(value);
+							done(value, undefined);
 						},
-					),
+					) as Component,
 			},
 			{
 				id: "dark-theme",
@@ -351,9 +351,9 @@ class ThemeSubmenu extends Container {
 						(value) => {
 							this.darkTheme = value;
 							this.callbacks.onThemePreview?.(this.getThemeSetting());
-							done(value);
+							done(value, undefined);
 						},
-					),
+					) as Component,
 			},
 			{
 				id: "apply",
@@ -398,7 +398,7 @@ class ThemeSubmenu extends Container {
 		title: string,
 		description: string,
 		currentValue: string,
-		done: (selectedValue?: string) => void,
+		done: (selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => void,
 		onSelect: (value: string) => void,
 	): SelectSubmenu {
 		return new SelectSubmenu(
@@ -409,7 +409,7 @@ class ThemeSubmenu extends Container {
 			onSelect,
 			() => {
 				this.callbacks.onThemePreview?.(this.getThemeSetting());
-				done();
+				done(undefined, undefined);
 			},
 			(value) => this.callbacks.onThemePreview?.(value),
 		);
@@ -428,12 +428,12 @@ class ThemeSubmenu extends Container {
 	}
 
 	private apply(themeSetting: string): void {
-		this.onDone(themeSetting);
+		this.onDone(themeSetting, undefined);
 	}
 
 	private cancel(): void {
 		this.callbacks.onThemePreview?.(this.originalThemeSetting);
-		this.onDone();
+		this.onDone(undefined, undefined);
 	}
 }
 
@@ -563,8 +563,8 @@ export class SettingsSelectorComponent extends Container {
 							currentWarnings = warnings;
 							callbacks.onWarningsChange(warnings);
 						},
-						() => done(),
-					),
+						() => done(undefined, undefined),
+					) as Component,
 			},
 			{
 				id: "model-thinking",
@@ -577,7 +577,7 @@ export class SettingsSelectorComponent extends Container {
 							key: "model",
 							title: "Per-Model Thinking Level",
 							description: "Select a model to configure",
-							options: () => {
+							options: (_context: SteppedSelections) => {
 								const sorted = [...config.availableDefaultModels].sort((a, b) => {
 									const aKey = modelSettingKey(a);
 									const bKey = modelSettingKey(b);
@@ -605,19 +605,19 @@ export class SettingsSelectorComponent extends Container {
 								}
 								return items;
 							},
-							preselect: () => currentModelKey ?? currentDefaultModelKey,
+							preselect: (_context: SteppedSelections) => currentModelKey ?? currentDefaultModelKey,
 							searchable: true,
 							layout: MODEL_PICKER_LAYOUT,
 						},
 						{
 							key: "level",
-							title: (ctx) => {
-								const m = defaultModelByValue.get(ctx.model);
-								return `Thinking Level for ${m ? modelDisplayLabel(m) : ctx.model}`;
+							title: (selections: SteppedSelections) => {
+								const m = defaultModelByValue.get(selections.model);
+								return `Thinking Level for ${m ? modelDisplayLabel(m) : selections.model}`;
 							},
 							description: "Select default thinking level for this model",
-							options: (ctx) => {
-								const model = defaultModelByValue.get(ctx.model);
+							options: (selections: SteppedSelections) => {
+								const model = defaultModelByValue.get(selections.model);
 								if (!model) return [];
 								const levels = (
 									model.reasoning ? getSupportedThinkingLevels(model) : ["off"]
@@ -627,7 +627,7 @@ export class SettingsSelectorComponent extends Container {
 									label: level,
 									description: THINKING_DESCRIPTIONS[level],
 								}));
-								if (currentModelThinkingLevels[ctx.model] !== undefined) {
+								if (currentModelThinkingLevels[selections.model] !== undefined) {
 									items.push({
 										value: CLEAR_OVERRIDE_VALUE,
 										label: "(clear override)",
@@ -636,7 +636,7 @@ export class SettingsSelectorComponent extends Container {
 								}
 								return items;
 							},
-							preselect: (ctx) => currentModelThinkingLevels[ctx.model],
+							preselect: (selections: SteppedSelections) => currentModelThinkingLevels[selections.model],
 						},
 					];
 
@@ -644,7 +644,7 @@ export class SettingsSelectorComponent extends Container {
 
 					return new SteppedSubmenu(
 						steps,
-						(selections) => {
+						(selections: SteppedSelections) => {
 							const model = defaultModelByValue.get(selections.model);
 							if (!model) return;
 							if (selections.level === CLEAR_OVERRIDE_VALUE) {
@@ -660,10 +660,10 @@ export class SettingsSelectorComponent extends Container {
 							}
 						},
 						() => {
-							done(summary());
+							done(summary(), undefined);
 						},
 						{ loop: true },
-					);
+					) as Component;
 				},
 			},
 			{
@@ -693,7 +693,7 @@ export class SettingsSelectorComponent extends Container {
 				description: "Color theme for the interface",
 				currentValue: config.currentTheme,
 				submenu: (currentValue, done) =>
-					new ThemeSubmenu(currentValue, config.terminalTheme, config.availableThemes, callbacks, done),
+					new ThemeSubmenu(currentValue, config.terminalTheme, config.availableThemes, callbacks, done) as Component,
 			},
 		];
 
@@ -842,9 +842,11 @@ export class SettingsSelectorComponent extends Container {
 						callbacks.onTransportChange(newValue as Transport);
 						break;
 					case "http-idle-timeout": {
-						const choice = HTTP_IDLE_TIMEOUT_CHOICES.find((item) => item.label === newValue);
-						if (choice) {
-							callbacks.onHttpIdleTimeoutMsChange(choice.timeoutMs);
+						for (const item of HTTP_IDLE_TIMEOUT_CHOICES) {
+							if (item.label === newValue) {
+								callbacks.onHttpIdleTimeoutMsChange(item.timeoutMs);
+								break;
+							}
 						}
 						break;
 					}

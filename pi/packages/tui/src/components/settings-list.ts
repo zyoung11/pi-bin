@@ -19,7 +19,7 @@ export interface SettingItem {
 	 *  done() accepts an optional selectedValue and an optional navigateTo id to move the cursor after close. */
 	submenu?: (
 		currentValue: string,
-		done: (selectedValue?: string, options?: { navigateTo?: string }) => void,
+		done: (selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => void,
 	) => Component;
 }
 
@@ -220,12 +220,12 @@ export class SettingsList extends Component {
 			this.submenuItemIndex = this.selectedIndex;
 			this.submenuComponent = item.submenu(
 				item.currentValue,
-				(selectedValue?: string, options?: { navigateTo?: string }) => {
+				(selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => {
 					if (selectedValue !== undefined) {
 						item.currentValue = selectedValue;
 						this.onChange(item.id, selectedValue);
 					}
-					if (options?.navigateTo) {
+					if (options !== undefined && options.navigateTo) {
 						this.navigateAfterClose = options.navigateTo;
 					}
 					this.closeSubmenu();

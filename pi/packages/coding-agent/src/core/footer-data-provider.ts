@@ -1,7 +1,7 @@
 import { spawnSync } from "child_process";
 import { existsSync, type FSWatcher, readFileSync, statSync } from "fs";
 import { dirname, join, resolve } from "path";
-import { closeWatcher, FS_WATCH_RETRY_DELAY_MS, watchWithErrorHandler } from "../utils/fs-watch.ts";
+import { closeWatcher, FS_WATCH_RETRY_DELAY_MS, watchWithErrorHandler, type FsPollWatcher } from "../utils/fs-watch.ts";
 
 export type GitPaths = {
 	repoDir: string;
@@ -86,9 +86,9 @@ export class FooterDataProvider {
 	private extensionStatuses = new Map<string, string>();
 	private cachedBranch: string | null | undefined = undefined;
 	private gitPaths: GitPaths | null | undefined = undefined;
-	private headWatcher: FSWatcher | null = null;
-	private reftableWatcher: FSWatcher | null = null;
-	private reftableTablesListWatcher: FSWatcher | null = null;
+	private headWatcher: FsPollWatcher | null = null;
+	private reftableWatcher: FsPollWatcher | null = null;
+	private reftableTablesListWatcher: FsPollWatcher | null = null;
 	private gitPollTimers: Array<ReturnType<typeof setInterval>> = [];
 	private lastHeadContent: string | undefined = undefined;
 	private lastTablesListContent: string | undefined = undefined;
@@ -293,11 +293,11 @@ export class FooterDataProvider {
 
 		const pollGitHead = shouldPollGitHead(this.gitPaths.repoDir);
 
-		// Watch the directory containing HEAD, not HEAD itself.
-		// Git uses atomic writes (write temp, rename over HEAD), which changes the inode.
-		// fs.watch on a file stops working after the inode changes.
+		// Poll the HEAD file content itself: the watcher is a content poller,
+		// and git's atomic write (temp file + rename over HEAD) shows up as a
+		// content change. Watching the parent directory would snapshot a listing.
 		this.headWatcher = watchWithErrorHandler(
-			dirname(this.gitPaths.headPath),
+			this.gitPaths.headPath,
 			(_eventType, filename) => {
 				if (!filename || filename === "HEAD") {
 					this.scheduleRefresh();

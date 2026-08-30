@@ -252,10 +252,12 @@ function estimateTextAndImageContentChars(content: unknown): number {
 
 	let chars = 0;
 	for (const item of content) {
-		const block = item as { type?: unknown; text?: unknown };
-		if (block.type === "text" && typeof block.text === "string") {
-			chars += block.text.length;
-		} else if (block.type === "image") {
+		const block = item as unknown as Record<string, unknown>;
+		const blockType = block["type"];
+		if (blockType === "text") {
+			const text = block["text"];
+			if (typeof text === "string") chars += text.length;
+		} else if (blockType === "image") {
 			chars += ESTIMATED_IMAGE_CHARS;
 		}
 	}

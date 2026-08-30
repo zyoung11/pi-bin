@@ -18,7 +18,7 @@ export class InMemoryCredentialStore extends CredentialStore {
 	private chains = new Map<string, Promise<unknown>>();
 
 	/** Serialize tasks per provider id without releasing the chain before active work settles. */
-	private enqueue<T>(providerId: string, task: () => Promise<T>, options?: AuthOperationOptions): Promise<T> {
+	private enqueue(providerId: string, task: () => Promise<unknown>, options?: AuthOperationOptions): Promise<unknown> {
 		const signal = operationSignal(options?.signal);
 		const previous = this.chains.get(providerId) ?? Promise.resolve();
 		const queued = (async () => {
@@ -70,7 +70,7 @@ export class InMemoryCredentialStore extends CredentialStore {
 				return next ?? current;
 			},
 			options,
-		);
+		) as Promise<Credential | undefined>;
 	}
 
 	delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
@@ -80,6 +80,6 @@ export class InMemoryCredentialStore extends CredentialStore {
 				this.credentials.delete(providerId);
 			},
 			options,
-		);
+		) as Promise<void>;
 	}
 }

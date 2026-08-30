@@ -352,12 +352,13 @@ export class DefaultResourceLoader extends ResourceLoader {
 	}
 
 	private async reloadAsync(options?: ResourceLoaderReloadOptions): Promise<void> {
-		if (options?.resolveProjectTrust) {
+		const resolveProjectTrust = options?.resolveProjectTrust;
+		if (resolveProjectTrust !== undefined) {
 			// Force untrusted project settings for the bootstrap pass. This keeps project-local
 			// resources out while still loading user/global ones.
 			this.settingsManager.setProjectTrusted(false);
 			await this.settingsManager.reload();
-			const projectTrusted = await options.resolveProjectTrust();
+			const projectTrusted = await resolveProjectTrust();
 			this.settingsManager.setProjectTrusted(projectTrusted);
 		}
 

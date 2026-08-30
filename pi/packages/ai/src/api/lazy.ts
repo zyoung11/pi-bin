@@ -28,7 +28,7 @@ async function forwardStream(
 ): Promise<void> {
 	let step = await source.next();
 	while (!step.done) {
-		target.push(step.value);
+		target.push(step.value as AssistantMessageEvent);
 		step = await source.next();
 	}
 	target.end(await source.result());

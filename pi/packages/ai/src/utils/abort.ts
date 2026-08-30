@@ -14,13 +14,13 @@ export function operationSignal(signal?: AbortSignal): AbortSignal {
  * Stop waiting for an operation when its signal aborts while continuing to
  * observe the abandoned promise so a later rejection is always handled.
  */
-export function raceWithAbortSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+export function raceWithAbortSignal(operation: Promise<unknown>, signal: AbortSignal): Promise<unknown> {
 	if (signal.aborted) {
 		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 
-	return new Promise<T>((resolve, reject) => {
+	return new Promise<unknown>((resolve, reject) => {
 		let settled = false;
 		const cleanup = () => signal.removeEventListener("abort", onAbort);
 		const onAbort = () => {
@@ -31,20 +31,19 @@ export function raceWithAbortSignal<T>(operation: Promise<T>, signal: AbortSigna
 		};
 
 		signal.addEventListener("abort", onAbort, { once: true });
-		void operation.then(
-			(value) => {
+		void operation
+			.then((value) => {
 				if (settled) return;
 				settled = true;
 				cleanup();
 				resolve(value);
-			},
-			(error: unknown) => {
+			})
+			.catch((error: unknown) => {
 				if (settled) return;
 				settled = true;
 				cleanup();
 				reject(error);
-			},
-		);
+			});
 		if (signal.aborted) onAbort();
 	});
 }

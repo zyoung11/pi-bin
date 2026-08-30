@@ -802,7 +802,7 @@ export class InteractiveMode {
 			[...slashCommands, ...templateCommands, ...skillCommandList],
 			this.sessionManager.getCwd(),
 			this.fdPath,
-		);
+		) as unknown as AutocompleteProvider;
 	}
 
 	private setupAutocompleteProvider(): void {

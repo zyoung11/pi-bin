@@ -250,7 +250,7 @@ function mergeHeaders(
 	return merged;
 }
 
-class ModelsImpl implements MutableModels {
+export class ModelsImpl implements MutableModels {
 	private providers = new Map<string, Provider>();
 	private credentials: CredentialStore;
 	private modelsStore: ModelsStore;
@@ -392,7 +392,7 @@ class ModelsImpl implements MutableModels {
 		void tail.then(() => {
 			if (this.publicationChains.get(providerId) === tail) this.publicationChains.delete(providerId);
 		});
-		return raceWithAbortSignal(queued, signal);
+		return raceWithAbortSignal(queued, signal) as Promise<boolean>;
 	}
 
 	private async runProviderRefreshPhase(
@@ -548,7 +548,7 @@ class ModelsImpl implements MutableModels {
 			if (!provider) return undefined;
 			return this.checkProviderAuth(provider, await this.readCredential(providerId, signal), signal);
 		})();
-		return raceWithAbortSignal(check, signal);
+		return raceWithAbortSignal(check, signal) as Promise<AuthCheck | undefined>;
 	}
 
 	getAvailable(providerId?: string, options?: AuthOperationOptions): Promise<readonly Model<Api>[]> {
@@ -570,7 +570,7 @@ class ModelsImpl implements MutableModels {
 				return provider.filterModels?.(models, credential) ?? models;
 			});
 		})();
-		return raceWithAbortSignal(available, signal);
+		return raceWithAbortSignal(available, signal) as Promise<readonly Model<Api>[]>;
 	}
 
 	getAuth(providerOrModel: string | Model<Api>, overrides?: AuthResolutionOverrides): Promise<AuthResult | undefined>;
@@ -603,7 +603,7 @@ class ModelsImpl implements MutableModels {
 			throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
 		}
 		const loginOperation: Promise<Credential> = method.login({ ...interaction, signal });
-		const credential = await raceWithAbortSignal(loginOperation, signal);
+		const credential = await raceWithAbortSignal(loginOperation, signal) as Credential;
 		let mutationStarted = false;
 		let markMutationStarted: (() => void) | undefined;
 		const started = new Promise<void>((resolve) => {
@@ -763,7 +763,7 @@ class ModelsImpl implements MutableModels {
 	}
 }
 
-export function createModels(options?: CreateModelsOptions): MutableModels {
+export function createModels(options?: CreateModelsOptions): ModelsImpl {
 	return new ModelsImpl(options);
 }
 

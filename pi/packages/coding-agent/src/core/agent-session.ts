@@ -1940,7 +1940,7 @@ export class AgentSession {
 				usage,
 				details,
 			};
-			this._emit({ type: "compaction_end", reason, result, aborted: false, willRetry });
+			this._emitCompactionEnd(reason, result, false, willRetry, undefined);
 
 			if (willRetry) {
 				const messages = this.agent.state.messages;

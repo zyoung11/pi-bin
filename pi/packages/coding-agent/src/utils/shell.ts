@@ -132,7 +132,7 @@ export function getPowerShellConfig(): ShellConfig {
 		throw new Error("No PowerShell executable found. Install PowerShell or add powershell.exe/pwsh.exe to PATH.");
 	}
 
-	return { shell, args: [...POWERSHELL_ARGS] };
+	return { shell, args: POWERSHELL_ARGS.slice() };
 }
 
 export function getShellEnv(): NodeJS.ProcessEnv {

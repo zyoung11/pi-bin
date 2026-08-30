@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import { spawn } from "child_process";
 import path from "path";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
@@ -155,8 +156,8 @@ export function createGrepToolDefinition(
 				context?: number;
 				limit?: number;
 			},
-			signal?: AbortSignal,
-			_onUpdate?,
+			signal,
+			_onUpdate,
 		) {
 			return new Promise((resolve, reject) => {
 				if (signal?.aborted) {
@@ -372,9 +373,13 @@ export function createGrepToolDefinition(
 			});
 		},
 		renderCall(args, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const last: Component | undefined = context.lastComponent;
+			let text = new Text("", 0, 0);
+			if (last !== undefined && last instanceof Text) {
+				text = last;
+			}
 			text.setText(formatGrepCall(args as { pattern: string; path?: string; glob?: string; limit?: number } | undefined, theme));
-			return text;
+			return text as Component;
 		},
 		renderResult(result, options, theme, context) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);

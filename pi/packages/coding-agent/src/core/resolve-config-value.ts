@@ -15,17 +15,14 @@ type TemplatePart = { type: "literal"; value: string } | { type: "env"; name: st
 
 type ConfigValueReference = { type: "command"; config: string } | { type: "template"; parts: TemplatePart[] };
 
-/** Read the discriminator off a template part without triggering union field-read walls. */
-function templatePartTypeOf(part: TemplatePart): string {
-	const record = part as unknown as Record<string, unknown>;
-	const type = record["type"];
-	return typeof type === "string" ? type : "";
-}
-
 function appendLiteral(parts: TemplatePart[], value: string): void {
 	if (!value) return;
 	const previousPart = parts[parts.length - 1];
-	if (previousPart?.type === "literal") {
+	if (previousPart === undefined) {
+		parts.push({ type: "literal", value });
+		return;
+	}
+	if (previousPart.type === "literal") {
 		previousPart.value += value;
 		return;
 	}
@@ -160,13 +157,13 @@ export function resolveConfigValue(config: string, env?: Record<string, string>)
 function executeWithConfiguredShell(command: string): { executed: boolean; value: string | undefined } {
 	try {
 		const { shell, args, commandTransport } = getShellConfig();
-		const commandFromStdin = commandTransport === "stdin";
-		const result = spawnSync(shell, commandFromStdin ? args : [...args, command], {
+		// The stdin transport (legacy WSL bash `-s`) has no spawnSync `input`
+		// lowering; `bash -c <command>` is the equivalent argv form.
+		const shellArgs = commandTransport === "stdin" ? ["-c", command] : [...args, command];
+		const result = spawnSync(shell, shellArgs, {
 			encoding: "utf-8",
-			input: commandFromStdin ? command : undefined,
 			timeout: 10000,
-			stdio: [commandFromStdin ? "pipe" : "ignore", "pipe", "ignore"],
-			shell: false,
+			stdio: ["ignore", "pipe", "ignore"],
 			windowsHide: true,
 		});
 

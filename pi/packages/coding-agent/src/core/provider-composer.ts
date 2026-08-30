@@ -21,6 +21,7 @@ import {
 	type RefreshModelsContext,
 	type SimpleStreamOptions,
 	type StreamOptions,
+	type ProviderStreams,
 } from "../../../ai/src/index.ts";
 import { getApiProvider } from "../../../ai/src/compat.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
@@ -90,15 +91,13 @@ function copyCompatRecord(source: unknown): Record<string, unknown> {
 }
 
 function mergeStringRecords(
-	...records: Array<Record<string, string | null | undefined> | undefined>
+	...records: Array<Record<string, string> | undefined>
 ): Record<string, string> {
 	const merged: Record<string, string> = {};
 	for (const record of records) {
 		if (!record) continue;
 		for (const key of Object.keys(record)) {
-			const value = record[key];
-			if (value === null || value === undefined) continue;
-			merged[key] = value;
+			merged[key] = record[key];
 		}
 	}
 	return merged;
@@ -422,10 +421,11 @@ function composeApiKeyAuth(
 			const inheritedLogin = inherited.login;
 			composedLogin = (interaction: ProviderAuthInteraction) => inheritedLogin(interaction);
 		} else {
-			composedLogin = async (interaction: ProviderAuthInteraction) => ({
-				type: "api_key",
-				key: await interaction.prompt({ type: "secret", message: "Enter API key" }),
-			});
+			composedLogin = async (interaction: ProviderAuthInteraction) => {
+				const key = await interaction.prompt({ type: "secret", message: "Enter API key" });
+				const credential: ApiKeyCredential = { type: "api_key", key };
+				return credential;
+			};
 		}
 	const authHeader = extension?.authHeader ?? config?.authHeader ?? false;
 	return {
@@ -436,7 +436,8 @@ function composeApiKeyAuth(
 			if (input.credential) {
 				if (inheritedCheck) return inheritedCheck(input);
 				if (input.credential.key) return { type: "api_key", source: "stored credential" };
-				const resolved = await inherited?.resolve(input);
+				const inheritedResolveForCheck = inherited?.resolve;
+				const resolved = inheritedResolveForCheck ? await inheritedResolveForCheck(input) : undefined;
 				return resolved ? { type: "api_key", source: resolved.source } : undefined;
 			}
 			if (rawKey !== undefined) {
@@ -467,7 +468,8 @@ function composeApiKeyAuth(
 					? await inherited.resolve({ ...input, credential: { type: "api_key", key } })
 					: { auth: { apiKey: key }, source: "configured API key" };
 			} else {
-				result = await inherited?.resolve(input);
+				const inheritedResolve = inherited?.resolve;
+				result = inheritedResolve ? await inheritedResolve(input) : undefined;
 			}
 			if (!result) return undefined;
 			const credentialEnv = input.credential?.env;
@@ -591,13 +593,18 @@ export function composeModelProvider(
 		simple: boolean,
 	): AssistantMessageEventStream =>
 		lazyStream(model, async () => {
-			if (extension?.streamSimple && model.api === extension.api) {
-				return extension.streamSimple(model, context, options as SimpleStreamOptions);
+			if (extension !== undefined) {
+				const extensionStreamSimple = extension.streamSimple;
+				if (extensionStreamSimple !== undefined && model.api === extension.api) {
+					return extensionStreamSimple(model, context, options as unknown as SimpleStreamOptions);
+				}
 			}
 			if (base && supportsBaseApi(model)) {
-				return simple
-					? base.streamSimple(model, context, options as SimpleStreamOptions)
-					: base.stream(model, context, options as (StreamOptions & Record<string, unknown>) | undefined);
+				if (simple) {
+					return base.streamSimple(model, context, options as unknown as SimpleStreamOptions);
+				}
+				const baseStreams = base as unknown as ProviderStreams;
+				return baseStreams.stream(model, context, options);
 			}
 			const api = getApiProvider(model.api);
 			if (!api) throw new Error(`No API provider registered for api: ${model.api}`);
@@ -621,7 +628,11 @@ export function composeModelProvider(
 						const extensionRefreshModels = extension?.refreshModels;
 						if (extensionRefreshModels) refreshed = await extensionRefreshModels(context);
 						if (context.signal.aborted) return;
-						const oauthCredential = context.credential?.type === "oauth" ? context.credential : undefined;
+						const credential = context.credential;
+						let oauthCredential: OAuthCredentials | undefined;
+						if (credential !== undefined && credential.type === "oauth") {
+							oauthCredential = JSON.parse(JSON.stringify(credential)) as OAuthCredentials;
+						}
 						await context.publish({
 							update: () => {
 								if (refreshed) {

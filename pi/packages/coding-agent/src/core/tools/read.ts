@@ -5,6 +5,7 @@ import type { Api,
 } from "../../../../ai/src/index.ts"
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import { constants } from "fs";
 import { existsSync } from "node:fs";
 import { readFile as fsReadFile } from "fs/promises";
@@ -61,7 +62,10 @@ export interface ReadOperations {
 const defaultReadOperations: ReadOperations = {
 	readFile: (path) => fsReadFile(path),
 	access: async (_absolutePath: string) => {},
-	detectImageMimeType: detectSupportedImageMimeTypeFromFile,
+	detectImageMimeType: async (absolutePath: string) => {
+		const detected: string | null | undefined = await detectSupportedImageMimeTypeFromFile(absolutePath);
+		return detected;
+	},
 };
 
 export interface ReadToolOptions {
@@ -229,8 +233,8 @@ export function createReadToolDefinition(
 		async execute(
 			_toolCallId,
 			{ path, offset, limit }: { path: string; offset?: number; limit?: number },
-			signal?: AbortSignal,
-			_onUpdate?,
+			signal: AbortSignal | undefined,
+			_onUpdate,
 		) {
 			return new Promise<{ content: (TextContent | ImageContent)[]; details: ReadToolDetails | undefined }>(
 				(resolve, reject) => {
@@ -243,7 +247,7 @@ export function createReadToolDefinition(
 						aborted = true;
 						reject(new Error("Operation aborted"));
 					};
-					signal?.addEventListener("abort", onAbort, { once: true });
+					if (signal !== undefined) signal.addEventListener("abort", onAbort, { once: true });
 
 					(async () => {
 						try {
@@ -252,7 +256,9 @@ export function createReadToolDefinition(
 							// Check if file exists and is readable.
 							await ops.access(absolutePath);
 							if (aborted) return;
-							const mimeType = ops.detectImageMimeType ? await ops.detectImageMimeType(absolutePath) : undefined;
+							const detectImageMimeType = ops.detectImageMimeType;
+						const mimeType =
+							detectImageMimeType !== undefined ? await detectImageMimeType(absolutePath) : undefined;
 							let content: (TextContent | ImageContent)[];
 							let details: ReadToolDetails | undefined;
 							const nonVisionImageNote = getNonVisionImageNote(modelProvider?.());
@@ -328,10 +334,10 @@ export function createReadToolDefinition(
 							}
 
 							if (aborted) return;
-							signal?.removeEventListener("abort", onAbort);
+							if (signal !== undefined) signal.removeEventListener("abort", onAbort);
 							resolve({ content, details });
-						} catch (error: any) {
-							signal?.removeEventListener("abort", onAbort);
+						} catch (error) {
+							if (signal !== undefined) signal.removeEventListener("abort", onAbort);
 							if (!aborted) reject(error);
 						}
 					})();
@@ -339,7 +345,11 @@ export function createReadToolDefinition(
 			);
 		},
 		renderCall(args, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const last: Component | undefined = context.lastComponent;
+			let text = new Text("", 0, 0);
+			if (last !== undefined && last instanceof Text) {
+				text = last;
+			}
 			const renderArgs = args as ReadRenderArgs | undefined;
 			const classification = !context.expanded ? getCompactReadClassification(renderArgs, context.cwd) : undefined;
 			text.setText(
@@ -347,14 +357,18 @@ export function createReadToolDefinition(
 					? formatCompactReadCall(classification, renderArgs, theme)
 					: formatReadCall(renderArgs, theme, context.cwd),
 			);
-			return text;
+			return text as Component;
 		},
 		renderResult(result, options, theme, context) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const last: Component | undefined = context.lastComponent;
+			let text = new Text("", 0, 0);
+			if (last !== undefined && last instanceof Text) {
+				text = last;
+			}
 			text.setText(
 				formatReadResult(context.args as ReadRenderArgs | undefined, result, options, theme, context.showImages, context.cwd, context.isError),
 			);
-			return text;
+			return text as Component;
 		},
 	};
 }

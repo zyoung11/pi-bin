@@ -7,6 +7,7 @@ import {
 	type AssistantMessage,
 	type AssistantMessageEvent,
 	type Context,
+	type EventStreamNextResult,
 	EventStream,
 	type ToolResultMessage,
 	validateToolArguments,
@@ -332,7 +333,7 @@ async function streamAssistantResponse(
 	let partialMessage: AssistantMessage | null = null;
 	let addedPartial = false;
 
-	let iteration: IteratorResult<AssistantMessageEvent> = await response.next();
+	let iteration: EventStreamNextResult<AssistantMessageEvent> = await response.next();
 	while (!iteration.done) {
 		const event: AssistantMessageEvent = iteration.value as AssistantMessageEvent;
 		switch (event.type) {

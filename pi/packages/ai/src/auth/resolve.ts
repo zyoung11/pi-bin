@@ -57,7 +57,7 @@ export function resolveProviderAuth(
 	return raceWithAbortSignal(
 		resolveProviderAuthWithSignal(provider, credentials, authContext, overrides, signal),
 		signal,
-	);
+	) as Promise<AuthResult | undefined>;
 }
 
 async function resolveProviderAuthWithSignal(

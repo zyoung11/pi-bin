@@ -130,7 +130,7 @@ export class FileModelsStore extends ModelsStore {
 		const reload = readState.reload;
 		reload.readers++;
 		try {
-			return await raceWithAbortSignal(reload.promise, options?.signal);
+			return (await raceWithAbortSignal(reload.promise, options?.signal)) as StoredModels;
 		} finally {
 			reload.readers--;
 			if (reload.readers === 0 && readState.reload === reload) {

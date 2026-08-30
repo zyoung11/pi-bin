@@ -6,7 +6,9 @@
  */
 
 import type { AgentMessage, StreamFn } from "../../../../agent/src/index.ts";
-import type { Api,
+import type {
+	Api,
+	ProviderHeaders,
 	RetryCallbacks, RetryPolicy
 } from "../../../../ai/src/index.ts"
 import { contentText } from "../../../../ai/src/index.ts";
@@ -17,7 +19,7 @@ import {
 	createCompactionSummaryMessage,
 	createCustomMessage,
 } from "../messages.ts";
-import { entryParentIdOf, type ReadonlySessionManager, type SessionEntry } from "../session-manager.ts";
+import { type SessionEntry, entryParentIdOf, SessionManager } from "../session-manager.ts";
 import { completeSummarization, estimateTokens, getSummarizationFailure } from "./compaction.ts";
 import {
 	computeFileLists,
@@ -108,7 +110,7 @@ export interface GenerateBranchSummaryOptions {
  * @returns Entries to summarize and the common ancestor
  */
 export function collectEntriesForBranchSummary(
-	session: ReadonlySessionManager,
+	session: SessionManager,
 	oldLeafId: string | null,
 	targetId: string,
 ): CollectEntriesResult {
@@ -349,7 +351,13 @@ export async function generateBranchSummary(
 	// without running through agent state/events. Retried via completeSummarization
 	// so transient stream drops reuse the configured retry policy.
 	const context = { systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages };
-	const requestOptions: SimpleStreamOptions = { apiKey, headers, env, signal, maxTokens: 2048 };
+	const requestHeaders: ProviderHeaders = {};
+	if (headers !== undefined) {
+		for (const key of Object.keys(headers)) {
+			requestHeaders[key] = headers[key];
+		}
+	}
+	const requestOptions: SimpleStreamOptions = { apiKey, headers: requestHeaders, env, signal, maxTokens: 2048 };
 	const response = await completeSummarization(model, context, requestOptions, streamFn, retry, callbacks);
 
 	// Check if aborted or errored

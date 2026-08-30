@@ -309,7 +309,8 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): unknown {
 
 	const validator = getValidator(tool.parameters);
 	const coercedArgs = coerceWithJsonSchema(args, tool.parameters as JsonSchemaObject);
-	if (coercedArgs !== args) {
+	const argsIdentity: unknown = args;
+	if (coercedArgs !== argsIdentity) {
 		if (typeof args === "object" && args !== null && typeof coercedArgs === "object" && coercedArgs !== null) {
 			for (const key of Object.keys(args)) {
 				args[key] = undefined;
