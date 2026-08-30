@@ -22,10 +22,5 @@ function getBunSandboxEnvValue(_name: string): string | undefined {
  * the duplicated Bun sandbox fallback for direct pi-ai consumers.
  */
 export function getProviderEnvValue(name: string, env?: ProviderEnv): string | undefined {
-	return (
-		env?.[name] ||
-		(typeof process !== "undefined" ? process.env[name] : undefined) ||
-		getBunSandboxEnvValue(name) ||
-		undefined
-	);
+	return env?.[name] || process.env[name] || getBunSandboxEnvValue(name) || undefined;
 }

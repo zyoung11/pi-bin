@@ -59,7 +59,14 @@ export async function getProviderCredential(
 	options: { refresh: boolean },
 ): Promise<string | undefined> {
 	const credential = await credentials.read(providerId);
-	if (!options.refresh && credential?.type === "oauth") return credential.access;
+	const credentialRecord = credential as unknown as Record<string, unknown> | undefined;
+	if (
+		!options.refresh &&
+		credentialRecord !== undefined &&
+		credentialRecord["type"] === "oauth"
+	) {
+		return credentialRecord["access"] as string;
+	}
 	return getAuthCredential(await modelRuntime.getAuth(providerId));
 }
 

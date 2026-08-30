@@ -89,6 +89,14 @@
 - **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r41）
 - **总账 157→96；本会话累计 376→96（-280，74%）**；剩余：provider-composer 8、model-runtime 7、session 6、abort 5、agent-session 5、event-stream/transform-messages 各 4，及散点约 50
 
+## 阶段 5 grind 第四十一轮记录（进行中：96→85，散点清扫继续）
+
+- **已清**：cli/args isValidThinkingLevel（readonly tuple includes→string[]）、agent-session-runtime rebindSession 提升+extractUserMessageText 参数放宽 unknown、agent-session 1652 entryTypeOf、agent-session-services spread→逐字段、package-manager pinned 嵌套判别、provider-attribution URL→手写 host 解析、provider-env typeof process 检查删除、validation delete→undefined 赋值、usage-totals/tree-selector/message 联合读 helper 化
+- **本会话累计 376→约 85（-291，81%）**
+- **剩余分类**：①深水区（provider-composer OAuth 链 8、model-runtime prepareRequest Omit 级联 7、session SessionTree view 6、agent-session emit/record 5、abort 泛型 race 5、event-stream 4、transform-messages 4、auth-storage LockResult 2、models Map<AbortController> 2、telemetry 2、compat/resource-loader/session-export/settings-list/tool-execution 各 1-2）②新揭幕散点（export-html cast、tools execute lift、resolve-config-value TemplatePart、compaction block cast、auth-check credential record、sdk 比较等约 20）
+
+## 阶段 5 grind 第四十轮记录（进行中：204→96，长尾批量清零 + ResourceLoader 抽象类）
+
 ## 阶段 5 grind 第三十九轮记录（进行中：204→157，footer git 轮询改造 + 长尾批量）
 
 - **footer-data-provider 8→0**：watchFile/unwatchFile/Stats 轮询 → setInterval + readFileSync 内容比对（两个 poller，首次读不触发）；spawnSync cwd → git -C；execFile 异步版 → 同步委托；cachedBranch 联合比较归一化为 string|undefined

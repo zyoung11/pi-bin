@@ -9,14 +9,16 @@ const CLOUDFLARE_AI_GATEWAY_HOST = "gateway.ai.cloudflare.com";
 const OPENCODE_HOST = "opencode.ai";
 
 function matchesHost(baseUrl: string, expectedHost: string): boolean {
-	try {
-		const host = new URL(baseUrl).host;
-		const colonIdx = host.lastIndexOf(":");
-		const hostname = colonIdx > 0 ? host.slice(0, colonIdx) : host;
-		return hostname === expectedHost;
-	} catch {
-		return false;
-	}
+	const schemeIdx = baseUrl.indexOf("://");
+	if (schemeIdx === -1) return false;
+	const rest = baseUrl.slice(schemeIdx + 3);
+	const slashIdx = rest.indexOf("/");
+	const hostPart = slashIdx === -1 ? rest : rest.slice(0, slashIdx);
+	const atIdx = hostPart.indexOf("@");
+	const hostNoUser = atIdx === -1 ? hostPart : hostPart.slice(atIdx + 1);
+	const colonIdx = hostNoUser.lastIndexOf(":");
+	const hostname = colonIdx > 0 ? hostNoUser.slice(0, colonIdx) : hostNoUser;
+	return hostname === expectedHost;
 }
 
 function isOpenRouterModel(model: Model<Api>): boolean {

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { resolvePath } from "../utils/paths.ts";
-import { CURRENT_SESSION_VERSION, type SessionHeader, type SessionManager } from "./session-manager.ts";
+import { entryIdOf, CURRENT_SESSION_VERSION, type SessionHeader, type SessionManager } from "./session-manager.ts";
 
 /** Write the current session branch and optional trailing export-only entries as JSONL. */
 export function exportSessionToJsonl(
@@ -30,8 +30,9 @@ export function exportSessionToJsonl(
 
 	let parentId: string | null = null;
 	for (const entry of sessionManager.getBranch()) {
-		lines.push(JSON.stringify({ ...entry, parentId }));
-		parentId = entry.id;
+		const record = { ...entry, parentId };
+		lines.push(JSON.stringify(record));
+		parentId = entryIdOf(entry) ?? null;
 	}
 	for (const entry of createTrailingEntries?.(parentId, timestamp) ?? []) {
 		lines.push(JSON.stringify(entry));

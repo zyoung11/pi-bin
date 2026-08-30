@@ -131,7 +131,22 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 		throw new Error("No response body");
 	}
 
-	writeFileSync(dest, new Uint8Array(await response.arrayBuffer()));
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const chunk = await reader.read();
+		if (chunk.done) break;
+		chunks.push(chunk.value);
+		total += chunk.value.length;
+	}
+	const data = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		data.set(chunk, offset);
+		offset += chunk.length;
+	}
+	writeFileSync(dest, data);
 }
 
 function findBinaryRecursively(rootDir: string, binaryFileName: string): string | null {

@@ -24,7 +24,9 @@ function getQuarantineRoot(packageDir: string): string | undefined {
 }
 
 function getLoadedSharedObjectsInPackageDir(packageDir: string): string[] {
-	const sharedObjects = (process.report.getReport() as { sharedObjects?: unknown }).sharedObjects;
+	// process.report has no scriptc lowering; assume no shared objects in the
+	// static build and let the caller's dir scan find what it needs.
+	const sharedObjects: string[] = [];
 	if (!Array.isArray(sharedObjects)) {
 		return [];
 	}

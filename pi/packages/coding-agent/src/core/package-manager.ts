@@ -1274,7 +1274,15 @@ export class DefaultPackageManager implements PackageManager {
 			if (parsed.type === "local") {
 				return undefined;
 			}
-			if ("pinned" in parsed && parsed.pinned) {
+			if (parsed.type === "npm") {
+				if (parsed.pinned) {
+					return undefined;
+				}
+			} else if (parsed.type === "git") {
+				if (parsed.pinned) {
+					return undefined;
+				}
+			} else {
 				return undefined;
 			}
 

@@ -46,9 +46,12 @@ export class SessionImportFileNotFoundError extends Error {
 	}
 }
 
-function extractUserMessageText(content: string | Array<{ type: string; text?: string }>): string {
+function extractUserMessageText(content: unknown): string {
 	if (typeof content === "string") {
 		return content;
+	}
+	if (!Array.isArray(content)) {
+		return "";
 	}
 
 	const textParts: string[] = [];
@@ -136,8 +139,9 @@ export class AgentSessionRuntime {
 	}
 
 	private async finishSessionReplacement(): Promise<void> {
-		if (this.rebindSession) {
-			await this.rebindSession(this.session);
+		const rebindSession = this.rebindSession;
+		if (rebindSession) {
+			await rebindSession(this.session);
 		}
 	}
 

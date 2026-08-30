@@ -81,7 +81,7 @@ import type {
 	SessionEntry,
 	SessionManager,
 } from "./session-manager.ts";
-import { getLatestCompactionEntry } from "./session-manager.ts";
+import { entryTypeOf, getLatestCompactionEntry } from "./session-manager.ts";
 import type { SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
@@ -1649,7 +1649,7 @@ export class AgentSession {
 				const lastEntry = pathEntries[pathEntries.length - 1];
 				let lastEntryType: string | undefined;
 				if (lastEntry !== undefined) {
-					lastEntryType = (lastEntry as unknown as { type: string }).type;
+					lastEntryType = entryTypeOf(lastEntry);
 				}
 				if (lastEntryType === "compaction") {
 					throw new Error("Already compacted");

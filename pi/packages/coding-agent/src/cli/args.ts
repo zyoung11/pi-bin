@@ -59,7 +59,8 @@ export interface Args {
 const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export function isValidThinkingLevel(level: string): level is ThinkingLevel {
-	return VALID_THINKING_LEVELS.includes(level as ThinkingLevel);
+	const levels: string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+	return levels.includes(level);
 }
 
 export function normalizeSessionName(value: string): string | undefined {

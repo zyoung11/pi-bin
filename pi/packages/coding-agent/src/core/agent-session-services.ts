@@ -99,10 +99,21 @@ export async function createAgentSessionServices(
 		}));
 	const settingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
 	const resourceLoader = new DefaultResourceLoader({
-		...(options.resourceLoaderOptions ?? {}),
 		cwd,
 		agentDir,
 		settingsManager,
+		additionalSkillPaths: options.resourceLoaderOptions?.additionalSkillPaths,
+		additionalPromptTemplatePaths: options.resourceLoaderOptions?.additionalPromptTemplatePaths,
+		additionalThemePaths: options.resourceLoaderOptions?.additionalThemePaths,
+		noSkills: options.resourceLoaderOptions?.noSkills,
+		noPromptTemplates: options.resourceLoaderOptions?.noPromptTemplates,
+		noThemes: options.resourceLoaderOptions?.noThemes,
+		noContextFiles: options.resourceLoaderOptions?.noContextFiles,
+		systemPrompt: options.resourceLoaderOptions?.systemPrompt,
+		appendSystemPrompt: options.resourceLoaderOptions?.appendSystemPrompt,
+		skillsOverride: options.resourceLoaderOptions?.skillsOverride,
+		promptsOverride: options.resourceLoaderOptions?.promptsOverride,
+		themesOverride: options.resourceLoaderOptions?.themesOverride,
 	});
 	await resourceLoader.reload(options.resourceLoaderReloadOptions);
 

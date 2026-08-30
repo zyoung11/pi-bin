@@ -15,6 +15,13 @@ type TemplatePart = { type: "literal"; value: string } | { type: "env"; name: st
 
 type ConfigValueReference = { type: "command"; config: string } | { type: "template"; parts: TemplatePart[] };
 
+/** Read the discriminator off a template part without triggering union field-read walls. */
+function templatePartTypeOf(part: TemplatePart): string {
+	const record = part as unknown as Record<string, unknown>;
+	const type = record["type"];
+	return typeof type === "string" ? type : "";
+}
+
 function appendLiteral(parts: TemplatePart[], value: string): void {
 	if (!value) return;
 	const previousPart = parts[parts.length - 1];
