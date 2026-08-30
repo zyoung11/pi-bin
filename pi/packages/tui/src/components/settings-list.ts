@@ -215,10 +215,11 @@ export class SettingsList extends Component {
 		const item = this.searchEnabled ? this.filteredItems[this.selectedIndex] : this.items[this.selectedIndex];
 		if (!item) return;
 
-		if (item.submenu) {
+		const submenuFn = item.submenu;
+		if (submenuFn !== undefined) {
 			// Open submenu, passing current value so it can pre-select correctly
 			this.submenuItemIndex = this.selectedIndex;
-			this.submenuComponent = item.submenu(
+			this.submenuComponent = submenuFn(
 				item.currentValue,
 				(selectedValue: string | undefined, options: { navigateTo?: string } | undefined) => {
 					if (selectedValue !== undefined) {

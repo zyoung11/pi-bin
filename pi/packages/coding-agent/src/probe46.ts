@@ -172,3 +172,8 @@ export function p4(state: unknown): P4State {
 	return state as P4State;
 }
 export const p4call: P4State = p4({});
+
+export function classDoubleJump(provider: unknown): ModelsImpl {
+	return provider as unknown as ModelsImpl;
+}
+import { ModelsImpl } from "../../ai/src/models.ts";

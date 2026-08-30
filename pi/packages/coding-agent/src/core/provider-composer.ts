@@ -21,7 +21,6 @@ import {
 	type RefreshModelsContext,
 	type SimpleStreamOptions,
 	type StreamOptions,
-	type ProviderStreams,
 } from "../../../ai/src/index.ts";
 import { getApiProvider } from "../../../ai/src/compat.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
@@ -603,8 +602,7 @@ export function composeModelProvider(
 				if (simple) {
 					return base.streamSimple(model, context, options as unknown as SimpleStreamOptions);
 				}
-				const baseStreams = base as unknown as ProviderStreams;
-				return baseStreams.stream(model, context, options);
+				return base.stream(model, context, options);
 			}
 			const api = getApiProvider(model.api);
 			if (!api) throw new Error(`No API provider registered for api: ${model.api}`);

@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { type ChildProcess, spawn } from "child_process";
 import { readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { basename, dirname, join } from "path";
@@ -160,17 +160,67 @@ async function walkDirectoryWithFd(
 		args.push(buildFdPathQuery(query));
 	}
 
+	let stdout = "";
+	let pendingBytes: number[] = [];
+	const decodeChunk = (chunk: Uint8Array): void => {
+		for (const byte of chunk) pendingBytes.push(byte);
+		let tail = 0;
+		for (let back = 1; back <= 3 && back <= pendingBytes.length; back++) {
+			const b = pendingBytes[pendingBytes.length - back] ?? 0;
+			if (b >= 0xc0) {
+				const expected = b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : 2;
+				tail = back < expected ? back : 0;
+				break;
+			}
+			if ((b & 0xc0) !== 0x80) {
+				tail = 0;
+				break;
+			}
+		}
+		const completeCount = pendingBytes.length - tail;
+		if (completeCount <= 0) return;
+		const complete = pendingBytes.slice(0, completeCount);
+		pendingBytes = pendingBytes.slice(completeCount);
+		let out = "";
+		let i = 0;
+		while (i < complete.length) {
+			const b0 = complete[i] ?? 0;
+			let codepoint: number;
+			if (b0 < 0x80) {
+				codepoint = b0;
+				i += 1;
+			} else if (b0 >= 0xc0 && b0 < 0xe0) {
+				codepoint = ((b0 & 0x1f) << 6) | ((complete[i + 1] ?? 0) & 0x3f);
+				i += 2;
+			} else if (b0 >= 0xe0 && b0 < 0xf0) {
+				codepoint = ((b0 & 0x0f) << 12) | ((complete[i + 1] ?? 0) & 0x3f) << 6 | ((complete[i + 2] ?? 0) & 0x3f);
+				i += 3;
+			} else {
+				codepoint = ((b0 & 0x07) << 18) | ((complete[i + 1] ?? 0) & 0x3f) << 12 | ((complete[i + 2] ?? 0) & 0x3f) << 6 | ((complete[i + 3] ?? 0) & 0x3f);
+				i += 4;
+			}
+			if (codepoint < 0x10000) {
+				out += String.fromCharCode(codepoint);
+			} else {
+				const offset = codepoint - 0x10000;
+				out += String.fromCharCode(0xd800 + Math.floor(offset / 0x400), 0xdc00 + (offset % 0x400));
+			}
+		}
+		stdout += out;
+	};
 	return await new Promise((resolve) => {
 		if (signal.aborted) {
 			resolve([]);
 			return;
 		}
 
-		const child = spawn(fdPath, args, {
+		const child: ChildProcess = spawn(fdPath, args, {
 			stdio: ["ignore", "pipe", "pipe"],
 		});
-		let stdout = "";
 		let resolved = false;
+		let exitCode: number | null = null;
+		let stdoutEnded = false;
+		const decoder = new TextDecoder();
 
 		const finish = (results: Array<{ path: string; isDirectory: boolean }>) => {
 			if (resolved) return;
@@ -180,21 +230,11 @@ async function walkDirectoryWithFd(
 		};
 
 		const onAbort = () => {
-			if (child.exitCode === null) {
-				child.kill("SIGKILL");
-			}
+			child.kill("SIGKILL");
 		};
 
-		signal.addEventListener("abort", onAbort, { once: true });
-		child.stdout.setEncoding("utf-8");
-		child.stdout.on("data", (chunk: string) => {
-			stdout += chunk;
-		});
-		child.on("error", () => {
-			finish([]);
-		});
-		child.on("close", (code) => {
-			if (signal.aborted || code !== 0 || !stdout) {
+		const parseAndFinish = () => {
+			if (signal.aborted || exitCode !== 0 || !stdout) {
 				finish([]);
 				return;
 			}
@@ -217,6 +257,32 @@ async function walkDirectoryWithFd(
 			}
 
 			finish(results);
+		};
+
+		const maybeFinish = () => {
+			if (exitCode === null || !stdoutEnded) return;
+			parseAndFinish();
+		};
+
+		signal.addEventListener("abort", onAbort, { once: true });
+		const stdoutStream = child.stdout;
+		if (stdoutStream !== null && stdoutStream !== undefined) {
+			stdoutStream.on("data", (chunk: Uint8Array) => {
+				decodeChunk(chunk);
+			});
+			stdoutStream.on("end", () => {
+				stdoutEnded = true;
+				maybeFinish();
+			});
+		} else {
+			stdoutEnded = true;
+		}
+		child.on("error", () => {
+			finish([]);
+		});
+		child.on("exit", (code) => {
+			exitCode = code;
+			maybeFinish();
 		});
 	});
 }
@@ -316,7 +382,12 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 				const prefix = textBeforeCursor.slice(1);
 				const commandItems = this.commands.map((cmd) => {
 					const name = "name" in cmd ? cmd.name : cmd.value;
-					const hint = "argumentHint" in cmd && cmd.argumentHint ? cmd.argumentHint : undefined;
+					let hint: string | undefined;
+					if ("name" in cmd) {
+						hint = cmd.argumentHint;
+					} else {
+						hint = undefined;
+					}
 					const desc = cmd.description ?? "";
 					const fullDesc = hint ? (desc ? `${hint} — ${desc}` : hint) : desc;
 					return {
@@ -326,11 +397,17 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 					};
 				});
 
-				const filtered = fuzzyFilter(commandItems, prefix, (item) => item.name).map((item) => ({
-					value: item.name,
-					label: item.label,
-					...(item.description && { description: item.description }),
-				}));
+				const filtered: AutocompleteItem[] = [];
+				for (const item of fuzzyFilter(commandItems, prefix, (item) => item.name)) {
+					const entry: AutocompleteItem = {
+						value: item.name,
+						label: item.label,
+					};
+					if (item.description) {
+						entry.description = item.description;
+					}
+					filtered.push(entry);
+				}
 
 				if (filtered.length === 0) return null;
 
@@ -343,15 +420,20 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 			const commandName = textBeforeCursor.slice(1, spaceIndex);
 			const argumentText = textBeforeCursor.slice(spaceIndex + 1);
 
-			const command = this.commands.find((cmd) => {
+			let getArgumentCompletions: ((argumentPrefix: string) => Promise<AutocompleteItem[] | null>) | undefined;
+			for (const cmd of this.commands) {
 				const name = "name" in cmd ? cmd.name : cmd.value;
-				return name === commandName;
-			});
-			if (!command || !("getArgumentCompletions" in command) || !command.getArgumentCompletions) {
+				if (name !== commandName) continue;
+				if ("name" in cmd) {
+					getArgumentCompletions = cmd.getArgumentCompletions;
+				}
+				break;
+			}
+			if (getArgumentCompletions === undefined) {
 				return null;
 			}
 
-			const argumentSuggestions = await command.getArgumentCompletions(argumentText);
+			const argumentSuggestions = await getArgumentCompletions(argumentText);
 			if (!Array.isArray(argumentSuggestions) || argumentSuggestions.length === 0) {
 				return null;
 			}
@@ -726,7 +808,8 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		signal: AbortSignal,
 	): Promise<Array<{ path: string; isDirectory: boolean }>> {
 		if (!this.fdPath || signal.aborted) {
-			return [];
+			const empty: Array<{ path: string; isDirectory: boolean }> = [];
+			return empty;
 		}
 
 		return await walkDirectoryWithFd(baseDir, this.fdPath, query, 100, signal, 1);
@@ -738,7 +821,8 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 		options: { isQuotedPrefix: boolean; signal: AbortSignal },
 	): Promise<AutocompleteItem[]> {
 		if (!this.fdPath || options.signal.aborted) {
-			return [];
+			const empty: AutocompleteItem[] = [];
+			return empty;
 		}
 
 		try {
@@ -757,7 +841,8 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 				}),
 			];
 			if (options.signal.aborted) {
-				return [];
+				const empty: AutocompleteItem[] = [];
+				return empty;
 			}
 
 			const scoredEntries = entries
@@ -806,7 +891,8 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 
 			return suggestions;
 		} catch {
-			return [];
+			const empty: AutocompleteItem[] = [];
+			return empty;
 		}
 	}
 

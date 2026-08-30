@@ -798,11 +798,19 @@ export class InteractiveMode {
 			}
 		}
 
-		return new CombinedAutocompleteProvider(
+		const provider = new CombinedAutocompleteProvider(
 			[...slashCommands, ...templateCommands, ...skillCommandList],
 			this.sessionManager.getCwd(),
 			this.fdPath,
-		) as unknown as AutocompleteProvider;
+		);
+		return {
+			getSuggestions: (lines, cursorLine, cursorCol, options) =>
+				provider.getSuggestions(lines, cursorLine, cursorCol, options),
+			applyCompletion: (lines, cursorLine, cursorCol, item, prefix) =>
+				provider.applyCompletion(lines, cursorLine, cursorCol, item, prefix),
+			shouldTriggerFileCompletion: (lines, cursorLine, cursorCol) =>
+				provider.shouldTriggerFileCompletion(lines, cursorLine, cursorCol),
+		};
 	}
 
 	private setupAutocompleteProvider(): void {

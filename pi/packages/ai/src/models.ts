@@ -30,6 +30,7 @@ import type {
 	ProviderRequestOptions,
 	ProviderStreams,
 	SimpleStreamOptions,
+	StreamOptions,
 	Usage,
 } from "./types.ts";
 import { operationSignal, raceWithAbortSignal } from "./utils/abort.ts";
@@ -133,10 +134,10 @@ export interface Provider<TApi extends Api = Api> {
 	 */
 	filterModels?(models: readonly Model<TApi>[], credential: Credential | undefined): readonly Model<TApi>[];
 
-	stream<T extends TApi>(
-		model: Model<T>,
+	stream(
+		model: Model<TApi>,
 		context: Context,
-		options?: ApiStreamOptions<T>,
+		options?: StreamOptions,
 	): AssistantMessageEventStream;
 
 	streamSimple(model: Model<TApi>, context: Context, options?: SimpleStreamOptions): AssistantMessageEventStream;

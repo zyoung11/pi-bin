@@ -216,8 +216,10 @@ export class SteppedSubmenu extends Container {
 		const stepLabel = total > 1 ? `Step ${stepIndex + 1}/${total} \u00b7 ` : "";
 		const context = this.buildContext();
 
-		const title = step.titleFn !== undefined ? step.titleFn(context) : (step.titleText ?? "");
-		const desc = step.descriptionFn !== undefined ? step.descriptionFn(context) : (step.descriptionText ?? "");
+		const titleFn = step.titleFn;
+		const descriptionFn = step.descriptionFn;
+		const title = titleFn !== undefined ? titleFn(context) : (step.titleText ?? "");
+		const desc = descriptionFn !== undefined ? descriptionFn(context) : (step.descriptionText ?? "");
 		const items = step.options(context);
 		const preselect = step.preselect?.(context) ?? "";
 
