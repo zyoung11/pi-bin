@@ -579,8 +579,8 @@ export class SettingsSelectorComponent extends Container {
 					const steps: SteppedSubmenuStep[] = [
 						{
 							key: "model",
-							title: "Per-Model Thinking Level",
-							description: "Select a model to configure",
+							titleText: "Per-Model Thinking Level",
+							descriptionText: "Select a model to configure",
 							options: (_context: SteppedSelections) => {
 								const sorted = [...config.availableDefaultModels].sort((a, b) => {
 									const aKey = modelSettingKey(a);
@@ -615,11 +615,11 @@ export class SettingsSelectorComponent extends Container {
 						},
 						{
 							key: "level",
-							title: (selections: SteppedSelections) => {
+							titleFn: (selections: SteppedSelections) => {
 								const m = defaultModelByValue.get(selections.model);
 								return `Thinking Level for ${m ? modelDisplayLabel(m) : selections.model}`;
 							},
-							description: "Select default thinking level for this model",
+							descriptionText: "Select default thinking level for this model",
 							options: (selections: SteppedSelections) => {
 								const model = defaultModelByValue.get(selections.model);
 								if (!model) return [];

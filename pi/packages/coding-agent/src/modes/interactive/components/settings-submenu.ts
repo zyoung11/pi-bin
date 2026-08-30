@@ -148,9 +148,11 @@ export interface SteppedSubmenuStep {
 	/** Unique key \u2014 the selected value is stored in the result context under this key. */
 	key: string;
 	/** Title shown at the top of the step. Receives prior selections. */
-	title: string | ((context: SteppedSelections) => string);
+	titleText?: string;
+	titleFn?: (context: SteppedSelections) => string;
 	/** Description shown below the title. Receives prior selections. */
-	description: string | ((context: SteppedSelections) => string);
+	descriptionText?: string;
+	descriptionFn?: (context: SteppedSelections) => string;
 	/** Build the option list for this step. Called fresh each time the step is shown. */
 	options: (context: SteppedSelections) => SelectItem[];
 	/** Optionally pre-select a value when entering this step. */
@@ -214,8 +216,8 @@ export class SteppedSubmenu extends Container {
 		const stepLabel = total > 1 ? `Step ${stepIndex + 1}/${total} \u00b7 ` : "";
 		const context = this.buildContext();
 
-		const title = typeof step.title === "function" ? step.title(context) : step.title;
-		const desc = typeof step.description === "function" ? step.description(context) : step.description;
+		const title = step.titleFn !== undefined ? step.titleFn(context) : (step.titleText ?? "");
+		const desc = step.descriptionFn !== undefined ? step.descriptionFn(context) : (step.descriptionText ?? "");
 		const items = step.options(context);
 		const preselect = step.preselect?.(context) ?? "";
 
