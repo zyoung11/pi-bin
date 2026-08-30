@@ -121,7 +121,7 @@ export interface EditToolOptions {
 	operations?: EditOperations;
 }
 
-function prepareEditArguments(input: unknown): EditToolInput {
+function prepareEditArguments(input: unknown): unknown {
 	if (!input || typeof input !== "object") {
 		return input as EditToolInput;
 	}
@@ -143,15 +143,21 @@ function prepareEditArguments(input: unknown): EditToolInput {
 		args.edits = [args.edits];
 	}
 
-	const legacy = args as LegacyEditToolInput;
+	const legacy = JSON.parse(JSON.stringify(args)) as LegacyEditToolInput;
 	if (typeof legacy.oldText !== "string" || typeof legacy.newText !== "string") {
 		return args as EditToolInput;
 	}
 
-	const edits = Array.isArray(legacy.edits) ? [...legacy.edits] : [];
-	edits.push({ oldText: legacy.oldText, newText: legacy.newText });
-	const { oldText: _oldText, newText: _newText, ...rest } = legacy;
-	return { ...rest, edits } as EditToolInput;
+	const edits = Array.isArray(legacy.edits) ? legacy.edits.slice() : [];
+	edits.push({ oldText: legacy.oldText as string, newText: legacy.newText as string });
+	const rebuilt: Record<string, unknown> = {};
+	const legacyRecord = legacy as unknown as Record<string, unknown>;
+	for (const key of Object.keys(legacyRecord)) {
+		if (key === "oldText" || key === "newText") continue;
+		rebuilt[key] = legacyRecord[key];
+	}
+	rebuilt["edits"] = edits;
+	return rebuilt as unknown as EditToolInput;
 }
 
 function validateEditInput(input: EditToolInput): { path: string; edits: Edit[] } {

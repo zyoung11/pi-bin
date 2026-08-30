@@ -411,7 +411,9 @@ class ThemeSubmenu extends Container {
 				this.callbacks.onThemePreview?.(this.getThemeSetting());
 				done(undefined, undefined);
 			},
-			(value) => this.callbacks.onThemePreview?.(value),
+			(value) => {
+				this.callbacks.onThemePreview?.(value);
+			},
 		);
 	}
 

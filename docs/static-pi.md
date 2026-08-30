@@ -107,7 +107,8 @@
   ⑦ 散点：runtime-credentials:38、write:202（已修）、output-accumulator:56（WriteStream 字段）、export-html:222（result 需双跳 cast）、auth-storage:445/460/567（LockResult 形状）、provider-composer:606/607（ProviderStreams cast 级联）、ai/models.ts 其余（?: 探测、new Map(entries)、values() spread、object spread union）。
 - **本轮新增规则**：⑪ typed→unknown 转换（v as unknown）被 SC1101 拒 ⑫ as Promise<X> cast 不抑制实参 Promise 内层 lift 检查 ⑬ TextDecoder 构造/decode 存在跨构建浮动，需 SC_DEBUG 定位 ⑭ 类字段形式 TextDecoder 不可映射，方法内局部构造可 ⑮ 精确接口作函数值参数仍 dynamic-only（接口含函数值字段时整体无静态表示）。
 - **验证**：tsgo src 清零；MiniCPM5-1B print 真跑 + bash tool_call OK（OK-r44）。
-- **总账 116→71；剩余台账**：bash.ts 输出累积器消费群（8，output-accumulator 类形状变化后揭幕）、edit.ts legacy 块（6）、tools/index 4（ToolDef 值通道，见 r43）、settings 簇残余（5）、runtime-credentials 1、write 1、散点（interactive-mode/tool-execution/settings-list 等）。
+- **r44 续（同会话第二批）**：bash 累积器消费群根因拆除——output-accumulator 的 WriteStream 类字段（类毒化根因）→ appendFileSync/writeFileSync + tempFileCreated 标志，closeTempFile 变 no-op（bash.ts 8 个方法调用墙全消）；edit.ts prepareEditArguments 返回类型改 unknown、legacy 改 JSON 往返 cast + Record 循环重建（但 146:17 JSON 往返后 cast 到含 unknown 成员接口仍拒，待查）；export-html cast 目标对齐 renderer 参数形状；settings-selector onThemePreview 可选调用表达式体→块体。**71→63**；新揭幕：write renderResult/compound、file-mutation-queue（2）、edit:146 顽固。
+- **总账 116→71→63；剩余台账**：bash.ts 输出累积器消费群（8，output-accumulator 类形状变化后揭幕）、edit.ts legacy 块（6）、tools/index 4（ToolDef 值通道，见 r43）、settings 簇残余（5）、runtime-credentials 1、write 1、散点（interactive-mode/tool-execution/settings-list 等）。
 
 ## 阶段 5 grind 第四十三轮记录（进行中：73→116 揭幕期，两大文件重复实现合并 + 工具 execute 体揭幕）
 

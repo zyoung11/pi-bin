@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { createWriteStream, type WriteStream } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult, truncateTail } from "./truncate.ts";
@@ -53,7 +53,7 @@ export class OutputAccumulator {
 	private finished = false;
 
 	private tempFilePath: string | undefined;
-	private tempFileStream: WriteStream | undefined;
+	private tempFileCreated = false;
 
 	constructor(options: OutputAccumulatorOptions = {}) {
 		this.maxLines = options.maxLines ?? DEFAULT_MAX_LINES;
@@ -82,9 +82,9 @@ export class OutputAccumulator {
 		}
 		this.pendingTail = bytes.subarray(split);
 
-		if (this.tempFileStream || this.shouldUseTempFile()) {
+		if (this.tempFileCreated || this.shouldUseTempFile()) {
 			this.ensureTempFile();
-			this.tempFileStream?.write(data);
+			appendFileSync(this.tempFilePath as string, data);
 		} else if (data.length > 0) {
 			this.rawChunks.push(data);
 		}
@@ -136,26 +136,9 @@ export class OutputAccumulator {
 	}
 
 	async closeTempFile(): Promise<void> {
-		if (!this.tempFileStream) {
+		if (!this.tempFileCreated) {
 			return;
 		}
-
-		const stream = this.tempFileStream;
-		this.tempFileStream = undefined;
-
-		await new Promise<void>((resolve, reject) => {
-			const onError = (error: Error) => {
-				stream.off("finish", onFinish);
-				reject(error);
-			};
-			const onFinish = () => {
-				stream.off("error", onError);
-				resolve();
-			};
-			stream.once("error", onError);
-			stream.once("finish", onFinish);
-			stream.end();
-		});
 	}
 
 	getLastLineBytes(): number {
@@ -230,10 +213,11 @@ export class OutputAccumulator {
 			return;
 		}
 		this.tempFilePath = defaultTempFilePath(this.tempFilePrefix);
-		this.tempFileStream = createWriteStream(this.tempFilePath);
+		writeFileSync(this.tempFilePath, new Uint8Array(0));
 		for (const chunk of this.rawChunks) {
-			this.tempFileStream.write(chunk);
+			appendFileSync(this.tempFilePath, chunk);
 		}
 		this.rawChunks = [];
+		this.tempFileCreated = true;
 	}
 }
