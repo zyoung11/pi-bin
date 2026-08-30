@@ -254,30 +254,15 @@ class BashResultRenderComponent extends Container {
 		cachedLines: undefined,
 		cachedSkipped: undefined,
 	};
-}
-
-function formatDuration(ms: number): string {
-	return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatShellCall(args: { command?: string; timeout?: number } | undefined, prompt: string): string {
-	const command = str(args?.command);
-	const timeout = args?.timeout as number | undefined;
-	const timeoutSuffix = timeout ? theme.fg("muted", ` (timeout ${timeout}s)`) : "";
-	const commandDisplay = command === null ? invalidArgText(theme) : command ? command : theme.fg("toolOutput", "...");
-	return theme.fg("toolTitle", theme.bold(`${prompt} ${commandDisplay}`)) + timeoutSuffix;
-}
-
-function rebuildBashResultRenderComponent(
-	component: BashResultRenderComponent,
+	rebuild(
 	result: AgentToolResult<BashToolDetails | undefined>,
 	options: ToolRenderResultOptions,
 	showImages: boolean,
 	startedAt: number | undefined,
 	endedAt: number | undefined,
-): void {
-	const state = component.state;
-	component.clear();
+	): void {
+	const state = this.state;
+	this.clear();
 
 	let output = getTextOutput(result, showImages).trim();
 	const truncation = result.details?.truncation;
@@ -296,10 +281,10 @@ function rebuildBashResultRenderComponent(
 			.join("\n");
 
 		if (options.expanded) {
-			component.addChild(new Text(`\n${styledOutput}`, 0, 0));
+			this.addChild(new Text(`\n${styledOutput}`, 0, 0));
 		} else {
 			const adHoc = new BashPreviewComponent(styledOutput, state);
-			component.addChild(adHoc);
+			this.addChild(adHoc);
 		}
 	}
 
@@ -317,14 +302,27 @@ function rebuildBashResultRenderComponent(
 				);
 			}
 		}
-		component.addChild(new Text(`\n${theme.fg("warning", `[${warnings.join(". ")}]`)}`, 0, 0));
+		this.addChild(new Text(`\n${theme.fg("warning", `[${warnings.join(". ")}]`)}`, 0, 0));
 	}
 
 	if (startedAt !== undefined) {
 		const label = options.isPartial ? "Elapsed" : "Took";
 		const endTime = endedAt ?? Date.now();
-		component.addChild(new Text(`\n${theme.fg("muted", `${label} ${formatDuration(endTime - startedAt)}`)}`, 0, 0));
+		this.addChild(new Text(`\n${theme.fg("muted", `${label} ${formatDuration(endTime - startedAt)}`)}`, 0, 0));
 	}
+	}
+}
+
+function formatDuration(ms: number): string {
+	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatShellCall(args: { command?: string; timeout?: number } | undefined, prompt: string): string {
+	const command = str(args?.command);
+	const timeout = args?.timeout as number | undefined;
+	const timeoutSuffix = timeout ? theme.fg("muted", ` (timeout ${timeout}s)`) : "";
+	const commandDisplay = command === null ? invalidArgText(theme) : command ? command : theme.fg("toolOutput", "...");
+	return theme.fg("toolTitle", theme.bold(`${prompt} ${commandDisplay}`)) + timeoutSuffix;
 }
 
 export interface ShellToolConfig {
@@ -523,9 +521,8 @@ export function createShellToolDefinition(
 			const last: Component | undefined = context.lastComponent;
 			if (last === undefined) {
 				const component = new BashResultRenderComponent();
-				rebuildBashResultRenderComponent(
-					component,
-					result,
+				component.rebuild(
+											result,
 					options,
 					context.showImages,
 					state.startedAt,
@@ -535,8 +532,8 @@ export function createShellToolDefinition(
 				return component as Component;
 			}
 			if (last instanceof BashResultRenderComponent) {
-				rebuildBashResultRenderComponent(
-					last,
+				last.rebuild(
+						
 					result,
 					options,
 					context.showImages,
@@ -547,8 +544,8 @@ export function createShellToolDefinition(
 				return last as Component;
 			}
 			const component = new BashResultRenderComponent();
-			rebuildBashResultRenderComponent(
-				component,
+			component.rebuild(
+					
 				result,
 				options,
 				context.showImages,
