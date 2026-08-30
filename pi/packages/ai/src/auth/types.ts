@@ -62,18 +62,22 @@ export interface AuthOperationOptions {
  * view and record persistence errors internally (like coding-agent's
  * AuthStorage) are valid implementations.
  */
-export abstract class CredentialStore {
+export class CredentialStore {
 	/**
 	 * Read the stored credential, possibly expired. Display/status use;
 	 * resolved request auth comes from `Models.getAuth()`.
 	 */
-	abstract read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined>;
+	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+		throw new Error("credential read not implemented");
+	}
 
 	/**
 	 * List stored credential metadata without resolving or exposing secrets.
 	 * Implementations must not execute configured API-key commands while listing.
 	 */
-	abstract list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]>;
+	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		throw new Error("credential list not implemented");
+	}
 
 	/**
 	 * Serialized write — the only write path. `fn` sees the current credential
@@ -83,14 +87,18 @@ export abstract class CredentialStore {
 	 * store supports it (e.g. a file lock). Resolves with the post-write
 	 * credential. Rejections from `fn` propagate.
 	 */
-	abstract modify(
+	modify(
 		providerId: string,
 		fn: (current: Credential | undefined) => Promise<Credential | undefined>,
 		options?: AuthOperationOptions,
-	): Promise<Credential | undefined>;
+	): Promise<Credential | undefined> {
+		throw new Error("credential modify not implemented");
+	}
 
 	/** Remove a credential (logout). Implementations serialize this against `modify`. */
-	abstract delete(providerId: string, options?: AuthOperationOptions): Promise<void>;
+	delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
+		throw new Error("credential delete not implemented");
+	}
 }
 
 /** Environment access for auth resolution. Injectable for tests and browsers. */

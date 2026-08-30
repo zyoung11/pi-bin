@@ -8,6 +8,12 @@ import type { ToolDefinition } from "../tools/tool-types.ts";
 import type { SessionEntry } from "../session-manager.ts";
 import { SessionManager } from "../session-manager.ts";
 
+/** JSON.stringify an arbitrary value via an unknown parameter. */
+function jsonOf(value: unknown): string {
+	return JSON.stringify(value) ?? "";
+}
+
+
 /**
  * Interface for rendering custom tools to HTML.
  * Used by agent-session to pre-render extension tool output.
@@ -157,7 +163,7 @@ function generateHtml(sessionData: SessionData, themeName?: string): string {
 	const infoBg = themeExport.infoBg ?? derivedExportColors.infoBg;
 
 	// Base64 encode session data to avoid escaping issues
-	const sessionDataBase64 = Buffer.from(JSON.stringify(sessionData)).toString("base64");
+	const sessionDataBase64 = Buffer.from(jsonOf(sessionData)).toString("base64");
 
 	// Build the CSS with theme variables injected
 	const css = replaceAllTokens(templateCss, [

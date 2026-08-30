@@ -225,7 +225,7 @@ export function killProcessTree(pid: number): void {
 				},
 			);
 			// A failed spawn emits "error" asynchronously; consume it to avoid crashing Node.
-			child.once("error", () => {});
+			child.on("error", () => {});
 		} catch {
 			// Ignore errors if taskkill fails.
 		}

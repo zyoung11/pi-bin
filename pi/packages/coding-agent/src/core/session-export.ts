@@ -3,6 +3,12 @@ import { dirname } from "node:path";
 import { resolvePath } from "../utils/paths.ts";
 import { entryIdOf, CURRENT_SESSION_VERSION, type SessionHeader, type SessionManager } from "./session-manager.ts";
 
+/** JSON.stringify an arbitrary value via an unknown parameter. */
+function jsonOf(value: unknown): string {
+	return JSON.stringify(value) ?? "";
+}
+
+
 /** Write the current session branch and optional trailing export-only entries as JSONL. */
 export function exportSessionToJsonl(
 	sessionManager: SessionManager,
@@ -30,8 +36,9 @@ export function exportSessionToJsonl(
 
 	let parentId: string | null = null;
 	for (const entry of sessionManager.getBranch()) {
-		const record = { ...entry, parentId };
-		lines.push(JSON.stringify(record));
+			const record = JSON.parse(JSON.stringify(entry)) as Record<string, unknown>;
+		record["parentId"] = parentId;
+		lines.push(jsonOf(record));
 		parentId = entryIdOf(entry) ?? null;
 	}
 	for (const entry of createTrailingEntries?.(parentId, timestamp) ?? []) {

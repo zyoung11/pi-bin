@@ -57,6 +57,7 @@ export interface Args {
 }
 
 const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const VALID_THINKING_LEVEL_LIST: string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export function isValidThinkingLevel(level: string): level is ThinkingLevel {
 	const levels: string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -151,7 +152,7 @@ export function parseArgs(args: string[]): Args {
 			} else {
 				result.diagnostics.push({
 					type: "warning",
-					message: `Invalid thinking level "${level}". Valid values: ${VALID_THINKING_LEVELS.join(", ")}`,
+					message: `Invalid thinking level "${level}". Valid values: ${VALID_THINKING_LEVEL_LIST.join(", ")}`,
 				});
 			}
 		} else if (arg === "--print" || arg === "-p") {

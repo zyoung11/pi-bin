@@ -24,13 +24,18 @@ const HOSTS: HostRule[] = [
 	{ type: "sourcehut", domain: "git.sr.ht" },
 ];
 
-function fromWebUrl(url: URL, type: string, domain: string): HostedInfo | null {
-	const segments = url.pathname.replace(/^\/+/, "").replace(/\/+$/, "").split("/");
+function fromWebUrlParts(domain: string, path: string, type: string, gitDomain: string): HostedInfo | null {
+	const pathNoLeading = path.replace(/^\/+/, "");
+	const hashSplit = pathNoLeading.indexOf("#");
+	const cleanPath = hashSplit === -1 ? pathNoLeading : pathNoLeading.slice(0, hashSplit);
+	const committish = hashSplit === -1 ? null : pathNoLeading.slice(hashSplit + 1);
+	const pathNoTrailing = cleanPath.replace(/\/+$/, "");
+	const segments = pathNoTrailing.split("/");
 	if (segments.length < 2) return null;
 	const user = segments[0];
 	const project = segments[1].replace(/\.git$/, "");
 	if (user === "" || project === "") return null;
-	return { type, domain, user, project, committish: url.hash ? url.hash.slice(1) : null };
+	return { type, domain: gitDomain, user, project, committish };
 }
 
 export function fromUrl(url: string): HostedInfo | null {
@@ -69,16 +74,18 @@ export function fromUrl(url: string): HostedInfo | null {
 	if (!urlMatch) return null;
 	const rule = HOSTS.find((host) => host.domain === urlMatch[2]);
 	if (!rule) return null;
-	try {
-		const parsed = new URL(
-			urlMatch[1] === "ssh" || urlMatch[1] === "git" ? `https://${urlMatch[2]}/${urlMatch[3]}` : withoutRef,
-		);
-		const info = fromWebUrl(parsed, rule.type, rule.domain);
-		if (info && committish !== null && info.committish === null) info.committish = committish;
-		return info;
-	} catch {
-		return null;
-	}
+	const webUrl =
+		urlMatch[1] === "ssh" || urlMatch[1] === "git" ? `https://${urlMatch[2]}/${urlMatch[3]}` : withoutRef;
+	const schemeIdx = webUrl.indexOf("://");
+	if (schemeIdx === -1) return null;
+	const afterScheme = webUrl.slice(schemeIdx + 3);
+	const slashIdx = afterScheme.indexOf("/");
+	if (slashIdx === -1) return null;
+	const domain = afterScheme.slice(0, slashIdx);
+	const path = afterScheme.slice(slashIdx + 1);
+	const info = fromWebUrlParts(domain, path, rule.type, rule.domain);
+	if (info && committish !== null && info.committish === null) info.committish = committish;
+	return info;
 }
 
 export default { fromUrl };

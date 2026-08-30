@@ -256,7 +256,36 @@ class ModelsImpl implements MutableModels {
 	private modelsStore: ModelsStore;
 	private authContext: AuthContext;
 	private refreshGenerations = new Map<string, number>();
-	private refreshControllers = new Map<string, AbortController>();
+	private refreshControllers: Array<{ providerId: string; controller: AbortController }> = [];
+
+	private getRefreshController(providerId: string): AbortController | undefined {
+		for (const entry of this.refreshControllers) {
+			if (entry.providerId === providerId) return entry.controller;
+		}
+		return undefined;
+	}
+
+	private setRefreshController(providerId: string, controller: AbortController): void {
+		const existing = this.getRefreshController(providerId);
+		if (existing !== undefined) {
+			for (let i = 0; i < this.refreshControllers.length; i++) {
+				if (this.refreshControllers[i].providerId === providerId) {
+					this.refreshControllers[i] = { providerId, controller };
+					return;
+				}
+			}
+		}
+		this.refreshControllers.push({ providerId, controller });
+	}
+
+	private deleteRefreshController(providerId: string): void {
+		for (let i = 0; i < this.refreshControllers.length; i++) {
+			if (this.refreshControllers[i].providerId === providerId) {
+				this.refreshControllers.splice(i, 1);
+				return;
+			}
+		}
+	}
 	private publicationChains = new Map<string, Promise<unknown>>();
 
 	constructor(options?: CreateModelsOptions) {
@@ -276,7 +305,10 @@ class ModelsImpl implements MutableModels {
 	}
 
 	clearProviders(): void {
-		for (const id of new Set([...this.providers.keys(), ...this.refreshControllers.keys()])) {
+		const activeIds: string[] = [];
+		for (const provider of this.providers.keys()) activeIds.push(provider);
+		for (const entry of this.refreshControllers) activeIds.push(entry.providerId);
+		for (const id of activeIds) {
 			this.supersedeProviderRefresh(id);
 		}
 		this.providers.clear();
@@ -319,9 +351,9 @@ class ModelsImpl implements MutableModels {
 	private supersedeProviderRefresh(providerId: string): number {
 		const generation = (this.refreshGenerations.get(providerId) ?? 0) + 1;
 		this.refreshGenerations.set(providerId, generation);
-		const previous = this.refreshControllers.get(providerId);
+		const previous = this.getRefreshController(providerId);
 		if (previous) {
-			this.refreshControllers.delete(providerId);
+			this.deleteRefreshController(providerId);
 			previous.abort();
 		}
 		return generation;
@@ -330,7 +362,7 @@ class ModelsImpl implements MutableModels {
 	private beginProviderRefresh(providerId: string): { generation: number; controller: AbortController } {
 		const generation = this.supersedeProviderRefresh(providerId);
 		const controller = new AbortController();
-		this.refreshControllers.set(providerId, controller);
+		this.setRefreshController(providerId, controller);
 		return { generation, controller };
 	}
 
@@ -428,8 +460,8 @@ class ModelsImpl implements MutableModels {
 						);
 					}
 				} finally {
-					if (this.refreshControllers.get(provider.id) === controller) {
-						this.refreshControllers.delete(provider.id);
+					if (this.getRefreshController(provider.id) === controller) {
+						this.deleteRefreshController(provider.id);
 					}
 				}
 			}),

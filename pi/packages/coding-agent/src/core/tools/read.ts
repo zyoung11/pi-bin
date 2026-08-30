@@ -60,7 +60,7 @@ export interface ReadOperations {
 
 const defaultReadOperations: ReadOperations = {
 	readFile: (path) => fsReadFile(path),
-	access: async (path) => (existsSync(path) ? undefined : undefined),
+	access: async (_absolutePath: string) => {},
 	detectImageMimeType: detectSupportedImageMimeTypeFromFile,
 };
 

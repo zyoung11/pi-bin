@@ -9,7 +9,8 @@ import { keyHint } from "./keybinding-hints.ts";
 
 /** Loader wrapped with borders for extension UI */
 export class BorderedLoader extends Container {
-	private loader: CancellableLoader | Loader;
+	private loader: Loader;
+	private cancellableLoader: CancellableLoader | undefined;
 	private cancellable: boolean;
 	private signalController?: { signal: AbortSignal; abort: () => void };
 
@@ -19,12 +20,13 @@ export class BorderedLoader extends Container {
 		const borderColor = (s: string) => theme.fg("border", s);
 		this.addChild(new DynamicBorder(borderColor));
 		if (this.cancellable) {
-			this.loader = new CancellableLoader(
+			this.cancellableLoader = new CancellableLoader(
 				tui,
 				(s) => theme.fg("accent", s),
 				(s) => theme.fg("muted", s),
 				message,
 			);
+			this.loader = this.cancellableLoader;
 		} else {
 			const controller = new AbortController();
 			this.signalController = { signal: controller.signal, abort: () => controller.abort() };
@@ -45,28 +47,28 @@ export class BorderedLoader extends Container {
 	}
 
 	get signal(): AbortSignal {
-		if (this.cancellable) {
-			return (this.loader as CancellableLoader).signal;
+		if (this.cancellableLoader !== undefined) {
+			return this.cancellableLoader.signal;
 		}
 		return this.signalController?.signal ?? new AbortController().signal;
 	}
 
 	set onAbort(fn: (() => void) | undefined) {
-		if (this.cancellable) {
-			(this.loader as CancellableLoader).onAbort = fn;
+		if (this.cancellableLoader !== undefined) {
+			this.cancellableLoader.onAbort = fn;
 		}
 	}
 
 	handleInput(data: string): void {
-		if (this.cancellable) {
-			(this.loader as CancellableLoader).handleInput(data);
+		if (this.cancellableLoader !== undefined) {
+			this.cancellableLoader.handleInput(data);
 		}
 	}
 
 	dispose(): void {
-		if ("dispose" in this.loader && typeof this.loader.dispose === "function") {
-			this.loader.dispose();
-		} else if ("stop" in this.loader && typeof this.loader.stop === "function") {
+		if (this.cancellableLoader !== undefined) {
+			this.cancellableLoader.dispose();
+		} else {
 			this.loader.stop();
 		}
 	}

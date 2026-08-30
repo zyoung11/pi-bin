@@ -13,6 +13,12 @@ import { flushRawStdout, writeRawStdout } from "../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../utils/shell.ts";
 import { toJsonEvent } from "./json-event.ts";
 
+/** JSON.stringify an arbitrary value via an unknown parameter. */
+function jsonOf(value: unknown): string {
+	return JSON.stringify(value) ?? "";
+}
+
+
 /** Read the role field off a message without triggering union field-read walls. */
 function messageRoleOf(message: unknown): string {
 	const record = message as unknown as Record<string, unknown>;
@@ -89,7 +95,7 @@ export async function runPrintMode(runtimeHost: AgentSessionRuntime, options: Pr
 		unsubscribeBackpressure?.();
 		unsubscribe = session.subscribe((event) => {
 			if (mode === "json") {
-				writeRawStdout(`${JSON.stringify(toJsonEvent(event))}\n`);
+				writeRawStdout(`${jsonOf(toJsonEvent(event))}\n`);
 			}
 		});
 		unsubscribeBackpressure =

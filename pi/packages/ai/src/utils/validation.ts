@@ -312,16 +312,19 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): unknown {
 	if (coercedArgs !== args) {
 		if (typeof args === "object" && args !== null && typeof coercedArgs === "object" && coercedArgs !== null) {
 			for (const key of Object.keys(args)) {
-				delete args[key];
+				args[key] = undefined;
 			}
-			Object.assign(args, coercedArgs);
+			for (const key of Object.keys(coercedArgs)) {
+				const coercedRecord = coercedArgs as { [key: string]: unknown };
+				args[key] = coercedRecord[key];
+			}
 		} else {
 			return validator.Check(coercedArgs) ? coercedArgs : args;
 		}
 	}
 
-	if (validator.Check(args)) {
-		return args;
+	if (validator.Check(coercedArgs)) {
+		return coercedArgs;
 	}
 
 	const errors =

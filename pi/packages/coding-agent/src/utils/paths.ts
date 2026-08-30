@@ -36,7 +36,7 @@ export function canonicalizePath(path: string): string {
 export function getFileRevision(path: string): string | undefined {
 	try {
 		const stats = statSync(path);
-		return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
+		return `${stats.size}:${stats.mtimeMs}`;
 	} catch {
 		return undefined;
 	}

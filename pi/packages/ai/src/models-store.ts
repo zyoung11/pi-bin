@@ -36,19 +36,24 @@ export abstract class ModelsStore {
 export class InMemoryModelsStore extends ModelsStore {
 	private readonly entries = new Map<string, ModelsStoreEntry>();
 
-	async read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
-		throwIfSignalAborted(options);
+	read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
+		return Promise.resolve(this.readSync(providerId));
+	}
+
+	private readSync(providerId: string): ModelsStoreEntry | undefined {
 		const entry = this.entries.get(providerId);
 		return entry ? structuredClone(entry) : undefined;
 	}
 
-	async write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
+	write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
 		throwIfSignalAborted(options);
 		this.entries.set(providerId, structuredClone(entry));
+		return Promise.resolve();
 	}
 
-	async delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void> {
+	delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void> {
 		throwIfSignalAborted(options);
 		this.entries.delete(providerId);
+		return Promise.resolve();
 	}
 }

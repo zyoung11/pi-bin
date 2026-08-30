@@ -59,7 +59,8 @@ export async function getProviderCredential(
 	options: { refresh: boolean },
 ): Promise<string | undefined> {
 	const credential = await credentials.read(providerId);
-	const credentialRecord = credential as unknown as Record<string, unknown> | undefined;
+	const credentialRecord =
+		credential === undefined ? undefined : (JSON.parse(JSON.stringify({ credential }))["credential"]) as Record<string, unknown> | undefined;
 	if (
 		!options.refresh &&
 		credentialRecord !== undefined &&

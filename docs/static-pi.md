@@ -89,6 +89,14 @@
 - **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r41）
 - **总账 157→96；本会话累计 376→96（-280，74%）**；剩余：provider-composer 8、model-runtime 7、session 6、abort 5、agent-session 5、event-stream/transform-messages 各 4，及散点约 50
 
+## 阶段 5 grind 第四十二轮记录（进行中：85→73，继续散点）
+
+- **ResourceLoader 抽象类**：修复 sdk/agent-session-services 类→record 墙；DefaultResourceLoader async reload→reloadAsync 委托
+- **已清**：compat 171（undefined 分支先行）、agent-session-runtime（rebindSession 提升、content 参数放宽）、agent-session 1652（entryTypeOf）、agent-session-services（spread→逐字段）、package-manager pinned（嵌套判别）、provider-attribution（URL→手写 host 解析、headers spread→循环）、resolve-config-value 28（?:链→直读）、usage-totals/tree-selector/messages/authorization-check/export-html/print-mode/session-export（jsonOf/recordOf unknown 参数 helper 化）、tools edit/read/ls（async 块体、箭头包装）、shell.once→on、paths statSync 去 bigint、mini-hosted-git-info URL→手写解析、bordered-loader union→双字段、models refreshControllers Map→数组对
+- **验证**：tsgo src 清零；MiniCPM5-1B print 冒烟 OK
+- **总账 约85→73；本会话累计 376→73（-303，80%）**
+- **剩余 73 分类**：结构性/编译器需求（fs-watch 2、external-editor 2、raceWithAbortSignal 5、session SessionTree view 6、terminal 残余）+ 深联合/泛型（provider-composer OAuth 链 8、model-runtime prepareRequest Omit 级联 7、agent-session emit 4、event-stream 4、transform-messages 4、auth-storage LockResult 2、models/ModelsImpl 1、validation 1 等）+ 散点（settings-selector 2、tool-execution 1、resource-loader 1、runtime-credentials 1、sdk 1、agent-session-runtime 2、auth-check、agent-session-services 2、resolve-config-value 1、paths 1、export-html、telemetry 2、session-resources、auth/context 2、compaction 2、mini-git 2、interactive-mode 1、package-manager-cli 1、settings-list 1、frontmatter 1、tools/index 1）
+
 ## 阶段 5 grind 第四十一轮记录（进行中：96→85，散点清扫继续）
 
 - **已清**：cli/args isValidThinkingLevel（readonly tuple includes→string[]）、agent-session-runtime rebindSession 提升+extractUserMessageText 参数放宽 unknown、agent-session 1652 entryTypeOf、agent-session-services spread→逐字段、package-manager pinned 嵌套判别、provider-attribution URL→手写 host 解析、provider-env typeof process 检查删除、validation delete→undefined 赋值、usage-totals/tree-selector/message 联合读 helper 化

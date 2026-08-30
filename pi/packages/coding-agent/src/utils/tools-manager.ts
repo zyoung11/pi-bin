@@ -136,15 +136,16 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 	let total = 0;
 	for (;;) {
 		const chunk = await reader.read();
-		if (chunk.done) break;
-		chunks.push(chunk.value);
-		total += chunk.value.length;
+		if (chunk.done || chunk.value === undefined) break;
+		const bytes = chunk.value;
+		chunks.push(bytes);
+		total += bytes.length;
 	}
 	const data = new Uint8Array(total);
 	let offset = 0;
-	for (const chunk of chunks) {
-		data.set(chunk, offset);
-		offset += chunk.length;
+	for (const bytes of chunks) {
+		data.set(bytes, offset);
+		offset += bytes.length;
 	}
 	writeFileSync(dest, data);
 }

@@ -87,10 +87,15 @@ export function mergeProviderAttributionHeaders(
 	sessionId: string | undefined,
 	...headerSources: Array<ProviderHeaders | undefined>
 ): ProviderHeaders | undefined {
-	const merged: ProviderHeaders = {
-		...getSessionHeaders(model, sessionId),
-		...getDefaultAttributionHeaders(model, settingsManager),
-	};
+	const merged: ProviderHeaders = {};
+	const sessionHeaders = getSessionHeaders(model, sessionId) ?? {};
+	for (const key of Object.keys(sessionHeaders)) {
+		merged[key] = sessionHeaders[key];
+	}
+	const attributionHeaders = getDefaultAttributionHeaders(model, settingsManager) ?? {};
+	for (const key of Object.keys(attributionHeaders)) {
+		merged[key] = attributionHeaders[key];
+	}
 
 	for (const headers of headerSources) {
 		if (headers) {
