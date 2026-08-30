@@ -34,7 +34,9 @@ export function restoreLineEndings(text: string, ending: "\r\n" | "\n"): string 
 export function normalizeForFuzzyMatch(text: string): string {
 	return (
 		text
-			.normalize("NFKC")
+			.replace(/[‘’]/g, "'")
+			.replace(/[“”]/g, '"')
+			.replace(/[–—]/g, "-")
 			// Strip trailing whitespace per line
 			.split("\n")
 			.map((line) => line.trimEnd())
@@ -55,7 +57,16 @@ export function normalizeForFuzzyMatch(text: string): string {
 }
 
 function splitLinesWithEndings(content: string): string[] {
-	return content.match(/[^\n]*\n|[^\n]+/g) ?? [];
+	const parts = content.split("\n");
+	const result: string[] = [];
+	for (let index = 0; index < parts.length; index++) {
+		if (index < parts.length - 1) {
+			result.push(parts[index] + "\n");
+		} else if (parts[index] !== "") {
+			result.push(parts[index]);
+		}
+	}
+	return result;
 }
 
 interface LineSpan {
@@ -523,7 +534,11 @@ export async function computeEditsDiff(
 		try {
 			await access(absolutePath, constants.R_OK);
 		} catch (error: unknown) {
-			const errorMessage = error instanceof Error && "code" in error ? `Error code: ${error.code}` : String(error);
+			const errorRecord = error as Record<string, unknown>;
+			const errorMessage =
+				error instanceof Error && errorRecord["code"] !== undefined
+					? `Error code: ${JSON.stringify(errorRecord["code"])}`
+					: String(error);
 			return { error: `Could not edit file: ${path}. ${errorMessage}.` };
 		}
 

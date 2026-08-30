@@ -3,7 +3,7 @@ import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Box } from "../../../../tui/src/components/box.ts";
 import { Spacer } from "../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
-import { Container } from "../../../../tui/src/tui.ts";
+import { type Component, Container } from "../../../../tui/src/tui.ts";
 import { constants } from "fs";
 import { existsSync } from "node:fs";
 import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
@@ -69,8 +69,8 @@ export const editToolSystemPromptContribution = {
 
 export type EditToolInput = Static<typeof editSchema>;
 type LegacyEditToolInput = EditToolInput & {
-	oldText?: unknown;
-	newText?: unknown;
+	oldText?: string;
+	newText?: string;
 };
 
 type SingleEditInput = { oldText: string; newText: string };
@@ -149,7 +149,7 @@ function prepareEditArguments(input: unknown): unknown {
 	}
 
 	const edits = Array.isArray(legacy.edits) ? legacy.edits.slice() : [];
-	edits.push({ oldText: legacy.oldText as string, newText: legacy.newText as string });
+	edits.push({ oldText: legacy.oldText, newText: legacy.newText });
 	const rebuilt: Record<string, unknown> = {};
 	const legacyRecord = legacy as unknown as Record<string, unknown>;
 	for (const key of Object.keys(legacyRecord)) {
@@ -191,7 +191,12 @@ class EditCallRenderComponent extends Box {
 	}
 }
 
-function getEditCallRenderComponent(state: EditRenderState, lastComponent: unknown): EditCallRenderComponent {
+function getEditCallRenderComponent(state: EditRenderState, lastComponent: Component | undefined): EditCallRenderComponent {
+	if (lastComponent === undefined) {
+		const component = new EditCallRenderComponent();
+		state.callComponent = component;
+		return component;
+	}
 	if (lastComponent instanceof EditCallRenderComponent) {
 		const component = lastComponent;
 		state.callComponent = component;
@@ -273,8 +278,8 @@ function getEditHeaderBg(
 	settledError: boolean | undefined,
 	theme: Theme,
 ): (text: string) => string {
-	if (preview) {
-		if ("error" in preview) {
+	if (preview !== undefined) {
+		if (previewHasError(preview)) {
 			return (text: string) => theme.bg("toolErrorBg", text);
 		}
 		return (text: string) => theme.bg("toolSuccessBg", text);
@@ -299,11 +304,23 @@ function buildEditCallComponent(
 		return component;
 	}
 
+	const previewRecord = previewRecordOf(component.preview);
 	const body =
-		"error" in component.preview ? theme.fg("error", component.preview.error) : renderDiff(component.preview.diff);
+		previewRecord["error"] !== undefined
+			? theme.fg("error", previewRecord["error"] as string)
+			: renderDiff(previewRecord["diff"] as string);
 	component.addChild(new Spacer(1));
 	component.addChild(new Text(body, 0, 0));
 	return component;
+}
+
+/** Bracket access for EditPreview unions (in-operator has no union lowering). */
+function previewRecordOf(preview: EditPreview): Record<string, unknown> {
+	return JSON.parse(JSON.stringify(preview)) as Record<string, unknown>;
+}
+
+function previewHasError(preview: EditPreview): boolean {
+	return previewRecordOf(preview)["error"] !== undefined;
 }
 
 function setEditPreview(
@@ -312,14 +329,26 @@ function setEditPreview(
 	argsKey: string | undefined,
 ): boolean {
 	const current = component.preview;
-	const changed =
-		current === undefined ||
-		("error" in current && "error" in preview
-			? current.error !== preview.error
-			: "error" in current !== "error" in preview) ||
-		(!("error" in current) &&
-			!("error" in preview) &&
-			(current.diff !== preview.diff || current.firstChangedLine !== preview.firstChangedLine));
+	if (current === undefined) {
+		component.preview = preview;
+		component.previewArgsKey = argsKey;
+		component.previewPending = false;
+		return true;
+	}
+	const currentRecord = previewRecordOf(current);
+	const previewRecord = previewRecordOf(preview);
+	const currentHasError = previewHasError(current);
+	const previewIsError = previewHasError(preview);
+	let changed: boolean;
+	if (currentHasError && previewIsError) {
+		changed = currentRecord["error"] !== previewRecord["error"];
+	} else if (currentHasError !== previewIsError) {
+		changed = true;
+	} else {
+		changed =
+			currentRecord["diff"] !== previewRecord["diff"] ||
+			currentRecord["firstChangedLine"] !== previewRecord["firstChangedLine"];
+	}
 	component.preview = preview;
 	component.previewArgsKey = argsKey;
 	component.previewPending = false;
@@ -362,8 +391,14 @@ export function createEditToolDefinition(
 					await ops.access(absolutePath);
 				} catch (error: unknown) {
 					throwIfAborted();
-					const errorMessage =
-						error instanceof Error && "code" in error ? `Error code: ${error.code}` : String(error);
+					let errorMessage: string;
+					if (error instanceof Error) {
+						const withCode = error as unknown as { code?: string };
+						errorMessage =
+							withCode.code !== undefined ? `Error code: ${withCode.code}` : error.message;
+					} else {
+						errorMessage = JSON.stringify(error);
+					}
 					throw new Error(`Could not edit file: ${path}. ${errorMessage}.`);
 				}
 				throwIfAborted();
