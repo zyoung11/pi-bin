@@ -146,8 +146,8 @@ const ModelCostRatesSchema = {
 	cacheWrite: Type.Number(),
 };
 const ModelCostTierSchema = Type.Object({
-	inputTokensAbove: Type.Number(),
 	...ModelCostRatesSchema,
+	inputTokensAbove: Type.Number(),
 });
 const ModelCostSchema = Type.Object({
 	...ModelCostRatesSchema,

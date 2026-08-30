@@ -78,16 +78,16 @@
 - 逐点定位用 `scriptc build`（输出 file:line + hint）；coverage 只给聚合消息。
 - ⚠️ 揭幕现象：修掉根因声明会让下游真实诊断显形，总量会先升后降（712→614→664→…），不要被总数吓退。
 
-## 阶段 5 grind 第四十轮记录（进行中：204→115，长尾批量清零 + ResourceLoader 抽象类）
+## 阶段 5 grind 第四十轮记录（进行中：204→96，长尾批量清零 + ResourceLoader 抽象类）
 
 - **长尾批量（~90 个散点）**：armin/bash-execution/compaction/custom-message/energy 等 30+ 文件的 RegExpExecArray.index、filter 谓词、可选方法提升、Promise.resolve(void)、replaceAll、Math.max spread、Error cause、??= 写出等已验证模式全部套用
 - **ResourceLoader 接口→抽象类**：修复 sdk/agent-session-services 的类→record 传参墙；DefaultResourceLoader 的 async reload → reloadAsync 委托（async override 墙）
 - **sdk.ts**：excludedToolNameSet Set|undefined→数组 includes；toolResult 图片过滤链→显式循环；streamSimple options 补显式 signal 字段
 - **provider-env**：Bun sandbox 回退降级为恒 undefined（Node 静态构建死代码），Map|null→Map
 - **uuid**：randomFillSync 无 lowering → crypto.randomBytes().toString("hex") 手工解析
-- **剩余 115 构成**：terminal 14（setRawMode/isRaw/setEncoding/resume/pause/removeListener/columns/rows 等 TUI 硬依赖，结构性）；provider-composer 8（OAuth 回调链）；model-runtime 7（prepareRequest Omit 泛型级联）；session 6（SessionTree view 字面量，泛型类实例化）；abort 5（raceWithAbortSignal 泛型，Promise 变异性死墙）；agent-session 5；event-stream/transform-messages 各 4；散点约 45
-- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r40/r40-tail-ok）
-- **总账 157→115；本会话累计 376→115（-261，69%）**
+- **剩余 115 构成**：terminal 14（结构性）；provider-composer 8（OAuth 回调链）；model-runtime 7（prepareRequest Omit 泛型级联）；session 6（SessionTree view 字面量）；abort 5（raceWithAbortSignal 泛型）；agent-session 5；event-stream/transform-messages 各 4；散点约 45
+- **验证**：tsgo src 清零；--list-models OK；MiniCPM5-1B print 真跑对话 + bash tool_call OK（OK-r41）
+- **总账 157→96；本会话累计 376→96（-280，74%）**；剩余：provider-composer 8、model-runtime 7、session 6、abort 5、agent-session 5、event-stream/transform-messages 各 4，及散点约 50
 
 ## 阶段 5 grind 第三十九轮记录（进行中：204→157，footer git 轮询改造 + 长尾批量）
 

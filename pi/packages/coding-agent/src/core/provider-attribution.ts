@@ -10,7 +10,10 @@ const OPENCODE_HOST = "opencode.ai";
 
 function matchesHost(baseUrl: string, expectedHost: string): boolean {
 	try {
-		return new URL(baseUrl).hostname === expectedHost;
+		const host = new URL(baseUrl).host;
+		const colonIdx = host.lastIndexOf(":");
+		const hostname = colonIdx > 0 ? host.slice(0, colonIdx) : host;
+		return hostname === expectedHost;
 	} catch {
 		return false;
 	}

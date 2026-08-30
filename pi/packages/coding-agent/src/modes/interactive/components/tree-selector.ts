@@ -570,7 +570,7 @@ class TreeList extends Component {
 			case "message": {
 				const msg = entry.message;
 				parts.push(msg.role);
-				if ("content" in msg && msg.content) {
+				if ("content" in msg) {
 					parts.push(this.extractContent(messageContentOf(msg)));
 				}
 				if (msg.role === "bashExecution") {

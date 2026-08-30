@@ -1,6 +1,13 @@
 import type { Usage } from "../../../ai/src/compat.ts";
 import type { SessionEntry } from "./session-manager.ts";
 
+/** Read the optional usage field off a session entry without triggering union field-read walls. */
+function entryUsageOf(entry: unknown): Usage | undefined {
+	const record = entry as unknown as Record<string, unknown>;
+	const usage = record["usage"];
+	return usage === undefined ? undefined : (usage as Usage);
+}
+
 export interface UsageTotals {
 	input: number;
 	output: number;
@@ -43,12 +50,12 @@ export function getUsageCostBreakdown(entries: SessionEntry[]): UsageCostBreakdo
 		if (entry.type === "message" && entry.message.role === "assistant") {
 			key = `${entry.message.provider}/${entry.message.responseModel ?? entry.message.model}`;
 			usage = entry.message.usage;
-		} else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage) {
+		} else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage !== undefined) {
 			key = "Tools/summaries";
 			usage = entry.message.usage;
-		} else if ((entry.type === "branch_summary" || entry.type === "compaction") && entry.usage) {
+		} else if ((entry.type === "branch_summary" || entry.type === "compaction") && entryUsageOf(entry) !== undefined) {
 			key = "Tools/summaries";
-			usage = entry.usage;
+			usage = entryUsageOf(entry);
 		}
 		if (!key || !usage) continue;
 

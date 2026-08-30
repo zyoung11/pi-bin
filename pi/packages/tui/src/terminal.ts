@@ -1,12 +1,9 @@
 import * as fs from "node:fs";
-import { createRequire } from "node:module";
 import * as path from "node:path";
 import { setKittyProtocolActive } from "./keys.ts";
 import { isNativeModifierPressed } from "./native-modifiers.ts";
-import { getNativeModuleCandidates } from "./native-module-path.ts";
 import { StdinBuffer } from "./stdin-buffer.ts";
 import { parseDecimalInt, parseDecimalNumber } from "./utils.ts";
-const cjsRequire = createRequire(import.meta.url);
 
 const TERMINAL_PROGRESS_KEEPALIVE_MS = 1000;
 const TERMINAL_PROGRESS_ACTIVE_SEQUENCE = "\x1b]9;4;3\x07";
@@ -124,7 +121,9 @@ export function resolveEscapeTimeoutMs(env: NodeJS.ProcessEnv = process.env): nu
  * Real terminal using process.stdin/stdout
  */
 export class ProcessTerminal implements Terminal {
-	private wasRaw = false;
+	private resizePollTimer: ReturnType<typeof setInterval> | undefined;
+	private lastColumns = 80;
+	private lastRows = 24;
 	private inputHandler?: (data: string) => void;
 	private resizeHandler?: () => void;
 	private _kittyProtocolActive = false;
@@ -162,19 +161,30 @@ export class ProcessTerminal implements Terminal {
 		this.inputHandler = onInput;
 		this.resizeHandler = onResize;
 
-		// Save previous state and enable raw mode
-		this.wasRaw = process.stdin.isRaw || false;
-		if (process.stdin.setRawMode) {
+		// Enable raw mode. Non-TTY stdin has no setRawMode (Node throws a
+		// catchable TypeError there); the previous raw state is not observable
+		// without extra surfaces, so restore always returns to cooked mode.
+		try {
 			process.stdin.setRawMode(true);
-		}
-		process.stdin.setEncoding("utf8");
-		process.stdin.resume();
+		} catch {}
 
 		// Enable bracketed paste mode - terminal will wrap pastes in \x1b[200~ ... \x1b[201~
 		process.stdout.write("\x1b[?2004h");
 
-		// Set up resize handler immediately
-		process.stdout.on("resize", this.resizeHandler);
+		// Set up resize detection: poll the terminal dimensions (scriptc has
+		// no stdout resize event) and fire the handler on change.
+		this.lastColumns = this.columns();
+		this.lastRows = this.rows();
+		this.resizePollTimer = setInterval(() => {
+			const cols = this.columns();
+			const rws = this.rows();
+			if (cols !== this.lastColumns || rws !== this.lastRows) {
+				this.lastColumns = cols;
+				this.lastRows = rws;
+				const resizeHandler = this.resizeHandler;
+				if (resizeHandler) resizeHandler();
+			}
+		}, 250);
 
 		// Refresh terminal dimensions - they may be stale after suspend/resume
 		// (SIGWINCH is lost while process is stopped). Unix only.
@@ -345,7 +355,8 @@ export class ProcessTerminal implements Terminal {
 			shouldDetectNativeShiftEnter,
 			shouldDetectNativeShiftEnter && isNativeModifierPressed("shift"),
 		);
-		this.inputHandler(input);
+		const inputHandler = this.inputHandler;
+		if (inputHandler) inputHandler(input);
 	}
 
 	private enableModifyOtherKeys(): void {
@@ -368,26 +379,7 @@ export class ProcessTerminal implements Terminal {
 	 */
 	private enableWindowsVTInput(): void {
 		if (process.platform !== "win32") return;
-		try {
-			const arch = process.arch;
-			if (arch !== "x64" && arch !== "arm64") return;
-
-			// Dynamic require so non-Windows and bundled/browser paths never load the
-			// native helper. Installed packages resolve it from pi-tui; standalone
-			// binaries resolve the copy next to the executable.
-			const nativePath = path.join("native", "win32", "prebuilds", `win32-${arch}`, "win32-console-mode.node");
-			for (const modulePath of getNativeModuleCandidates(nativePath)) {
-				try {
-					const helper = cjsRequire(modulePath) as { enableVirtualTerminalInput?: () => boolean };
-					helper.enableVirtualTerminalInput?.();
-					return;
-				} catch {
-					// Try the next possible packaging location.
-				}
-			}
-		} catch {
-			// Native helper not available — Shift+Tab won't be distinguishable from Tab.
-		}
+		// Native win32 console-mode helper is unavailable in the static build.
 	}
 
 	async drainInput(maxMs = 1000, idleMs = 50): Promise<void> {
@@ -407,7 +399,11 @@ export class ProcessTerminal implements Terminal {
 		this.inputHandler = undefined;
 
 		let lastDataTime = Date.now();
+		let retired = false;
+		// scriptc has no stdin removeListener; the listener retires itself by
+		// turning into a no-op once this drain finishes.
 		const onData = () => {
+			if (retired) return;
 			lastDataTime = Date.now();
 		};
 
@@ -423,7 +419,7 @@ export class ProcessTerminal implements Terminal {
 				await new Promise((resolve) => setTimeout(resolve, Math.min(idleMs, timeLeft)));
 			}
 		} finally {
-			process.stdin.removeListener("data", onData);
+			retired = true;
 			this.inputHandler = previousHandler;
 		}
 	}
@@ -454,26 +450,23 @@ export class ProcessTerminal implements Terminal {
 			this.stdinBuffer = undefined;
 		}
 
-		// Remove event handlers
+		// Detach input routing. The stdin listener stays registered (scriptc has
+		// no stdin removeListener surface); with inputHandler cleared it routes
+		// nowhere and retired handlers no-op themselves.
 		if (this.stdinDataHandler) {
-			process.stdin.removeListener("data", this.stdinDataHandler);
 			this.stdinDataHandler = undefined;
 		}
 		this.inputHandler = undefined;
-		if (this.resizeHandler) {
-			process.stdout.removeListener("resize", this.resizeHandler);
-			this.resizeHandler = undefined;
+		if (this.resizePollTimer !== undefined) {
+			clearInterval(this.resizePollTimer);
+			this.resizePollTimer = undefined;
 		}
+		this.resizeHandler = undefined;
 
-		// Pause stdin to prevent any buffered input (e.g., Ctrl+D) from being
-		// re-interpreted after raw mode is disabled. This fixes a race condition
-		// where Ctrl+D could close the parent shell over SSH.
-		process.stdin.pause();
-
-		// Restore raw mode state
-		if (process.stdin.setRawMode) {
-			process.stdin.setRawMode(this.wasRaw);
-		}
+		// Restore cooked mode.
+		try {
+			process.stdin.setRawMode(false);
+		} catch {}
 	}
 
 	write(data: string): void {
@@ -488,11 +481,25 @@ export class ProcessTerminal implements Terminal {
 	}
 
 	columns(): number {
-		return process.stdout.columns || Number(process.env.COLUMNS) || 80;
+		const declared = (process.stdout as { columns?: number | undefined }).columns;
+		if (declared !== undefined && declared > 0) return declared;
+		const envCols = process.env.COLUMNS;
+		if (envCols !== undefined) {
+			const parsed = Number(envCols);
+			if (parsed > 0) return parsed;
+		}
+		return 80;
 	}
 
 	rows(): number {
-		return process.stdout.rows || Number(process.env.LINES) || 24;
+		const declared = (process.stdout as { columns?: number | undefined })["columns"];
+		if (declared !== undefined) return declared;
+		const envRows = process.env.LINES;
+		if (envRows !== undefined) {
+			const parsed = Number(envRows);
+			if (parsed > 0) return parsed;
+		}
+		return 24;
 	}
 
 	moveBy(lines: number): void {
