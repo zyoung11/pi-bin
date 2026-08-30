@@ -82,9 +82,8 @@ function diffMiddle(a: string[], b: string[]): DiffOp[] {
 	}
 	const lcs: number[][] = [];
 	for (let i = 0; i <= n; i += 1) {
-		const row: number[] = new Array(m + 1);
-		row[0] = 0;
-		for (let j = 0; j <= m; j += 1) row[j] = 0;
+		const row: number[] = [];
+		for (let j = 0; j <= m; j += 1) row.push(0);
 		lcs.push(row);
 	}
 	for (let i = n - 1; i >= 0; i -= 1) {
@@ -167,11 +166,23 @@ export function diffLines(oldStr: string, newStr: string): DiffPart[] {
 	return mergeParts(entries);
 }
 
-const WORD_PATTERN = /[a-zA-Z0-9_]+|\s+|[^\sa-zA-Z0-9_]/g;
+function tokenizeWords(text: string): string[] {
+	const tokens: string[] = [];
+	let index = 0;
+	while (index < text.length) {
+		const remaining = text.slice(index);
+		const word = remaining.match(/^[a-zA-Z0-9_]+/);
+		const space = word === null ? remaining.match(/^\s+/) : null;
+		const matched = word !== null ? word[0] : space !== null ? space[0] : text.slice(index, index + 1);
+		tokens.push(matched);
+		index += matched.length;
+	}
+	return tokens;
+}
 
 export function diffWords(oldStr: string, newStr: string): DiffPart[] {
-	const a = oldStr.match(WORD_PATTERN) ?? [];
-	const b = newStr.match(WORD_PATTERN) ?? [];
+	const a = tokenizeWords(oldStr);
+	const b = tokenizeWords(newStr);
 	const ops = diffOps(a, b);
 	const entries: { value: string; count: number; op: "equal" | "delete" | "insert" }[] = [];
 	for (const op of ops) {
@@ -218,13 +229,11 @@ export function createTwoFilesPatch(
 		else if (op.op === "delete") changes.push({ op: "delete", text: a[op.aIndex] });
 		else changes.push({ op: "insert", text: b[op.bIndex] });
 	}
-	const aBefore: number[] = new Array(changes.length + 1);
-	const bBefore: number[] = new Array(changes.length + 1);
-	aBefore[0] = 0;
-	bBefore[0] = 0;
+	const aBefore: number[] = [0];
+	const bBefore: number[] = [0];
 	for (let i = 0; i < changes.length; i += 1) {
-		aBefore[i + 1] = aBefore[i] + (changes[i].op === "insert" ? 0 : 1);
-		bBefore[i + 1] = bBefore[i] + (changes[i].op === "delete" ? 0 : 1);
+		aBefore.push(aBefore[i] + (changes[i].op === "insert" ? 0 : 1));
+		bBefore.push(bBefore[i] + (changes[i].op === "delete" ? 0 : 1));
 	}
 	let index = 0;
 	while (index < changes.length) {

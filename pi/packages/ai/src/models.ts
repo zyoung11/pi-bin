@@ -239,7 +239,10 @@ function mergeHeaders(
 	override: ProviderHeaders | undefined,
 ): ProviderHeaders | undefined {
 	if (!base && !override) return undefined;
-	const merged = { ...base };
+	const merged: Record<string, string | null> = {};
+	if (base !== undefined) {
+		for (const name of Object.keys(base)) merged[name] = base[name];
+	}
 	for (const [name, value] of Object.entries(override ?? {})) {
 		const lowerName = name.toLowerCase();
 		for (const existingName of Object.keys(merged)) {
@@ -374,8 +377,9 @@ export class ModelsImpl implements MutableModels {
 		signal: AbortSignal,
 		publication: ModelsPublication,
 	): Promise<boolean> {
-		const previous = this.publicationChains.get(providerId) ?? Promise.resolve();
-		const queued = (async () => {
+		const emptyChain: Promise<unknown> = Promise.resolve(undefined as unknown);
+		const previous = this.publicationChains.get(providerId) ?? emptyChain;
+		const queued = (async (): Promise<boolean> => {
 			await previous.catch(() => {});
 			if (signal.aborted || this.refreshGenerations.get(providerId) !== generation) return false;
 
@@ -394,11 +398,11 @@ export class ModelsImpl implements MutableModels {
 		void tail.then(() => {
 			if (this.publicationChains.get(providerId) === tail) this.publicationChains.delete(providerId);
 		});
-		return raceWithAbortSignal(queued, signal) as Promise<boolean>;
+		return raceWithAbortSignal<boolean>(queued, signal);
 	}
 
 	private async runProviderRefreshPhase(
-		provider: Provider & Required<Pick<Provider, "refreshModels">>,
+		provider: Provider,
 		credential: Credential | undefined,
 		allowNetwork: boolean,
 		force: boolean | undefined,
@@ -406,6 +410,7 @@ export class ModelsImpl implements MutableModels {
 		signal: AbortSignal,
 	): Promise<void> {
 		const stored = await this.modelsStore.read(provider.id, { signal });
+		if (provider.refreshModels === undefined) return;
 		await provider.refreshModels({
 			credential,
 			stored: stored ? structuredClone(stored) : undefined,
@@ -421,14 +426,17 @@ export class ModelsImpl implements MutableModels {
 		const callerSignal = operationSignal(options.signal);
 		const errors = new Map<string, string>();
 		if (callerSignal.aborted) return { aborted: true, errors };
-		const selected = options.providers ? new Set(options.providers) : undefined;
-		const refreshable = Array.from(this.providers.values()).filter(
-			(provider): provider is Provider & Required<Pick<Provider, "refreshModels">> =>
-				provider.refreshModels !== undefined && (!selected || selected.has(provider.id)),
-		);
+		const selected = options.providers;
+		const refreshable: Provider[] = [];
+		const allProviders = this.getProviders();
+		for (const provider of allProviders) {
+			if (provider.refreshModels === undefined) continue;
+			if (selected !== undefined && !selected.includes(provider.id)) continue;
+			refreshable.push(provider);
+		}
 
 		const refresh = Promise.all(
-			refreshable.map(async (provider) => {
+			refreshable.map(async (provider): Promise<null> => {
 				const { generation, controller } = this.beginProviderRefresh(provider.id);
 				const signal = AbortSignal.any([callerSignal, controller.signal]);
 				const operation = (async () => {
@@ -466,6 +474,7 @@ export class ModelsImpl implements MutableModels {
 						this.deleteRefreshController(provider.id);
 					}
 				}
+				return null;
 			}),
 		);
 
@@ -493,7 +502,8 @@ export class ModelsImpl implements MutableModels {
 			const post = await this.credentials.modify(
 				provider.id,
 				async (current) => {
-					if (current?.type !== "oauth" || Date.now() < current.expires) return undefined;
+					if (current === undefined) return undefined;
+					if (current.type !== "oauth" || Date.now() < current.expires) return undefined;
 					return oauth.refresh(current, signal);
 				},
 				{ signal },
@@ -601,15 +611,20 @@ export class ModelsImpl implements MutableModels {
 		signal.throwIfAborted();
 		const provider = this.providers.get(providerId);
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${providerId}`);
-		const method = type === "oauth" ? provider.auth.oauth : provider.auth.apiKey;
-		if (method === undefined) {
-			throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
+		let loginOperation: Promise<Credential>;
+		if (type === "oauth") {
+			const method = provider.auth.oauth;
+			if (method === undefined || method.login === undefined) {
+				throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
+			}
+			loginOperation = method.login({ ...interaction, signal }) as Promise<Credential>;
+		} else {
+			const method = provider.auth.apiKey;
+			if (method === undefined || method.login === undefined) {
+				throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
+			}
+			loginOperation = method.login({ ...interaction, signal }) as Promise<Credential>;
 		}
-		const login = method.login;
-		if (login === undefined) {
-			throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
-		}
-		const loginOperation: Promise<Credential> = login({ ...interaction, signal });
 		const credential = await raceWithAbortSignal(loginOperation, signal) as Credential;
 		let mutationStarted = false;
 		let markMutationStarted: (() => void) | undefined;
@@ -632,7 +647,11 @@ export class ModelsImpl implements MutableModels {
 					if (!mutationStarted) reject(signal.reason);
 				};
 				signal.addEventListener("abort", onAbort, { once: true });
-				void Promise.race([started, mutation])
+				void started.then(() => {
+					signal.removeEventListener("abort", onAbort);
+					resolve();
+				});
+				void mutation
 					.then(() => {
 						signal.removeEventListener("abort", onAbort);
 						resolve();

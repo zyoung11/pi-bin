@@ -149,7 +149,8 @@ async function resolveStoredOAuth(
 			post = await credentials.modify(
 				providerId,
 				async (current) => {
-					if (current?.type !== "oauth") return undefined; // logged out meanwhile
+					if (current === undefined) return undefined; // logged out meanwhile
+					if (current.type !== "oauth") return undefined;
 					if (!expiresSoon(current)) return undefined; // another process/request refreshed
 					try {
 						const refreshSignal = AbortSignal.any([
@@ -167,7 +168,8 @@ async function resolveStoredOAuth(
 			if (error instanceof ModelsError) throw error;
 			throw new ModelsError("auth", `Credential store modify failed for ${providerId}`, { cause: error });
 		}
-		if (post?.type !== "oauth") return undefined; // logged out meanwhile
+		if (post === undefined) return undefined; // logged out meanwhile
+		if (post.type !== "oauth") return undefined;
 		credential = post;
 		// The normal five-minute window triggers a refresh but does not impose a
 		// provider contract. Explicit callers (such as bearer-token export) do
