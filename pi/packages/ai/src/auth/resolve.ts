@@ -97,7 +97,13 @@ async function resolveProviderAuthWithSignal(
 			);
 		}
 		if (stored.type === "api_key" && provider.auth.apiKey) {
-			const credential = overrides?.env ? { ...stored, env: { ...stored.env, ...overrides.env } } : stored;
+			let credential = stored;
+			if (overrides?.env !== undefined && stored !== undefined) {
+				const mergedEnv: Record<string, string> = {};
+				for (const envKey of Object.keys(stored.env ?? {})) mergedEnv[envKey] = (stored.env ?? {})[envKey];
+				for (const envKey of Object.keys(overrides.env)) mergedEnv[envKey] = overrides.env[envKey];
+				credential = { ...stored, env: mergedEnv };
+			}
 			return resolveApiKey(requestAuthContext, provider.auth.apiKey, provider.id, credential, signal);
 		}
 		return undefined;

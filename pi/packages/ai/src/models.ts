@@ -315,7 +315,9 @@ export class ModelsImpl implements MutableModels {
 	}
 
 	getProviders(): readonly Provider[] {
-		return Array.from(this.providers.values());
+		const providers: Provider[] = [];
+		for (const provider of this.providers.values()) providers.push(provider);
+		return providers;
 	}
 
 	getProvider(id: string): Provider | undefined {
@@ -473,7 +475,8 @@ export class ModelsImpl implements MutableModels {
 			if (!callerSignal.aborted) throw error;
 		}
 
-		const resultErrors: Map<string, string> = new Map<string, string>(errors);
+		const resultErrors: Map<string, string> = new Map<string, string>();
+		for (const pair of errors.entries()) resultErrors.set(pair[0], pair[1]);
 		return { aborted: callerSignal.aborted, errors: resultErrors };
 	}
 
@@ -482,7 +485,7 @@ export class ModelsImpl implements MutableModels {
 		stored: Credential | undefined,
 		signal: AbortSignal,
 	): Promise<Credential | undefined> {
-		if (stored?.type === "oauth") {
+		if (stored !== undefined && stored.type === "oauth") {
 			const oauth = provider.auth.oauth;
 			if (!oauth) return undefined;
 			if (Date.now() < stored.expires) return stored;
@@ -500,7 +503,7 @@ export class ModelsImpl implements MutableModels {
 
 		const apiKey = provider.auth.apiKey;
 		if (!apiKey) return undefined;
-		const credential = stored?.type === "api_key" ? stored : undefined;
+		const credential = stored !== undefined && stored.type === "api_key" ? stored : undefined;
 		const result = await apiKey.resolve({ ctx: this.authContext, credential, signal });
 		if (!result) return undefined;
 		return { type: "api_key", key: result.auth.apiKey, env: result.env };
@@ -519,7 +522,7 @@ export class ModelsImpl implements MutableModels {
 		credential: Credential | undefined,
 		signal: AbortSignal,
 	): Promise<AuthCheck | undefined> {
-		if (credential?.type === "oauth") {
+		if (credential !== undefined && credential.type === "oauth") {
 			return provider.auth.oauth ? { source: "OAuth", type: "oauth" } : undefined;
 		}
 		const apiKey = provider.auth.apiKey;
@@ -528,7 +531,7 @@ export class ModelsImpl implements MutableModels {
 			try {
 				return await apiKey.check({
 					ctx: this.authContext,
-					credential: credential?.type === "api_key" ? credential : undefined,
+					credential: credential !== undefined && credential.type === "api_key" ? credential : undefined,
 					signal,
 				});
 			} catch (error) {
@@ -599,10 +602,14 @@ export class ModelsImpl implements MutableModels {
 		const provider = this.providers.get(providerId);
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${providerId}`);
 		const method = type === "oauth" ? provider.auth.oauth : provider.auth.apiKey;
-		if (!method?.login) {
+		if (method === undefined) {
 			throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
 		}
-		const loginOperation: Promise<Credential> = method.login({ ...interaction, signal });
+		const login = method.login;
+		if (login === undefined) {
+			throw new ModelsError("auth", `${provider.name} does not support ${type} login`);
+		}
+		const loginOperation: Promise<Credential> = login({ ...interaction, signal });
 		const credential = await raceWithAbortSignal(loginOperation, signal) as Credential;
 		let mutationStarted = false;
 		let markMutationStarted: (() => void) | undefined;
@@ -625,16 +632,15 @@ export class ModelsImpl implements MutableModels {
 					if (!mutationStarted) reject(signal.reason);
 				};
 				signal.addEventListener("abort", onAbort, { once: true });
-				void Promise.race([started, mutation]).then(
-					() => {
+				void Promise.race([started, mutation])
+					.then(() => {
 						signal.removeEventListener("abort", onAbort);
 						resolve();
-					},
-					(error: unknown) => {
+					})
+					.catch((error: unknown) => {
 						signal.removeEventListener("abort", onAbort);
 						reject(error);
-					},
-				);
+					});
 				if (signal.aborted) onAbort();
 			});
 			await mutation;

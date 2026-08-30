@@ -20,7 +20,8 @@ export class InMemoryCredentialStore extends CredentialStore {
 	/** Serialize tasks per provider id without releasing the chain before active work settles. */
 	private enqueue(providerId: string, task: () => Promise<unknown>, options?: AuthOperationOptions): Promise<unknown> {
 		const signal = operationSignal(options?.signal);
-		const previous = this.chains.get(providerId) ?? Promise.resolve();
+		const emptyChain: Promise<unknown> = Promise.resolve(undefined as unknown);
+		const previous = this.chains.get(providerId) ?? emptyChain;
 		const queued = (async () => {
 			await previous.catch(() => {});
 			signal.throwIfAborted();
