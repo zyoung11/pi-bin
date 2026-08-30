@@ -8,6 +8,10 @@ import { readFileSync, accessSync } from "node:fs";
 import { splitBom } from "../../utils/text.ts";
 import { resolveToCwd } from "./path-utils.ts";
 
+function errorCodeOf(error: unknown): string | undefined {
+	return (error as { code?: string }).code;
+}
+
 export function detectLineEnding(content: string): "\r\n" | "\n" {
 	const crlfIdx = content.indexOf("\r\n");
 	const lfIdx = content.indexOf("\n");
@@ -534,11 +538,10 @@ export async function computeEditsDiff(
 		try {
 			accessSync(absolutePath, constants.R_OK);
 		} catch (error: unknown) {
-			const errorRecord = error as unknown as { code?: string };
 			let errorMessage: string;
 			if (error instanceof Error) {
-				const withCode = error as unknown as { code?: string };
-				errorMessage = withCode.code !== undefined ? `Error code: ${withCode.code}` : error.message;
+				const code = errorCodeOf(error);
+				errorMessage = code !== undefined ? `Error code: ${code}` : error.message;
 			} else {
 				errorMessage = JSON.stringify(error);
 			}

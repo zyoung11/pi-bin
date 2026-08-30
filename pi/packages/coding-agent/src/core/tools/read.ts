@@ -1,5 +1,5 @@
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
-import type { AgentTool } from "../../../../agent/src/index.ts";
+import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
 import type { Api,
 	ImageContent, Model, TextContent
 } from "../../../../ai/src/index.ts"
@@ -176,9 +176,13 @@ function formatCompactReadCall(
 	);
 }
 
+function readDetailsOf(details: unknown): ReadToolDetails | undefined {
+	return details as ReadToolDetails | undefined;
+}
+
 function formatReadResult(
 	args: ReadRenderArgs | undefined,
-	result: { content: (TextContent | ImageContent)[]; details?: ReadToolDetails },
+	result: { content: (TextContent | ImageContent)[]; details: unknown },
 	options: ToolRenderResultOptions,
 	theme: Theme,
 	showImages: boolean,
@@ -202,7 +206,7 @@ function formatReadResult(
 		text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
 	}
 
-	const truncation = result.details?.truncation;
+	const truncation = readDetailsOf(result.details)?.truncation;
 	if (truncation?.truncated) {
 		if (truncation.firstLineExceedsLimit) {
 			text += `\n${theme.fg("warning", `[First line exceeds ${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit]`)}`;
@@ -218,7 +222,7 @@ function formatReadResult(
 export function createReadToolDefinition(
 	cwd: string,
 	options?: ReadToolOptions,
-): ToolDefinition<typeof readSchema, ReadToolDetails | undefined> {
+): ToolDefinition<typeof readSchema> {
 	const autoResizeImages = options?.autoResizeImages ?? true;
 	const modelProvider = options?.modelProvider;
 	const ops = options?.operations ?? defaultReadOperations;
@@ -232,11 +236,12 @@ export function createReadToolDefinition(
 		constrainedSampling: getExperimentalToolSampling(),
 		async execute(
 			_toolCallId,
-			{ path, offset, limit }: { path: string; offset?: number; limit?: number },
+			params: unknown,
 			signal: AbortSignal | undefined,
 			_onUpdate,
 		) {
-			return new Promise<{ content: (TextContent | ImageContent)[]; details: ReadToolDetails | undefined }>(
+			const { path, offset, limit } = params as { path: string; offset?: number; limit?: number };
+			return new Promise<AgentToolResult<unknown>>(
 				(resolve, reject) => {
 					if (signal?.aborted) {
 						reject(new Error("Operation aborted"));

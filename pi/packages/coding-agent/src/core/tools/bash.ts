@@ -242,6 +242,14 @@ export type BashRenderState = {
 	interval: NodeJS.Timeout | undefined;
 };
 
+function bashStateOf(state: unknown): BashRenderState {
+	return state as BashRenderState;
+}
+
+function bashDetailsOf(details: unknown): BashToolDetails | undefined {
+	return details as BashToolDetails | undefined;
+}
+
 type BashResultRenderState = {
 	cachedWidth: number | undefined;
 	cachedLines: string[] | undefined;
@@ -255,7 +263,7 @@ class BashResultRenderComponent extends Container {
 		cachedSkipped: undefined,
 	};
 	rebuild(
-	result: AgentToolResult<BashToolDetails | undefined>,
+	result: AgentToolResult<unknown>,
 	options: ToolRenderResultOptions,
 	showImages: boolean,
 	startedAt: number | undefined,
@@ -265,8 +273,9 @@ class BashResultRenderComponent extends Container {
 	this.clear();
 
 	let output = getTextOutput(result, showImages).trim();
-	const truncation = result.details?.truncation;
-	const fullOutputPath = result.details?.fullOutputPath;
+	const details = bashDetailsOf(result.details);
+	const truncation = details?.truncation;
+	const fullOutputPath = details?.fullOutputPath;
 	if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {
 		const footerStart = output.lastIndexOf("\n\n[");
 		if (footerStart !== -1 && output.slice(footerStart).includes(fullOutputPath)) {
@@ -339,7 +348,7 @@ export function createShellToolDefinition(
 	cwd: string,
 	config: ShellToolConfig,
 	options?: BashToolOptions,
-): ToolDefinition<typeof bashSchema, BashToolDetails | undefined, BashRenderState> {
+): ToolDefinition<typeof bashSchema> {
 	const ops = options?.operations ?? createLocalBashOperations({ shellPath: options?.shellPath });
 	const commandPrefix = options?.commandPrefix;
 	const exposeSessionEnvironment = options?.exposeSessionEnvironment ?? true;
@@ -355,10 +364,11 @@ export function createShellToolDefinition(
 		constrainedSampling: getExperimentalToolSampling(),
 		async execute(
 			_toolCallId,
-			{ command, timeout }: { command: string; timeout?: number },
+			params: unknown,
 			signal,
 			onUpdate,
-		) {
+		): Promise<AgentToolResult<unknown>> {
+			const { command, timeout } = params as { command: string; timeout?: number };
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(
 				resolvedCommand,
@@ -479,13 +489,14 @@ export function createShellToolDefinition(
 				if (exitCode !== 0 && exitCode !== null) {
 					throw new Error(appendStatus(outputText, `Command exited with code ${exitCode}`));
 				}
-				return { content: [{ type: "text", text: outputText }], details };
+				const result: AgentToolResult<unknown> = { content: [{ type: "text", text: outputText }], details };
+				return result;
 			} finally {
 				clearUpdateTimer();
 			}
 		},
 		renderCall(args, _theme, context) {
-			const state = context.state;
+			const state = bashStateOf(context.state);
 			if (context.executionStarted && state.startedAt === undefined) {
 				state.startedAt = Date.now();
 				state.endedAt = undefined;
@@ -505,7 +516,7 @@ export function createShellToolDefinition(
 			return text as Component;
 		},
 		renderResult(result, options, _theme, context) {
-			const state = context.state;
+			const state = bashStateOf(context.state);
 			if (state.startedAt !== undefined && options.isPartial && !state.interval) {
 				state.interval = setInterval(() => context.invalidate(), 1000);
 			}
@@ -571,7 +582,7 @@ const bashToolConfig: ShellToolConfig = {
 export function createBashToolDefinition(
 	cwd: string,
 	options?: BashToolOptions,
-): ToolDefinition<typeof bashSchema, BashToolDetails | undefined, BashRenderState> {
+): ToolDefinition<typeof bashSchema> {
 	return createShellToolDefinition(cwd, bashToolConfig, options);
 }
 

@@ -1,4 +1,5 @@
-import type { AgentTool } from "../../../../agent/src/index.ts";
+import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
+import type { ImageContent, TextContent } from "../../../../ai/src/types.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import type { Component } from "../../../../tui/src/tui.ts";
@@ -60,6 +61,34 @@ class WriteCallRenderComponent extends Text {
 
 	constructor() {
 		super("", 0, 0);
+	}
+
+	apply(
+		rawPath: string | null,
+		fileContent: string | null,
+		argsComplete: boolean,
+		renderArgs: { path?: string; file_path?: string; content?: string } | undefined,
+		expanded: boolean,
+		isPartial: boolean,
+		theme: Theme,
+		cwd: string,
+	): void {
+		if (fileContent !== null) {
+			this.cache = argsComplete
+				? rebuildWriteHighlightCacheFull(rawPath, fileContent)
+				: updateWriteHighlightCacheIncremental(this.cache, rawPath, fileContent);
+		} else {
+			this.cache = undefined;
+		}
+		this.setText(
+			formatWriteCall(
+				renderArgs,
+				{ expanded, isPartial },
+				theme,
+				this.cache,
+				cwd,
+			),
+		);
 	}
 }
 
@@ -171,7 +200,7 @@ function formatWriteCall(
 }
 
 function formatWriteResult(
-	result: { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>; isError?: boolean },
+	result: { content: (TextContent | ImageContent)[]; isError?: boolean },
 	theme: Theme,
 ): string | undefined {
 	if (!result.isError) {
@@ -190,7 +219,7 @@ function formatWriteResult(
 export function createWriteToolDefinition(
 	cwd: string,
 	options?: WriteToolOptions,
-): ToolDefinition<typeof writeSchema, undefined> {
+): ToolDefinition<typeof writeSchema> {
 	const ops = options?.operations ?? defaultWriteOperations;
 	return {
 		name: "write",
@@ -201,12 +230,8 @@ export function createWriteToolDefinition(
 		promptGuidelines: writeToolSystemPromptContribution.guidelines.slice(),
 		parameters: writeSchema,
 		constrainedSampling: getExperimentalToolSampling(),
-		async execute(
-			_toolCallId,
-			{ path, content }: { path: string; content: string },
-			signal,
-			_onUpdate,
-		) {
+		async execute(_toolCallId, params: unknown, signal, _onUpdate): Promise<AgentToolResult<unknown>> {
+			const { path, content } = params as { path: string; content: string };
 			const absolutePath = resolveToCwd(path, cwd);
 			const dir = dirname(absolutePath);
 			return withFileMutationQueue(absolutePath, async () => {
@@ -227,46 +252,33 @@ export function createWriteToolDefinition(
 				await ops.writeFile(absolutePath, content);
 				throwIfAborted();
 
-				return {
+				const result: AgentToolResult<unknown> = {
 					content: [{ type: "text", text: `Successfully wrote ${content.length} bytes to ${path}` }],
 					details: undefined,
 				};
+				return result;
 			});
 		},
 		renderCall(args, theme, context) {
 			const renderArgs = args as { path?: string; file_path?: string; content?: string } | undefined;
 			const rawPath = str(renderArgs?.file_path ?? renderArgs?.path);
 			const fileContent = str(renderArgs?.content);
-			const apply = (component: WriteCallRenderComponent): Component => {
-				if (fileContent !== null) {
-					component.cache = context.argsComplete
-						? rebuildWriteHighlightCacheFull(rawPath, fileContent)
-						: updateWriteHighlightCacheIncremental(component.cache, rawPath, fileContent);
-				} else {
-					component.cache = undefined;
-				}
-				component.setText(
-					formatWriteCall(
-						renderArgs,
-						{ expanded: context.expanded, isPartial: context.isPartial },
-						theme,
-						component.cache,
-						context.cwd,
-					),
-				);
-				return component as Component;
-			};
 			const last: Component | undefined = context.lastComponent;
 			if (last === undefined) {
-				return apply(new WriteCallRenderComponent());
+				const component = new WriteCallRenderComponent();
+				component.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
+				return component as Component;
 			}
 			if (last instanceof WriteCallRenderComponent) {
-				return apply(last);
+				last.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
+				return last as Component;
 			}
-			return apply(new WriteCallRenderComponent());
+			const component = new WriteCallRenderComponent();
+			component.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
+			return component as Component;
 		},
 		renderResult(result, _options, theme, context) {
-			const output = formatWriteResult({ ...result, isError: context.isError }, theme);
+			const output = formatWriteResult({ content: result.content, isError: context.isError }, theme);
 			const last: Component | undefined = context.lastComponent;
 			if (!output) {
 				if (last === undefined) {

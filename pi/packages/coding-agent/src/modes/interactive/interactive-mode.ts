@@ -11,7 +11,7 @@ import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts
 import type { Api,
 	AuthEvent, AuthPrompt
 } from "../../../../ai/src/index.ts"
-import type { AssistantMessage, ImageContent, Message, Model, Usage } from "../../../../ai/src/compat.ts";
+import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -3133,12 +3133,7 @@ export class InteractiveMode {
 					const partial = event.partialResult as unknown as Record<string, unknown>;
 					component.updateResult(
 						{
-							content: partial["content"] as Array<{
-								type: string;
-								text?: string;
-								data?: string;
-								mimeType?: string;
-							}>,
+							content: partial["content"] as (TextContent | ImageContent)[],
 							details: partial["details"],
 							isError: false,
 						},
@@ -3154,12 +3149,7 @@ export class InteractiveMode {
 				if (component) {
 					const result = event.result as unknown as Record<string, unknown>;
 					component.updateResult({
-						content: result["content"] as Array<{
-							type: string;
-							text?: string;
-							data?: string;
-							mimeType?: string;
-						}>,
+						content: result["content"] as (TextContent | ImageContent)[],
 						details: result["details"],
 						isError: event.isError,
 					});
@@ -3548,12 +3538,7 @@ export class InteractiveMode {
 				// Match tool results to pending tool components
 				const component = renderedPendingTools.get(message.toolCallId);
 				if (component) {
-					const resultContent: Array<{
-						type: string;
-						text?: string;
-						data?: string;
-						mimeType?: string;
-					}> = [];
+					const resultContent: (TextContent | ImageContent)[] = [];
 					for (const item of message.content) {
 						if (item.type === "text") {
 							resultContent.push({ type: "text", text: item.text });

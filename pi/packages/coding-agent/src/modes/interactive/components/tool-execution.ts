@@ -5,7 +5,7 @@ import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
-import type { ToolDefinition, ToolRenderContext } from "../../../core/tools/tool-types.ts";
+import type { AgentToolResult, ToolDefinition, ToolRenderContext } from "../../../core/tools/tool-types.ts";
 import { createAllToolDefinitions, type ToolName } from "../../../core/tools/index.ts";
 import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
 import { theme } from "../theme/theme.ts";
@@ -41,7 +41,7 @@ export class ToolExecutionComponent extends Container {
 	private executionStarted = false;
 	private argsComplete = false;
 	private result?: {
-		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		content: (TextContent | ImageContent)[];
 		isError: boolean;
 		details?: unknown;
 	};
@@ -179,7 +179,7 @@ export class ToolExecutionComponent extends Container {
 
 	updateResult(
 		result: {
-			content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+			content: (TextContent | ImageContent)[];
 			details?: unknown;
 			isError: boolean;
 		},
@@ -294,12 +294,12 @@ export class ToolExecutionComponent extends Container {
 					}
 				} else {
 					try {
-						const renderPayload: unknown = {
+						const renderPayload: AgentToolResult<unknown> = {
 							content: this.result.content,
 							details: this.result.details,
 						};
 						const component = resultRenderer(
-							renderPayload as unknown as Parameters<NonNullable<ToolDefinition["renderResult"]>>[0],
+							renderPayload,
 							{ expanded: this.expanded, isPartial: this.isPartial },
 							theme,
 							this.getRenderContext(this.resultRendererComponent),
