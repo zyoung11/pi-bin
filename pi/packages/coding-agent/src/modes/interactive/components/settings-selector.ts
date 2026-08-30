@@ -20,6 +20,8 @@ import { getSettingsListTheme, parseAutoThemeSetting, type TerminalTheme, theme 
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";
 import { SelectSubmenu, SteppedSubmenu, type SteppedSelections, type SteppedSubmenuStep } from "./settings-submenu.ts";
+const noSelection: string | undefined = undefined;
+const noOptions: { navigateTo?: string } | undefined = undefined;
 
 const MODEL_PICKER_LAYOUT = { minPrimaryColumnWidth: 12, maxPrimaryColumnWidth: 46 };
 
@@ -409,7 +411,7 @@ class ThemeSubmenu extends Container {
 			onSelect,
 			() => {
 				this.callbacks.onThemePreview?.(this.getThemeSetting());
-				done(undefined, undefined);
+				done(noSelection, noOptions);
 			},
 			(value) => {
 				this.callbacks.onThemePreview?.(value);
@@ -435,7 +437,7 @@ class ThemeSubmenu extends Container {
 
 	private cancel(): void {
 		this.callbacks.onThemePreview?.(this.originalThemeSetting);
-		this.onDone(undefined, undefined);
+		this.onDone(noSelection, noOptions);
 	}
 }
 

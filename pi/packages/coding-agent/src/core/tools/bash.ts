@@ -495,9 +495,19 @@ export function createShellToolDefinition(
 				state.startedAt = Date.now();
 				state.endedAt = undefined;
 			}
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const last: Component | undefined = context.lastComponent;
+			if (last === undefined) {
+				const text = new Text("", 0, 0);
+				text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
+				return text as Component;
+			}
+			if (last instanceof Text) {
+				last.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
+				return last as Component;
+			}
+			const text = new Text("", 0, 0);
 			text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
-			return text;
+			return text as Component;
 		},
 		renderResult(result, options, _theme, context) {
 			const state = context.state;
@@ -511,8 +521,15 @@ export function createShellToolDefinition(
 					state.interval = undefined;
 				}
 			}
-			const component =
-				(context.lastComponent as BashResultRenderComponent | undefined) ?? new BashResultRenderComponent();
+			const last: Component | undefined = context.lastComponent;
+			let component: BashResultRenderComponent;
+			if (last === undefined) {
+				component = new BashResultRenderComponent();
+			} else if (last instanceof BashResultRenderComponent) {
+				component = last;
+			} else {
+				component = new BashResultRenderComponent();
+			}
 			rebuildBashResultRenderComponent(
 				component,
 				result as any,

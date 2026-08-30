@@ -1,4 +1,4 @@
-import { realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
 const fileMutationQueues = new Map<string, Promise<void>>();
@@ -16,7 +16,7 @@ function isMissingPathError(error: unknown): boolean {
 async function getMutationQueueKey(filePath: string): Promise<string> {
 	const resolvedPath = resolve(filePath);
 	try {
-		return await realpath(resolvedPath);
+		return realpathSync(resolvedPath);
 	} catch (error) {
 		if (isMissingPathError(error)) {
 			return resolvedPath;
@@ -41,14 +41,17 @@ export async function withFileMutationQueue<T>(filePath: string, fn: () => Promi
 		const chainedQueue = currentQueue.then(() => nextQueue);
 		fileMutationQueues.set(key, chainedQueue);
 
-		return { key, currentQueue, chainedQueue, releaseNext };
+		return { key: key, currentQueue: currentQueue, chainedQueue: chainedQueue, releaseNext: releaseNext };
 	});
-	registrationQueue = registration.then(
-		() => undefined,
-		() => undefined,
-	);
+	registrationQueue = registration
+		.then(() => undefined)
+		.catch(() => undefined);
 
-	const { key, currentQueue, chainedQueue, releaseNext } = await registration;
+	const registrationResult = await registration;
+	const key = registrationResult.key;
+	const currentQueue = registrationResult.currentQueue;
+	const chainedQueue = registrationResult.chainedQueue;
+	const releaseNext = registrationResult.releaseNext;
 	await currentQueue;
 	try {
 		return await fn();

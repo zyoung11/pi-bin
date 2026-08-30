@@ -342,7 +342,7 @@ export function createEditToolDefinition(
 		constrainedSampling: getExperimentalToolSampling(),
 		renderShell: "self",
 		prepareArguments: prepareEditArguments,
-		async execute(_toolCallId, input: EditToolInput, signal?: AbortSignal, _onUpdate?) {
+		async execute(_toolCallId, input: EditToolInput, signal, _onUpdate) {
 			const { path, edits } = validateEditInput(input);
 			const absolutePath = resolveToCwd(path, cwd);
 

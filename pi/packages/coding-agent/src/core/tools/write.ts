@@ -1,6 +1,7 @@
 import type { AgentTool } from "../../../../agent/src/index.ts";
 import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
+import type { Component } from "../../../../tui/src/tui.ts";
 import { Container } from "../../../../tui/src/tui.ts";
 import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
 import { dirname } from "path";
@@ -117,7 +118,8 @@ function updateWriteHighlightCacheIncremental(
 
 	const segments = deltaNormalized.split("\n");
 	const lastIndex = cache.normalizedLines.length - 1;
-	cache.normalizedLines[lastIndex] += segments[0];
+	const previousLine: string = cache.normalizedLines[lastIndex];
+	cache.normalizedLines[lastIndex] = previousLine + segments[0];
 	cache.highlightedLines[lastIndex] = highlightSingleLine(cache.normalizedLines[lastIndex], cache.lang);
 	for (let i = 1; i < segments.length; i++) {
 		cache.normalizedLines.push(segments[i]);
@@ -235,8 +237,15 @@ export function createWriteToolDefinition(
 			const renderArgs = args as { path?: string; file_path?: string; content?: string } | undefined;
 			const rawPath = str(renderArgs?.file_path ?? renderArgs?.path);
 			const fileContent = str(renderArgs?.content);
-			const component =
-				(context.lastComponent as WriteCallRenderComponent | undefined) ?? new WriteCallRenderComponent();
+			const last: Component | undefined = context.lastComponent;
+			let component: WriteCallRenderComponent;
+			if (last === undefined) {
+				component = new WriteCallRenderComponent();
+			} else if (last instanceof WriteCallRenderComponent) {
+				component = last;
+			} else {
+				component = new WriteCallRenderComponent();
+			}
 			if (fileContent !== null) {
 				component.cache = context.argsComplete
 					? rebuildWriteHighlightCacheFull(rawPath, fileContent)
@@ -253,18 +262,37 @@ export function createWriteToolDefinition(
 					context.cwd,
 				),
 			);
-			return component;
+			return component as Component;
 		},
 		renderResult(result, _options, theme, context) {
 			const output = formatWriteResult({ ...result, isError: context.isError }, theme);
+			const last: Component | undefined = context.lastComponent;
 			if (!output) {
-				const component = (context.lastComponent as Container | undefined) ?? new Container();
+				if (last === undefined) {
+					const component = new Container();
+					component.clear();
+					return component as Component;
+				}
+				if (last instanceof Container) {
+					last.clear();
+					return last as Component;
+				}
+				const component = new Container();
 				component.clear();
-				return component;
+				return component as Component;
 			}
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			if (last === undefined) {
+				const text = new Text("", 0, 0);
+				text.setText(output);
+				return text as Component;
+			}
+			if (last instanceof Text) {
+				last.setText(output);
+				return last as Component;
+			}
+			const text = new Text("", 0, 0);
 			text.setText(output);
-			return text;
+			return text as Component;
 		},
 	};
 }

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";  // appendFileSync(path, data) keeps bytes
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult, truncateTail } from "./truncate.ts";
@@ -84,7 +84,7 @@ export class OutputAccumulator {
 
 		if (this.tempFileCreated || this.shouldUseTempFile()) {
 			this.ensureTempFile();
-			appendFileSync(this.tempFilePath as string, data);
+			writeFileSync(this.tempFilePath as string, data, { flag: "a" });
 		} else if (data.length > 0) {
 			this.rawChunks.push(data);
 		}
@@ -215,7 +215,7 @@ export class OutputAccumulator {
 		this.tempFilePath = defaultTempFilePath(this.tempFilePrefix);
 		writeFileSync(this.tempFilePath, new Uint8Array(0));
 		for (const chunk of this.rawChunks) {
-			appendFileSync(this.tempFilePath, chunk);
+			writeFileSync(this.tempFilePath, chunk, { flag: "a" });
 		}
 		this.rawChunks = [];
 		this.tempFileCreated = true;
