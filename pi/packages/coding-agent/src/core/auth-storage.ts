@@ -53,7 +53,7 @@ function raceAuthDataWithAbort(
 	});
 }
 
-type LockResult<T> = {
+export type LockResult<T> = {
 	result: T;
 	next?: string;
 };
@@ -439,7 +439,7 @@ export class AuthStorage extends CredentialStore {
 		let content: string | undefined;
 		let revision: string | undefined;
 		try {
-			this.storage.withLock((current) => {
+			this.storage.withLock((current): LockResult<unknown> => {
 				content = current;
 				revision = this.authPath ? getFileRevision(this.authPath) : undefined;
 				return { result: undefined };
@@ -452,7 +452,7 @@ export class AuthStorage extends CredentialStore {
 
 	private async reloadFromStorageAsync(options?: AuthOperationOptions): Promise<AuthStorageData> {
 		let result: AuthStorageData = {};
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const currentData = this.parseStorageData(content);
 			const revision = this.authPath ? getFileRevision(this.authPath) : undefined;
 			this.updateReadState(currentData, revision);
@@ -535,7 +535,7 @@ export class AuthStorage extends CredentialStore {
 		let latestData = this.readState.data;
 		let revision: string | undefined;
 		let result: Credential | undefined = undefined;
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const currentData = this.parseStorageData(content);
 			const next = await fn(currentData[provider]);
 			if (next === undefined) {
@@ -560,7 +560,7 @@ export class AuthStorage extends CredentialStore {
 
 	private async deleteAsync(provider: string, options?: AuthOperationOptions): Promise<void> {
 		let latestData = this.readState.data;
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const currentData = this.parseStorageData(content);
 			delete currentData[provider];
 			latestData = currentData;

@@ -11,7 +11,7 @@ import { getAgentDir } from "../config.ts";
 import { raceWithAbortSignal } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
-import { type AuthStorageBackend, FileAuthStorageBackend } from "./auth-storage.ts";
+import { type AuthStorageBackend, type LockResult, FileAuthStorageBackend } from "./auth-storage.ts";
 
 type StoredModels = Record<string, ModelsStoreEntry>;
 
@@ -93,7 +93,7 @@ export class FileModelsStore extends ModelsStore {
 		options?: ModelsStoreOperationOptions,
 	): Promise<StoredModels> {
 		let result: StoredModels = {};
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const data = this.parse(content);
 			this.updateReadState(readState, data, getFileRevision(this.path));
 			result = data;
@@ -106,7 +106,8 @@ export class FileModelsStore extends ModelsStore {
 		readState: ModelsFileReadState,
 		options?: ModelsStoreOperationOptions,
 	): Promise<StoredModels> {
-		options?.signal?.throwIfAborted();
+		const signal = options?.signal;
+		if (signal !== undefined) signal.throwIfAborted();
 		const revision = getFileRevision(this.path);
 		if (revision !== undefined && revision === readState.revision) return readState.data;
 		if (!readState.reload) {
@@ -117,14 +118,13 @@ export class FileModelsStore extends ModelsStore {
 				readers: 0,
 			};
 			readState.reload = reload;
-			void reload.promise.then(
-				() => {
+			void reload.promise
+				.then(() => {
 					if (readState.reload === reload) readState.reload = undefined;
-				},
-				() => {
+				})
+				.catch(() => {
 					if (readState.reload === reload) readState.reload = undefined;
-				},
-			);
+				});
 		}
 
 		const reload = readState.reload;
@@ -156,7 +156,7 @@ export class FileModelsStore extends ModelsStore {
 
 	private async writeAsync(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
 		let latest: StoredModels | undefined;
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const current = this.parse(content);
 			current[providerId] = structuredClone(entry);
 			latest = current;
@@ -171,7 +171,7 @@ export class FileModelsStore extends ModelsStore {
 
 	private async deleteAsync(providerId: string, options?: ModelsStoreOperationOptions): Promise<void> {
 		let latest: StoredModels | undefined;
-		await this.storage.withLockAsync(async (content) => {
+		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const current = this.parse(content);
 			delete current[providerId];
 			latest = current;
