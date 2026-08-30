@@ -8,7 +8,7 @@ function throwIfSignalAborted(options?: ModelsStoreOperationOptions): void {
 	if (signal) signal.throwIfAborted();
 }
 import { getAgentDir } from "../config.ts";
-import { raceWithAbortSignal } from "../utils/abort.ts";
+import { abortReason } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { type AuthStorageBackend, type LockResult, FileAuthStorageBackend } from "./auth-storage.ts";
@@ -29,6 +29,43 @@ type ModelsFileReadState = {
 
 // Optimize the common path without retaining an unbounded set of custom paths.
 let sharedModelsFileReadState: { path: string; readState: ModelsFileReadState } | undefined;
+
+
+/** Concrete-typed race with abort (Promise<unknown> slots reject index-signature inners). */
+function raceStoredModelsWithAbort(
+	operation: Promise<StoredModels>,
+	signal: AbortSignal | undefined,
+): Promise<StoredModels> {
+	if (!signal) return operation;
+	if (signal.aborted) {
+		void operation.catch(() => {});
+		return Promise.reject(abortReason(signal));
+	}
+	return new Promise<StoredModels>((resolve, reject) => {
+		let settled = false;
+		const cleanup = () => signal.removeEventListener("abort", onAbort);
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			reject(abortReason(signal));
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+		void operation
+			.then((value) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				resolve(value);
+			})
+			.catch((error: unknown) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				reject(error);
+			});
+	});
+}
 
 export class InMemoryCodingAgentModelsStore extends ModelsStore {
 	private readonly entries = new Map<string, ModelsStoreEntry>();
@@ -130,7 +167,7 @@ export class FileModelsStore extends ModelsStore {
 		const reload = readState.reload;
 		reload.readers++;
 		try {
-			return (await raceWithAbortSignal(reload.promise, options?.signal)) as StoredModels;
+			return await raceStoredModelsWithAbort(reload.promise, options?.signal);
 		} finally {
 			reload.readers--;
 			if (reload.readers === 0 && readState.reload === reload) {

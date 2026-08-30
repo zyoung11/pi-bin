@@ -35,7 +35,7 @@ export class RuntimeCredentials extends CredentialStore {
 		const override = this.overrides.get(providerId);
 		if (override) {
 			const overrideCredential: Credential = { type: "api_key", key: override };
-			return Promise.resolve(overrideCredential);
+			return Promise.resolve<Credential | undefined>(overrideCredential);
 		}
 		return this.store.read(providerId, options);
 	}

@@ -4,7 +4,7 @@
 
 import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
 import { constants } from "fs";
-import { access, readFile } from "fs/promises";
+import { readFileSync, accessSync } from "node:fs";
 import { splitBom } from "../../utils/text.ts";
 import { resolveToCwd } from "./path-utils.ts";
 
@@ -532,18 +532,21 @@ export async function computeEditsDiff(
 	try {
 		// Check if file exists and is readable
 		try {
-			await access(absolutePath, constants.R_OK);
+			accessSync(absolutePath, constants.R_OK);
 		} catch (error: unknown) {
-			const errorRecord = error as Record<string, unknown>;
-			const errorMessage =
-				error instanceof Error && errorRecord["code"] !== undefined
-					? `Error code: ${JSON.stringify(errorRecord["code"])}`
-					: String(error);
+			const errorRecord = error as unknown as { code?: string };
+			let errorMessage: string;
+			if (error instanceof Error) {
+				const withCode = error as unknown as { code?: string };
+				errorMessage = withCode.code !== undefined ? `Error code: ${withCode.code}` : error.message;
+			} else {
+				errorMessage = JSON.stringify(error);
+			}
 			return { error: `Could not edit file: ${path}. ${errorMessage}.` };
 		}
 
 		// Read the file
-		const rawContent = await readFile(absolutePath, "utf-8");
+		const rawContent = readFileSync(absolutePath, "utf-8");
 
 		// Strip BOM before matching (LLM won't include invisible BOM in oldText)
 		const { text: content } = splitBom(rawContent);

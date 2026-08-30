@@ -216,10 +216,18 @@ function preRenderCustomTools(
 			// Only render if we have a pre-rendered call OR it's not template-rendered
 			const existing = renderedTools[msg.toolCallId];
 			if (existing || !TEMPLATE_RENDERED_TOOLS.has(toolName)) {
+				const renderContent: Array<{ type: string; text: string | undefined; data: string | undefined; mimeType: string | undefined }> = [];
+				for (const block of msg.content) {
+					if (block.type === "text") {
+						renderContent.push({ type: "text", text: block.text, data: undefined, mimeType: undefined });
+					} else {
+						renderContent.push({ type: "image", text: undefined, data: block.data, mimeType: block.mimeType });
+					}
+				}
 				const rendered = toolRenderer.renderResult(
 					msg.toolCallId,
 					toolName,
-					msg.content as unknown as Array<{ type: string; text: string | undefined; data: string | undefined; mimeType: string | undefined }>,
+					renderContent,
 					msg.details,
 					msg.isError || false,
 				);
