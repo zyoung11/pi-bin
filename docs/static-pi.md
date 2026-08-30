@@ -103,8 +103,6 @@
 - **本会话累计 376→约 85（-291，81%）**
 - **剩余分类**：①深水区（provider-composer OAuth 链 8、model-runtime prepareRequest Omit 级联 7、session SessionTree view 6、agent-session emit/record 5、abort 泛型 race 5、event-stream 4、transform-messages 4、auth-storage LockResult 2、models Map<AbortController> 2、telemetry 2、compat/resource-loader/session-export/settings-list/tool-execution 各 1-2）②新揭幕散点（export-html cast、tools execute lift、resolve-config-value TemplatePart、compaction block cast、auth-check credential record、sdk 比较等约 20）
 
-## 阶段 5 grind 第四十轮记录（进行中：204→96，长尾批量清零 + ResourceLoader 抽象类）
-
 ## 阶段 5 grind 第三十九轮记录（进行中：204→157，footer git 轮询改造 + 长尾批量）
 
 - **footer-data-provider 8→0**：watchFile/unwatchFile/Stats 轮询 → setInterval + readFileSync 内容比对（两个 poller，首次读不触发）；spawnSync cwd → git -C；execFile 异步版 → 同步委托；cachedBranch 联合比较归一化为 string|undefined
@@ -674,7 +672,7 @@ cd pi && PATH="$HOME/bin-node26:$PATH" SC_DEBUG_FAIL=1 node ../scriptc/packages/
 - [x] 阶段 3 mini schema 库（运行时/类型层双重等价验证通过，全包构建 + 冒烟 OK）
 - [x] 阶段 4 openai-completions fetch 化 + 内置 provider 清零（全链构建 + 真跑 OK）
 - [x] 阶段 5 前置：跨包相对路径迁移（决策 B，src 全图直连 + 循环切断 + Node 直跑验证）
-- [ ] 阶段 5 诊断清单批量修复（进行中；根因毒源批次攻坚中，最新基线 504 见下方第一轮记录）
+- [ ] 阶段 5 诊断清单批量修复（进行中；最新基线 **73**（r42），全程 712→73，台账见第四十二轮记录及各轮记录）
 - [ ] 阶段 6 --npm-static 收尾
 - [ ] 阶段 7 全量构建 + 冒烟
 
