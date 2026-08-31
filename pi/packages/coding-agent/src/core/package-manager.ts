@@ -11,6 +11,10 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function getEnv(): NodeJS.ProcessEnv {
 	if (process.platform !== "linux" || Object.keys(process.env).length > 0) {
 		return process.env;
@@ -986,8 +990,8 @@ export class DefaultPackageManager implements PackageManager {
 
 		for (const resourceType of RESOURCE_TYPES) {
 			const target = this.getTargetMap(accumulator, resourceType);
-			const globalEntries = ((globalSettings as unknown as Record<string, unknown>)[resourceType] ?? []) as string[];
-			const projectEntries = ((projectSettings as unknown as Record<string, unknown>)[resourceType] ?? []) as string[];
+			const globalEntries = (recordViewOf(globalSettings)[resourceType] ?? []) as string[];
+			const projectEntries = (recordViewOf(projectSettings)[resourceType] ?? []) as string[];
 			this.resolveLocalEntries(
 				projectEntries,
 				resourceType,
@@ -2223,7 +2227,7 @@ export class DefaultPackageManager implements PackageManager {
 	): boolean {
 		if (filter) {
 			for (const resourceType of RESOURCE_TYPES) {
-				const patterns = (filter as unknown as Record<string, string[] | undefined>)[resourceType];
+				const patterns = recordViewOf(filter)[resourceType] as string[] | undefined;
 				const target = this.getTargetMap(accumulator, resourceType);
 				if (filter.autoload === false) {
 					this.applyPackageDeltaFilter(packageRoot, patterns ?? [], resourceType, target, metadata);

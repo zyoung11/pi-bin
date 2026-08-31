@@ -170,6 +170,10 @@ export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
 // Types
 // ============================================================================
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function withoutDeletedHeaders(headers: ProviderHeaders | undefined): Record<string, string> | undefined {
 	if (!headers) return undefined;
 	const result: Record<string, string> = {};
@@ -668,23 +672,6 @@ export class AgentSession {
 		}
 		return undefined;
 	}
-
-	private _replaceMessageInPlace(target: AgentMessage, replacement: AgentMessage): void {
-		// Agent-core stores the finalized message object in its state before emitting message_end.
-		// SessionManager persistence happens later in _handleAgentEvent() with event.message.
-		// Mutating this object in place keeps agent state, later turn/agent events, listeners,
-		// and the eventual SessionManager.appendMessage(event.message) persistence in sync.
-		if (target === replacement) {
-			return;
-		}
-
-		const targetRecord = target as unknown as Record<string, unknown>;
-		for (const key of Object.keys(targetRecord)) {
-			delete targetRecord[key];
-		}
-		Object.assign(targetRecord, replacement);
-	}
-
 
 	/**
 	 * Subscribe to agent events.
@@ -2575,7 +2562,7 @@ export class AgentSession {
 			if (entry.type === "compaction") {
 				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
 			} else if (entry.type === "branch_summary") {
-				const summaryUsage = (entry as unknown as { usage?: Usage }).usage;
+				const summaryUsage = recordViewOf(entry)["usage"] as Usage | undefined;
 				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
 			}
 			if (entry.type !== "message") continue;

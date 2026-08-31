@@ -18,6 +18,10 @@ import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, rawKeyHint } from "./keybinding-hints.ts";
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function refIncludes<T>(items: readonly T[], value: T): boolean {
 	for (const item of items) {
 		if (item === value) return true;
@@ -540,7 +544,7 @@ class ResourceList extends Component implements Focusable {
 		const settings =
 			scope === "project" ? this.settingsManager.getProjectSettings() : this.settingsManager.getGlobalSettings();
 
-		const current = this.resourceArrayFor(settings as unknown as Record<string, unknown>, item.resourceType);
+		const current = this.resourceArrayFor(recordViewOf(settings), item.resourceType);
 
 		// Generate pattern for this resource
 		const pattern = this.getResourcePattern(item);
@@ -604,7 +608,7 @@ class ResourceList extends Component implements Focusable {
 		}
 
 		// Get the resource array for this type
-		const current = this.resourceArrayFor(pkg as unknown as Record<string, unknown>, item.resourceType);
+		const current = this.resourceArrayFor(recordViewOf(pkg), item.resourceType);
 
 		// Generate pattern relative to package root
 		const pattern = this.getPackageResourcePattern(item);
@@ -623,7 +627,7 @@ class ResourceList extends Component implements Focusable {
 			updated.push(disablePattern);
 		}
 
-		const pkgRecord = pkg as unknown as Record<string, unknown>;
+		const pkgRecord = recordViewOf(pkg);
 		pkgRecord[item.resourceType] = updated.length > 0 ? updated : undefined;
 
 		// Clean up empty filter object
@@ -633,7 +637,9 @@ class ResourceList extends Component implements Focusable {
 			pkgRecord["prompts"] !== undefined ||
 			pkgRecord["themes"] !== undefined;
 		if (!hasFilters) {
-			packages[pkgIndex] = (pkg as { source: string }).source;
+			packages[pkgIndex] = pkg.source;
+		} else {
+			packages[pkgIndex] = JSON.parse(JSON.stringify(pkgRecord)) as PackageSource;
 		}
 
 		if (scope === "project") {
@@ -676,10 +682,7 @@ class ResourceList extends Component implements Focusable {
 	}
 
 	private setProjectTopLevelOverride(item: ResourceItem, state: ProjectOverrideState): boolean {
-		const current = this.resourceArrayFor(
-			this.settingsManager.getProjectSettings() as unknown as Record<string, unknown>,
-			item.resourceType,
-		);
+		const current = this.resourceArrayFor(recordViewOf(this.settingsManager.getProjectSettings()), item.resourceType);
 		const pattern = this.isInheritedGlobalItem(item) ? item.path : this.getResourcePatternForScope(item, "project");
 		const patterns = this.getTopLevelOverridePatterns(item, "project");
 		const updated = current.filter((entry) => {
@@ -725,12 +728,12 @@ class ResourceList extends Component implements Focusable {
 			packages[pkgIndex] = pkg;
 		}
 		const pattern = this.getPackageResourcePattern(item);
-		const updated = this.resourceArrayFor(pkg as unknown as Record<string, unknown>, item.resourceType).filter(
+		const updated = this.resourceArrayFor(recordViewOf(pkg), item.resourceType).filter(
 			(entry) => this.getPatternEntryTarget(entry) !== pattern,
 		);
 		if (state !== "inherit") updated.push(`${state === "load" ? "+" : "-"}${pattern}`);
-		(pkg as Record<string, unknown>)[item.resourceType] = updated.length > 0 ? updated : undefined;
-		const pkgRecord = pkg as unknown as Record<string, unknown>;
+		const pkgRecord = recordViewOf(pkg);
+		pkgRecord[item.resourceType] = updated.length > 0 ? updated : undefined;
 		const hasAnyResources =
 			pkgRecord["extensions"] !== undefined ||
 			pkgRecord["skills"] !== undefined ||
@@ -739,6 +742,8 @@ class ResourceList extends Component implements Focusable {
 		if (!hasAnyResources) {
 			if (pkg.autoload === false) packages.splice(pkgIndex, 1);
 			else packages[pkgIndex] = pkg.source;
+		} else {
+			packages[pkgIndex] = JSON.parse(JSON.stringify(pkgRecord)) as PackageSource;
 		}
 		this.settingsManager.setProjectPackages(packages);
 		return true;
@@ -756,15 +761,14 @@ class ResourceList extends Component implements Focusable {
 		if (this.writeScope !== "project") return "inherit";
 		if (item.metadata.origin === "top-level") {
 			return this.getOverrideStateFromEntries(
-				((this.settingsManager.getProjectSettings() as unknown as Record<string, unknown>)[item.resourceType] ??
-					[]) as string[],
+				(recordViewOf(this.settingsManager.getProjectSettings())[item.resourceType] ?? []) as string[],
 				this.getTopLevelOverridePatterns(item, "project"),
 				false,
 			);
 		}
 		const pkg = this.findMatchingPackageSource(item, "project");
 		if (typeof pkg !== "object") return "inherit";
-		const entries = (pkg as unknown as Record<string, unknown>)[item.resourceType];
+		const entries = recordViewOf(pkg)[item.resourceType];
 		if (entries === undefined) return "inherit";
 		return this.getOverrideStateFromEntries(
 			entries as string[],

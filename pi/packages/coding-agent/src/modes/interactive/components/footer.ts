@@ -12,6 +12,10 @@ import { theme } from "../theme/theme.ts";
  * Sanitize text for display in a single-line status.
  * Removes newlines, tabs, carriage returns, and other control characters.
  */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function sanitizeStatusText(text: string): string {
 	// Replace newlines, tabs, carriage returns with space, then collapse multiple spaces
 	return text
@@ -104,7 +108,7 @@ export class FooterComponent extends Component {
 			} else if (entry.type === "compaction") {
 				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
 			} else if (entry.type === "branch_summary") {
-				const summaryUsage = (entry as unknown as { usage?: Usage }).usage;
+				const summaryUsage = recordViewOf(entry)["usage"] as Usage | undefined;
 				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
 			}
 		}

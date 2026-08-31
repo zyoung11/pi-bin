@@ -366,7 +366,7 @@ function normalizeShiftedLetterIdentityCodepoint(codepoint: number, modifier: nu
 	return codepoint;
 }
 
-const LEGACY_KEY_SEQUENCES = {
+const LEGACY_KEY_SEQUENCES: Record<string, readonly string[]> = {
 	up: ["\x1b[A", "\x1bOA"],
 	down: ["\x1b[B", "\x1bOB"],
 	right: ["\x1b[C", "\x1bOC"],
@@ -390,7 +390,7 @@ const LEGACY_KEY_SEQUENCES = {
 	f10: ["\x1b[21~"],
 	f11: ["\x1b[23~"],
 	f12: ["\x1b[24~"],
-} as const;
+};
 
 const LEGACY_SHIFT_SEQUENCES = {
 	up: ["\x1b[a"],
@@ -1141,8 +1141,7 @@ export function matchesKey(data: string, keyId: KeyId): boolean {
 			if (modifier !== 0) {
 				return false;
 			}
-			const legacyTable = LEGACY_KEY_SEQUENCES as unknown as Record<string, readonly string[]>;
-			const sequences = legacyTable[key];
+			const sequences = LEGACY_KEY_SEQUENCES[key];
 			return sequences !== undefined ? matchesLegacySequence(data, sequences) : false;
 		}
 	}

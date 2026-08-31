@@ -773,10 +773,18 @@ export class ModelRuntime implements Models {
 		// Re-registration merges defined values over the previous registration and
 		// preserves undefined ones, matching the legacy ModelRegistry contract.
 		const previous = this.extensionProviders.get(providerId);
-		const effective: ProviderConfigInput = { ...previous };
-		for (const [key, value] of Object.entries(config)) {
-			if (value !== undefined) (effective as Record<string, unknown>)[key] = value;
-		}
+		const effective: ProviderConfigInput = {
+			name: config.name ?? previous?.name,
+			baseUrl: config.baseUrl ?? previous?.baseUrl,
+			apiKey: config.apiKey ?? previous?.apiKey,
+			api: config.api ?? previous?.api,
+			streamSimple: config.streamSimple ?? previous?.streamSimple,
+			headers: config.headers ?? previous?.headers,
+			authHeader: config.authHeader ?? previous?.authHeader,
+			oauth: config.oauth ?? previous?.oauth,
+			models: config.models ?? previous?.models,
+			refreshModels: config.refreshModels ?? previous?.refreshModels,
+		};
 		this.extensionProviders.set(providerId, effective);
 		this.recomposeProvider(providerId);
 		this.updateModelSnapshot();

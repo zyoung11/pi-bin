@@ -12,6 +12,14 @@ interface JsonSchemaObject {
 	oneOf?: JsonSchemaObject[];
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+function refValueOf(schema: unknown): unknown {
+	return (schema as { $ref?: unknown })["$ref"];
+}
+
 function getSchemaTypes(schema: JsonSchemaObject): string[] {
 	if (typeof schema.type === "string") {
 		return [schema.type];
@@ -246,14 +254,14 @@ function normalizeOptionalNulls(value: unknown, schema: JsonSchemaObject): void 
 	}
 	if (typeof value !== "object" || value === null || !schema.properties) return;
 
-	const object = value as Record<string, unknown>;
+	const object = recordViewOf(value);
 	const required = new Set(schema.required ?? []);
 	for (const [key, propertySchema] of Object.entries(schema.properties)) {
 		if (!(key in object)) continue;
 		if (
 			object[key] === null &&
 			!required.has(key) &&
-			typeof (propertySchema as { $ref?: unknown }).$ref !== "string" &&
+			typeof refValueOf(propertySchema) !== "string" &&
 			getSubSchemaValidator(propertySchema)?.Check(null) === false
 		) {
 			delete object[key];

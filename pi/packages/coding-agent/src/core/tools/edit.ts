@@ -39,6 +39,10 @@ type EditRenderState = {
 	settledError?: boolean;
 };
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function editStateOf(state: unknown): EditRenderState {
 	return state as EditRenderState;
 }
@@ -167,7 +171,7 @@ function prepareEditArguments(input: unknown): unknown {
 	const edits = Array.isArray(legacy.edits) ? legacy.edits.slice() : [];
 	edits.push({ oldText: legacy.oldText, newText: legacy.newText });
 	const rebuilt: Record<string, unknown> = {};
-	const legacyRecord = legacy as unknown as Record<string, unknown>;
+	const legacyRecord = recordViewOf(legacy);
 	for (const key of Object.keys(legacyRecord)) {
 		if (key === "oldText" || key === "newText") continue;
 		rebuilt[key] = legacyRecord[key];

@@ -142,6 +142,10 @@ export interface Settings {
 	fullscreenScrollbar?: ScrollViewScrollbar; // default: "auto"; no effect in regular TUI mode
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function isMergeableObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -430,7 +434,7 @@ export class SettingsManager {
 
 	/** Migrate old settings format to new format */
 	private static migrateSettings(settings: Settings): Settings {
-		const record = settings as unknown as Record<string, unknown>;
+		const record = recordViewOf(settings);
 		// Migrate queueMode -> steeringMode
 		if (record["queueMode"] !== undefined && record["steeringMode"] === undefined) {
 			record["steeringMode"] = record["queueMode"];
@@ -451,7 +455,7 @@ export class SettingsManager {
 			skillsValue !== null &&
 			!Array.isArray(skillsValue)
 		) {
-			const skillsSettings = skillsValue as Record<string, unknown>;
+			const skillsSettings = recordViewOf(skillsValue);
 			if (skillsSettings["enableSkillCommands"] !== undefined && record["enableSkillCommands"] === undefined) {
 				record["enableSkillCommands"] = skillsSettings["enableSkillCommands"];
 			}
@@ -471,11 +475,11 @@ export class SettingsManager {
 			retryValue !== null &&
 			!Array.isArray(retryValue)
 		) {
-			const retrySettings = retryValue as Record<string, unknown>;
+			const retrySettings = recordViewOf(retryValue);
 			const providerValue = retrySettings["provider"];
 			const providerSettings =
 				typeof providerValue === "object" && providerValue !== null
-					? (providerValue as Record<string, unknown>)
+					? recordViewOf(providerValue)
 					: undefined;
 			const maxDelayMs = retrySettings["maxDelayMs"];
 			if (
@@ -490,9 +494,10 @@ export class SettingsManager {
 				retrySettings["provider"] = mergedProvider;
 			}
 			delete retrySettings["maxDelayMs"];
+			record["retry"] = retrySettings;
 		}
 
-		return settings;
+		return JSON.parse(JSON.stringify(record)) as Settings;
 	}
 
 	getGlobalSettings(): Settings {
@@ -646,27 +651,26 @@ export class SettingsManager {
 			const currentFileSettings = current
 				? SettingsManager.migrateSettings(JSON.parse(stripBom(current)) as Settings)
 				: {};
-			const currentFileView = currentFileSettings as unknown as Record<string, unknown>;
-			const mergedSettings: Settings = { ...currentFileSettings };
-			const mergedSettingsView = mergedSettings as unknown as Record<string, unknown>;
+			const currentFileView = recordViewOf(currentFileSettings);
+			const mergedSettings: Record<string, unknown> = { ...currentFileView };
+			const snapshotView = recordViewOf(snapshotSettings);
 			for (const field of modifiedFields) {
-				const snapshotView = snapshotSettings as unknown as Record<string, unknown>;
 				const value = snapshotView[field];
 				if (modifiedNestedFields.has(field) && typeof value === "object" && value !== null) {
 					const nestedModified = modifiedNestedFields.get(field)!;
 					const baseValue = currentFileView[field];
 					const baseNested =
-						typeof baseValue === "object" && baseValue !== null ? (baseValue as Record<string, unknown>) : {};
-					const inMemoryNested = value as Record<string, unknown>;
+						typeof baseValue === "object" && baseValue !== null ? recordViewOf(baseValue) : {};
+					const inMemoryNested = recordViewOf(value);
 					const mergedNested: Record<string, unknown> = {};
 					for (const nestedKey of Object.keys(baseNested)) mergedNested[nestedKey] = baseNested[nestedKey];
 					for (const nestedKey of nestedModified) {
 						const nestedValue: unknown = inMemoryNested[nestedKey];
 						mergedNested[nestedKey] = nestedValue;
 					}
-					mergedSettingsView[field] = mergedNested;
+					mergedSettings[field] = mergedNested;
 				} else {
-					mergedSettingsView[field] = value;
+					mergedSettings[field] = value;
 				}
 			}
 

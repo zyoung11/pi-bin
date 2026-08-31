@@ -390,6 +390,10 @@ function mapToolCallCustomPart(part: unknown): { name?: string; input?: string }
 	};
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function normalizeToolCallDelta(raw: unknown): StreamingToolCallDelta | undefined {
 	if (typeof raw !== "object" || raw === null) return undefined;
 	const record = raw as unknown as Record<string, unknown>;
@@ -677,7 +681,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 					// Use the first non-empty reasoning field to avoid duplication
 					// (e.g., chutes.ai returns both reasoning_content and reasoning with same content)
 					const reasoningFields = ["reasoning_content", "reasoning", "reasoning_text"];
-					const deltaFields = choice.delta as Record<string, unknown>;
+					const deltaFields = recordViewOf(choice.delta);
 					let foundReasoningField: string | null = null;
 					for (const field of reasoningFields) {
 						const value = deltaFields[field];

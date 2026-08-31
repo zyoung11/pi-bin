@@ -160,6 +160,10 @@ function hasExplicitApiKey(apiKey: string | undefined): apiKey is string {
 	return typeof apiKey === "string" && apiKey.trim().length > 0;
 }
 
+function recordOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function withEnvApiKey<TOptions extends StreamOptions>(
 	model: Model<Api>,
 	options: TOptions | undefined,
@@ -169,7 +173,7 @@ function withEnvApiKey<TOptions extends StreamOptions>(
 	if (!apiKey || apiKey === AMBIENT_AUTH_MARKER) return options;
 	const merged: Record<string, unknown> = {};
 	if (options !== undefined) {
-		const source = options as unknown as Record<string, unknown>;
+		const source = recordOf(options);
 		for (const key of Object.keys(source)) {
 			merged[key] = source[key];
 		}

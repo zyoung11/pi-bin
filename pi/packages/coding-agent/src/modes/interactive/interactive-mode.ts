@@ -174,6 +174,10 @@ function messageRoleOf(message: unknown): string {
 	return typeof role === "string" ? role : "";
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 /** JSON.stringify a message union via an unknown parameter. */
 function messageJsonOf(message: unknown): string {
 	return JSON.stringify(message) ?? "";
@@ -3138,7 +3142,7 @@ export class InteractiveMode {
 			case "tool_execution_update": {
 				const component = this.pendingTools.get(event.toolCallId);
 				if (component) {
-					const partial = event.partialResult as unknown as Record<string, unknown>;
+					const partial = recordViewOf(event.partialResult);
 					component.updateResult(
 						{
 							content: partial["content"] as (TextContent | ImageContent)[],
@@ -3155,7 +3159,7 @@ export class InteractiveMode {
 			case "tool_execution_end": {
 				const component = this.pendingTools.get(event.toolCallId);
 				if (component) {
-					const result = event.result as unknown as Record<string, unknown>;
+					const result = recordViewOf(event.result);
 					component.updateResult({
 						content: result["content"] as (TextContent | ImageContent)[],
 						details: result["details"],

@@ -172,10 +172,8 @@ function trimPartialClosingFences(tokens: readonly Token[]): void {
 		return;
 	}
 
-	const textView = token as unknown as { text?: string };
-	if (textView.text !== undefined) {
-		textView.text = textView.text.slice(0, -lastLine.length).replace(/\n$/, "");
-	}
+	const trimmedText = token.text.slice(0, -lastLine.length).replace(/\n$/, "");
+	token.text = trimmedText;
 }
 
 const markdownParser = new Marked();

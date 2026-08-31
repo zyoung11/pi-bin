@@ -72,6 +72,10 @@ import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.
  * Read all content from piped stdin.
  * Returns undefined if stdin is a TTY (interactive terminal).
  */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 async function readPipedStdin(): Promise<string | undefined> {
 	// If stdin is a TTY, we're running interactively - don't read stdin
 	if (process.stdin.isTTY) {
@@ -369,8 +373,8 @@ export async function createSessionManager(
 			case "path":
 			case "local":
 			case "global": {
-				const forkPath = (resolved as unknown as Record<string, unknown>)["path"];
-				return forkSessionOrExit(forkPath as string, cwd, sessionDir, parsed.sessionId);
+				const forkPath = recordViewOf(resolved)["path"] as string;
+				return forkSessionOrExit(forkPath, cwd, sessionDir, parsed.sessionId);
 			}
 
 			case "not_found":
