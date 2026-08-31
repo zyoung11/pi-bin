@@ -368,8 +368,12 @@ Options:
 	}
 }
 
+/** Parse a package management command (`pi install|remove|update|list ...`).
+ * Note: the head read is guarded because the static runtime traps on
+ * empty-array destructure instead of yielding undefined. */
 function parsePackageCommand(args: string[]): PackageCommandOptions | undefined {
-	const [rawCommand, ...rest] = args;
+	const rawCommand = args.length > 0 ? args[0] : undefined;
+	const rest = args.slice(1);
 	let command: PackageCommand | undefined;
 	if (rawCommand === "uninstall") {
 		command = "remove";
@@ -770,7 +774,8 @@ export function getPackageCommandExitCode(): number | undefined {
 export async function handleConfigCommand(
 	args: string[],
 ): Promise<boolean> {
-	const [command, ...rest] = args;
+	const command = args.length > 0 ? args[0] : undefined;
+	const rest = args.slice(1);
 	if (command !== "config") {
 		return false;
 	}

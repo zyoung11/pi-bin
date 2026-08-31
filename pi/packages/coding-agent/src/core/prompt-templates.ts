@@ -144,6 +144,10 @@ export function substituteArgs(content: string, args: string[]): string {
 	return out;
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptTemplate | null {
 	try {
 		const rawContent = readFileSync(filePath, "utf-8");
@@ -151,8 +155,12 @@ function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptT
 
 		const name = basename(filePath).replace(/\.md$/, "");
 
-		// Get description from frontmatter or first non-empty line
-		let description = frontmatter.description || "";
+		// Get description from frontmatter or first non-empty line. All reads
+		// go through the dyn channel: typed record keyed reads trap on absent
+		// keys, while the view returns undefined.
+		const view = recordViewOf(frontmatter);
+		const descriptionValue = view["description"];
+		let description = typeof descriptionValue === "string" ? descriptionValue : "";
 		if (!description) {
 			const firstLine = body.split("\n").find((line) => line.trim());
 			if (firstLine) {
@@ -162,11 +170,11 @@ function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptT
 			}
 		}
 
-		const argumentHint = frontmatter["argument-hint"];
+		const argumentHintValue = view["argument-hint"];
 		return {
 			name,
 			description,
-			argumentHint: typeof argumentHint === "string" ? argumentHint : undefined,
+			argumentHint: typeof argumentHintValue === "string" ? argumentHintValue : undefined,
 			content: body,
 			sourceInfo,
 			filePath,

@@ -1,56 +1,22 @@
-// Probe: generic class with definite-assignment T field read before write.
+// Probe: Object.keys + bracket reads over a record with boolean values.
 
-interface NextResult<T> {
-	done: boolean;
-	value: T;
-}
-
-class Stream<T> {
-	private queue: T[] = [];
-	private lastEvent!: T;
-	private done = false;
-
-	push(event: T): void {
-		if (this.done) return;
-		this.lastEvent = event;
-		this.queue.push(event);
+async function main(): Promise<void> {
+	let parsed: unknown = JSON.parse('{"\u002fhome\u002fzy": true}');
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+		console.log("not object");
+		return;
 	}
-
-	end(): void {
-		this.done = true;
-	}
-
-	next(): NextResult<T> {
-		if (this.queue.length > 0) {
-			const value: T = this.queue[0];
-			this.queue.splice(0, 1);
-			return { value: value, done: false };
+	const rec = parsed as Record<string, unknown>;
+	const data: Record<string, number> = {};
+	const keys = Object.keys(rec);
+	for (const key of keys) {
+		const value = rec[key];
+		console.error(`DBG key=${key} value=${String(value)} type=${typeof value}`);
+		if (typeof value === "boolean") {
+			data[key] = value ? 1 : 0;
 		}
-		if (this.done) {
-			return { value: this.lastEvent, done: true };
-		}
-		return { value: this.queue[0], done: false };
 	}
+	console.log(`keys=${Object.keys(data).join(",")}`);
 }
 
-const stream = new Stream<string>();
-stream.push("a");
-stream.end();
-
-const empty = new Stream<string>();
-empty.end();
-
-export function probeStream(): string {
-	const out: string[] = [];
-	let step = stream.next();
-	while (!step.done) {
-		out.push(step.value);
-		step = stream.next();
-	}
-	out.push(`done:${String(step.value)}`);
-	const emptyStep = empty.next();
-	out.push(`empty-done:${String(emptyStep.done)}`);
-	return out.join(",");
-}
-
-console.log(probeStream());
+void main();

@@ -30,10 +30,7 @@ export function getAuthCommandUsage(kind: AuthCommandKind): string {
 }
 
 export function isAuthCommandHelp(args: string[]): boolean {
-	return (
-		args[0] === "auth" &&
-		(args[1] === undefined || args[1] === "help" || args.includes("--help") || args.includes("-h"))
-	);
+	return args.length > 0 && args[0] === "auth" && (args.length === 1 || args[1] === "help" || args.includes("--help") || args.includes("-h"));
 }
 
 export function printAuthCommandHelp(): void {
@@ -46,19 +43,20 @@ Auth commands require at least one of --provider or --model. Checks refresh expi
 }
 
 export function parseAuthCommand(args: string[]): AuthCommand | undefined {
-	if (args[0] !== "auth") return undefined;
+	if (args.length === 0 || args[0] !== "auth") return undefined;
 
+	const subcommand = args.length > 1 ? args[1] : undefined;
 	const kind =
-		args[1] === "check"
+		subcommand === "check"
 			? "check"
-			: args[1] === "print-api-key"
+			: subcommand === "print-api-key"
 				? "api_key"
-				: args[1] === "print-bearer-token"
+				: subcommand === "print-bearer-token"
 					? "bearer_token"
 					: undefined;
 	if (!kind) {
 		throw new AuthCommandError(
-			`Unknown auth command "${args[1] ?? ""}". Use "${APP_NAME} auth print-api-key", "${APP_NAME} auth print-bearer-token", or "${APP_NAME} auth check".`,
+			`Unknown auth command "${subcommand ?? ""}". Use "${APP_NAME} auth print-api-key", "${APP_NAME} auth print-bearer-token", or "${APP_NAME} auth check".`,
 		);
 	}
 

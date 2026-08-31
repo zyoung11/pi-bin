@@ -25,7 +25,7 @@ export interface ProjectTrustOption {
 	savedPath?: string;
 }
 
-type TrustFile = Record<string, boolean | null | undefined>;
+type TrustFile = Record<string, number>;
 
 const TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES = [
 	"settings.json",
@@ -40,12 +40,23 @@ function normalizeCwd(cwd: string): string {
 	return canonicalizePath(resolvePath(cwd));
 }
 
+/** Read a trust entry off a possibly-missing key via the dyn channel
+ * (typed record keyed reads trap on absent keys). */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+function trustEntryOf(data: unknown, key: string): number | undefined {
+	const value = recordViewOf(data)[key];
+	return typeof value === "number" ? value : undefined;
+}
+
 function findNearestTrustEntry(data: TrustFile, cwd: string): ProjectTrustStoreEntry | null {
 	let currentDir = normalizeCwd(cwd);
 	while (true) {
-		const value = data[currentDir];
-		if (value === true || value === false) {
-			return { path: currentDir, decision: value };
+		const value = trustEntryOf(data, currentDir);
+		if (value === 1 || value === 0) {
+			return { path: currentDir, decision: value === 1 };
 		}
 
 		const parentDir = dirname(currentDir);
@@ -112,25 +123,30 @@ function readTrustFile(path: string): TrustFile {
 	}
 
 	const data: TrustFile = {};
-	for (const [key, value] of Object.entries(parsed)) {
-		if (typeof value !== "boolean" && value !== null) {
+	const parsedView = parsed as Record<string, unknown>;
+	for (const key of Object.keys(parsedView)) {
+		const value = parsedView[key];
+		if (typeof value === "boolean") {
+			if (value) {
+				data[key] = 1;
+			} else {
+				data[key] = 0;
+			}
+		} else if (value !== null) {
 			throw new Error(`Invalid trust store ${path}: value for ${JSON.stringify(key)} must be true, false, or null`);
 		}
-		data[key] = value;
 	}
 	return data;
 }
 
 function writeTrustFile(path: string, data: TrustFile): void {
-	const sorted: TrustFile = {};
-	for (const key of Object.keys(data).sort()) {
-		const value = data[key];
-		if (value === true || value === false || value === null) {
-			sorted[key] = value;
-		}
+	const keys = Object.keys(data).sort();
+	const parts: string[] = [];
+	for (const key of keys) {
+		parts.push(`${JSON.stringify(key)}: ${data[key] === 1 ? "true" : "false"}`);
 	}
 	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify(sorted, null, 2)}\n`, "utf-8");
+	writeFileSync(path, `{\n${parts.join(",\n")}\n}\n`, "utf-8");
 }
 
 function acquireTrustLockSync(path: string): () => void {
@@ -232,7 +248,7 @@ export class ProjectTrustStore {
 				if (decision === null) {
 					delete data[key];
 				} else {
-					data[key] = decision;
+					data[key] = decision ? 1 : 0;
 				}
 			}
 			writeTrustFile(this.trustPath, data);

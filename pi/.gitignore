@@ -44,3 +44,4 @@ plans/
 collect.sh
 .scriptc/
 pi-native
+cli.ll
