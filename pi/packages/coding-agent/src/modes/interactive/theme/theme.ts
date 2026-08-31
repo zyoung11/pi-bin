@@ -9,7 +9,8 @@ import type { SettingsListTheme } from "../../../../../tui/src/components/settin
 import type { RgbColor } from "../../../../../tui/src/terminal-colors.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import chalk from "../../../utils/mini-chalk.ts";
-import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
+import { getCustomThemesDir } from "../../../config.ts";
+import { DARK_THEME_JSON } from "./theme-dark.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, watchWithErrorHandler, type FsPollWatcher } from "../../../utils/fs-watch.ts";
 import { highlight, supportsLanguage } from "../../../utils/syntax-highlight.ts";
@@ -169,6 +170,71 @@ export type ThemeBg =
 type OptionalThemeColor = "thinkingMax" | "searchMatchText";
 type OptionalThemeBg = "scrollbarThumb" | "searchMatchBg";
 
+/** Explicit key lists: static-runtime keyed enumeration over typed records
+ * traps or loses keys, so the theme color chain iterates known keys only. */
+const THEME_COLOR_KEYS: string[] = [
+	"accent",
+	"border",
+	"borderAccent",
+	"borderMuted",
+	"success",
+	"error",
+	"warning",
+	"muted",
+	"dim",
+	"text",
+	"thinkingText",
+	"searchMatchText",
+	"userMessageText",
+	"customMessageText",
+	"customMessageLabel",
+	"toolTitle",
+	"toolOutput",
+	"mdHeading",
+	"mdLink",
+	"mdLinkUrl",
+	"mdCode",
+	"mdCodeBlock",
+	"mdCodeBlockBorder",
+	"mdQuote",
+	"mdQuoteBorder",
+	"mdHr",
+	"mdListBullet",
+	"toolDiffAdded",
+	"toolDiffRemoved",
+	"toolDiffContext",
+	"syntaxComment",
+	"syntaxKeyword",
+	"syntaxFunction",
+	"syntaxVariable",
+	"syntaxString",
+	"syntaxNumber",
+	"syntaxType",
+	"syntaxOperator",
+	"syntaxPunctuation",
+	"thinkingOff",
+	"thinkingMinimal",
+	"thinkingLow",
+	"thinkingMedium",
+	"thinkingHigh",
+	"thinkingXhigh",
+	"thinkingMax",
+	"bashMode",
+] as const;
+
+const THEME_BG_KEYS: string[] = [
+	"selectedBg",
+	"scrollbarThumb",
+	"searchMatchBg",
+	"userMessageBg",
+	"customMessageBg",
+	"toolPendingBg",
+	"toolSuccessBg",
+	"toolErrorBg",
+];
+
+const THEME_ALL_KEYS: string[] = THEME_COLOR_KEYS.concat(THEME_BG_KEYS);
+
 type ColorMode = "truecolor" | "256color";
 
 // ============================================================================
@@ -198,8 +264,12 @@ function colorOrDefault(primary: string | number | undefined, fallback: string |
 }
 
 function copyThemeRecord(source: Record<string, string | number>): Record<string, string | number> {
+	const view = recordViewOf(source);
 	const out: Record<string, string | number> = {};
-	for (const key of Object.keys(source)) out[key] = source[key];
+	for (const key of THEME_ALL_KEYS) {
+		const value = view[key];
+		if (typeof value === "string" || typeof value === "number") out[key] = value;
+	}
 	return out;
 }
 
@@ -347,9 +417,12 @@ function resolveThemeColors(
 	colors: Record<string, ColorValue>,
 	vars: Record<string, ColorValue> = {},
 ): Record<string, string | number> {
+	const view = recordViewOf(colors);
 	const resolved: Record<string, string | number> = {};
-	for (const key of Object.keys(colors)) {
-		resolved[key] = resolveVarRefs(colors[key], vars);
+	for (const key of THEME_ALL_KEYS) {
+		const value = view[key];
+		if (value === undefined) continue;
+		resolved[key] = resolveVarRefs(value as ColorValue, vars);
 	}
 	return resolved;
 }
@@ -357,7 +430,7 @@ function resolveThemeColors(
 function withThemeColorFallbacks(colors: ThemeJson["colors"]): Record<string, string | number> {
 	const source = recordViewOf(colors);
 	const merged: Record<string, string | number> = {};
-	for (const key of Object.keys(source)) {
+	for (const key of THEME_ALL_KEYS) {
 		const value = source[key];
 		if (value !== undefined) merged[key] = value as string | number;
 	}
@@ -401,8 +474,11 @@ export class Theme {
 			fgView["searchMatchText"] as string | number | undefined,
 			fgView["text"] as string | number | undefined,
 		);
-		for (const key of Object.keys(colors)) {
-			this.fgColors.set(key as ThemeColor, fgAnsi(colors[key], mode));
+		for (const key of THEME_COLOR_KEYS) {
+			const value = colors[key];
+			if (typeof value === "string" || typeof value === "number") {
+				this.fgColors.set(key as ThemeColor, fgAnsi(value, mode));
+			}
 		}
 		this.bgColors = new Map();
 		const backgrounds = copyThemeRecord(bgColors);
@@ -415,8 +491,11 @@ export class Theme {
 			bgView["searchMatchBg"] as string | number | undefined,
 			bgView["selectedBg"] as string | number | undefined,
 		);
-		for (const key of Object.keys(backgrounds)) {
-			this.bgColors.set(key as ThemeBg, bgAnsi(backgrounds[key], mode));
+		for (const key of THEME_BG_KEYS) {
+			const value = backgrounds[key];
+			if (typeof value === "string" || typeof value === "number") {
+				this.bgColors.set(key as ThemeBg, bgAnsi(value, mode));
+			}
 		}
 	}
 
@@ -520,13 +599,11 @@ let BUILTIN_THEMES: Record<string, ThemeJson> | undefined;
 
 function getBuiltinThemes(): Record<string, ThemeJson> {
 	if (!BUILTIN_THEMES) {
-		const themesDir = getThemesDir();
-		const darkPath = path.join(themesDir, "dark.json");
-		const lightPath = path.join(themesDir, "light.json");
-		BUILTIN_THEMES = {
-			dark: JSON.parse(stripBom(fs.readFileSync(darkPath, "utf-8"))) as ThemeJson,
-			light: JSON.parse(stripBom(fs.readFileSync(lightPath, "utf-8"))) as ThemeJson,
-		};
+		// The dark theme JSON is embedded in the binary; the light entry reuses
+		// the same definition so both terminal theme names stay selectable.
+		const dark = JSON.parse(DARK_THEME_JSON) as ThemeJson;
+		const light = JSON.parse(DARK_THEME_JSON) as ThemeJson;
+		BUILTIN_THEMES = { dark: dark, light: light };
 	}
 	return BUILTIN_THEMES;
 }
@@ -541,7 +618,6 @@ export interface ThemeInfo {
 }
 
 export function getAvailableThemesWithPaths(): ThemeInfo[] {
-	const themesDir = getThemesDir();
 	const result: ThemeInfo[] = [];
 	const seen = new Set<string>();
 	const addTheme = (themeInfo: ThemeInfo) => {
@@ -552,10 +628,9 @@ export function getAvailableThemesWithPaths(): ThemeInfo[] {
 		result.push(themeInfo);
 	};
 
-	// Built-in themes
-	for (const name of Object.keys(getBuiltinThemes())) {
-		addTheme({ name, path: path.join(themesDir, `${name}.json`) });
-	}
+	// Built-in themes are embedded in the binary (no file path).
+	addTheme({ name: "dark", path: undefined });
+	addTheme({ name: "light", path: undefined });
 
 	// Custom themes
 	for (const themeInfo of getCustomThemeInfos()) {
@@ -897,7 +972,13 @@ const THEME_KEY_OLD = Symbol.for("@mariozechner/pi-coding-agent:theme");
 
 // Export theme as a getter that reads from globalThis
 // This ensures all module instances (tsx, jiti) see the same theme
-const themeHolder: Theme = new Theme({}, {}, "256color");
+// The holder record must contain every key the constructor's fallback reads
+// touch: the static runtime traps on absent typed-record keys.
+const themeHolderColors: Record<string, string> = {};
+for (const key of THEME_ALL_KEYS) {
+	themeHolderColors[key] = "";
+}
+const themeHolder: Theme = new Theme(themeHolderColors, themeHolderColors, "256color");
 
 export const theme: Theme = themeHolder;
 

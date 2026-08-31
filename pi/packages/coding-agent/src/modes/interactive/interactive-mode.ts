@@ -24,6 +24,7 @@ import { Spacer } from "../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
 import { VStack } from "../../../../tui/src/components/v-stack.ts";
+import type { StackEntry } from "../../../../tui/src/components/stack.ts";
 import { type EditorComponent } from "../../../../tui/src/editor-component.ts";
 import { Editor } from "../../../../tui/src/components/editor.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
@@ -445,7 +446,7 @@ type AutocompleteProviderFactory = (current: AutocompleteProvider) => Autocomple
 type EditorFactory = (tui: TUI, theme: ReturnType<typeof getEditorTheme>, keybindings: KeybindingsManager) => Editor;
 
 /** Stable reference for components while InteractiveMode replaces the active renderer. */
-export function createInteractiveTuiReference(getTui: () => TUI): TUI {
+export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 	const self = { getTui };
 	return {
 		getMode: () => self.getTui().getMode(),
@@ -963,18 +964,20 @@ export class InteractiveMode {
 			scrollbar: this.settingsManager.getFullscreenScrollbar(),
 			scrollbarStyle: (text) => theme.bg("scrollbarThumb", text),
 		});
-		const dock = new VStack([
-			{ component: this.pendingMessagesContainer as Component, shrink: 1, minSize: 0 },
-			{ component: this.statusContainer as Component, shrink: 1, minSize: 0 },
-			{ component: this.widgetContainerAbove as Component, shrink: 1, minSize: 0 },
-			{ component: this.editorContainer as Component, shrink: 1, minSize: 3 },
-			{ component: this.widgetContainerBelow as Component, shrink: 1, minSize: 0 },
-			{ component: this.footerContainer as Component, shrink: 1, minSize: 1 },
-		]);
-		this.fullscreenLayoutRoot = new VStack([
+		const dockChildren: StackEntry[] = [
+			{ component: this.pendingMessagesContainer, shrink: 1, minSize: 0 },
+			{ component: this.statusContainer, shrink: 1, minSize: 0 },
+			{ component: this.widgetContainerAbove, shrink: 1, minSize: 0 },
+			{ component: this.editorContainer, shrink: 1, minSize: 3 },
+			{ component: this.widgetContainerBelow, shrink: 1, minSize: 0 },
+			{ component: this.footerContainer, shrink: 1, minSize: 1 },
+		];
+		const dock = new VStack(dockChildren);
+		const fullscreenChildren: StackEntry[] = [
 			{ component: this.transcriptScrollView, basis: 0, grow: 1, shrink: 1, minSize: 1 },
 			{ component: dock, basis: "auto", grow: 0, shrink: 1, minSize: 1 },
-		]);
+		];
+		this.fullscreenLayoutRoot = new VStack(fullscreenChildren);
 		this.mountInteractiveTui(this.renderer, [
 			this.documentContainer,
 			this.pendingMessagesContainer,

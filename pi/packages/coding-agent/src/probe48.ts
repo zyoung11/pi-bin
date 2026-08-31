@@ -1,22 +1,21 @@
-// Probe: Object.keys + bracket reads over a record with boolean values.
+// Probe: missing-key read behaviors on typed vs dyn records.
+
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
 
 async function main(): Promise<void> {
-	let parsed: unknown = JSON.parse('{"\u002fhome\u002fzy": true}');
-	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-		console.log("not object");
-		return;
+	const trustData: Record<string, number> = JSON.parse('{"\u002fhome\u002fzy": 1}');
+	console.error(`DBG trust parse ok`);
+	let v: unknown;
+	try {
+		v = recordViewOf(trustData)["\u002fmissing\u002fkey"];
+		console.error(`DBG view missing read ok: ${String(v)}`);
+	} catch (error) {
+		console.error(`DBG view missing read THREW: ${error instanceof Error ? error.message : String(error)}`);
 	}
-	const rec = parsed as Record<string, unknown>;
-	const data: Record<string, number> = {};
-	const keys = Object.keys(rec);
-	for (const key of keys) {
-		const value = rec[key];
-		console.error(`DBG key=${key} value=${String(value)} type=${typeof value}`);
-		if (typeof value === "boolean") {
-			data[key] = value ? 1 : 0;
-		}
-	}
-	console.log(`keys=${Object.keys(data).join(",")}`);
+	const direct: number = trustData["\u002fmissing\u002fkey"];
+	console.error(`DBG direct missing read ok: ${String(direct)}`);
 }
 
 void main();
