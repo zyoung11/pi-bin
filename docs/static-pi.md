@@ -2,6 +2,17 @@
 
 > ⚠️ 测试提醒（2026-08-29 用户指定）：后续冒烟/真跑一律用 `llamacpp/MiniCPM5-1B` 模型（`--model "llamacpp/MiniCPM5-1B"`）。
 
+## 阶段 5 grind 第四十七轮记录（路线 A：不改 scriptc 达成 100% 编译 + 原生二进制 --list-models 真跑通过）
+
+- **总账 2 → 0（100%）**。用户决策：完全不改 scriptc，扩大 pi 侧修改面（拆雷 + 砍功能）。
+- **根因重定性**：真正障碍不是 tail 簇 2 个 lift 错误，而是 ~40 处顺序敏感的 SC9001 ICE 桥点雷区（cast 擦除配对缺陷）。编译器源码实证：cast 的 inner 类型非 dyn/jsval 时纯擦除（return inner 保留源类型）→ 后续 bracket 读按目标 shape 配对、receiver 携带源 shape → 崩；inner 为 dyn 时 all-unknown-fields record 目标也擦除但类型是 dyn → 读走 dyn keyed read → 无配对 → 免疫。
+- **拆雷（commit 16a78ec）**：~22 处静态源 cast 桥点改 `recordViewOf(value: unknown)` helper（读路径免疫、值正确）；写雷点按拷贝语义重写（settings-manager migrateSettings/persistScopedSettings、config-selector togglePackageResource/setProjectPackageOverride、model-runtime registerProvider 显式字段合并）；markdown.ts 改 TokensCode 收窄后直接字段写；keys.ts 加索引签名注解去 cast；删除零引用死代码 _replaceMessageInPlace。40 处大扰动后回到基线 2 errors、零 ICE——雷区拆除验证成功。
+- **砍除（commit 2）**：models publication/refresh 链整体删除（运行时死代码：扩展已删 + 内置 provider 清零 → 无任何 provider 有 refreshModels → publishProviderModels 永不执行；fetchModels 全仓无赋值点）。Models.refresh 改 no-op。**探针 probe47 实证：任何 cast 视图的 keyed 写/删除在 scriptc 运行时均为静默 no-op（含存量 inline 写点）**，recordOf 返回物化拷贝（读 ✓ 写不落回原对象）——据此按拷贝语义重写。
+- **砍除后扰动揭出 27 个潜伏 ICE（三类缺陷）+ 运行时长尾，全部 pi 侧拆解**：①union→record shaped cast 桥（session-manager/tree-selector/footer/agent-session/compaction/config-selector/model-resolver）；②instanceof 收窄桥（read/write/bash renderCall+renderResult 去 lastComponent 复用改全量重建，edit.ts r46 先例）；③management-http union spread 三元（FetchRetryInit 加索引签名 + init 归一化）；④tui.ts 多标签 switch 完全性（改 if 链）；⑤`as const` 数组在 union 上下文被 lower 成 tuple → 运行时 strand 拒绝（TUI_KEYBINDINGS 16 处加 as KeyId[]）；⑥satisfies 保留窄字面量类型 → 运行时 re-tag 拒绝（agent.ts DEFAULT_MODEL 改显式 Model<Api> 注解）；⑦MessageDetails JSON-safe 联合去毒（ToolResultMessage/CustomMessage 默认泛型从 unknown 改 MessageDetails，BranchSummaryEntry 改 CustomData——unknown 具名字段毒化 FileEntry 的 dynCheck）。
+- **原生二进制首跑运行时语义修复（commit 3，均为"JS undefined 语义 vs 静态运行时 trap"长尾）**：①stripBom 改 charCodeAt（**startsWith 三元/record 返回路径触发字符串生命周期 bug，实证 corrupt JSON.parse 输入**——重大编译器缺陷发现）；②auth-storage/load 三处 Record 缺键读改 recordViewOf dyn 通道（typed slot 缺键 abort）；③openai-completions choices[0] 空数组守卫 + **finish_reason 改 string | null（llama.cpp 发 null 被 dynCheck 拒 → 全部 chunk 静默丢弃）**；④resolve-config-value 等 8 处 `[length-1]` 负索引守卫；⑤**event-stream.ts 重写 events+cursor 模型（for-of + await 只执行首迭代——scriptc 异步 lowering 缺陷，与 r13 for-await 同类；且 `undefined as unknown as T` 的 nullary narrow 在构造期即 throw）**；⑥overflow.ts errorMessage 守卫局部变量。
+- **验证状态**：0 编译错误；8.8MB 原生 ELF；`--version`/`--list-models` 真跑通过（models.json 模型表格）；`--print --model llamacpp/Gemma-4-12B` 推进到模型流式响应（18 chunk 全部派发）。**遗留**：env 过滤链一个 arr OOB trap（gdb 定位 fn2330 = env-api-keys.ts:102 envVars.filter 回调，index 4/length 4）——同类的 undefined 语义长尾，下轮继续。用户 settings.json 引用已删内置 provider（deepseek/xiaomi/zai）的 warning 属用户配置未代改。
+- **新规则库（r47 续）**：㉘cast 视图 keyed 写/删除 = 静默 no-op，读 OK（物化拷贝）；㉙Record 类型变量直接 keyed 写 = 可写拷贝；㉛for-of/for-await 循环体含 await = 只执行首迭代，改 while+索引；㉜startsWith 在三元/record 返回路径损坏字符串，用 charCodeAt；㉝union 上下文数组字面量被 lower 成 tuple → 运行时 strand 拒，加 as T[]；㉞satisfies 保留窄类型，赋 union 槽运行时 re-tag 拒，改显式注解；㉟unknown 具名字段使 record/union 不可 dynCheck，索引用索引签名或 JSON-safe 联合；㊞静态运行时：typed record 缺键读、数组负/越界索引、cast 视图写全部 trap 或静默 no-op——JS undefined 语义必须显式守卫。
+
 ## 目标
 
 把 `pi`（coding agent CLI）用 `scriptc` 编译成**100% 静态、不嵌入 quickjs** 的原生二进制。
