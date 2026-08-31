@@ -217,7 +217,7 @@ type ModelsJson = Static<typeof ModelsConfigSchema>;
 function formatValidationPath(error: PiValidationError): string {
 	if (error.keyword === "required") {
 		const requiredProperties = (error.params as { requiredProperties?: string[] }).requiredProperties;
-		const requiredProperty = requiredProperties?.[0];
+		const requiredProperty = requiredProperties !== undefined && requiredProperties.length > 0 ? requiredProperties[0] : undefined;
 		if (requiredProperty) {
 			const basePath = error.instancePath.replace(/^\//, "").replace(/\//g, ".");
 			return basePath ? `${basePath}.${requiredProperty}` : requiredProperty;

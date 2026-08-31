@@ -641,7 +641,8 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 					output.usage = parseChunkUsage(chunk.usage, model);
 				}
 
-				const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : undefined;
+				const choices = chunk.choices;
+				const choice = Array.isArray(choices) && choices.length > 0 ? choices[0] : undefined;
 				if (!choice) return;
 
 				// Fallback: some providers (e.g., Moonshot) return usage

@@ -23,7 +23,7 @@ export type ChatCompletionChunkDelta = {
 };
 
 export type ChatCompletionChunkChoice = {
-	finish_reason?: string;
+	finish_reason?: string | null;
 	delta?: ChatCompletionChunkDelta;
 	usage?: ChatCompletionChunkUsage;
 };
@@ -180,6 +180,8 @@ export async function streamOpenAIChatCompletions(
 					buffer += decoder.decode(safeBytes);
 				}
 
+				const payloads: string[] = [];
+				let streamDone = false;
 				let newlineIndex = buffer.indexOf("\n");
 				while (newlineIndex !== -1) {
 					const rawLine = buffer.slice(0, newlineIndex);
@@ -192,16 +194,26 @@ export async function streamOpenAIChatCompletions(
 					} else if (line.length === 0 && dataLines.length > 0) {
 						const payload = dataLines.join("\n");
 						dataLines = [];
-						if (payload === "[DONE]") return;
-						try {
-							await onChunk(JSON.parse(payload) as ChatCompletionChunk);
-						} catch {
-							// skip malformed payloads
+						if (payload === "[DONE]") {
+							streamDone = true;
+							break;
 						}
+							payloads.push(payload);
 					}
 					newlineIndex = buffer.indexOf("\n");
 				}
-
+				let payloadIndex = 0;
+				while (payloadIndex < payloads.length) {
+					const payload = payloads[payloadIndex];
+					payloadIndex += 1;
+					try {
+						const parsedChunk = JSON.parse(payload) as ChatCompletionChunk;
+						await onChunk(parsedChunk);
+					} catch {
+						// skip malformed payloads
+					}
+				}
+				if (streamDone) return;
 				if (readResult.done) break;
 			}
 

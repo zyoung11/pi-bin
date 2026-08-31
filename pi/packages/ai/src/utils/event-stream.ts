@@ -14,6 +14,8 @@ export class EventStream<T, R = T> {
 	private done = false;
 	private finalResult: R | undefined;
 	private finalResultSet = false;
+	private events: T[] = [];
+	private cursor = 0;
 	private isComplete: (event: T) => boolean;
 	private extractResult: (event: T) => R;
 
@@ -30,13 +32,15 @@ export class EventStream<T, R = T> {
 			this.finalResult = this.extractResult(event);
 			this.finalResultSet = true;
 		}
+		this.events.push(event);
 
-		const waiter = this.waiting[0];
+		const waiter = this.waiting.length > 0 ? this.waiting[0] : undefined;
 		if (waiter !== undefined) {
 			this.waiting.splice(0, 1);
-			waiter({ value: event, done: false });
-		} else if (!this.finalResultSet) {
-			this.queue.push(event);
+			const value: T = this.events[this.cursor];
+			const isDone = this.done && this.cursor === this.events.length - 1;
+			this.cursor += 1;
+			waiter({ value: value, done: isDone });
 		}
 
 		if (this.finalResultSet) {
@@ -54,10 +58,12 @@ export class EventStream<T, R = T> {
 			this.finalResult = result;
 			this.finalResultSet = true;
 		}
-		const pending = this.waiting[0];
+		const pending = this.waiting.length > 0 ? this.waiting[0] : undefined;
 		if (pending !== undefined) {
 			this.waiting.splice(0, 1);
-			pending({ value: undefined as unknown as T, done: true });
+			const value: T = this.events[this.cursor];
+			this.cursor += 1;
+			pending({ value: value, done: true });
 		}
 		const waiters = this.resultWaiters;
 		this.resultWaiters = [];
@@ -67,13 +73,15 @@ export class EventStream<T, R = T> {
 	}
 
 	next(): Promise<EventStreamNextResult<T>> {
-		if (this.queue.length > 0) {
-			const value: T = this.queue[0];
-			this.queue.splice(0, 1);
-			return Promise.resolve({ value, done: false });
+		if (this.cursor < this.events.length) {
+			const value: T = this.events[this.cursor];
+			this.cursor += 1;
+			const isDone = this.done && this.cursor === this.events.length;
+			return Promise.resolve({ value: value, done: isDone });
 		}
-		if (this.done) {
-			return Promise.resolve({ value: undefined as unknown as T, done: true });
+		if (this.done && this.events.length > 0) {
+			const value: T = this.events[this.events.length - 1];
+			return Promise.resolve({ value: value, done: true });
 		}
 		return new Promise<EventStreamNextResult<T>>((resolve) => {
 			this.waiting.push(resolve);
