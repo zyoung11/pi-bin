@@ -2,7 +2,16 @@
 
 > ⚠️ 测试提醒（2026-08-29 用户指定）：后续冒烟/真跑一律用 `llamacpp/MiniCPM5-1B` 模型（`--model "llamacpp/MiniCPM5-1B"`）。
 
-## 阶段 5 grind 第四十七轮记录（路线 A：不改 scriptc 达成 100% 编译 + 原生二进制 --list-models 真跑通过）
+## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
+
+- **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。
+- **退出挂起根因**：静态构建 `process.off` 为 no-op → 信号监听器常驻 → 事件循环永不耗尽。修复：print 模式末尾显式 `process.exit(exitCode)`。
+- **writeRawStdout 改 console.log 路径**（原 process.stdout.write 路径在 socket 化 stdout 上有阻塞风险）。
+- **最终验证（全部 EXIT=0）**：`--version` 0.84.3 ✓；`--list-models` 模型表格 ✓；`--print --model llamacpp/MiniCPM5-1B` 模型回复正常输出 ✓。
+- **产物**：`pi/pi-native`（8.8MB x86-64 ELF，动态链接 glibc，无 JS 引擎）。运行时需 `PI_PACKAGE_DIR` 指向主题等资产目录（静态二进制无内嵌资源）；已加 `PI_SKIP_VERSION_CHECK` 支持绕开 npm 更新检查（异步 npm view 子进程管道泄漏 + 事件循环等待 = 挂起）。
+- **100% 编译目标达成：总账 712 → 0（未改一行 scriptc）**。
+
+## 阶段 5 grind 第四十七轮记录（路线 A：不改 scriptc 拆雷 + 砍除，100% 编译）
 
 - **总账 2 → 0（100%）**。用户决策：完全不改 scriptc，扩大 pi 侧修改面（拆雷 + 砍功能）。
 - **根因重定性**：真正障碍不是 tail 簇 2 个 lift 错误，而是 ~40 处顺序敏感的 SC9001 ICE 桥点雷区（cast 擦除配对缺陷）。编译器源码实证：cast 的 inner 类型非 dyn/jsval 时纯擦除（return inner 保留源类型）→ 后续 bracket 读按目标 shape 配对、receiver 携带源 shape → 崩；inner 为 dyn 时 all-unknown-fields record 目标也擦除但类型是 dyn → 读走 dyn keyed read → 无配对 → 免疫。
