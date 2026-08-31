@@ -61,8 +61,8 @@ export class EventStream<T, R = T> {
 		const pending = this.waiting.length > 0 ? this.waiting[0] : undefined;
 		if (pending !== undefined) {
 			this.waiting.splice(0, 1);
-			const value: T = this.events[this.cursor];
-			this.cursor += 1;
+			const value: T = this.events.length > 0 ? this.events[this.events.length - 1] : (undefined as unknown as T);
+			this.cursor = this.events.length;
 			pending({ value: value, done: true });
 		}
 		const waiters = this.resultWaiters;

@@ -468,7 +468,8 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 			let hasFinishReason = false;
 			const toolCallBlocksByIndex = new Map<number, StreamingToolCallBlock>();
 			const toolCallBlocksById = new Map<string, StreamingToolCallBlock>();
-			const blocks = output.content as StreamingBlock[];
+			const blocks: (TextContent | ThinkingContent | StreamingToolCallBlock)[] = [];
+			output.content = blocks;
 			const getCustomToolCallInput = (block: StreamingToolCallBlock): string => {
 			const property = block.customInput?.property;
 			if (property === undefined) return "";
@@ -786,6 +787,7 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 			for (const block of blocks) {
 				finishBlock(block);
 			}
+			output.content = blocks;
 			if (options?.signal?.aborted) {
 				throw new Error("Request was aborted");
 			}

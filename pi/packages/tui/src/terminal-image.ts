@@ -50,6 +50,9 @@ export function setCellDimensions(dims: CellDimensions): void {
  * `hyperlinks`, and strips them otherwise. On any error fallbacks `false`.
  */
 function probeTmuxHyperlinks(): boolean {
+	// Static-build workaround: the scriptc runtime leaks the exec pipe's write
+	// end in the parent, so reading until EOF self-deadlocks the event loop.
+	if (isStaticBinaryRuntime()) return false;
 	try {
 		const termfeatures = execSync("tmux display-message -p '#{client_termfeatures}'", {
 			encoding: "utf8",
@@ -63,6 +66,16 @@ function probeTmuxHyperlinks(): boolean {
 	} catch {
 		return false;
 	}
+}
+
+export let staticRuntimeProbe: boolean | undefined;
+
+/** True under the scriptc static binary (detected via the runtime's argv shape). */
+function isStaticBinaryRuntime(): boolean {
+	if (staticRuntimeProbe === undefined) {
+		staticRuntimeProbe = process.argv.length > 0 && process.argv[0] === "scriptc";
+	}
+	return staticRuntimeProbe;
 }
 
 export function detectCapabilities(tmuxForwardsHyperlink: () => boolean = probeTmuxHyperlinks): TerminalCapabilities {

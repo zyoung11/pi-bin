@@ -952,9 +952,9 @@ export async function main(args: string[]) {
 		});
 		stopThemeWatcher();
 		restoreStdout();
-		if (exitCode !== 0) {
-			process.exit(exitCode);
-		}
-		return;
+		// Static binary: the runtime event loop never exhausts while signal
+		// listeners stay registered (process.off is a runtime no-op), so print
+		// mode must exit explicitly once the response has been written.
+		process.exit(exitCode);
 	}
 }

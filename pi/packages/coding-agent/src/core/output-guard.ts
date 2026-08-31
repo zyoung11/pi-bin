@@ -22,7 +22,7 @@ export function writeRawStdout(text: string): void {
 	if (text.length === 0) {
 		return;
 	}
-	process.stdout.write(text);
+	console.log(text);
 }
 
 export async function flushRawStdout(): Promise<void> {}
