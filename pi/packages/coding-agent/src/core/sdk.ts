@@ -289,7 +289,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 						for (const c of content) {
 							if (c.type === "image") {
 								const placeholder: TextContent = { type: "text", text: "Image reading is disabled." };
-								const previous = filteredContent[filteredContent.length - 1];
+								const previous = filteredContent.length > 0 ? filteredContent[filteredContent.length - 1] : undefined;
 								if (
 									previous !== undefined &&
 									previous.type === "text" &&

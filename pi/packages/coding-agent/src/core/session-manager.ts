@@ -35,6 +35,10 @@ import {
 	createCustomMessage,
 } from "./messages.ts";
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 /** Read the id off a session entry without triggering union field-read walls. */
 export function entryIdOf(entry: unknown): string | undefined {
 	const record = entry as unknown as Record<string, unknown>;
@@ -117,7 +121,7 @@ export interface CompactionEntry<T = CustomData> extends SessionEntryBase {
 	fromHook?: boolean;
 }
 
-export interface BranchSummaryEntry<T = unknown> extends SessionEntryBase {
+export interface BranchSummaryEntry<T = CustomData> extends SessionEntryBase {
 	type: "branch_summary";
 	fromId: string;
 	summary: string;
@@ -403,7 +407,7 @@ function buildSessionPath(
 	if (leafId) {
 		leaf = index.get(leafId);
 	}
-	leaf ??= entries[entries.length - 1];
+	leaf ??= entries.length > 0 ? entries[entries.length - 1] : undefined;
 	if (!leaf) {
 		return [];
 	}
@@ -631,7 +635,7 @@ export function loadEntriesFromFile(filePath: string): FileEntry[] {
 	// Validate session header before repairing the file.
 	if (entries.length === 0) return entries;
 	const header = entries[0];
-	if (header.type !== "session" || typeof (header as { id?: unknown }).id !== "string") {
+	if (header.type !== "session" || typeof recordViewOf(header)["id"] !== "string") {
 		return [];
 	}
 
@@ -648,7 +652,7 @@ function parseSessionHeaderCandidate(line: string): SessionHeader | null | undef
 	if (!line.trim()) return undefined;
 	const entry = parseSessionEntryLine(line);
 	if (!entry) return undefined;
-	if (entry.type !== "session" || typeof (entry as { id?: unknown }).id !== "string") return null;
+	if (entry.type !== "session" || typeof recordViewOf(entry)["id"] !== "string") return null;
 	return entry;
 }
 
@@ -707,7 +711,7 @@ function readSessionHeaderForDiscovery(filePath: string): SessionHeader | null {
 }
 
 function getSessionHeaderCwd(header: SessionHeader): string | undefined {
-	const cwd = (header as { cwd?: unknown }).cwd;
+	const cwd = recordViewOf(header)["cwd"];
 	return typeof cwd === "string" ? cwd : undefined;
 }
 
@@ -1469,7 +1473,7 @@ export class SessionManager {
 	branchWithSummary(
 		branchFromId: string | null,
 		summary: string,
-		details?: unknown,
+		details?: CustomData,
 		fromHook?: boolean,
 		usage?: Usage,
 	): string {
@@ -1541,7 +1545,7 @@ export class SessionManager {
 
 		if (this.persist) {
 			// Build label entries
-			const lastEntryId = entryIdOf(pathWithoutLabels[pathWithoutLabels.length - 1]) ?? null;
+			const lastEntryId = entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ?? null;
 			let parentId = lastEntryId;
 			const labelEntries: LabelEntry[] = [];
 			for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
@@ -1583,7 +1587,7 @@ export class SessionManager {
 
 		// In-memory mode: replace current session with the path + labels
 		const labelEntries: LabelEntry[] = [];
-		let parentId = entryIdOf(pathWithoutLabels[pathWithoutLabels.length - 1]) ?? null;
+		let parentId = entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ?? null;
 		for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
 			const labelKeys: string[] = [];
 			for (const id of pathEntryIds) labelKeys.push(id);

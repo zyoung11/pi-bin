@@ -783,7 +783,6 @@ export class ModelRuntime implements Models {
 			authHeader: config.authHeader ?? previous?.authHeader,
 			oauth: config.oauth ?? previous?.oauth,
 			models: config.models ?? previous?.models,
-			refreshModels: config.refreshModels ?? previous?.refreshModels,
 		};
 		this.extensionProviders.set(providerId, effective);
 		this.recomposeProvider(providerId);

@@ -1,4 +1,4 @@
-import type { ImageContent, Message, TextContent } from "../../../ai/src/index.ts";
+import type { ImageContent, Message, MessageDetails, TextContent } from "../../../ai/src/index.ts";
 import type { AgentMessage } from "../types.ts";
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
@@ -28,7 +28,7 @@ export interface BashExecutionMessage {
 	excludeFromContext?: boolean;
 }
 
-export interface CustomMessage<T = unknown> {
+export interface CustomMessage<T = MessageDetails> {
 	role: "custom";
 	customType: string;
 	content: string | (TextContent | ImageContent)[];
@@ -116,7 +116,7 @@ export function createCustomMessage(
 		customType,
 		content,
 		display,
-		details,
+		details: details as MessageDetails | undefined,
 		timestamp: typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime(),
 	};
 }

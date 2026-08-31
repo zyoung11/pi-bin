@@ -301,8 +301,7 @@ function formatNumber(value: number): string {
 }
 
 function hasDefaultModelProvider(providerId: string): boolean {
-	const table = defaultModelPerProvider as unknown as Record<string, string>;
-	return table[providerId] !== undefined;
+	return defaultModelPerProvider[providerId] !== undefined;
 }
 
 function llamaCppPostLoginGuidance(actionLabel: string, loadedModelCount: number): string {
@@ -1344,8 +1343,8 @@ export class InteractiveMode {
 			},
 			signal: AbortSignal.timeout(5000),
 		})
-			.then(() => undefined)
-			.catch(() => undefined);
+			.then(() => {})
+			.catch(() => {});
 	}
 
 	private getMarkdownThemeWithSettings(): MarkdownTheme {
@@ -5397,7 +5396,7 @@ export class InteractiveMode {
 			} else if (providerModels.length === 0) {
 				selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
 			} else {
-				const defaultModelId = (defaultModelPerProvider as unknown as Record<string, string>)[providerId];
+				const defaultModelId = defaultModelPerProvider[providerId];
 				selectedModel = providerModels.find((model) => model.id === defaultModelId);
 				if (!selectedModel) {
 					selectionError = `${actionLabel}, but its default model "${defaultModelId}" is not available. Use /model to select a model.`;

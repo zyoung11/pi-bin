@@ -429,7 +429,10 @@ export interface AssistantMessage {
 	timestamp: number; // Unix timestamp in milliseconds
 }
 
-export interface ToolResultMessage<TDetails = unknown> {
+/** JSON-representable details payload carried alongside tool results and custom messages. */
+export type MessageDetails = Record<string, unknown> | string | number | boolean | null;
+
+export interface ToolResultMessage<TDetails = MessageDetails> {
 	role: "toolResult";
 	toolCallId: string;
 	toolName: string;

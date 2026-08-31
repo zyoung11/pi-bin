@@ -44,8 +44,8 @@ export async function withFileMutationQueue<T>(filePath: string, fn: () => Promi
 		return { key: key, currentQueue: currentQueue, chainedQueue: chainedQueue, releaseNext: releaseNext };
 	});
 	registrationQueue = registration
-		.then(() => undefined)
-		.catch(() => undefined);
+		.then(() => {})
+		.catch(() => {});
 
 	const registrationResult = await registration;
 	const key = registrationResult.key;

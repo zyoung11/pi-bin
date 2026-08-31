@@ -48,7 +48,7 @@ const bashSchema = Type.Object({
 export const bashToolSystemPromptContribution = {
 	snippet: "Execute bash commands (ls, grep, find, etc.)",
 	guidelines: ["You can inspect PI_* environment variables for current model and session details."],
-} as const;
+};
 
 export type BashToolInput = Static<typeof bashSchema>;
 
@@ -501,16 +501,6 @@ export function createShellToolDefinition(
 				state.startedAt = Date.now();
 				state.endedAt = undefined;
 			}
-			const last: Component | undefined = context.lastComponent;
-			if (last === undefined) {
-				const text = new Text("", 0, 0);
-				text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
-				return text as Component;
-			}
-			if (last instanceof Text) {
-				last.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
-				return last as Component;
-			}
 			const text = new Text("", 0, 0);
 			text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
 			return text as Component;
@@ -529,34 +519,8 @@ export function createShellToolDefinition(
 					state.interval = undefined;
 				}
 			}
-			const last: Component | undefined = context.lastComponent;
-			if (last === undefined) {
-				const component = new BashResultRenderComponent();
-				component.rebuild(
-											result,
-					options,
-					context.showImages,
-					state.startedAt,
-					state.endedAt,
-				);
-				component.invalidate();
-				return component as Component;
-			}
-			if (last instanceof BashResultRenderComponent) {
-				last.rebuild(
-						
-					result,
-					options,
-					context.showImages,
-					state.startedAt,
-					state.endedAt,
-				);
-				last.invalidate();
-				return last as Component;
-			}
 			const component = new BashResultRenderComponent();
 			component.rebuild(
-					
 				result,
 				options,
 				context.showImages,

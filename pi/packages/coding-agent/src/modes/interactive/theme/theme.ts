@@ -187,6 +187,10 @@ function numberToHex(value: number): string {
 	return out;
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function colorOrDefault(primary: string | number | undefined, fallback: string | number | undefined): string | number {
 	if (primary !== undefined) return primary;
 	if (fallback !== undefined) return fallback;
@@ -351,16 +355,16 @@ function resolveThemeColors(
 }
 
 function withThemeColorFallbacks(colors: ThemeJson["colors"]): Record<string, string | number> {
-	const source = colors as Record<string, string | number | undefined>;
+	const source = recordViewOf(colors);
 	const merged: Record<string, string | number> = {};
 	for (const key of Object.keys(source)) {
 		const value = source[key];
-		if (value !== undefined) merged[key] = value;
+		if (value !== undefined) merged[key] = value as string | number;
 	}
-	merged.thinkingMax = source.thinkingMax ?? source.thinkingXhigh ?? "";
-	merged.scrollbarThumb = source.scrollbarThumb ?? source.selectedBg ?? "";
-	merged.searchMatchBg = source.searchMatchBg ?? source.selectedBg ?? "";
-	merged.searchMatchText = source.searchMatchText ?? source.text ?? "";
+	merged.thinkingMax = (source["thinkingMax"] as string | number | undefined) ?? (source["thinkingXhigh"] as string | number | undefined) ?? "";
+	merged.scrollbarThumb = (source["scrollbarThumb"] as string | number | undefined) ?? (source["selectedBg"] as string | number | undefined) ?? "";
+	merged.searchMatchBg = (source["searchMatchBg"] as string | number | undefined) ?? (source["selectedBg"] as string | number | undefined) ?? "";
+	merged.searchMatchText = (source["searchMatchText"] as string | number | undefined) ?? (source["text"] as string | number | undefined) ?? "";
 	return merged;
 }
 
@@ -388,15 +392,29 @@ export class Theme {
 		this.mode = mode;
 		this.fgColors = new Map();
 		const colors = copyThemeRecord(fgColors);
-		colors.thinkingMax = colorOrDefault(fgColors.thinkingMax, fgColors.thinkingXhigh);
-		colors.searchMatchText = colorOrDefault(fgColors.searchMatchText, fgColors.text);
+		const fgView = recordViewOf(fgColors);
+		colors.thinkingMax = colorOrDefault(
+			fgView["thinkingMax"] as string | number | undefined,
+			fgView["thinkingXhigh"] as string | number | undefined,
+		);
+		colors.searchMatchText = colorOrDefault(
+			fgView["searchMatchText"] as string | number | undefined,
+			fgView["text"] as string | number | undefined,
+		);
 		for (const key of Object.keys(colors)) {
 			this.fgColors.set(key as ThemeColor, fgAnsi(colors[key], mode));
 		}
 		this.bgColors = new Map();
 		const backgrounds = copyThemeRecord(bgColors);
-		backgrounds.scrollbarThumb = colorOrDefault(bgColors.scrollbarThumb, bgColors.selectedBg);
-		backgrounds.searchMatchBg = colorOrDefault(bgColors.searchMatchBg, bgColors.selectedBg);
+		const bgView = recordViewOf(bgColors);
+		backgrounds.scrollbarThumb = colorOrDefault(
+			bgView["scrollbarThumb"] as string | number | undefined,
+			bgView["selectedBg"] as string | number | undefined,
+		);
+		backgrounds.searchMatchBg = colorOrDefault(
+			bgView["searchMatchBg"] as string | number | undefined,
+			bgView["selectedBg"] as string | number | undefined,
+		);
 		for (const key of Object.keys(backgrounds)) {
 			this.bgColors.set(key as ThemeBg, bgAnsi(backgrounds[key], mode));
 		}

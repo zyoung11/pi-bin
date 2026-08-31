@@ -17,7 +17,7 @@ type ConfigValueReference = { type: "command"; config: string } | { type: "templ
 
 function appendLiteral(parts: TemplatePart[], value: string): void {
 	if (!value) return;
-	const previousPart = parts[parts.length - 1];
+	const previousPart = parts.length > 0 ? parts[parts.length - 1] : undefined;
 	if (previousPart === undefined) {
 		parts.push({ type: "literal", value });
 		return;

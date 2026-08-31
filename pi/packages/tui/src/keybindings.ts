@@ -80,27 +80,27 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 		description: "Select next prompt history entry",
 	},
 	"tui.editor.cursorLeft": {
-		defaultKeys: ["left", "ctrl+b"],
+		defaultKeys: ["left", "ctrl+b"] as KeyId[],
 		description: "Move cursor left",
 	},
 	"tui.editor.cursorRight": {
-		defaultKeys: ["right", "ctrl+f"],
+		defaultKeys: ["right", "ctrl+f"] as KeyId[],
 		description: "Move cursor right",
 	},
 	"tui.editor.cursorWordLeft": {
-		defaultKeys: ["alt+left", "ctrl+left", "alt+b"],
+		defaultKeys: ["alt+left", "ctrl+left", "alt+b"] as KeyId[],
 		description: "Move cursor word left",
 	},
 	"tui.editor.cursorWordRight": {
-		defaultKeys: ["alt+right", "ctrl+right", "alt+f"],
+		defaultKeys: ["alt+right", "ctrl+right", "alt+f"] as KeyId[],
 		description: "Move cursor word right",
 	},
 	"tui.editor.cursorLineStart": {
-		defaultKeys: ["home", "ctrl+home", "ctrl+a"],
+		defaultKeys: ["home", "ctrl+home", "ctrl+a"] as KeyId[],
 		description: "Move to line start",
 	},
 	"tui.editor.cursorLineEnd": {
-		defaultKeys: ["end", "ctrl+end", "ctrl+e"],
+		defaultKeys: ["end", "ctrl+end", "ctrl+e"] as KeyId[],
 		description: "Move to line end",
 	},
 	"tui.editor.jumpForward": {
@@ -111,22 +111,22 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 		defaultKeys: "ctrl+alt+]",
 		description: "Jump backward to character",
 	},
-	"tui.editor.pageUp": { defaultKeys: ["pageUp", "ctrl+pageUp"], description: "Page up" },
-	"tui.editor.pageDown": { defaultKeys: ["pageDown", "ctrl+pageDown"], description: "Page down" },
+	"tui.editor.pageUp": { defaultKeys: ["pageUp", "ctrl+pageUp"] as KeyId[], description: "Page up" },
+	"tui.editor.pageDown": { defaultKeys: ["pageDown", "ctrl+pageDown"] as KeyId[], description: "Page down" },
 	"tui.editor.deleteCharBackward": {
 		defaultKeys: "backspace",
 		description: "Delete character backward",
 	},
 	"tui.editor.deleteCharForward": {
-		defaultKeys: ["delete", "ctrl+d"],
+		defaultKeys: ["delete", "ctrl+d"] as KeyId[],
 		description: "Delete character forward",
 	},
 	"tui.editor.deleteWordBackward": {
-		defaultKeys: ["ctrl+w", "alt+backspace"],
+		defaultKeys: ["ctrl+w", "alt+backspace"] as KeyId[],
 		description: "Delete word backward",
 	},
 	"tui.editor.deleteWordForward": {
-		defaultKeys: ["alt+d", "alt+delete"],
+		defaultKeys: ["alt+d", "alt+delete"] as KeyId[],
 		description: "Delete word forward",
 	},
 	"tui.editor.deleteToLineStart": {
@@ -140,7 +140,7 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 	"tui.editor.yank": { defaultKeys: "ctrl+y", description: "Yank" },
 	"tui.editor.yankPop": { defaultKeys: "alt+y", description: "Yank pop" },
 	"tui.editor.undo": { defaultKeys: "ctrl+-", description: "Undo" },
-	"tui.input.newLine": { defaultKeys: ["shift+enter", "ctrl+j"], description: "Insert newline" },
+	"tui.input.newLine": { defaultKeys: ["shift+enter", "ctrl+j"] as KeyId[], description: "Insert newline" },
 	"tui.input.submit": { defaultKeys: "enter", description: "Submit input" },
 	"tui.input.tab": { defaultKeys: "tab", description: "Tab / autocomplete" },
 	"tui.input.copy": { defaultKeys: "ctrl+c", description: "Copy selection" },
@@ -153,7 +153,7 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 	},
 	"tui.select.confirm": { defaultKeys: "enter", description: "Confirm selection" },
 	"tui.select.cancel": {
-		defaultKeys: ["escape", "ctrl+c"],
+		defaultKeys: ["escape", "ctrl+c"] as KeyId[],
 		description: "Cancel selection",
 	},
 	// These intentionally shadow the unmodified editor bindings in fullscreen mode.
@@ -182,11 +182,11 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 		description: "Scroll viewport down one line",
 	},
 	"tui.altScreen.previousPrompt": {
-		defaultKeys: ["ctrl+shift+up", "ctrl+up"],
+		defaultKeys: ["ctrl+shift+up", "ctrl+up"] as KeyId[],
 		description: "Jump to previous semantic prompt",
 	},
 	"tui.altScreen.nextPrompt": {
-		defaultKeys: ["ctrl+shift+down", "ctrl+down"],
+		defaultKeys: ["ctrl+shift+down", "ctrl+down"] as KeyId[],
 		description: "Jump to next semantic prompt",
 	},
 	"tui.altScreen.search": {
@@ -194,11 +194,11 @@ export const TUI_KEYBINDINGS: KeybindingDefinitions = {
 		description: "Search the primary scroll view",
 	},
 	"tui.altScreen.searchNext": {
-		defaultKeys: ["enter", "ctrl+g"],
+		defaultKeys: ["enter", "ctrl+g"] as KeyId[],
 		description: "Select the next search match",
 	},
 	"tui.altScreen.searchPrevious": {
-		defaultKeys: ["shift+enter", "ctrl+shift+g"],
+		defaultKeys: ["shift+enter", "ctrl+shift+g"] as KeyId[],
 		description: "Select the previous search match",
 	},
 	"tui.altScreen.searchClose": {

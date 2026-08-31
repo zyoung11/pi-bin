@@ -1180,7 +1180,7 @@ export class AgentSession {
 	 * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
 	 * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
 	 */
-	async sendCustomMessage<T = unknown>(
+	async sendCustomMessage<T extends CustomData | undefined = CustomData>(
 		message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">,
 		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" },
 	): Promise<void> {
@@ -1633,7 +1633,7 @@ export class AgentSession {
 			const preparation = prepareCompaction(pathEntries, settings);
 			if (!preparation) {
 				// Check why we can't compact
-				const lastEntry = pathEntries[pathEntries.length - 1];
+				const lastEntry = pathEntries.length > 0 ? pathEntries[pathEntries.length - 1] : undefined;
 				let lastEntryType: string | undefined;
 				if (lastEntry !== undefined) {
 					lastEntryType = entryTypeOf(lastEntry);
@@ -1931,7 +1931,7 @@ export class AgentSession {
 
 			if (willRetry) {
 				const messages = this.agent.state.messages;
-				const lastMsg = messages[messages.length - 1];
+				const lastMsg = messages.length > 0 ? messages[messages.length - 1] : undefined;
 				// The overflow response was persisted on message_end before _checkCompaction() removed it
 				// from agent state. Rebuilding state from the new compaction can restore that kept entry,
 				// leaving an assistant as the final message. agent.continue() rejects that state, so remove
@@ -2434,7 +2434,7 @@ export class AgentSession {
 		try {
 			// Run default summarizer if needed
 			let summaryText: string | undefined;
-			let summaryDetails: unknown;
+			let summaryDetails: CustomData | undefined;
 			let summaryUsage: Usage | undefined;
 			if (options.summarize && entriesToSummarize.length > 0) {
 				const model = this.model!;

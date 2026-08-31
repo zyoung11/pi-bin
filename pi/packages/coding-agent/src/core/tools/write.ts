@@ -263,45 +263,16 @@ export function createWriteToolDefinition(
 			const renderArgs = args as { path?: string; file_path?: string; content?: string } | undefined;
 			const rawPath = str(renderArgs?.file_path ?? renderArgs?.path);
 			const fileContent = str(renderArgs?.content);
-			const last: Component | undefined = context.lastComponent;
-			if (last === undefined) {
-				const component = new WriteCallRenderComponent();
-				component.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
-				return component as Component;
-			}
-			if (last instanceof WriteCallRenderComponent) {
-				last.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
-				return last as Component;
-			}
 			const component = new WriteCallRenderComponent();
 			component.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
 			return component as Component;
 		},
 		renderResult(result, _options, theme, context) {
 			const output = formatWriteResult({ content: result.content, isError: context.isError }, theme);
-			const last: Component | undefined = context.lastComponent;
 			if (!output) {
-				if (last === undefined) {
-					const component = new Container();
-					component.clear();
-					return component as Component;
-				}
-				if (last instanceof Container) {
-					last.clear();
-					return last as Component;
-				}
 				const component = new Container();
 				component.clear();
 				return component as Component;
-			}
-			if (last === undefined) {
-				const text = new Text("", 0, 0);
-				text.setText(output);
-				return text as Component;
-			}
-			if (last instanceof Text) {
-				last.setText(output);
-				return last as Component;
 			}
 			const text = new Text("", 0, 0);
 			text.setText(output);

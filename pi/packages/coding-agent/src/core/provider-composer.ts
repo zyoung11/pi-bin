@@ -18,7 +18,6 @@ import {
 	type OAuthLoginCallbacks,
 	type Provider,
 	type ProviderHeaders,
-	type RefreshModelsContext,
 	type SimpleStreamOptions,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
@@ -69,8 +68,7 @@ export interface ProviderConfigInput {
 		samplingParams?: Record<string, unknown>;
 		headers?: Record<string, string>;
 		compat?: Model<Api>["compat"];
-	}>;
-	refreshModels?(context: RefreshModelsContext): Promise<NonNullable<ProviderConfigInput["models"]>>;
+	}>
 }
 
 export type AuthStatus = {
@@ -235,7 +233,7 @@ function applyModelsJson(
 	}));
 	for (const definition of config.models ?? []) {
 		const existingIndex = models.findIndex((model) => model.id === definition.id);
-		const defaults = existingIndex >= 0 ? models[existingIndex] : models[0];
+		const defaults = existingIndex >= 0 ? models[existingIndex] : (models.length > 0 ? models[0] : undefined);
 		const model = modelFromJson(providerId, definition, config, defaults);
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);
@@ -557,10 +555,7 @@ export function composeModelProvider(
 	extension: ProviderConfigInput | undefined,
 ): Provider {
 	const config = modelConfig.getProvider(providerId);
-	let extensionOAuthCredential: OAuthCredentials | undefined;
-	let refreshedExtensionModels: ProviderConfigInput["models"];
-	const currentExtension = (): ProviderConfigInput | undefined =>
-		extension && refreshedExtensionModels ? { ...extension, models: refreshedExtensionModels } : extension;
+	const currentExtension = (): ProviderConfigInput | undefined => extension;
 	// models.json modelOverrides are the topmost user-config layer: they apply once,
 	// after custom-model upserts, extension model replacement, and legacy OAuth projection.
 	const getModels = () => {
@@ -569,10 +564,6 @@ export function composeModelProvider(
 			applyModelsJson(providerId, base?.getModels() ?? [], config),
 			currentExtension(),
 		);
-		const modifyModels = extension?.oauth?.modifyModels;
-		if (extensionOAuthCredential && modifyModels) {
-			models = modifyModels(models, extensionOAuthCredential);
-		}
 		return models.map((model) => {
 			const override = config?.modelOverrides?.[model.id];
 			return override ? applyModelOverride(model, override) : model;
@@ -618,34 +609,6 @@ export function composeModelProvider(
 		headers: base?.headers,
 		auth: { ...(apiKey ? { apiKey } : {}), ...(oauth ? { oauth } : {}) },
 		getModels,
-		refreshModels:
-			base?.refreshModels || extension?.refreshModels || extension?.oauth?.modifyModels
-				? async (context) => {
-						await base?.refreshModels?.(context);
-						let refreshed: NonNullable<ProviderConfigInput["models"]> | undefined;
-						const extensionRefreshModels = extension?.refreshModels;
-						if (extensionRefreshModels) refreshed = await extensionRefreshModels(context);
-						if (context.signal.aborted) return;
-						const credential = context.credential;
-						let oauthCredential: OAuthCredentials | undefined;
-						if (credential !== undefined && credential.type === "oauth") {
-							oauthCredential = JSON.parse(JSON.stringify(credential)) as OAuthCredentials;
-						}
-						await context.publish({
-							update: () => {
-								if (refreshed) {
-									// Validate before publishing the new synchronous list.
-									applyExtension(providerId, applyModelsJson(providerId, base?.getModels() ?? [], config), {
-										...extension,
-										models: refreshed,
-									});
-									refreshedExtensionModels = refreshed;
-								}
-								extensionOAuthCredential = oauthCredential;
-							},
-						});
-					}
-				: undefined,
 		filterModels: base?.filterModels
 			? (models, credential: Credential | undefined) => base.filterModels!(models, credential)
 			: undefined,

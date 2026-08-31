@@ -6,7 +6,7 @@
  */
 
 import type { AgentMessage } from "../../../agent/src/index.ts";
-import type { ImageContent, Message, TextContent } from "../../../ai/src/index.ts";
+import type { ImageContent, Message, MessageDetails, TextContent } from "../../../ai/src/index.ts";
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
 
@@ -43,7 +43,7 @@ export interface BashExecutionMessage {
  * Message type for extension-injected messages via sendMessage().
  * These are custom messages that extensions can inject into the conversation.
  */
-export interface CustomMessage<T = unknown> {
+export interface CustomMessage<T = MessageDetails> {
 	role: "custom";
 	customType: string;
 	content: string | (TextContent | ImageContent)[];
@@ -132,7 +132,7 @@ export function createCustomMessage(
 		customType,
 		content,
 		display,
-		details,
+		details: details as MessageDetails | undefined,
 		timestamp: new Date(timestamp).getTime(),
 	};
 }

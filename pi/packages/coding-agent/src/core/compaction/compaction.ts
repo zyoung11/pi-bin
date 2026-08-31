@@ -242,6 +242,10 @@ export function shouldCompact(contextTokens: number, contextWindow: number, sett
 
 const ESTIMATED_IMAGE_CHARS = 4800;
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function estimateTextAndImageContentChars(content: unknown): number {
 	if (typeof content === "string") {
 		return content.length;
@@ -274,7 +278,7 @@ export function estimateTokens(message: AgentMessage): number {
 	switch (message.role) {
 		case "user": {
 			chars = estimateTextAndImageContentChars(
-				(message as { content: string | Array<{ type: string; text?: string }> }).content,
+				recordViewOf(message)["content"],
 			);
 			return Math.ceil(chars / 4);
 		}

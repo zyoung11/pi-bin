@@ -10,6 +10,10 @@ import { DynamicBorder } from "./dynamic-border.ts";
 import { formatKeyText, keyHint } from "./keybinding-hints.ts";
 
 /** Read the content field off a message union via an unknown parameter. */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function messageContentOf(message: unknown): unknown {
 	const record = message as unknown as Record<string, unknown>;
 	return record["content"];
@@ -253,7 +257,7 @@ class TreeList extends Component {
 			// Extract tool calls from assistant messages for later lookup
 			const entry = node.entry;
 			if (entry.type === "message" && entry.message.role === "assistant") {
-				const content = (entry.message as { content?: unknown }).content;
+				const content = messageContentOf(entry.message);
 				if (Array.isArray(content)) {
 					for (const block of content) {
 						if (typeof block === "object" && block !== null && "type" in block && block.type === "toolCall") {
@@ -342,9 +346,10 @@ class TreeList extends Component {
 			// Skip assistant messages with only tool calls (no text) unless error/aborted
 			// Always show current leaf so active position is visible
 			if (entry.type === "message" && entry.message.role === "assistant" && !isCurrentLeaf) {
-				const msg = entry.message as { stopReason?: string; content?: unknown };
-				const hasText = this.hasTextContent(msg.content);
-				const isErrorOrAborted = msg.stopReason && msg.stopReason !== "stop" && msg.stopReason !== "toolUse";
+				const msgView = recordViewOf(entry.message);
+				const hasText = this.hasTextContent(msgView["content"]);
+				const stopReason = msgView["stopReason"];
+				const isErrorOrAborted = stopReason !== undefined && stopReason !== "stop" && stopReason !== "toolUse";
 				// Only hide if no text AND not an error/aborted message
 				if (!hasText && !isErrorOrAborted) {
 					return false;
@@ -574,8 +579,8 @@ class TreeList extends Component {
 					parts.push(this.extractContent(messageContentOf(msg)));
 				}
 				if (msg.role === "bashExecution") {
-					const bashMsg = msg as { command?: string };
-					if (bashMsg.command) parts.push(bashMsg.command);
+					const command = recordViewOf(msg)["command"];
+					if (typeof command === "string") parts.push(command);
 				}
 				break;
 			}
@@ -777,33 +782,34 @@ class TreeList extends Component {
 				const msg = entry.message;
 				const role = msg.role;
 				if (role === "user") {
-					const msgWithContent = msg as { content?: unknown };
-					const content = normalize(this.extractContent(msgWithContent.content));
+					const content = normalize(this.extractContent(messageContentOf(msg)));
 					result = theme.fg("accent", "user: ") + content;
 				} else if (role === "assistant") {
-					const msgWithContent = msg as { content?: unknown; stopReason?: string; errorMessage?: string };
-					const textContent = normalize(this.extractContent(msgWithContent.content));
+					const msgView = recordViewOf(msg);
+					const textContent = normalize(this.extractContent(msgView["content"]));
 					if (textContent) {
 						result = theme.fg("success", "assistant: ") + textContent;
-					} else if (msgWithContent.stopReason === "aborted") {
+					} else if (msgView["stopReason"] === "aborted") {
 						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(aborted)");
-					} else if (msgWithContent.errorMessage) {
-						const errMsg = normalize(msgWithContent.errorMessage).slice(0, 80);
+					} else if (typeof msgView["errorMessage"] === "string" && msgView["errorMessage"]) {
+						const errMsg = normalize(msgView["errorMessage"]).slice(0, 80);
 						result = theme.fg("success", "assistant: ") + theme.fg("error", errMsg);
 					} else {
 						result = theme.fg("success", "assistant: ") + theme.fg("muted", "(no content)");
 					}
 				} else if (role === "toolResult") {
-					const toolMsg = msg as { toolCallId?: string; toolName?: string };
-					const toolCall = toolMsg.toolCallId ? this.toolCallMap.get(toolMsg.toolCallId) : undefined;
+					const toolMsg = recordViewOf(msg);
+					const toolCallId = toolMsg["toolCallId"];
+					const toolCall = typeof toolCallId === "string" ? this.toolCallMap.get(toolCallId) : undefined;
 					if (toolCall) {
 						result = theme.fg("muted", this.formatToolCall(toolCall.name, toolCall.arguments));
 					} else {
-						result = theme.fg("muted", `[${toolMsg.toolName ?? "tool"}]`);
+						const toolName = toolMsg["toolName"];
+						result = theme.fg("muted", `[${typeof toolName === "string" ? toolName : "tool"}]`);
 					}
 				} else if (role === "bashExecution") {
-					const bashMsg = msg as { command?: string };
-					result = theme.fg("dim", `[bash]: ${normalize(bashMsg.command ?? "")}`);
+					const command = recordViewOf(msg)["command"];
+					result = theme.fg("dim", `[bash]: ${normalize(typeof command === "string" ? command : "")}`);
 				} else {
 					result = theme.fg("dim", `[${role}]`);
 				}
@@ -882,7 +888,7 @@ class TreeList extends Component {
 		let result = "";
 		for (const block of content) {
 			if (typeof block === "object" && block !== null && "type" in block && block.type === "text") {
-				result += (block as { text: string }).text;
+				result += recordViewOf(block)["text"] as string;
 			}
 		}
 		return result;
@@ -922,8 +928,8 @@ class TreeList extends Component {
 		if (Array.isArray(content)) {
 			for (const c of content) {
 				if (typeof c === "object" && c !== null && "type" in c && c.type === "text") {
-					const text = (c as { text?: string }).text;
-					if (text && text.trim().length > 0) return true;
+					const text = recordViewOf(c)["text"];
+					if (typeof text === "string" && text.trim().length > 0) return true;
 				}
 			}
 		}

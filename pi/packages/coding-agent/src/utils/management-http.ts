@@ -1,6 +1,7 @@
 type FetchInput = Parameters<typeof fetch>[0];
 
 interface FetchRetryInit {
+	[key: string]: unknown;
 	signal?: AbortSignal;
 	method?: string;
 	headers?: Record<string, string>;
@@ -56,9 +57,10 @@ export async function fetchWithRetry(
 		if (timeoutSignal !== undefined) signals.push(timeoutSignal);
 		if (attemptTimeoutSignal !== undefined) signals.push(attemptTimeoutSignal);
 		const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+		const baseInit: FetchRetryInit = init ?? {};
 
 		try {
-			const response = await fetch(input, signal ? { ...init, signal } : init);
+			const response = await fetch(input, { ...baseInit, signal });
 			const shouldRetry = retryOnStatus && RETRYABLE_STATUS_CODES.has(response.status) && attempt < maxRetries;
 			if (!shouldRetry) return response;
 			try {

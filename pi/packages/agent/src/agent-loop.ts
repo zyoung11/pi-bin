@@ -9,6 +9,7 @@ import {
 	type Context,
 	type EventStreamNextResult,
 	EventStream,
+	type MessageDetails,
 	type ToolResultMessage,
 	validateToolArguments,
 } from "../../ai/src/index.ts";
@@ -807,7 +808,7 @@ function createToolResultMessage(finalized: FinalizedToolCallOutcome): ToolResul
 		// Untyped tools (JS extensions) can return results without content; normalize
 		// so the null never enters session history or provider payloads.
 		content: finalized.result.content ?? [],
-		details: finalized.result.details,
+		details: finalized.result.details as MessageDetails | undefined,
 		usage: finalized.result.usage,
 		...(finalized.result.addedToolNames?.length ? { addedToolNames: finalized.result.addedToolNames } : {}),
 		isError: finalized.isError,

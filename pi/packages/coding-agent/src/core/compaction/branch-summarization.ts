@@ -157,6 +157,10 @@ export function collectEntriesForBranchSummary(
  * Extract AgentMessage from a session entry.
  * Similar to getMessageFromEntry in compaction.ts but also handles compaction entries.
  */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function getMessageFromEntry(entry: SessionEntry): AgentMessage | undefined {
 	switch (entry.type) {
 		case "message":
@@ -206,14 +210,16 @@ export function prepareBranchEntries(entries: SessionEntry[], tokenBudget: numbe
 	// Only extract from pi-generated summaries (fromHook !== true), not extension-generated ones
 	for (const entry of entries) {
 		if (entry.type === "branch_summary" && !entry.fromHook && entry.details) {
-			const details = entry.details as BranchSummaryDetails;
-			if (Array.isArray(details.readFiles)) {
-				for (const f of details.readFiles) fileOps.read.add(f);
+			const details = recordViewOf(entry.details);
+			const readFiles = details["readFiles"];
+			if (Array.isArray(readFiles)) {
+				for (const f of readFiles) fileOps.read.add(f as string);
 			}
-			if (Array.isArray(details.modifiedFiles)) {
+			const modifiedFiles = details["modifiedFiles"];
+			if (Array.isArray(modifiedFiles)) {
 				// Modified files go into both edited and written for proper deduplication
-				for (const f of details.modifiedFiles) {
-					fileOps.edited.add(f);
+				for (const f of modifiedFiles) {
+					fileOps.edited.add(f as string);
 				}
 			}
 		}

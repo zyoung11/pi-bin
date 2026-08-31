@@ -57,7 +57,7 @@ const EMPTY_USAGE = {
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
-const DEFAULT_MODEL = {
+const DEFAULT_MODEL: Model<Api> = {
 	id: "unknown",
 	name: "unknown",
 	api: "unknown",
@@ -68,7 +68,7 @@ const DEFAULT_MODEL = {
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 	contextWindow: 0,
 	maxTokens: 0,
-} satisfies Model<Api>;
+};
 
 interface MutableAgentState {
 	systemPrompt: string;

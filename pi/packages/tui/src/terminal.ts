@@ -492,7 +492,7 @@ export class ProcessTerminal implements Terminal {
 	}
 
 	rows(): number {
-		const declared = (process.stdout as { columns?: number | undefined })["columns"];
+		const declared = (process.stdout as { columns?: number | undefined }).columns;
 		if (declared !== undefined) return declared;
 		const envRows = process.env.LINES;
 		if (envRows !== undefined) {

@@ -1135,37 +1135,23 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 
 	private resolveAnchorRow(anchor: OverlayAnchor, height: number, availHeight: number, marginTop: number): number {
-		switch (anchor) {
-			case "top-left":
-			case "top-center":
-			case "top-right":
-				return marginTop;
-			case "bottom-left":
-			case "bottom-center":
-			case "bottom-right":
-				return marginTop + availHeight - height;
-			case "left-center":
-			case "center":
-			case "right-center":
-				return marginTop + Math.floor((availHeight - height) / 2);
+		if (anchor === "top-left" || anchor === "top-center" || anchor === "top-right") {
+			return marginTop;
 		}
+		if (anchor === "bottom-left" || anchor === "bottom-center" || anchor === "bottom-right") {
+			return marginTop + availHeight - height;
+		}
+		return marginTop + Math.floor((availHeight - height) / 2);
 	}
 
 	private resolveAnchorCol(anchor: OverlayAnchor, width: number, availWidth: number, marginLeft: number): number {
-		switch (anchor) {
-			case "top-left":
-			case "left-center":
-			case "bottom-left":
-				return marginLeft;
-			case "top-right":
-			case "right-center":
-			case "bottom-right":
-				return marginLeft + availWidth - width;
-			case "top-center":
-			case "center":
-			case "bottom-center":
-				return marginLeft + Math.floor((availWidth - width) / 2);
+		if (anchor === "top-left" || anchor === "left-center" || anchor === "bottom-left") {
+			return marginLeft;
 		}
+		if (anchor === "top-right" || anchor === "right-center" || anchor === "bottom-right") {
+			return marginLeft + availWidth - width;
+		}
+		return marginLeft + Math.floor((availWidth - width) / 2);
 	}
 
 	/** Composite all overlays into content lines (sorted by focusOrder, higher = on top). */

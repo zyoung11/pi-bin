@@ -639,7 +639,7 @@ function printSelfUpdateNote(note: string): void {
 	console.log();
 	console.log(chalk.bold(chalk.yellow("Update note")));
 	try {
-		const columns = (process.stdout as unknown as Record<string, unknown>)["columns"];
+		const columns = (process.stdout as { columns?: number | undefined }).columns;
 		const width = Math.max(20, typeof columns === "number" ? columns : 80);
 		const renderedLines = new Markdown(trimmedNote, 0, 0, SELF_UPDATE_NOTE_MARKDOWN_THEME)
 			.render(width)

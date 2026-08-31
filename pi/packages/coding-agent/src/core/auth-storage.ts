@@ -88,6 +88,10 @@ function throwIfSignalAborted(options?: AuthOperationOptions): void {
 }
 
 /** View a credential as a plain record (the Credential union resists direct field access). */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 function credentialRecordOf(credential: Credential): Record<string, unknown> {
 	return JSON.parse(JSON.stringify(credential)) as Record<string, unknown>;
 }
@@ -310,7 +314,7 @@ export class ReadOnlyAuthStorage extends CredentialStore {
 
 	private async readAsync(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
 		throwIfSignalAborted(options);
-		const credential = this.load()[providerId];
+		const credential = recordViewOf(this.load())[providerId] as Credential | undefined;
 		throwIfSignalAborted(options);
 		if (!credential) return undefined;
 		const record = credentialRecordOf(credential);
@@ -507,7 +511,7 @@ export class AuthStorage extends CredentialStore {
 	}
 
 	private async readAsync(provider: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
-		const credential = (await this.readLatestData(options))[provider];
+		const credential = recordViewOf(await this.readLatestData(options))[provider] as Credential | undefined;
 		throwIfSignalAborted(options);
 		if (!credential) return undefined;
 		const record = credentialRecordOf(credential);
@@ -537,12 +541,12 @@ export class AuthStorage extends CredentialStore {
 		let result: Credential | undefined = undefined;
 		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const currentData = this.parseStorageData(content);
-			const next = await fn(currentData[provider]);
+			const next = await fn(recordViewOf(currentData)[provider] as Credential | undefined);
 			if (next === undefined) {
 				latestData = currentData;
 				revision = this.authPath ? getFileRevision(this.authPath) : undefined;
-				result = currentData[provider];
-				return { result: currentData[provider] };
+				result = recordViewOf(currentData)[provider] as Credential | undefined;
+				return { result: recordViewOf(currentData)[provider] as Credential | undefined };
 			}
 
 			const merged: AuthStorageData = { ...currentData, [provider]: next };
@@ -591,7 +595,7 @@ export function readStoredCredential(
 ): Credential | undefined {
 	try {
 		const data = JSON.parse(stripBom(readFileSync(normalizePath(authPath), "utf-8"))) as AuthStorageData;
-		return data[providerId];
+		return recordViewOf(data)[providerId] as Credential | undefined;
 	} catch {
 		return undefined;
 	}
