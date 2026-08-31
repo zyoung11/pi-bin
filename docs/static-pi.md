@@ -112,6 +112,31 @@
 - **缓解**：该簇保持 committed 原样（map `Promise<unknown>` + emptyChain `Promise.resolve(undefined as unknown)` + `catch(() => {})`），遗留 2 个 lift 错误。
 - **下轮正解（编译器级三选一，SC_DEBUG_FAIL 路线）**：①record 注册按结构去重（index-signature 归一化进 byKey）②validate 对 record-vs-record 做 shape 结构等价回退（fields/indexValue 递归 typeEquals）③前端放行 `Promise<X> → Promise<unknown>` 内层 lift（unknown=dyn 吸收语义，与 boundarySafe 对齐）。推荐 ①，根治整类“注册顺序浮动”。
 
+### 编译器侧攻坚实录（本轮已试，未竟）
+
+按下轮方案 ①②③ 实施了三个编译器补丁并逐一构建验证（scriptc/packages/compiler，dist 已同步重建）：
+
+- **补丁 1（③ promise 内层 dyn 宽化）**：lowerer coerceToExpected 增 `Promise<X> → Promise<unknown>` 分支（复用 promiseVoidWiden 节点，C 层同一 ScrPromise* 指针、type-only 重解释，await 经 unknown 槽走 scr_await_dyn 读值，语义可靠）。**实测：410 set lift 解除 ✓**。
+- **补丁 2（① validate 结构等价回退）**：expectType 对 record-vs-record 做 fields/indexValue 递归结构比较，相同则放行。**实测：ICE 不消失**——dump 证实两 shape 结构上**真不同**（want=r1656 `{$ref: dyn}` vs got=r788 全量 schema record），说明 recordGet 的 shapeId 来自 cast 目标、而 receiver 携带 cast 源类型——不是无害的双注册，而是 lowerAsExpression 擦除路径的真实 lowering 不一致。
+- **根因定位（lowerAsExpression 静态分支）**：静态 record→record cast 走 `return inner` 擦除（保留源类型），后续成员读按 TARGET shape 生成 recordGet → receiver（源 shape）与 shapeId（目标 shape）不匹配 → ICE。补丁 3（该分支改走 coerceToExpected：同 shape 恒等、宽兼容走 copy-reshape、否则 SC2002 尖锐 fence）**实测：validation.ts 类 ICE 全消 ✓**——但全局 record 注册序扰动，触发另外两个潜伏 ICE（write.ts:273 call arg narrowing "expected object, got union"、management-http:61 unionIsTag "expected union, got record"）。
+- **结论**：scriptc 存在**多重的 lowering 顺序依赖缺陷**（cast 擦除与后续读取的 shape 配对、instanceof 收窄桥的 armTag、union/record 注册序），修一个揭一个，是打地鼠不是收尾。根治需系统性工作：保证 body 单次 lowering（或 shape 注册全图统一）+ 收窄桥结构化。已将三个补丁回滚（编译器 dist 已还原重建），pi 树回退到 8edfe34 稳定 2 错误态。
+- **下轮正确姿势**：不要逐点打地鼠；先建 scriptc 回归集（把 38 个 ICE 现场最小化成用例），再一次性修三处（cast 擦除配对、收窄桥结构化、注册去重），每个用例锁定一个缺陷类。
+
+### 编译器侧攻坚实录（补丁已回滚，pi 树停在稳定 2 错误态）
+
+本轮实施了三个编译器补丁并逐一构建验证（scriptc dist 同步重建）：
+
+- **补丁 1（promise 内层 dyn 宽化）**：coerceToExpected 增 `Promise<X> → Promise<unknown>` 分支（复用 promiseVoidWiden 节点：C 层同一 ScrPromise* 指针 type-only 重解释，await 经 unknown 槽走 scr_await_dyn，语义可靠）。**实测：410 的 map set lift 解除 ✓**。
+- **补丁 2（validate 结构等价回退）**：expectType 对 record-vs-record 做 fields/indexValue 递归比较。**实测：ICE 不消失**——dump 证实两 shape 结构上真不同（want=r1656 `{$ref: dyn}` vs got=r788 全量 schema record）：recordGet 的 shapeId 来自 cast 目标、receiver 携带 cast 源类型——lowerAsExpression 擦除路径的真实 lowering 不一致，非无害双注册。
+- **补丁 3（cast 擦除改走 coerceToExpected）**：静态 record→record cast 不再擦除，同 shape 恒等/宽兼容 copy-reshape/否则尖锐 fence。**实测：validation.ts 类 ICE 全消**——但全局注册序扰动，引爆另外两个潜伏 ICE（write.ts:273 收窄 arg "expected object, got union"、management-http:61 unionIsTag "expected union, got record"）。
+- **pi 侧同时穷尽了 tail 簇的全部变体**（typed catch/undefined-as-unknown/helper 返回 unknown/wrapper 对象/数组重构/registered 中转变量——8+ 种），每种或留在 lift 死墙、或触发 ICE 级联。结论：这两个错误在 pi 侧无解，必须修编译器。
+- **为什么回滚**：补丁 3 修一类揭一类（write 收窄、management-http unionIsTag 是另外两个独立缺陷），逐点修是打地鼠；且每次扰动都会重洗注册序，无法验证收敛。三个补丁已全部回滚（dist 还原重建），pi 树 git checkout 回 8edfe34。
+- **决定性实验（Route 1 void 形态 + 删链）**：publicationChains 改 `Map<string, Promise<void>>` + `queued.then(() => {})` 链 + 去 emptyChain（previous undefined 守卫）+ 甚至整簇删除（生成守卫已保证写盘串行，链是冗余保险）——**全部触发同一 38 桥 ICE 网，与簇形状无关**。决定性结论：桥点配对一致性依赖全局注册序，models.ts 该簇的任何增删改（哪怕删代码）都会重洗注册序引爆桥点。pi 侧重写路线正式关闭。
+- **修正先前结论**："pi 侧无解"的准确表述是"该簇的任何重写都会触发 ICE 网"，而非"形状无解"——全 boolean 簇 + 复合守卫 + 直呼实测 ICE-free（1 个 SC0001），证明存在 ICE-free 形状，但**到达它的路径本身就会扰动注册序**（ catch(() => undefined) vs catch(() => {}) 一个词之差即翻转）。这是编译器缺陷，不是 pi 代码问题。
+- **2026-09-XX 补充**：pushProviderModels/login 已随 8edfe34 稳定；410/412 的 lift 死墙 + 桥点 ICE 网只能从编译器侧根治。
+- **路线 1（void 形态）也失败**：publicationChains 改 `Map<string, Promise<void>>` + `queued.then(() => {})` 链 + 去掉 emptyChain（previous undefined 守卫）+ 甚至整个删除链（生成守卫已保证写盘串行，链是 belt-and-suspenders）——**全部触发同一 38 桥 ICE 网**。决定性结论：ICE 与簇的具体形状无关，**models.ts 该簇的任何增删改（哪怕删代码）都会重洗注册序引爆桥点**。pi 侧重写路线正式关闭，100% 只能从编译器侧达成。
+- **下轮系统性修法（一次到位，不打地鼠）**：①先把全部 ICE 现场最小化为 scriptc 回归用例（已定位三类：cast 擦除配对、instanceof 收窄桥 armTag、unionIsTag/recordGet 混配）②修 lowerAsExpression 擦除配对（补丁 3 已验证方向正确）③修收窄桥结构化（armTag typeEquals 失败后的结构回退）④每修一个跑全部用例，防新揭幕。预计 1-2 个专注会话。
+
 ### 遗留 2 个（models.ts:410/412，同根因）
 
 ```ts
