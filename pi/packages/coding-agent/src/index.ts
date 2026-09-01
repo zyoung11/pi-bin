@@ -241,7 +241,6 @@ export {
 	keyText,
 	LoginDialogComponent,
 	ModelSelectorComponent,
-	OAuthSelectorComponent,
 	type RenderDiffOptions,
 	rawKeyHint,
 	renderDiff,
