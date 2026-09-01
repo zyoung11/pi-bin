@@ -1170,7 +1170,7 @@ export class DefaultPackageManager implements PackageManager {
 		const npmCheckResults = (await runTasksWithConcurrency(
 			npmCandidates,
 			UPDATE_CHECK_CONCURRENCY,
-			async (input: unknown) => {
+			async (input: unknown): Promise<unknown> => {
 				const entry = input as NpmUpdateTarget;
 				return {
 					entry,
@@ -1200,11 +1200,12 @@ export class DefaultPackageManager implements PackageManager {
 		}
 		if (gitCandidates.length > 0) {
 			tasks.push(
-				runTasksWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (input: unknown) => {
+				runTasksWithConcurrency(gitCandidates, GIT_UPDATE_CONCURRENCY, async (input: unknown): Promise<unknown> => {
 					const entry = input as GitUpdateTarget;
 					await this.withProgress("update", entry.source, `Updating ${entry.source}...`, async () => {
 						await this.updateGit(entry.parsed, entry.scope);
 					});
+					return undefined;
 				}).then(() => {}),
 			);
 		}

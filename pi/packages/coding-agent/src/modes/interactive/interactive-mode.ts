@@ -698,7 +698,7 @@ export class InteractiveMode {
 					label: `${m.provider}/${m.id}`,
 				}));
 
-				return createFuzzyAutocompleteItems(items, prefix, getModelSearchText, (item) => ({
+				return createFuzzyAutocompleteItems(items, prefix, (item: (typeof items)[number]) => getModelSearchText(item), (item): AutocompleteItem => ({
 					value: item.label,
 					label: item.id,
 					description: item.provider,
@@ -713,7 +713,7 @@ export class InteractiveMode {
 					this.session.getAvailableThinkingLevels(),
 					prefix,
 					(level) => level,
-					(level) => ({
+					(level): AutocompleteItem => ({
 						value: level,
 						label: level,
 					}),

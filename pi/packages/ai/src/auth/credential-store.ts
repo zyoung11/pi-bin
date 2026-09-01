@@ -64,12 +64,13 @@ export class InMemoryCredentialStore extends CredentialStore {
 		let resultHolder: Credential | undefined;
 		const promise = this.enqueue(
 			providerId,
-			async () => {
+			async (): Promise<unknown> => {
 				const current = this.credentials.get(providerId);
 				const next = await fn(current);
 				throwIfSignalAborted(options);
 				if (next !== undefined) this.credentials.set(providerId, next);
 				resultHolder = next ?? current;
+				return undefined;
 			},
 			options,
 		);
@@ -79,8 +80,9 @@ export class InMemoryCredentialStore extends CredentialStore {
 	delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
 		return this.enqueue(
 			providerId,
-			async () => {
+			async (): Promise<unknown> => {
 				this.credentials.delete(providerId);
+				return undefined;
 			},
 			options,
 		) as Promise<void>;

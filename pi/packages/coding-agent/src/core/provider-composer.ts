@@ -298,18 +298,19 @@ function adaptOAuth(config: ExtensionOAuthConfig): OAuthAuth {
 					}),
 				onProgress: (message) => callbacks.notify({ type: "progress", message }),
 				onManualCodeInput: () => callbacks.prompt({ type: "manual_code", message: "Paste the authorization code" }),
-				onSelect: (prompt) =>
-					callbacks.prompt({
+				onSelect: async (prompt): Promise<string | undefined> => {
+					return await callbacks.prompt({
 						type: "select",
 						message: prompt.message,
 						options: prompt.options,
-					}),
+					});
+				},
 				signal: callbacks.signal,
 			});
 			return toOAuthCredential(credential);
 		},
 		refresh: async (credential, signal) => toOAuthCredential(await config.refreshToken(credential, signal)),
-		toAuth: async (credential) => ({ apiKey: config.getApiKey(credential) }),
+		toAuth: async (credential): Promise<ModelAuth> => ({ apiKey: config.getApiKey(credential) }),
 	};
 }
 

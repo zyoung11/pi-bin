@@ -15,6 +15,14 @@
 - **验证**：tsgo src 清零；scriptc build 全图 0 诊断；`--version`/`--list-models`/`-c` 会话恢复/`-r` 选择器渲染（真彩色转义可见）/`--print --model llamacpp/MiniCPM5-1B` 对话全部通过。
 - **遗留**：用户 settings.json 引用已删内置 provider 的 6 条 warning（用户配置）；TUI 交互项（/model 等、tmux 环境）待用户真机复验。
 
+## 第五十轮记录（tmux rejection + 首条消息 markdown 崩溃 + ctrl+c 退出 trap）
+
+- **tmux 启动 unhandled rejection（"undefined is not representable in the target union"）根因拆除**：编译器插桩两板斧定型——①`SC_DEBUG_STRAND=1`（strandedCoercionTrap 单元源生成点）②`SCDBG-FNADAPT`（fn-adapter strandParams/strandRet 生成点），**构建期即可枚举全部运行时炸点**，不再需要 gdb 抓 pty。本次定位：`spawnProcess` 把 `options.cwd`（string|undefined）直接传入 nodeSpawn 选项 record——tmux 键盘检查调用不传 cwd → undefined 流入 `string` 槽即抛。修复 = `cwd: options.cwd === undefined ? process.cwd() : options.cwd` + `windowsHide === true`。**新规则：node API 选项 record 的可选字段绝不能透传 undefined，必须归一化默认值**。
+- **SCDBG-FNADAPT 扫出 8 个 strandRet/strandParams 雷点全修**（每个都是"调用即抛"的隐形雷）：机制澄清——**参数个数不匹配有精确 adapter（截断多余参数），真正炸的是返回值转换**（fn 推断返回类型 vs 槽返回类型的联合 re-tag）。修复模式：①task 回调注解 `(): Promise<unknown> =>` + 末尾 `return undefined;`（model-runtime 4 处 / credential-store 2 处 / package-manager 2 处）②回调字面量显式注解返回类型对齐槽（interactive-mode 补全 2 处、provider-composer OAuth onSelect 改 async+await 返回 string|undefined、toAuth 注解 Promise<ModelAuth>）。
+- **首条消息 markdown 渲染崩溃**（`(string) => Token` fn 经 `(string, tokens) => Token` 槽调用）：mini-markdown `inlineTokens` 对每个位置的每个扩展直接调 `extension.tokenizer(rest, tokens)`，latex 扩展 tokenizer 是 1 参函数。修复 = tokenizeInlineLatex/tokenizeBlockLatex 补第二参（void tokens）+ 返回类型显式注解 `Token | TokensGeneric | undefined` 对齐槽。顺手把 `Math.min(...indices)` spread 改手写循环（Math.max spread 同族雷）。
+- **ctrl+c 退出 trap**（"record has no key (typed slot)"，gdb 定位 CustomEditor_handleInput）：`this.actionHandlers["app.interrupt"]` 字面键读——**值类型为 `() => void` 的 record 缺键读直接 trap（值类型无 undefined 臂可表示）**，而 app.interrupt/app.exit 从未注册。修复 = hasAction 存在性循环检查（Object.keys）+ onEscape/onCtrlD 提升局部变量后调用（可选方法调用禁，规则②）。**新规则㊱：`Record<K, 函数值>` 的缺键读必 trap，先 Object.keys 存在性检查再直读；dyn 视图 + `as (fn | undefined)` cast 会触发 SC9001 ICE（checked cast 禁含函数值）**。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；SCDBG-FNADAPT 扫描归零；pty 真跑——tmux 下 TUI 启动无 rejection、TUI 发消息"收到"渲染正常、ctrl+c 退出 EXIT=0、--version/--list-models/-c/--print 对话/bash tool_call 全部回归通过。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。

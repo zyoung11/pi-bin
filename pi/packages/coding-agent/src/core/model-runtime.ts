@@ -543,7 +543,7 @@ export class ModelRuntime implements Models {
 
 	setRuntimeApiKey(providerId: string, apiKey: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async (): Promise<unknown> => {
 			this.credentials.setRuntimeApiKey(providerId, apiKey);
 			await this.synchronizeCredentialState(
 				providerId,
@@ -551,14 +551,16 @@ export class ModelRuntime implements Models {
 				{ type: "api_key", key: apiKey },
 				signal,
 			);
+			return undefined;
 		}) as Promise<void>;
 	}
 
 	removeRuntimeApiKey(providerId: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async (): Promise<unknown> => {
 			this.credentials.removeRuntimeApiKey(providerId);
 			await this.synchronizeCredentialState(providerId, "removeRuntimeApiKey", undefined, signal);
+			return undefined;
 		}) as Promise<void>;
 	}
 
@@ -689,10 +691,11 @@ export class ModelRuntime implements Models {
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
 		const signal = operationSignal(interaction.signal);
 		let credentialHolder: Credential | undefined;
-		const credentialPromise = enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
+		const credentialPromise = enqueueCredentialOperation(this.credentialOperations, providerId, signal, async (): Promise<unknown> => {
 			const credential = await this.models.login(providerId, type, { ...interaction, signal });
 			await this.synchronizeCredentialState(providerId, "login", credential, signal);
 			credentialHolder = credential;
+			return undefined;
 		});
 		return credentialPromise.then(() => {
 			if (credentialHolder === undefined) {
@@ -704,9 +707,10 @@ export class ModelRuntime implements Models {
 
 	logout(providerId: string, options: AuthOperationOptions = {}): Promise<void> {
 		const signal = operationSignal(options.signal);
-		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async () => {
+		return enqueueCredentialOperation(this.credentialOperations, providerId, signal, async (): Promise<unknown> => {
 			await this.models.logout(providerId, { signal });
 			await this.synchronizeCredentialState(providerId, "logout", undefined, signal);
+			return undefined;
 		}) as Promise<void>;
 	}
 

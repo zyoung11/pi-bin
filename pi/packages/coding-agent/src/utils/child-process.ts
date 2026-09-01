@@ -38,9 +38,9 @@ export function spawnProcess(command: string, args: string[], options: SpawnProc
 		}
 	}
 	return nodeSpawn(command, args, {
-		cwd: options.cwd,
+		cwd: options.cwd === undefined ? process.cwd() : options.cwd,
 		env: spawnEnv,
-		windowsHide: options.windowsHide,
+		windowsHide: options.windowsHide === true,
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 }

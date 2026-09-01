@@ -49,7 +49,8 @@ function looksLikePendingDollarMath(source: string): boolean {
 	return /\\[A-Za-z]+|[_^=+*/<>()[\]|±≤≥≠≈∈→⇒∞∫∑√-]/.test(source);
 }
 
-function tokenizeInlineLatex(source: string): LatexToken | undefined {
+function tokenizeInlineLatex(source: string, tokens: Token[]): Token | TokensGeneric | undefined {
+	void tokens;
 	let opening = "";
 	let closing = "";
 	if (source.startsWith("$$")) {
@@ -98,7 +99,8 @@ function tokenizeInlineLatex(source: string): LatexToken | undefined {
 	return { type: "latex", raw, text };
 }
 
-function tokenizeBlockLatex(source: string): LatexToken | undefined {
+function tokenizeBlockLatex(source: string, tokens: Token[]): Token | TokensGeneric | undefined {
+	void tokens;
 	const dollarMatch = /^ {0,3}\$\$[ \t]*(?:\n)?([\s\S]*?)\$\$[ \t]*(?:\n|$)/.exec(source);
 	if (dollarMatch?.[1]) {
 		return { type: "latexBlock", raw: dollarMatch[0], text: dollarMatch[1].trim() };
@@ -137,10 +139,12 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 		name: "latex",
 		level: "inline",
 		start(source) {
-			const indices = [source.indexOf("$"), source.indexOf("\\("), source.indexOf("\\[")].filter(
-				(index) => index >= 0,
-			);
-			return indices.length > 0 ? Math.min(...indices) : undefined;
+			let best = -1;
+			const candidates = [source.indexOf("$"), source.indexOf("\\("), source.indexOf("\\[")];
+			for (const index of candidates) {
+				if (index >= 0 && (best < 0 || index < best)) best = index;
+			}
+			return best >= 0 ? best : undefined;
 		},
 		tokenizer: tokenizeInlineLatex,
 	},

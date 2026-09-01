@@ -28,6 +28,14 @@ export class CustomEditor extends Editor {
 		this.actionHandlers[action] = handler;
 	}
 
+	/** Whether an action handler has been registered (missing-key reads trap on fn-valued records). */
+	private hasAction(action: string): boolean {
+		for (const key of Object.keys(this.actionHandlers)) {
+			if (key === action) return true;
+		}
+		return false;
+	}
+
 	handleInput(data: string): void {
 		// Check extension-registered shortcuts first
 		if (this.onExtensionShortcut?.(data)) {
@@ -46,10 +54,14 @@ export class CustomEditor extends Editor {
 		if (this.keybindings.matches(data, "app.interrupt")) {
 			if (!this.isShowingAutocomplete()) {
 				// Use dynamic onEscape if set, otherwise registered handler
-				const interruptHandler = this.actionHandlers["app.interrupt"];
-				const handler = this.onEscape ?? interruptHandler;
-				if (handler) {
-					handler();
+				const escapeHandler = this.onEscape;
+				if (escapeHandler !== undefined) {
+					escapeHandler();
+					return;
+				}
+				if (this.hasAction("app.interrupt")) {
+					const interruptHandler = this.actionHandlers["app.interrupt"];
+					interruptHandler();
 					return;
 				}
 			}
@@ -61,12 +73,18 @@ export class CustomEditor extends Editor {
 		// Exit (Ctrl+D) - only when editor is empty
 		if (this.keybindings.matches(data, "app.exit")) {
 			if (this.getText().length === 0) {
-				const exitHandler = this.actionHandlers["app.exit"];
-				const handler = this.onCtrlD ?? exitHandler;
-				if (handler) handler();
-				return;
+				const ctrlDHandler = this.onCtrlD;
+				if (ctrlDHandler !== undefined) {
+					ctrlDHandler();
+					return;
+				}
+				if (this.hasAction("app.exit")) {
+					const exitHandler = this.actionHandlers["app.exit"];
+					exitHandler();
+					return;
+				}
+				// Fall through to editor handling for delete-char-forward when not empty
 			}
-			// Fall through to editor handling for delete-char-forward when not empty
 		}
 
 		// Explicit history bindings take precedence over app actions while the editor is focused.

@@ -5495,6 +5495,9 @@ export class Lowerer {
     const key = `fnadapt:${typeKey(fromT)}:${typeKey(toT)}`;
     const existing = this.retagHelpers.get(key);
     if (existing) return existing;
+    if (process.env["SC_DEBUG_FNADAPT"] === "1" && strandRet) {
+      console.error(`SCDBG-FNADAPT strandRet at ${loc.file}:${loc.start}: ${this.fmt(fromT)} -> ${this.fmt(toT)}`);
+    }
     const name = `%fn.adapt.${this.retagHelpers.size}`;
     this.retagHelpers.set(key, name);
     this.freshClosureAdapters.add(name); // wraps `f` in a new closure per call
@@ -5514,6 +5517,9 @@ export class Lowerer {
     });
     let body: IrStmt[];
     if (strandParams) {
+      if (process.env["SC_DEBUG_FNADAPT"] === "1") {
+        console.error(`SCDBG-FNADAPT strandParams at ${loc.file}:${loc.start}: ${this.fmt(fromT)} -> ${this.fmt(toT)}`);
+      }
       body = [
         strandThrow(
           `a '${this.fmt(fromT)}' function invoked through a '${this.fmt(toT)}' slot (the parameter types cannot convert — the checker's loose function compatibility admitted the assignment, but the call has no exact lowering)`,
@@ -5860,6 +5866,9 @@ export class Lowerer {
     const def = this.unions.get(expected.unionId);
     if (!def) return null;
     const src = expr.type;
+    if (process.env["SC_DEBUG_STRAND"] === "1" && isUnitType(src)) {
+      console.error(`SCDBG-STRAND unit-source trap at ${loc.file}:${loc.start} -> ${this.fmt(expected)}`);
+    }
     let what: string;
     if (isUnitType(src)) {
       what = src.kind === "undefinedT" ? "undefined" : "null";
