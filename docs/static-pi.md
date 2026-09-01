@@ -2,6 +2,19 @@
 
 > ⚠️ 测试提醒（2026-08-29 用户指定）：后续冒烟/真跑一律用 `llamacpp/MiniCPM5-1B` 模型（`--model "llamacpp/MiniCPM5-1B"`）。
 
+## 第四十九轮记录（TUI 用户报告 10 项问题修复：SIGSEGV/全白/steering/选择器槽位）
+
+- **用户真机 TUI 报告 10 项**，全部定位到根因并修复，新二进制 `pi/pi-native`（8.6MB）重建。
+- **`-c`/`-r` SIGSEGV + 启动 unhandled rejection（重大编译器缺陷实锤）**：scriptc 运行时无法把 `JSON.parse` 裸动态记录 re-tag 进 FileEntry/SessionEntry/AgentMessage 联合——cast 后任何 typed 字段读即崩（“expected object×N got object”，同一缺陷在不同上下文分别表现为 SIGSEGV/TypeError）。**修复 = pi 侧 revive 反序列化器**（session-manager `reviveFileEntry` ~380 行）：10 种条目臂 + 嵌套 AgentMessage 7 臂 + content 块（text/image/thinking/toolCall）+ usage/cost 全部经 unknown dyn 通道读 + 显式重建；`parseSessionEntryLine` 换用 revive。新规则：**JSON 边界进联合类型的值必须逐字段重建，永不 cast 后直读**（与此前 header 检查的 recordViewOf 模式同源，本次推广到全量）。
+- **探针方法论再验证**：SIGSEGV 用 gdb bt 定位到 `sc_f__x25_m120_buildSessionContext`；逐语句打印二分（s1–s9）复现为干净 TypeError；`revive` 形态在探针中全链路验证后再落源码。注意：探针必须复刻真实数据形状（外层 timestamp 是 ISO 字符串、内层 message.timestamp 是 number——测试数据写错会浪费时间）。
+- **全白 TUI 根因 = copyStateFrom cast 视图字段写**：`this as unknown as {...}` 上的 `self.fgColors = ...` 全部静默 no-op（规则 ㉘ 实锤新案例），themeHolder 永远保持构造时空颜色；改直接字段写（去两个 readonly）。同文件发现第二缺陷：构造器颜色循环对 `Record<string, string|number>` 的动态 keyed 读运行时返回垃圾值（`#ff5fff` 等不存在值）——改 recordViewOf dyn 通道读。观察结论：**typed index-signature record 的动态 keyed 读在编译期被 SC1090 拒（probe 实测），但部分上下文能编译通过——通过了的就是坏的，必须改 dyn 通道**。
+- **steering/queued 错误**：字段改 `| null = null` 时漏改比较——`isCompacting` 的 `!== undefined` 与 `isRetrying` 同款恒真；改 `!== null`。教训：**类型层 null/undefined 语义迁移必须 grep 全部比较点**。
+- **选择器槽位 invoke 失败**（/model /settings /thinking /scoped-models）：`dispose?: () => void` 槽 vs 回调推断 `dispose: () => void`——checker 宽松函数兼容放行、运行时无精确 lowering。修复 = `SelectorHandle` 类型 + 11 处调用点显式注解（规则 ㉕ 复用）。
+- **`-r` 会话选择器崩溃**：`input.ts` 空文本时 `graphemes[0]` 对空数组 OOB trap（JS 语义 undefined）——3 处 length 守卫。**对 segmenter 结果的所有 `[0]` 读必须先 length 检查**。
+- **/login 整体移除**（slash-commands + 补全 + 分发 + 登录集群 ~16KB）；**检查更新整体移除**（checkForNewPiVersion + checkForPackageUpdates + 通知方法 + npm view 子进程挂起源）。
+- **验证**：tsgo src 清零；scriptc build 全图 0 诊断；`--version`/`--list-models`/`-c` 会话恢复/`-r` 选择器渲染（真彩色转义可见）/`--print --model llamacpp/MiniCPM5-1B` 对话全部通过。
+- **遗留**：用户 settings.json 引用已删内置 provider 的 6 条 warning（用户配置）；TUI 交互项（/model 等、tmux 环境）待用户真机复验。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。
