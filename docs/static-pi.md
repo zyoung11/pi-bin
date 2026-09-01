@@ -80,6 +80,14 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第六十轮记录（第 2 步：砍死设置 + fullscreen 全家）
+
+- **死设置砍除**：transport（含 websockets 遗留迁移逻辑）、auto-resize-images（processImage 直通无缩放引擎，设置纯摆设；ProcessImageOptions 参数链保留默认行为）、anthropic-extra-usage 警告链（maybeWarnAboutAnthropicSubscriptionAuth + WarningSettings 空接口 + getWarnings/setWarnings + settings-selector warnings 子菜单与条目——anthropic 内置 provider 删除后永不触发；**空接口导致 Settings checked-cast 链全断的连带坑**：WarningSettings 变 `{}` 后 cast 无法验证，整链 SC1090，删除空接口即恢复）。
+- **httpIdleTimeoutMs 保留**（纠正判断）：configureHttpDispatcher 与 agent 请求 timeout 链真实消费（0=禁用超时），仅删 settings-selector UI 条目（settings.json 手配仍生效）。
+- **fullscreen 全家砍除**：tui-alt-screen.ts（1367 行）、TuiAltScreen/ViewportTUI/isViewportTUI、TuiMode 简化为 `"regular"`、args --tui-mode 解析与 help、settings 三项（tuiMode/fullscreenExitOutput/fullscreenScrollbar）及 getter/setter、interactive-mode 的 createInteractiveTui fullscreen 分支/mountInteractiveTui 分支/stopInteractiveTui/switchTuiMode/fullscreenLayoutRoot/fullscreenChildren/applyFullscreenScrollbarSetting/flashConfirmation 分支、keybindings 28 条 altScreen 定义 + 3 条 overrides、index exports。init 方法在函数边界删除时被误吞，从 HEAD 提取净化（剔除已删功能引用）后恢复。
+- **TUI 接口保留 getMode(): TuiMode**（TuiForwarder 等实现不动，最小动面）。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；隔离 pane 冒烟——对话正常、/settings 面板 19 项无已删条目、--list-models 正常；--help 无 tui-mode。
+
 ## 第五十九轮记录（供应商改为内存合成 + settings 兼容性修正）
 
 - **用户需求**：① settings.json 的 `lastChangelogVersion` 是原始 pi 的键，不删不读（恢复字段定义保留透传）；② models.json 不做物理合并（用户手写内容难找），改为**启动时内存合成**。

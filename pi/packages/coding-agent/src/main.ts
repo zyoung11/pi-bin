@@ -207,7 +207,6 @@ async function runAuthCommand(args: string[]): Promise<boolean> {
 
 async function prepareInitialMessage(
 	parsed: Args,
-	autoResizeImages: boolean,
 	stdinContent?: string,
 ): Promise<{
 	initialMessage?: string;
@@ -217,7 +216,7 @@ async function prepareInitialMessage(
 		return buildInitialMessage({ parsed, stdinContent });
 	}
 
-	const { text, images } = await processFileArguments(parsed.fileArgs, { autoResizeImages });
+	const { text, images } = await processFileArguments(parsed.fileArgs);
 	return buildInitialMessage({
 		parsed,
 		fileText: text,
@@ -868,7 +867,6 @@ export async function main(args: string[]) {
 
 	const { initialMessage, initialImages } = await prepareInitialMessage(
 		parsed,
-		settingsManager.getImageAutoResize(),
 		stdinContent,
 	);
 	time("prepareInitialMessage");
@@ -925,7 +923,6 @@ export async function main(args: string[]) {
 			initialImages,
 			initialMessages: parsed.messages,
 			verbose: parsed.verbose,
-			tuiMode: parsed.tuiMode,
 			initialThemeSetting: parsed.useTheme,
 		});
 		if (startupBenchmark) {

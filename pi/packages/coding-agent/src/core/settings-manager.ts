@@ -1,7 +1,4 @@
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import type { Transport } from "../../../ai/src/index.ts";
-import type { TuiMode as RendererTuiMode } from "../../../tui/src/tui.ts";
-import type { ScrollViewScrollbar } from "../../../tui/src/components/scroll-view.ts";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
@@ -35,8 +32,6 @@ export interface RetrySettings {
 	provider?: ProviderRetrySettings;
 }
 
-export type TuiMode = RendererTuiMode;
-export type FullscreenExitOutput = "transcript" | "resume-hint";
 
 export interface TerminalSettings {
 	showImages?: boolean; // default: true (only relevant if terminal supports images)
@@ -46,7 +41,6 @@ export interface TerminalSettings {
 }
 
 export interface ImageSettings {
-	autoResize?: boolean; // default: true (resize images to 2000x2000 max for better model compatibility)
 	blockImages?: boolean; // default: false - when true, prevents all images from being sent to LLM providers
 }
 
@@ -64,13 +58,7 @@ export interface MarkdownSettings {
 	mermaid?: MermaidRenderingMode; // default: "streaming"
 }
 
-export interface WarningSettings {
-	anthropicExtraUsage?: boolean; // default: true
-}
-
 export type DefaultProjectTrust = "ask" | "always" | "never";
-
-export type TransportSetting = Transport;
 
 /**
  * Package source for npm/git packages.
@@ -96,7 +84,6 @@ export interface Settings {
 	defaultModel?: string;
 	defaultThinkingLevel?: ThinkingLevel;
 	modelThinkingLevels?: Record<string, ThinkingLevel>; // per-model default thinking level overrides keyed by "provider/modelId"
-	transport?: TransportSetting; // default: "auto"
 	steeringMode?: "all" | "one-at-a-time";
 	followUpMode?: "all" | "one-at-a-time";
 	theme?: string;
@@ -131,14 +118,10 @@ export interface Settings {
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
 	markdown?: MarkdownSettings;
-	warnings?: WarningSettings;
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
 	httpProxy?: string; // Proxy URL applied as HTTP_PROXY and HTTPS_PROXY for Pi-managed HTTP clients
 	httpIdleTimeoutMs?: number; // HTTP header/body idle timeout in milliseconds; 0 disables it
 	websocketConnectTimeoutMs?: number; // WebSocket connect/open handshake timeout in milliseconds; 0 disables it
-	tuiMode?: TuiMode; // default: "regular"
-	fullscreenExitOutput?: FullscreenExitOutput; // default: "transcript"; no effect in regular TUI mode
-	fullscreenScrollbar?: ScrollViewScrollbar; // default: "auto"; no effect in regular TUI mode
 }
 
 function recordViewOf(value: unknown): Record<string, unknown> {
@@ -440,11 +423,6 @@ export class SettingsManager {
 			delete record["queueMode"];
 		}
 
-		// Migrate legacy websockets boolean -> transport enum
-		if (record["transport"] === undefined && typeof record["websockets"] === "boolean") {
-			record["transport"] = record["websockets"] ? "websocket" : "sse";
-			delete record["websockets"];
-		}
 
 		// Migrate old skills object format to new array format
 		const skillsValue = record["skills"];
@@ -835,16 +813,6 @@ export class SettingsManager {
 		this.save();
 	}
 
-	getTransport(): TransportSetting {
-		return this.settings.transport ?? "auto";
-	}
-
-	setTransport(transport: TransportSetting): void {
-		this.globalSettings.transport = transport;
-		this.markModified("transport");
-		this.save();
-	}
-
 	getCompactionEnabled(): boolean {
 		return this.settings.compaction?.enabled ?? true;
 	}
@@ -1188,49 +1156,6 @@ export class SettingsManager {
 		this.save();
 	}
 
-	getTuiMode(): TuiMode {
-		return this.settings.tuiMode === "fullscreen" ? "fullscreen" : "regular";
-	}
-
-	setTuiMode(mode: TuiMode): void {
-		this.globalSettings.tuiMode = mode;
-		this.markModified("tuiMode");
-		this.save();
-	}
-
-	getFullscreenExitOutput(): FullscreenExitOutput {
-		return this.settings.fullscreenExitOutput === "resume-hint" ? "resume-hint" : "transcript";
-	}
-
-	setFullscreenExitOutput(output: FullscreenExitOutput): void {
-		this.globalSettings.fullscreenExitOutput = output;
-		this.markModified("fullscreenExitOutput");
-		this.save();
-	}
-
-	getFullscreenScrollbar(): ScrollViewScrollbar {
-		const mode = this.settings.fullscreenScrollbar;
-		return mode === "always" || mode === "hidden" ? mode : "auto";
-	}
-
-	setFullscreenScrollbar(mode: ScrollViewScrollbar): void {
-		this.globalSettings.fullscreenScrollbar = mode;
-		this.markModified("fullscreenScrollbar");
-		this.save();
-	}
-
-	getImageAutoResize(): boolean {
-		return this.settings.images?.autoResize ?? true;
-	}
-
-	setImageAutoResize(enabled: boolean): void {
-		if (!this.globalSettings.images) {
-			this.globalSettings.images = {};
-		}
-		this.globalSettings.images.autoResize = enabled;
-		this.markModified("images", "autoResize");
-		this.save();
-	}
 
 	getBlockImages(): boolean {
 		return this.settings.images?.blockImages ?? false;
@@ -1335,18 +1260,6 @@ export class SettingsManager {
 		if (this.globalSettings.markdown === undefined) this.globalSettings.markdown = {};
 		this.globalSettings.markdown.mermaid = mode;
 		this.markModified("markdown", "mermaid");
-		this.save();
-	}
-
-	getWarnings(): WarningSettings {
-		const warnings = this.settings.warnings;
-		if (warnings === undefined) return {};
-		return { ...warnings };
-	}
-
-	setWarnings(warnings: WarningSettings): void {
-		this.globalSettings.warnings = { ...warnings };
-		this.markModified("warnings");
 		this.save();
 	}
 }

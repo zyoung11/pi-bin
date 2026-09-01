@@ -347,7 +347,6 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		sessionId: sessionManager.getSessionId(),
 		steeringMode: settingsManager.getSteeringMode(),
 		followUpMode: settingsManager.getFollowUpMode(),
-		transport: settingsManager.getTransport(),
 		thinkingBudgets: settingsManager.getThinkingBudgets(),
 		maxRetryDelayMs: settingsManager.getProviderRetrySettings().maxRetryDelayMs,
 	});

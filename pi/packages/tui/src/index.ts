@@ -120,7 +120,6 @@ export {
 	compositeTuiLine,
 	type Focusable,
 	isFocusable,
-	isViewportTUI,
 	type OverlayAnchor,
 	type OverlayHandle,
 	type OverlayMargin,
@@ -132,9 +131,7 @@ export {
 	type TuiInputListenerResult,
 	type TuiMode,
 	type TuiStopOptions,
-	type ViewportTUI,
 } from "./tui.ts";
-export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
 export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
 // Utilities
 export {

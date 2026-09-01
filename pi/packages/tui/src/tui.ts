@@ -311,7 +311,7 @@ export function compositeTuiLine(
 	return visibleWidth(result) <= totalWidth ? result : sliceByColumn(result, 0, totalWidth, true);
 }
 
-export type TuiMode = "regular" | "fullscreen";
+export type TuiMode = "regular";
 
 export interface TuiStopOptions {
 	/** Leave renderer output in place for another TUI taking over the same terminal. */
@@ -351,14 +351,6 @@ export interface TUI {
 	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined>;
 }
 
-
-export interface ViewportTUI extends TUI {
-	setLayoutRoot(component: Component | undefined): void;
-}
-
-export function isViewportTUI(tui: TUI): tui is ViewportTUI {
-	return tui.getMode() === "fullscreen";
-}
 
 export abstract class TuiBase extends Container implements TUI {
 	readonly mode: TuiMode = "regular";

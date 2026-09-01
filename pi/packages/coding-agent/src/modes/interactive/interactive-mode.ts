@@ -42,8 +42,7 @@ import {
 	TuiBase,
 	type TUI,
 } from "../../../../tui/src/tui.ts";
-import { TuiAltScreen } from "../../../../tui/src/tui-alt-screen.ts";
-import { TuiMainScreen, type TuiMainScreenRenderState } from "../../../../tui/src/tui-main-screen.ts";
+import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
 import { visibleWidth } from "../../../../tui/src/utils.ts";
 import chalk from "../../utils/mini-chalk.ts";
 import { spawn } from "child_process";
@@ -88,7 +87,6 @@ import {
 	SessionManager,
 	sessionEntryToContextMessages,
 } from "../../core/session-manager.ts";
-import type { FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "../../core/trust-manager.ts";
@@ -249,13 +247,6 @@ function isDeadTerminalError(error: unknown): boolean {
 	return typeof code === "string" && DEAD_TERMINAL_ERROR_CODES.has(code);
 }
 
-const ANTHROPIC_SUBSCRIPTION_AUTH_WARNING =
-	"Anthropic subscription auth is active. Third-party harness usage draws from extra usage and is billed per token, not your Claude plan limits. Manage extra usage at https://claude.ai/settings/usage. Disable this warning in /settings.";
-
-function isAnthropicSubscriptionAuthKey(apiKey: string | undefined): boolean {
-	return typeof apiKey === "string" && apiKey.startsWith("sk-ant-oat");
-}
-
 function isUnknownModel(model: Model<Api> | undefined): boolean {
 	return !!model && model.provider === "unknown" && model.id === "unknown" && model.api === "unknown";
 }
@@ -336,14 +327,11 @@ export interface InteractiveModeOptions {
 	initialMessages?: string[];
 	/** Force verbose startup (overrides quietStartup setting) */
 	verbose?: boolean;
-	/** TUI layout mode. */
-	tuiMode?: TuiMode;
 	/** Initial interactive theme setting for this invocation. */
 	initialThemeSetting?: string;
 }
 
 interface InteractiveTuiOptions {
-	tuiMode: TuiMode;
 	showHardwareCursor: boolean;
 	logDirectory: string;
 	terminal?: ProcessTerminal;
@@ -353,23 +341,6 @@ interface InteractiveTuiOptions {
 /** Composition root for selecting the interactive terminal renderer. */
 export function createInteractiveTui(options: InteractiveTuiOptions): TuiBase {
 	const terminal = options.terminal ?? new ProcessTerminal();
-	if (options.tuiMode === "fullscreen") {
-		const styleSearchMatch = (text: string) => theme.bg("searchMatchBg", theme.fg("searchMatchText", text));
-		return new TuiAltScreen(terminal, options.showHardwareCursor, options.logDirectory, {
-			searchMatchStyle: (text) => theme.underline(styleSearchMatch(text)),
-			searchCurrentMatchStyle: (text) => theme.bold(theme.inverse(styleSearchMatch(text))),
-			openUrl: openBrowser,
-			onRightClickPaste: options.onRightClickPaste,
-			copySelection: async (text) => {
-				try {
-					await copyToClipboard(text);
-					return true;
-				} catch {
-					return false;
-				}
-			},
-		});
-	}
 	return new TuiMainScreen(terminal, options.showHardwareCursor, options.logDirectory);
 }
 
@@ -434,12 +405,10 @@ export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiBase;
 	private ui: TUI;
-	private mainScreenRenderState: TuiMainScreenRenderState | undefined;
 	private loadedResourcesContainer: Container;
 	private chatContainer: Container;
 	private documentContainer: Container;
 	private transcriptScrollView: ScrollView | undefined;
-	private fullscreenLayoutRoot: Component | undefined;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
 	private defaultEditor: CustomEditor;
@@ -471,7 +440,6 @@ export class InteractiveMode {
 
 	private lastSigintTime = 0;
 	private lastEscapeTime = 0;
-	private anthropicSubscriptionWarningShown = false;
 
 	// Status line tracking (for mutating immediately-sequential status updates)
 	private lastStatusSpacer: Spacer | undefined = undefined;
@@ -565,8 +533,7 @@ export class InteractiveMode {
 
 	constructor(runtimeHost: AgentSessionRuntime, options: InteractiveModeOptions = {}) {
 		this.runtimeHost = runtimeHost;
-		const tuiMode = options.tuiMode ?? this.settingsManager.getTuiMode();
-		this.options = { ...options, tuiMode };
+		this.options = { ...options };
 		this.autoTrustOnReloadCwd = options.autoTrustOnReloadCwd;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
@@ -577,7 +544,6 @@ export class InteractiveMode {
 		});
 		this.version = VERSION;
 		this.renderer = createInteractiveTui({
-			tuiMode,
 			showHardwareCursor: this.settingsManager.getShowHardwareCursor(),
 			logDirectory: getAgentDir(),
 			onRightClickPaste: this.onRightClickPaste,
@@ -772,69 +738,10 @@ export class InteractiveMode {
 
 	private mountInteractiveTui(tui: TuiBase, components: readonly Component[]): void {
 		for (const component of components) tui.addChild(component);
-		if (tui instanceof TuiAltScreen) {
-			if (!this.fullscreenLayoutRoot) throw new Error("Fullscreen layout is not initialized");
-			tui.setLayoutRoot(this.fullscreenLayoutRoot);
-		}
 	}
 
-	private stopInteractiveTui(fullscreenExitOutput: FullscreenExitOutput): void {
-		if (this.renderer.mode === "fullscreen" && fullscreenExitOutput === "transcript") {
-			while (this.renderer.hasOverlayEntries) this.renderer.hideOverlay();
-			this.switchTuiMode("regular", false, false);
-			this.renderer.renderNow();
-		}
-		this.ui.stopWithOptions({ preserveScreen: this.renderer.mode === "fullscreen" });
-	}
-
-	private switchTuiMode(mode: TuiMode, restoreProgress = true, startRenderer = true): boolean {
-		const previousUi = this.renderer;
-		if (mode === previousUi.mode) return true;
-		if (previousUi.hasOverlayEntries) return false;
-
-		const components = [...previousUi.children];
-		const focus = previousUi.getFocusedComponent();
-		const terminal = previousUi.terminal;
-		const showHardwareCursor = previousUi.getShowHardwareCursor();
-		const clearOnShrink = previousUi.getClearOnShrink();
-		const onDebug = previousUi.onDebug;
-		if (previousUi instanceof TuiMainScreen) {
-			this.mainScreenRenderState = previousUi.captureRenderState();
-		}
-
-		previousUi.stopWithOptions({ preserveScreen: true });
-		previousUi.setFocus(null);
-		previousUi.clear();
-		if (previousUi instanceof TuiAltScreen) previousUi.setLayoutRoot(undefined);
-
-		const nextUi = createInteractiveTui({
-			tuiMode: mode,
-			showHardwareCursor,
-			logDirectory: getAgentDir(),
-			terminal,
-			onRightClickPaste: this.onRightClickPaste,
-		});
-		nextUi.setClearOnShrink(clearOnShrink);
-		nextUi.onDebug = onDebug;
-		if (nextUi instanceof TuiMainScreen && this.mainScreenRenderState) {
-			nextUi.restoreRenderState(this.mainScreenRenderState);
-		}
-		this.renderer = nextUi;
-		this.options.tuiMode = mode;
-		this.mountInteractiveTui(nextUi, components);
-		nextUi.invalidate();
-		nextUi.setFocus(focus);
-		if (!startRenderer) return true;
-		nextUi.start();
-		this.themeController.rebindTui();
-		if (
-			restoreProgress &&
-			this.settingsManager.getShowTerminalProgress() &&
-			(this.session.isStreaming || this.session.isCompacting)
-		) {
-			terminal.setProgress(true);
-		}
-		return true;
+	private stopInteractiveTui(): void {
+		this.ui.stopWithOptions({ preserveScreen: false });
 	}
 
 	async init(): Promise<void> {
@@ -863,7 +770,7 @@ export class InteractiveMode {
 			follow: "end",
 			primary: true,
 			overscroll: "chain",
-			scrollbar: this.settingsManager.getFullscreenScrollbar(),
+			scrollbar: "auto",
 			scrollbarStyle: (text) => theme.bg("scrollbarThumb", text),
 		});
 		const dockChildren: StackEntry[] = [
@@ -875,11 +782,6 @@ export class InteractiveMode {
 			{ component: this.footerContainer, shrink: 1, minSize: 1 },
 		];
 		const dock = new VStack(dockChildren);
-		const fullscreenChildren: StackEntry[] = [
-			{ component: this.transcriptScrollView, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-			{ component: dock, basis: "auto", grow: 0, shrink: 1, minSize: 1 },
-		];
-		this.fullscreenLayoutRoot = new VStack(fullscreenChildren);
 		this.mountInteractiveTui(this.renderer, [
 			this.documentContainer,
 			this.pendingMessagesContainer,
@@ -1003,9 +905,6 @@ export class InteractiveMode {
 		});
 	}
 
-	/**
-	 * Update terminal title with session name and cwd.
-	 */
 	private updateTerminalTitle(): void {
 		const cwdBasename = path.basename(this.sessionManager.getCwd());
 		const sessionName = this.sessionManager.getSessionName();
@@ -1071,8 +970,6 @@ export class InteractiveMode {
 		if (modelFallbackMessage) {
 			this.showWarning(modelFallbackMessage);
 		}
-
-		void this.maybeWarnAboutAnthropicSubscriptionAuth();
 
 		// Process initial messages
 		if (initialMessage) {
@@ -1718,13 +1615,9 @@ export class InteractiveMode {
 		this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
 	}
 
-	private applyFullscreenScrollbarSetting(): void {
-		this.transcriptScrollView?.setScrollbar(this.settingsManager.getFullscreenScrollbar());
-	}
 
 	private applyRuntimeSettings(): void {
 		configureHttpDispatcher(this.settingsManager.getHttpIdleTimeoutMs());
-		this.applyFullscreenScrollbarSetting();
 		this.footer.setSession(this.session);
 		this.footer.setAutoCompactEnabled(this.session.autoCompactionEnabled);
 		this.footerDataProvider.setCwd(this.sessionManager.getCwd());
@@ -1780,7 +1673,7 @@ export class InteractiveMode {
 		const message = error instanceof Error ? error.message : String(error);
 		this.showError(`${prefix}: ${message}`);
 		stopThemeWatcher();
-		this.stop("transcript");
+		this.stop();
 		process.exit(1);
 	}
 
@@ -1829,7 +1722,7 @@ export class InteractiveMode {
 		this.activeStatusIndicator?.dispose();
 		this.activeStatusIndicator = undefined;
 		this.statusContainer.clear();
-		if (hadActiveStatusIndicator && this.options.tuiMode === "regular" && this.ui.getClearOnShrink()) {
+		if (hadActiveStatusIndicator && this.ui.getClearOnShrink()) {
 			this.statusContainer.addChild(this.idleStatus);
 		}
 	}
@@ -3720,7 +3613,6 @@ export class InteractiveMode {
 				const thinkingStr =
 					result.model.reasoning && result.thinkingLevel !== "off" ? ` (thinking: ${result.thinkingLevel})` : "";
 				this.showStatus(`Switched to ${result.model.name || result.model.id}${thinkingStr}`);
-				void this.maybeWarnAboutAnthropicSubscriptionAuth(result.model);
 			}
 		} catch (error) {
 			this.showError(error instanceof Error ? error.message : String(error));
@@ -4037,13 +3929,10 @@ export class InteractiveMode {
 					availableDefaultModels: this.session.modelRuntime.getAvailableSnapshot(),
 					showImages: this.settingsManager.getShowImages(),
 					imageWidthCells: this.settingsManager.getImageWidthCells(),
-					autoResizeImages: this.settingsManager.getImageAutoResize(),
 					blockImages: this.settingsManager.getBlockImages(),
 					enableSkillCommands: this.settingsManager.getEnableSkillCommands(),
 					steeringMode: this.session.steeringMode,
 					followUpMode: this.session.followUpMode,
-					transport: this.settingsManager.getTransport(),
-					httpIdleTimeoutMs: this.settingsManager.getHttpIdleTimeoutMs(),
 					thinkingLevel: this.settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL,
 					availableThinkingLevels: [...THINKING_LEVEL_OPTIONS],
 					modelThinkingLevels: this.settingsManager.getAllModelThinkingLevels(),
@@ -4062,10 +3951,6 @@ export class InteractiveMode {
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
-					tuiMode: this.ui.getMode(),
-					fullscreenExitOutput: this.settingsManager.getFullscreenExitOutput(),
-					fullscreenScrollbar: this.settingsManager.getFullscreenScrollbar(),
-					warnings: this.settingsManager.getWarnings(),
 				},
 				{
 					onAutoCompactChange: (enabled) => {
@@ -4088,9 +3973,6 @@ export class InteractiveMode {
 							}
 						}
 					},
-					onAutoResizeImagesChange: (enabled) => {
-						this.settingsManager.setImageAutoResize(enabled);
-					},
 					onBlockImagesChange: (blocked) => {
 						this.settingsManager.setBlockImages(blocked);
 					},
@@ -4103,15 +3985,6 @@ export class InteractiveMode {
 					},
 					onFollowUpModeChange: (mode) => {
 						this.session.setFollowUpMode(mode);
-					},
-					onTransportChange: (transport) => {
-						this.settingsManager.setTransport(transport);
-						this.session.agent.transport = transport;
-					},
-					onHttpIdleTimeoutMsChange: (timeoutMs) => {
-						this.settingsManager.setHttpIdleTimeoutMs(timeoutMs);
-						configureHttpDispatcher(timeoutMs);
-						this.showStatus(`HTTP idle timeout: ${formatHttpIdleTimeoutMs(timeoutMs)}`);
 					},
 					onModelThinkingLevelChange: (provider, modelId, level) => {
 						this.settingsManager.setModelThinkingLevel(provider, modelId, level);
@@ -4214,26 +4087,6 @@ export class InteractiveMode {
 					onShowTerminalProgressChange: (enabled) => {
 						this.settingsManager.setShowTerminalProgress(enabled);
 					},
-					onTuiModeChange: (mode) => {
-						if (!this.switchTuiMode(mode)) {
-							selector?.getSettingsList().updateValue("tui-mode", this.ui.getMode());
-							this.showStatus("Close active overlays before changing TUI mode");
-							return;
-						}
-						this.settingsManager.setTuiMode(mode);
-						if (!this.activeStatusIndicator) this.statusContainer.clear();
-						this.showStatus(`TUI mode: ${mode}`);
-					},
-					onFullscreenExitOutputChange: (output) => {
-						this.settingsManager.setFullscreenExitOutput(output);
-					},
-					onFullscreenScrollbarChange: (mode) => {
-						this.settingsManager.setFullscreenScrollbar(mode);
-						this.applyFullscreenScrollbarSetting();
-					},
-					onWarningsChange: (warnings) => {
-						this.settingsManager.setWarnings(warnings);
-					},
 					onCancel: () => {
 						done();
 						this.ui.requestRender();
@@ -4306,7 +4159,6 @@ export class InteractiveMode {
 				this.footer.invalidate();
 				this.updateEditorBorderColor();
 				this.showStatus(`Model: ${model.id}`);
-				void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
 				this.checkDaxnutsEasterEgg(model);
 			} catch (error) {
 				this.showError(error instanceof Error ? error.message : String(error));
@@ -4359,36 +4211,6 @@ export class InteractiveMode {
 				: this.session.modelRuntime.getAvailableSnapshot();
 		const uniqueProviders = new Set(models.map((model) => model.provider));
 		this.footerDataProvider.setAvailableProviderCount(uniqueProviders.size);
-	}
-
-	private async maybeWarnAboutAnthropicSubscriptionAuth(
-		model: Model<Api> | undefined = this.session.model,
-	): Promise<void> {
-		if (this.settingsManager.getWarnings().anthropicExtraUsage === false) {
-			return;
-		}
-		if (this.anthropicSubscriptionWarningShown) {
-			return;
-		}
-		if (!model || model.provider !== "anthropic") {
-			return;
-		}
-
-		try {
-			if ((await this.session.modelRuntime.checkAuth("anthropic"))?.type === "oauth") {
-				this.anthropicSubscriptionWarningShown = true;
-				this.showWarning(ANTHROPIC_SUBSCRIPTION_AUTH_WARNING);
-				return;
-			}
-			const apiKey = (await this.session.modelRuntime.getAuth(model.provider))?.auth.apiKey;
-			if (!isAnthropicSubscriptionAuthKey(apiKey)) {
-				return;
-			}
-			this.anthropicSubscriptionWarningShown = true;
-			this.showWarning(ANTHROPIC_SUBSCRIPTION_AUTH_WARNING);
-		} catch {
-			// Ignore auth lookup failures for warning-only checks.
-		}
 	}
 
 	private maybeSaveImplicitProjectTrustAfterReload(): boolean {
@@ -4452,7 +4274,6 @@ export class InteractiveMode {
 					this.updateEditorBorderColor();
 					done();
 					this.showStatus(persist ? `Default model: ${model.provider}/${model.id}` : `Model: ${model.id}`);
-					void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
 					this.checkDaxnutsEasterEgg(model);
 				} catch (error) {
 					done();
@@ -5067,11 +4888,7 @@ export class InteractiveMode {
 
 		try {
 			await copyToClipboard(text);
-			if (options.flashConfirmation && this.renderer instanceof TuiAltScreen) {
-				this.renderer.flash("Copied!");
-			} else {
-				this.showStatus("Copied last agent message to clipboard");
-			}
+			this.showStatus("Copied last agent message to clipboard");
 		} catch (error) {
 			this.showError(error instanceof Error ? error.message : String(error));
 		}
@@ -5403,7 +5220,7 @@ export class InteractiveMode {
 		}
 	}
 
-	stop(fullscreenExitOutput = this.settingsManager.getFullscreenExitOutput()): void {
+	stop(): void {
 		this.disposeActiveSelector();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.getTerminal().setProgress(false);
@@ -5417,7 +5234,7 @@ export class InteractiveMode {
 			unsubscribe();
 		}
 		if (this.isInitialized) {
-			this.stopInteractiveTui(fullscreenExitOutput);
+			this.stopInteractiveTui();
 			this.isInitialized = false;
 		}
 		this.unregisterSignalHandlers();

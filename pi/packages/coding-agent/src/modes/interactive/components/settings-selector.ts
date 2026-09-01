@@ -11,10 +11,7 @@ import { type Component, Container } from "../../../../../tui/src/tui.ts";
 import { formatHttpIdleTimeoutMs, HTTP_IDLE_TIMEOUT_CHOICES } from "../../../core/http-dispatcher.ts";
 import type {
 	DefaultProjectTrust,
-	FullscreenExitOutput,
 	MermaidRenderingMode,
-	TuiMode,
-	WarningSettings,
 } from "../../../core/settings-manager.ts";
 import { getSettingsListTheme, parseAutoThemeSetting, type TerminalTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
@@ -60,13 +57,10 @@ export interface SettingsConfig {
 	availableDefaultModels: readonly Model<Api>[];
 	showImages: boolean;
 	imageWidthCells: number;
-	autoResizeImages: boolean;
 	blockImages: boolean;
 	enableSkillCommands: boolean;
 	steeringMode: "all" | "one-at-a-time";
 	followUpMode: "all" | "one-at-a-time";
-	transport: Transport;
-	httpIdleTimeoutMs: number;
 	thinkingLevel: ThinkingLevel;
 	availableThinkingLevels: ThinkingLevel[];
 	modelThinkingLevels: Record<string, ThinkingLevel>;
@@ -85,23 +79,16 @@ export interface SettingsConfig {
 	defaultProjectTrust: DefaultProjectTrust;
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
-	tuiMode: TuiMode;
-	fullscreenExitOutput: FullscreenExitOutput;
-	fullscreenScrollbar: ScrollViewScrollbar;
-	warnings: WarningSettings;
 }
 
 export interface SettingsCallbacks {
 	onAutoCompactChange: (enabled: boolean) => void;
 	onShowImagesChange: (enabled: boolean) => void;
 	onImageWidthCellsChange: (width: number) => void;
-	onAutoResizeImagesChange: (enabled: boolean) => void;
 	onBlockImagesChange: (blocked: boolean) => void;
 	onEnableSkillCommandsChange: (enabled: boolean) => void;
 	onSteeringModeChange: (mode: "all" | "one-at-a-time") => void;
 	onFollowUpModeChange: (mode: "all" | "one-at-a-time") => void;
-	onTransportChange: (transport: Transport) => void;
-	onHttpIdleTimeoutMsChange: (timeoutMs: number) => void;
 	onModelThinkingLevelChange: (provider: string, modelId: string, level: ThinkingLevel) => void;
 	onModelThinkingLevelRemove: (provider: string, modelId: string) => void;
 	onThemeChange: (theme: string) => void;
@@ -119,56 +106,7 @@ export interface SettingsCallbacks {
 	onDefaultProjectTrustChange: (defaultProjectTrust: DefaultProjectTrust) => void;
 	onClearOnShrinkChange: (enabled: boolean) => void;
 	onShowTerminalProgressChange: (enabled: boolean) => void;
-	onTuiModeChange: (mode: TuiMode) => void;
-	onFullscreenExitOutputChange: (output: FullscreenExitOutput) => void;
-	onFullscreenScrollbarChange: (mode: ScrollViewScrollbar) => void;
-	onWarningsChange: (warnings: WarningSettings) => void;
 	onCancel: () => void;
-}
-
-/**
- * A submenu component for selecting from a list of options.
- */
-class WarningSettingsSubmenu extends Container {
-	private settingsList: SettingsList;
-	private state: WarningSettings;
-
-	constructor(warnings: WarningSettings, onChange: (warnings: WarningSettings) => void, onCancel: () => void) {
-		super();
-
-		this.state = { ...warnings };
-
-		const items: SettingItem[] = [
-			{
-				id: "anthropic-extra-usage",
-				label: "Anthropic extra usage",
-				description: "Warn when Anthropic subscription auth may use paid extra usage",
-				currentValue: (this.state.anthropicExtraUsage ?? true) ? "true" : "false",
-				values: ["true", "false"],
-			},
-		];
-
-		this.settingsList = new SettingsList(
-			items,
-			Math.min(items.length, 10),
-			getSettingsListTheme(),
-			(id, newValue) => {
-				switch (id) {
-					case "anthropic-extra-usage":
-						this.state = { ...this.state, anthropicExtraUsage: newValue === "true" };
-						onChange({ ...this.state });
-						break;
-				}
-			},
-			onCancel,
-		);
-
-		this.addChild(this.settingsList);
-	}
-
-	handleInput(data: string): void {
-		this.settingsList.handleInput(data);
-	}
 }
 
 const CLEAR_OVERRIDE_VALUE = "__clear__";
@@ -449,7 +387,6 @@ export class SettingsSelectorComponent extends Container {
 		const supportsImages = getCapabilities().images;
 		const followUpKey = keyDisplayText("app.message.followUp");
 		const cycleThinkingKey = keyDisplayText("app.thinking.cycle");
-		let currentWarnings = { ...config.warnings };
 		const currentModelThinkingLevels = { ...config.modelThinkingLevels };
 		const defaultModelByValue = new Map(
 			config.availableDefaultModels.map((model) => [modelSettingKey(model), model]),
@@ -479,21 +416,6 @@ export class SettingsSelectorComponent extends Container {
 				description: `${followUpKey} queues follow-up messages until agent stops. 'one-at-a-time': deliver one, wait for response. 'all': deliver all at once.`,
 				currentValue: config.followUpMode,
 				values: ["one-at-a-time", "all"],
-			},
-			{
-				id: "transport",
-				label: "Transport",
-				description: "Preferred transport for providers that support multiple transports",
-				currentValue: config.transport,
-				values: ["sse", "websocket", "websocket-cached", "auto"],
-			},
-			{
-				id: "http-idle-timeout",
-				label: "HTTP idle timeout",
-				description:
-					"Maximum idle gap while waiting for HTTP headers or body chunks. Disable for local models that pause longer than five minutes.",
-				currentValue: formatHttpIdleTimeoutMs(config.httpIdleTimeoutMs),
-				values: HTTP_IDLE_TIMEOUT_CHOICES.map((choice) => choice.label),
 			},
 			{
 				id: "hide-thinking",
@@ -536,21 +458,6 @@ export class SettingsSelectorComponent extends Container {
 				description: "Default filter when opening /tree",
 				currentValue: config.treeFilterMode,
 				values: ["default", "no-tools", "user-only", "labeled-only", "all"],
-			},
-			{
-				id: "warnings",
-				label: "Warnings",
-				description: "Enable or disable individual warnings",
-				currentValue: "configure",
-				submenu: (_currentValue, done) =>
-					new WarningSettingsSubmenu(
-						currentWarnings,
-						(warnings) => {
-							currentWarnings = warnings;
-							callbacks.onWarningsChange(warnings);
-						},
-						() => done(undefined, undefined),
-					) as Component,
 			},
 			{
 				id: "model-thinking",
@@ -653,27 +560,6 @@ export class SettingsSelectorComponent extends Container {
 				},
 			},
 			{
-				id: "tui-mode",
-				label: "TUI mode",
-				description: "Interface layout; fullscreen mode is experimental",
-				currentValue: config.tuiMode,
-				values: ["regular", "fullscreen"],
-			},
-			{
-				id: "fullscreen-exit-output",
-				label: "Fullscreen exit output",
-				description: "Print the transcript or only a session resume hint when exiting fullscreen mode",
-				currentValue: config.fullscreenExitOutput,
-				values: ["transcript", "resume-hint"],
-			},
-			{
-				id: "fullscreen-scrollbar",
-				label: "Fullscreen scrollbar",
-				description: "Scrollbar behavior in fullscreen mode; has no effect in regular mode",
-				currentValue: config.fullscreenScrollbar,
-				values: ["auto", "always", "hidden"],
-			},
-			{
 				id: "theme",
 				label: "Theme",
 				description: "Color theme for the interface",
@@ -702,18 +588,8 @@ export class SettingsSelectorComponent extends Container {
 			});
 		}
 
-		// Image auto-resize toggle (always available, affects both attached and read images)
+		// Block images toggle (always available)
 		insertAt(items, supportsImages ? 3 : 1, {
-			id: "auto-resize-images",
-			label: "Auto-resize images",
-			description: "Resize large images to 2000x2000 max for better model compatibility",
-			currentValue: config.autoResizeImages ? "true" : "false",
-			values: ["true", "false"],
-		});
-
-		// Block images toggle (always available, insert after auto-resize-images)
-		const autoResizeIndex = items.findIndex((item) => item.id === "auto-resize-images");
-		insertAt(items, autoResizeIndex + 1, {
 			id: "block-images",
 			label: "Block images",
 			description: "Prevent images from being sent to LLM providers",
@@ -809,9 +685,6 @@ export class SettingsSelectorComponent extends Container {
 					case "image-width-cells":
 						callbacks.onImageWidthCellsChange(parseInt(newValue, 10));
 						break;
-					case "auto-resize-images":
-						callbacks.onAutoResizeImagesChange(newValue === "true");
-						break;
 					case "block-images":
 						callbacks.onBlockImagesChange(newValue === "true");
 						break;
@@ -824,18 +697,6 @@ export class SettingsSelectorComponent extends Container {
 					case "follow-up-mode":
 						callbacks.onFollowUpModeChange(newValue as "all" | "one-at-a-time");
 						break;
-					case "transport":
-						callbacks.onTransportChange(newValue as Transport);
-						break;
-					case "http-idle-timeout": {
-						for (const item of HTTP_IDLE_TIMEOUT_CHOICES) {
-							if (item.label === newValue) {
-								callbacks.onHttpIdleTimeoutMsChange(item.timeoutMs);
-								break;
-							}
-						}
-						break;
-					}
 					case "hide-thinking":
 						callbacks.onHideThinkingBlockChange(newValue === "true");
 						break;
@@ -880,15 +741,6 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "terminal-progress":
 						callbacks.onShowTerminalProgressChange(newValue === "true");
-						break;
-					case "tui-mode":
-						callbacks.onTuiModeChange(newValue as TuiMode);
-						break;
-					case "fullscreen-exit-output":
-						callbacks.onFullscreenExitOutputChange(newValue as FullscreenExitOutput);
-						break;
-					case "fullscreen-scrollbar":
-						callbacks.onFullscreenScrollbarChange(newValue as ScrollViewScrollbar);
 						break;
 					case "theme":
 						callbacks.onThemeChange(newValue);

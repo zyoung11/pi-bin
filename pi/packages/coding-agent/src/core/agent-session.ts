@@ -466,7 +466,6 @@ export class AgentSession {
 			const { result } = context;
 			const originalContent: (TextContent | ImageContent)[] = result.content ?? [];
 			const normalizedContent = await normalizeToolResultImages(originalContent, {
-				autoResizeImages: this.settingsManager.getImageAutoResize(),
 			});
 
 			if (normalizedContent === originalContent) {
@@ -2069,11 +2068,10 @@ export class AgentSession {
 	}
 
 	private _buildRuntime(options: { activeToolNames?: string[] }): void {
-		const autoResizeImages = this.settingsManager.getImageAutoResize();
 		const shellCommandPrefix = this.settingsManager.getShellCommandPrefix();
 		const shellPath = this.settingsManager.getShellPath();
 		const baseToolDefinitions = createAllToolDefinitions(this._cwd, {
-				read: { autoResizeImages, modelProvider: () => this.model },
+				read: { modelProvider: () => this.model },
 				bash: { commandPrefix: shellCommandPrefix, shellPath, sessionEnvProvider: () => this._sessionEnvironment() },
 			});
 
