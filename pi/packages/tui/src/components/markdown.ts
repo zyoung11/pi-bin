@@ -154,35 +154,43 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 	},
 ];
 
-function trimPartialClosingFences(tokens: readonly Token[]): void {
+function trimPartialClosingFences(tokens: readonly unknown[]): void {
 	if (tokens.length === 0) return;
-	const token = tokens[tokens.length - 1];
-	if (token === undefined) return;
-	if (token.type === "list") {
-		const listToken = token as Tokens.List;
-		const lastItem = listToken.items[listToken.items.length - 1];
-		trimPartialClosingFences(lastItem?.tokens ?? []);
+	const view = recordViewOf(tokens[tokens.length - 1]);
+	const tokenType = view["type"];
+	if (tokenType === "list") {
+		const rawItems = view["items"];
+		const items: unknown[] = rawItems !== null && rawItems !== undefined && typeof rawItems === "object" ? (rawItems as unknown[]) : [];
+		if (items.length === 0) return;
+		const lastItem = recordViewOf(items[items.length - 1]);
+		const lastTokens = lastItem["tokens"];
+		trimPartialClosingFences(lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object" ? (lastTokens as unknown[]) : []);
 		return;
 	}
-	if (token.type === "blockquote") {
-		const blockquoteToken = token as TokensBlockquote;
-		trimPartialClosingFences(blockquoteToken.tokens ?? []);
+	if (tokenType === "blockquote") {
+		const lastTokens = view["tokens"];
+		trimPartialClosingFences(lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object" ? (lastTokens as unknown[]) : []);
 		return;
 	}
-	if (token.type !== "code") {
+	if (tokenType !== "code") {
 		return;
 	}
 
 	// Trim streamed partial closing fences so code blocks do not shrink/flicker
 	// when the final fence character arrives. See https://github.com/earendil-works/pi/issues/5825.
-	const marker = /^(`{3,}|~{3,})/.exec(token.raw)?.[1];
-	const lastLine = token.raw.split("\n").pop();
+	const codeRaw = view["raw"];
+	const codeTextValue = view["text"];
+	if (typeof codeRaw !== "string" || typeof codeTextValue !== "string") {
+		return;
+	}
+	const marker = /^(`{3,}|~{3,})/.exec(codeRaw)?.[1];
+	const lastLine = codeRaw.split("\n").pop();
 	if (!marker || !lastLine || lastLine.length >= marker.length || lastLine !== marker[0]?.repeat(lastLine.length)) {
 		return;
 	}
 
-	const trimmedText = token.text.slice(0, -lastLine.length).replace(/\n$/, "");
-	token.text = trimmedText;
+	const trimmedText = codeTextValue.slice(0, -lastLine.length).replace(/\n$/, "");
+	view["text"] = trimmedText;
 }
 
 const markdownParser = new Marked();
@@ -505,7 +513,7 @@ export class Markdown extends Component {
 
 			const headingNested = view["tokens"];
 			const headingText = this.renderInlineTokens(
-				headingNested !== null && headingNested !== undefined && typeof headingNested === "object" ? (headingNested as Token[]) : [],
+				headingNested !== null && headingNested !== undefined && typeof headingNested === "object" ? (headingNested as unknown[]) : [],
 				headingStyleContext,
 			);
 			const styledHeading = headingLevel >= 3 ? headingStyleFn(headingPrefix) + headingText : headingText;
@@ -516,7 +524,7 @@ export class Markdown extends Component {
 		} else if (tokenType === "paragraph") {
 			const nested = view["tokens"];
 			const paragraphText = this.renderInlineTokens(
-				nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+				nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [],
 				styleContext,
 			);
 			lines.push(paragraphText);
@@ -524,7 +532,7 @@ export class Markdown extends Component {
 				lines.push("");
 			}
 		} else if (tokenType === "text") {
-			lines.push(this.renderInlineTokens([token as Token], styleContext));
+			lines.push(this.renderInlineTokens([token], styleContext));
 		} else if (tokenType === "latexBlock") {
 			const pending = view["pending"];
 			const latexText = view["text"];
@@ -636,7 +644,7 @@ export class Markdown extends Component {
 		return lines;
 	}
 
-	private renderInlineTokens(tokens: Token[], styleContext?: InlineStyleContext): string {
+	private renderInlineTokens(tokens: unknown[], styleContext?: InlineStyleContext): string {
 		let result = "";
 		const resolvedStyleContext = styleContext ?? this.getDefaultInlineStyleContext();
 		const { applyText, stylePrefix } = resolvedStyleContext;
@@ -669,7 +677,7 @@ export class Markdown extends Component {
 			} else if (tokenType === "text") {
 				const nested = tokenView["tokens"];
 				if (nested !== null && nested !== undefined && typeof nested === "object" && (nested as unknown[]).length > 0) {
-					result += this.renderInlineTokens(nested as Token[], resolvedStyleContext);
+					result += this.renderInlineTokens(nested as unknown[], resolvedStyleContext);
 				} else {
 					const text = tokenView["text"];
 					result += applyTextWithNewlines(typeof text === "string" ? text : "");
@@ -677,19 +685,19 @@ export class Markdown extends Component {
 			} else if (tokenType === "paragraph") {
 				const nested = tokenView["tokens"];
 				if (nested !== null && nested !== undefined && typeof nested === "object") {
-					result += this.renderInlineTokens(nested as Token[], resolvedStyleContext);
+					result += this.renderInlineTokens(nested as unknown[], resolvedStyleContext);
 				}
 			} else if (tokenType === "strong") {
 				const nested = tokenView["tokens"];
 				const boldContent = this.renderInlineTokens(
-					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [],
 					resolvedStyleContext,
 				);
 				result += this.theme.bold(boldContent) + stylePrefix;
 			} else if (tokenType === "em") {
 				const nested = tokenView["tokens"];
 				const italicContent = this.renderInlineTokens(
-					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [],
 					resolvedStyleContext,
 				);
 				result += this.theme.italic(italicContent) + stylePrefix;
@@ -699,7 +707,7 @@ export class Markdown extends Component {
 			} else if (tokenType === "link") {
 				const nested = tokenView["tokens"];
 				const linkText = this.renderInlineTokens(
-					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [],
 					resolvedStyleContext,
 				);
 				const styledLink = this.theme.link(this.theme.underline(linkText));
@@ -722,7 +730,7 @@ export class Markdown extends Component {
 			} else if (tokenType === "del") {
 				const nested = tokenView["tokens"];
 				const delContent = this.renderInlineTokens(
-					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [],
 					resolvedStyleContext,
 				);
 				result += this.theme.strikethrough(delContent) + stylePrefix;

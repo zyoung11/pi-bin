@@ -42,6 +42,14 @@
 - **验证**：tsgo src 清零；print 模式 bash 工具真跑（pwd/echo 输出正确回传）、markdown 列表/表格渲染、/tree、--version/--list-models/-c/TUI 对话+ctrl+c 全部通过。
 - **调试工具沉淀**：gdb python 脚本断点（scr_throw_error 消息过滤抓 dynCheck 现场）；`PI_DBG_TOOL=1` 工具参数打印插桩（agent-loop）。
 
+## 第五十三轮记录（上屏文字全消失：Token[] 参数传参拷贝损坏 union 元素）
+
+- **用户实测**：TUI 输入/回复的行都在但**完全没有字**（输入框正常、行框正常）——渲染返回了空串。
+- **定位**：探针逐层二分——`recordViewOf(tokens[tokenIdx])["text"]` 在 renderInlineTokens 内读出 **undefined**，而调用方对同一 token 的 dyn 读完全正常。**根因（编译器缺陷第七实锤）**：**`Token[]`（13 臂大联合数组）作为函数参数传递时数组被拷贝且元素 re-tag 损坏**——损坏后的 union 元素 dyn 读返回 undefined；`unknown[]` 参数（保持 dyn 元素）则完好。与第五十一轮"`as never`→F64 假校验"同族：**大联合在拷贝语义边界（参数传参/赋值）上的表示缺陷**。
+- **修复**：markdown.ts 渲染路径全部去 `Token[]` 类型——renderInlineTokens(tokens: unknown[])、trimPartialClosingFences(readonly unknown[])（内部顺带 dyn 化含 code 分支的 raw/text 读写）、所有调用点 cast 改 `as unknown[]`；renderToken/renderList/renderTable 此前已 dyn 化。至此 **markdown.ts 渲染管线零 typed Token union 边界**。
+- **验证**：探针（真实 Markdown 组件 + getMarkdownTheme）渲染输出含"你好"字形；TUI 用户消息回显 + 模型 markdown 列表回复全部显示字形；--print 对话/bash 工具/列表表格全回归通过。
+- **规则㊴（编译器级规避）**：**大联合（10+ 臂）数组绝不做 typed 参数传递**——签名用 `unknown[]`，元素读取一律 recordViewOf dyn 通道；`??`/`?.` 不防数组越界、typed switch narrow 会写越界 tag、`: BigUnion` 注解构造产生坏 tag、Token[] 传参拷贝损坏元素——同族五连，根因都是大联合的拷贝/收窄 lowering。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。
