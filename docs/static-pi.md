@@ -80,6 +80,18 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第五十八轮记录（接入原 pi API 供应商 + usage:null 静默丢 chunk 修复）
+
+- **用户目标**：从原 pi 的 `~/.pi/agent/` 存量数据（models-store.json + auth.json）恢复 deepseek/zai/xiaomi 等纯 API 供应商（非 OAuth）。
+- **数据盘点**：models-store.json 存 5 家完整模型定义（含 baseUrl/contextWindow/maxTokens/cost/thinkingLevelMap/compat）；auth.json 存 api_key 类凭据（deepseek/zai/xiaomi-token-plan-cn；minimax-cn 与 xiaomi 无）；settings.json 的 enabledModels/modelThinkingLevels 早已引用这些 provider。
+- **链路现状**：协议适配层（thinkingFormat zai/deepseek、zaiToolStream、maxTokensField）、凭据读取（auth.json api_key）、models.json schema（thinkingLevelMap/compat 字段）全部保留；唯一断点 = 内置 catalog 删除后 models-store.json 无人消费。
+- **实施（方案一：数据合并零代码）**：store 的 4 家（deepseek/zai/xiaomi-token-plan-cn/xiaomi 占位无 key）模型定义合并进 models.json，**apiKey 不 inline，凭据链按 providerId 自动关联 auth.json**；minimax-cn 排除（anthropic-messages api 未实现）。原 models.json 备份。--list-models 17 模型全部上线，6 条启动 warning 消失。
+- **新 bug（scriptc checked-cast 第 N 实锤，第 50 轮 finish_reason 同族）**：deepseek 流式响应每个 chunk 携带 `"usage": null`，`JSON.parse(payload) as ChatCompletionChunk` 的 checked cast 因 usage 缺 `| null` 臂 → dynCheck 抛 TypeError → **全部 chunk 被静默吞掉**（catch 跳过）→ deepseek/mimo 空输出/"Stream ended without finish_reason"。修复 = openai-http.ts 的 `ChatCompletionChunk.usage` 与 `ChatCompletionChunkChoice.usage` 加 `| null`。
+- **连带修复（规则㊱ 新场景）**：`model.thinkingLevelMap?.[level]` 对 JSON 加载的模型定义 typed keyed 读，命中 **null 值键**即 trap（glm-5.2-highspeed tLM medium→null）；15+ 读点全部改道 `lookupThinkingLevelMap()` dyn 辅助（recordViewOf 视图读，null/缺键/非字符串返回 undefined，与 JS 语义一致）。
+- **调试设施沉淀**：`PI_DEBUG_REQ=1` dump 请求 body；`PI_DEBUG_SSE=1` 打印被丢弃的 malformed payload（PARSE-FAIL）。排查方法论：同 body 用 curl 对照 + 服务端响应对比可快速区分「传输/解析层丢 chunk」vs「服务端空响应」；`completion_tokens` 数值小不代表空响应（"2" 一个字就是 1 token），必须看实际 content 序列。
+- **验证**：deepseek-v4-pro / glm-5.3-flash / mimo-v2.5-pro 三家真跑全通（回答 "2"/"4"/"6"）；glm-5.2-highspeed 不再 crash（权限错误为账号无此模型，业务正常）；tsgo src 清零；scriptc build 0 诊断。
+- **遗留**：minimax-cn（anthropic-messages）不支持；xiaomi 占位无 key 待用户填。
+
 ## 第五十七轮记录（tool call 必崩 OOM 根治：renderInlineTokens 越界写 + 渲染器 state 写丢失无限递归）
 
 - **用户报告**：静态二进制 tool call 时 `scriptc: out of memory` → SIGABRT 退出，TS 直跑不复现。**隔离 pane 复现成功（Qwen3.8-27B-MTP）**：发消息后 RSS 5 秒内 10MB→222MB → 死亡。MiniCPM5-1B 幻觉工具调用不可用，后续测试固定 Qwen3.8-27B-MTP（真调用、真流式）。

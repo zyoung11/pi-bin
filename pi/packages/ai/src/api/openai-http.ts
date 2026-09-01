@@ -25,13 +25,15 @@ export type ChatCompletionChunkDelta = {
 export type ChatCompletionChunkChoice = {
 	finish_reason?: string | null;
 	delta?: ChatCompletionChunkDelta;
-	usage?: ChatCompletionChunkUsage;
+	/** DeepSeek and others send "usage": null on every non-final chunk. */
+	usage?: ChatCompletionChunkUsage | null;
 };
 
 export type ChatCompletionChunk = {
 	id?: string;
 	model?: string;
-	usage?: ChatCompletionChunkUsage;
+	/** DeepSeek and others send "usage": null on every non-final chunk. */
+	usage?: ChatCompletionChunkUsage | null;
 	choices?: ChatCompletionChunkChoice[];
 };
 
@@ -129,7 +131,10 @@ export async function streamOpenAIChatCompletions(
 		}, options.timeoutMs);
 	}
 
-	try {
+try {
+		if (process.env.PI_DEBUG_REQ) {
+			console.error(`[REQ] ${JSON.stringify(options.body)}`);
+		}
 		let response: Response;
 		if (customFetch !== undefined) {
 			response = await customFetch(options.url, {
@@ -209,7 +214,10 @@ export async function streamOpenAIChatCompletions(
 					try {
 						const parsedChunk = JSON.parse(payload) as ChatCompletionChunk;
 						await onChunk(parsedChunk);
-					} catch {
+					} catch (parseError) {
+						if (process.env.PI_DEBUG_SSE) {
+							console.error(`[PARSE-FAIL] ${String(parseError)} payload=${payload.slice(0, 200)}`);
+						}
 						// skip malformed payloads
 					}
 				}

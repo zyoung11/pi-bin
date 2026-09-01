@@ -394,6 +394,19 @@ function recordViewOf(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
+/**
+ * Lookup a thinking level mapping from a JSON-sourced thinkingLevelMap record.
+ * Values are string | null; missing keys return undefined. Kept dyn so that
+ * null-mapped or absent levels never trap on typed keyed reads.
+ */
+function lookupThinkingLevelMap(map: unknown, key: string): string | null | undefined {
+	if (map === null || typeof map !== "object") return undefined;
+	const value = recordViewOf(map)[key];
+	if (value === undefined) return undefined;
+	if (value === null || typeof value === "string") return value;
+	return undefined;
+}
+
 function normalizeToolCallDelta(raw: unknown): StreamingToolCallDelta | undefined {
 	if (typeof raw !== "object" || raw === null) return undefined;
 	const record = raw as unknown as Record<string, unknown>;
@@ -910,6 +923,11 @@ function buildParams(
 ) {
 	const messages = convertMessages(model, context, compat, { grammarToolInputProperties });
 	const cacheControl = getCompatCacheControl(compat, cacheRetention);
+	// thinkingLevelMap comes from JSON model definitions (models.json); reading it
+	// through the typed record traps on missing/null-mapped keys under scriptc, so
+	// all lookups below go through the dyn channel.
+	const modelRecord = recordViewOf(model);
+	const thinkingLevelMapValue: unknown = modelRecord["thinkingLevelMap"];
 
 	const params: ChatCompletionCreateParams = {
 		model: model.id,
@@ -971,7 +989,7 @@ function buildParams(
 			? { type: "enabled", clear_thinking: false }
 			: { type: "disabled" };
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			const mappedEffort = model.thinkingLevelMap?.[options.reasoningEffort];
+			const mappedEffort = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort);
 			const effort = mappedEffort === undefined ? options.reasoningEffort : mappedEffort;
 			if (typeof effort === "string") {
 				params["reasoning_effort"] = effort;
@@ -980,7 +998,7 @@ function buildParams(
 	} else if (compat.thinkingFormat === "qwen" && model.reasoning) {
 		params["enable_thinking"] = !!options?.reasoningEffort;
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			const effort = model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
+			const effort = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 			if (typeof effort === "string") {
 				params["reasoning_effort"] = effort;
 			}
@@ -1002,7 +1020,7 @@ function buildParams(
 		}
 		if (compat.supportsReasoningEffort) {
 			const requestedEffort = options?.reasoningEffort;
-			const mappedEffort = requestedEffort ? model.thinkingLevelMap?.[requestedEffort] : model.thinkingLevelMap?.off;
+			const mappedEffort = requestedEffort ? lookupThinkingLevelMap(thinkingLevelMapValue, requestedEffort) : lookupThinkingLevelMap(thinkingLevelMapValue, "off");
 			const effort = mappedEffort === undefined ? requestedEffort : mappedEffort;
 			if (typeof effort === "string") {
 				params["reasoning_effort"] = effort;
@@ -1011,40 +1029,40 @@ function buildParams(
 	} else if (compat.thinkingFormat === "deepseek" && model.reasoning) {
 		if (options?.reasoningEffort) {
 			params["thinking"] = { type: "enabled" };
-		} else if (model.thinkingLevelMap?.off !== null) {
+		} else if (lookupThinkingLevelMap(thinkingLevelMapValue, "off") !== null) {
 			params["thinking"] = { type: "disabled" };
 		}
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			params["reasoning_effort"] = model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
+			params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 		}
 	} else if (compat.thinkingFormat === "openrouter" && model.reasoning) {
 		if (options?.reasoningEffort) {
 			params["reasoning"] = {
-				effort: model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort,
+				effort: lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort,
 			};
-		} else if (model.thinkingLevelMap?.off !== null) {
-			params["reasoning"] = { effort: model.thinkingLevelMap?.off ?? "none" };
+		} else if (lookupThinkingLevelMap(thinkingLevelMapValue, "off") !== null) {
+			params["reasoning"] = { effort: lookupThinkingLevelMap(thinkingLevelMapValue, "off") ?? "none" };
 		}
 	} else if (compat.thinkingFormat === "ant-ling" && model.reasoning && options?.reasoningEffort) {
-		const effort = model.thinkingLevelMap?.[options.reasoningEffort];
+		const effort = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort);
 		if (typeof effort === "string") {
 			params["reasoning"] = { effort };
 		}
 	} else if (compat.thinkingFormat === "together" && model.reasoning) {
 		params["reasoning"] = { enabled: !!options?.reasoningEffort };
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			params["reasoning_effort"] = model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
+			params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 		}
 	} else if (compat.thinkingFormat === "string-thinking" && model.reasoning) {
 		if (options?.reasoningEffort) {
-			params["thinking"] = model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
-		} else if (model.thinkingLevelMap?.off !== null) {
-			params["thinking"] = model.thinkingLevelMap?.off ?? "none";
+			params["thinking"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+		} else if (lookupThinkingLevelMap(thinkingLevelMapValue, "off") !== null) {
+			params["thinking"] = lookupThinkingLevelMap(thinkingLevelMapValue, "off") ?? "none";
 		}
 	} else if (options?.reasoningEffort && model.reasoning && compat.supportsReasoningEffort) {
-		params["reasoning_effort"] = model.thinkingLevelMap?.[options.reasoningEffort] ?? options.reasoningEffort;
+		params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 	} else if (!options?.reasoningEffort && model.reasoning && compat.supportsReasoningEffort) {
-		const offValue = model.thinkingLevelMap?.off;
+		const offValue = lookupThinkingLevelMap(thinkingLevelMapValue, "off");
 		if (typeof offValue === "string") {
 			params["reasoning_effort"] = offValue;
 		}
@@ -1136,6 +1154,7 @@ function resolveChatTemplateKwargValue(
 	value: ChatTemplateKwargValue,
 	thinkingBudget?: number,
 ): ResolvedChatTemplateKwargValue | undefined {
+	const mapValue: unknown = recordViewOf(model)["thinkingLevelMap"];
 	if (typeof value !== "object" || value === null) {
 		return value;
 	}
@@ -1151,7 +1170,7 @@ function resolveChatTemplateKwargValue(
 		return thinkingBudget;
 	}
 
-	const mappedValue = reasoningEffort ? model.thinkingLevelMap?.[reasoningEffort] : model.thinkingLevelMap?.off;
+	const mappedValue = reasoningEffort ? lookupThinkingLevelMap(mapValue, reasoningEffort) : lookupThinkingLevelMap(mapValue, "off");
 	return mappedValue === undefined ? reasoningEffort : typeof mappedValue === "string" ? mappedValue : undefined;
 }
 
