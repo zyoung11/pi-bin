@@ -50,6 +50,12 @@
 - **验证**：探针（真实 Markdown 组件 + getMarkdownTheme）渲染输出含"你好"字形；TUI 用户消息回显 + 模型 markdown 列表回复全部显示字形；--print 对话/bash 工具/列表表格全回归通过。
 - **规则㊴（编译器级规避）**：**大联合（10+ 臂）数组绝不做 typed 参数传递**——签名用 `unknown[]`，元素读取一律 recordViewOf dyn 通道；`??`/`?.` 不防数组越界、typed switch narrow 会写越界 tag、`: BigUnion` 注解构造产生坏 tag、Token[] 传参拷贝损坏元素——同族五连，根因都是大联合的拷贝/收窄 lowering。
 
+## 第五十四轮记录（read/write 工具渲染崩溃：字面量精确 record 的变量 keyed 读 trap）
+
+- **用户实测**：触发工具调用（read 等）即 SIGABRT "record has no key (typed slot)"。gdb 定位 `getLanguageFromPath`（theme.ts）——`extToLang: Record<string, string>` 字面量（50+ 精确键）+ `extToLang[ext]` 变量 keyed 读：**字面量 record 被 lower 成 typed exact-shape record，读不存在的键（如 .txt 不在语言表）直接 sc_bad_key trap**（值类型 string 无 undefined 臂）。
+- **修复**：dyn 视图读 `recordViewOf(extToLang)[ext]` + typeof string 收窄。与第五十一轮 theme 颜色循环同款（规则㊱家族），但这里的新教训是：**"字面量精确 record + 变量键读"在键恰好存在时长期不炸（隐性通过），键缺失才炸**——代码审查时对这类查表模式要全部改 dyn 通道，不能依赖"测试时键都在"。
+- **验证**：print 模式 write 工具真跑（/tmp/zzz-verify.txt 创建成功）、read 工具真跑（内容正确回传，read .txt 的 renderCall 不再崩）；TUI 回归无 trap。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。

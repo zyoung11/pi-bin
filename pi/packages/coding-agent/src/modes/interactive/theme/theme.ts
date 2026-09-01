@@ -1389,7 +1389,11 @@ export function getLanguageFromPath(filePath: string): string | undefined {
 		hcl: "hcl",
 	};
 
-	return extToLang[ext];
+	// Dyn-channel lookup: the literal is a typed record whose value type
+	// (string) cannot represent a missing key, so a dynamic keyed read on it
+	// traps instead of returning undefined (e.g. ".txt" is not in the table).
+	const lang = recordViewOf(extToLang)[ext];
+	return typeof lang === "string" ? lang : undefined;
 }
 
 export function getMarkdownTheme(): MarkdownTheme {
