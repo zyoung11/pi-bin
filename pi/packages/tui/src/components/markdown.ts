@@ -1,4 +1,4 @@
-import { Marked, type Token, type TokensBlockquote, type TokensTableCell, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
+import { Marked, type Token, type TokensBlockquote, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
@@ -6,6 +6,28 @@ import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.
 
 function recordViewOf(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
+}
+
+function reviveTokenValue(value: unknown): unknown {
+	if (value === null || typeof value !== "object") return value;
+	if (Array.isArray(value)) {
+		const items = value as unknown[];
+		const out: unknown[] = [];
+		for (let i = 0; i < items.length; i++) out.push(reviveTokenValue(items[i]));
+		return out;
+	}
+	const source = recordViewOf(value);
+	const out: Record<string, unknown> = {};
+	for (const key of Object.keys(source)) {
+		out[key] = reviveTokenValue(source[key]);
+	}
+	return out;
+}
+
+function reviveTokenTree(tokens: unknown[]): unknown[] {
+	const out: unknown[] = [];
+	for (let i = 0; i < tokens.length; i++) out.push(reviveTokenValue(tokens[i]));
+	return out;
 }
 
 const STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
@@ -323,8 +345,11 @@ export class Markdown extends Component {
 		// Replace tabs with 3 spaces for consistent rendering
 		const normalizedText = text.replace(/\t/g, "   ");
 
-		// Parse markdown to HTML-like tokens
-		const tokens = markdownParser.lexer(normalizedText);
+		// Parse markdown to HTML-like tokens, then revive the whole tree into
+		// plain records/arrays: the lexer's Token[] holds 13-arm union members at
+		// runtime, and any cast/param boundary over those members corrupts the
+		// heap (ASan-confirmed 4-byte OOB write inside renderInlineTokens).
+		const tokens = reviveTokenTree(markdownParser.lexer(normalizedText) as unknown[]);
 		trimPartialClosingFences(tokens);
 
 		// Convert tokens to styled terminal output
@@ -334,7 +359,10 @@ export class Markdown extends Component {
 			const token = tokens[i];
 			const nextToken = i + 1 < tokens.length ? tokens[i + 1] : undefined;
 			let nextTokenType: string | undefined;
-			if (nextToken !== undefined) nextTokenType = nextToken.type;
+			if (nextToken !== undefined) {
+				const nextTypeValue = recordViewOf(nextToken)["type"];
+				if (typeof nextTypeValue === "string") nextTokenType = nextTypeValue;
+			}
 			const tokenLines = this.renderToken(token, contentWidth, nextTokenType);
 			for (const tokenLine of tokenLines) {
 				renderedLines.push(tokenLine);
@@ -872,11 +900,11 @@ export class Markdown extends Component {
 	): string[] {
 		const lines: string[] = [];
 		const rawHeader = token["header"];
-		const header: TokensTableCell[] =
-			rawHeader !== null && rawHeader !== undefined && typeof rawHeader === "object" ? (rawHeader as TokensTableCell[]) : [];
+		const header: unknown[] =
+			rawHeader !== null && rawHeader !== undefined && typeof rawHeader === "object" ? (rawHeader as unknown[]) : [];
 		const rawRows = token["rows"];
-		const rows: TokensTableCell[][] =
-			rawRows !== null && rawRows !== undefined && typeof rawRows === "object" ? (rawRows as TokensTableCell[][]) : [];
+		const rows: unknown[] =
+			rawRows !== null && rawRows !== undefined && typeof rawRows === "object" ? (rawRows as unknown[]) : [];
 		const tableRaw = token["raw"];
 		const tableRawText = typeof tableRaw === "string" ? tableRaw : "";
 		const numCols = header.length;
@@ -904,13 +932,18 @@ export class Markdown extends Component {
 		const naturalWidths: number[] = [];
 		const minWordWidths: number[] = [];
 		for (let i = 0; i < numCols; i++) {
-			const headerText = this.renderInlineTokens(header[i].tokens ?? [], styleContext);
+			const headerCellTokens = recordViewOf(header[i])["tokens"];
+			const headerCellList = headerCellTokens !== null && headerCellTokens !== undefined && typeof headerCellTokens === "object" ? (headerCellTokens as unknown[]) : [];
+			const headerText = this.renderInlineTokens(headerCellList, styleContext);
 			naturalWidths[i] = visibleWidth(headerText);
 			minWordWidths[i] = Math.max(1, this.getLongestWordWidth(headerText, maxUnbrokenWordWidth));
 		}
-		for (const row of rows) {
+		for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+			const row = rows[rowIdx] as unknown[];
 			for (let i = 0; i < row.length; i++) {
-				const cellText = this.renderInlineTokens(row[i].tokens ?? [], styleContext);
+				const cellTokens = recordViewOf(row[i])["tokens"];
+				const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+				const cellText = this.renderInlineTokens(cellList, styleContext);
 				naturalWidths[i] = Math.max(naturalWidths[i] ?? 0, visibleWidth(cellText));
 				minWordWidths[i] = Math.max(
 					minWordWidths[i] ?? 1,
@@ -995,10 +1028,13 @@ export class Markdown extends Component {
 		lines.push(`┌─${topBorderCells.join("─┬─")}─┐`);
 
 		// Render header with wrapping
-		const headerCellLines: string[][] = header.map((cell, i) => {
-			const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
-			return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
-		});
+		const headerCellLines: string[][] = [];
+		for (let i = 0; i < header.length; i++) {
+			const cellTokens = recordViewOf(header[i])["tokens"];
+			const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+			const text = this.renderInlineTokens(cellList, styleContext);
+			headerCellLines.push(this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix));
+		}
 		const headerLineCount = Math.max(...headerCellLines.map((c) => c.length));
 
 		for (let lineIdx = 0; lineIdx < headerLineCount; lineIdx++) {
@@ -1017,11 +1053,14 @@ export class Markdown extends Component {
 
 		// Render rows with wrapping
 		for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-			const row = rows[rowIndex];
-			const rowCellLines: string[][] = row.map((cell, i) => {
-				const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
-				return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
-			});
+			const row = rows[rowIndex] as unknown[];
+			const rowCellLines: string[][] = [];
+			for (let i = 0; i < row.length; i++) {
+				const cellTokens = recordViewOf(row[i])["tokens"];
+				const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+				const text = this.renderInlineTokens(cellList, styleContext);
+				rowCellLines.push(this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix));
+			}
 			const rowLineCount = Math.max(...rowCellLines.map((c) => c.length));
 
 			for (let lineIdx = 0; lineIdx < rowLineCount; lineIdx++) {

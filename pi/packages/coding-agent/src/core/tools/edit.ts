@@ -32,19 +32,27 @@ import type { ToolDefinition } from "./tool-types.ts";
 
 type EditPreview = EditDiffResult | EditDiffError;
 
-type EditRenderState = {
-	preview?: EditPreview;
-	previewArgsKey?: string;
-	previewPending?: boolean;
-	settledError?: boolean;
-};
-
 function recordViewOf(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-function editStateOf(state: unknown): EditRenderState {
-	return state as EditRenderState;
+function editStateOf(state: unknown): Record<string, unknown> {
+	return state as Record<string, unknown>;
+}
+
+function resetEditState(state: Record<string, unknown>, argsKey: string | undefined): void {
+	state["preview"] = undefined;
+	state["previewArgsKey"] = argsKey;
+	state["previewPending"] = false;
+	state["settledError"] = false;
+}
+
+function markPreviewPending(state: Record<string, unknown>): void {
+	state["previewPending"] = true;
+}
+
+function writeSettledError(state: Record<string, unknown>, isError: boolean): void {
+	state["settledError"] = isError;
 }
 
 function editDetailsOf(details: unknown): EditToolDetails | undefined {
@@ -346,18 +354,18 @@ function previewErrorOf(preview: EditPreview | undefined): string | undefined {
 }
 
 function setEditPreviewState(
-	state: EditRenderState,
+	state: Record<string, unknown>,
 	preview: EditPreview,
 	argsKey: string | undefined,
 ): boolean {
-	const current = state.preview;
+	const current = state["preview"];
 	if (current === undefined) {
-		state.preview = preview;
-		state.previewArgsKey = argsKey;
-		state.previewPending = false;
+		state["preview"] = preview;
+		state["previewArgsKey"] = argsKey;
+		state["previewPending"] = false;
 		return true;
 	}
-	const currentRecord = previewRecordOf(current);
+	const currentRecord = previewRecordOf(current as EditPreview);
 	const previewRecord = previewRecordOf(preview);
 	const currentError = currentRecord["error"] as string | undefined;
 	const newError = previewRecord["error"] as string | undefined;
@@ -375,9 +383,9 @@ function setEditPreviewState(
 	} else {
 		changed = currentDiff !== newDiff || currentFirst !== newFirst;
 	}
-	state.preview = preview;
-	state.previewArgsKey = argsKey;
-	state.previewPending = false;
+	state["preview"] = preview;
+	state["previewArgsKey"] = argsKey;
+	state["previewPending"] = false;
 	return changed;
 }
 
@@ -459,61 +467,64 @@ export function createEditToolDefinition(
 			});
 		},
 		renderCall(args, theme, context) {
-			const state = editStateOf(context.state);
+			const stateView = editStateOf(context.state);
 			const previewInput = getRenderablePreviewInput(args as RenderableEditArgs | undefined);
 			const argsKey = previewInput
 				? JSON.stringify({ path: previewInput.path, edits: previewInput.edits })
 				: undefined;
 
-			if (state.previewArgsKey !== argsKey) {
-				state.preview = undefined;
-				state.previewArgsKey = argsKey;
-				state.previewPending = false;
-				state.settledError = false;
+			const currentArgsKey = stateView["previewArgsKey"] as string | undefined;
+			if (currentArgsKey !== argsKey) {
+				resetEditState(context.state, argsKey);
 			}
 
-			if (context.argsComplete && previewInput && state.preview === undefined && state.previewPending !== true) {
-				state.previewPending = true;
+			const currentPreview = stateView["preview"] as EditPreview | undefined;
+			const pendingFlag = stateView["previewPending"] as boolean | undefined;
+			if (context.argsComplete && previewInput && currentPreview === undefined && pendingFlag !== true) {
+				markPreviewPending(context.state);
 				const requestKey = argsKey;
 				void computeEditsDiff(previewInput.path, previewInput.edits, context.cwd).then((preview) => {
-					if (state.previewArgsKey === requestKey) {
-						setEditPreviewState(state, preview, requestKey);
+					const latestArgsKey = editStateOf(context.state)["previewArgsKey"] as string | undefined;
+					if (latestArgsKey === requestKey) {
+						setEditPreviewState(context.state, preview, requestKey);
 						context.invalidate();
 					}
 				});
 			}
 
 			const component = new EditCallRenderComponent();
-			component.preview = state.preview;
-			component.settledError = state.settledError === true;
+			component.preview = editStateOf(context.state)["preview"] as EditPreview | undefined;
+			component.settledError = stateView["settledError"] === true;
 			return buildEditCallComponent(component, args as RenderableEditArgs | undefined, theme, context.cwd) as Component;
 		},
 		renderResult(result, _options, _theme, context) {
-			const state = editStateOf(context.state);
+			const stateView = editStateOf(context.state);
 			const previewInput = getRenderablePreviewInput(context.args as RenderableEditArgs | undefined);
 			const argsKey = previewInput
 				? JSON.stringify({ path: previewInput.path, edits: previewInput.edits })
 				: undefined;
 			const typedDetails = editDetailsOf(result.details);
 			const resultDiff = !context.isError ? typedDetails?.diff : undefined;
+			const resultPreview: EditPreview | undefined =
+				typeof resultDiff === "string"
+					? { diff: resultDiff, firstChangedLine: typedDetails?.firstChangedLine }
+					: undefined;
 			let changed = false;
-			if (typeof resultDiff === "string") {
-				changed =
-					setEditPreviewState(
-						state,
-						{ diff: resultDiff, firstChangedLine: typedDetails?.firstChangedLine },
-						argsKey,
-					) || changed;
+			if (resultPreview !== undefined) {
+				if (setEditPreviewState(context.state, resultPreview, argsKey)) {
+					changed = true;
+				}
 			}
-			if (state.settledError !== context.isError) {
-				state.settledError = context.isError;
+			if (stateView["settledError"] !== context.isError) {
+				writeSettledError(context.state, context.isError);
 				changed = true;
 			}
 			if (changed) {
 				context.invalidate();
 			}
 
-			const output = formatEditResult(context.args as RenderableEditArgs | undefined, state.preview, { content: result.content, details: typedDetails }, _theme, context.isError);
+			const activePreview = resultPreview !== undefined ? resultPreview : (stateView["preview"] as EditPreview | undefined);
+			const output = formatEditResult(context.args as RenderableEditArgs | undefined, activePreview, { content: result.content, details: typedDetails }, _theme, context.isError);
 			const component = new Container();
 			component.clear();
 			if (!output) {

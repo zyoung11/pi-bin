@@ -6,7 +6,7 @@
 
 - **编译：100% 达成**。`scriptc build packages/coding-agent/src/cli.ts --npm-static string_decoder` 全图 **0 诊断**（路线 A：不改编译器，全部在 pi 侧改写）。TS 类型检查 `tsgo --noEmit` src 清零。
 - **产物**：8.8MB 原生 ELF（`--version`/`--list-models`/`-c` 会话恢复/`-r` 选择器/`--print` 对话/bash 工具全部真跑通过）。当前产物质在工作区被隔离为 `pi/pi-native.QUARANTINE`（见下）。
-- **剩余问题：运行时内存安全/语义长尾**（编译期已无墙）。第五十~五十六轮连续修的都是这一类：字符串生命周期（double free/堆损坏）、数组越界（前瞻/滞后读）、typed record 缺键 trap、cast 视图写 no-op、JSON 边界 re-tag 崩溃。最新实例：**TUI 下 read 工具渲染路径 double free（SIGABRT）**，-p 模式与 node 直跑不复现，复现/修复进行中（见第五十六轮后的事故记录）。
+- **剩余问题：运行时内存安全/语义长尾**（编译期已无墙）。第五十~五十六轮连续修的都是这一类：字符串生命周期（double free/堆损坏）、数组越界（前瞻/滞后读）、typed record 缺键 trap、cast 视图写 no-op、JSON 边界 re-tag 崩溃。**第五十七轮已根治 tool call 必崩的两大 bug**：① renderInlineTokens 4 字节堆左越界写（ASan 实锤，联合成员过 cast/传参边界）→ render 入口 reviveTokenTree 重建 token 树；② edit/bash 渲染器 state 的 cast 视图写 no-op（规则㉘）→ changed 恒真 → context.invalidate() 无限递归 → 分配雪崩 OOM（探针实锤传参=引用可写穿、cast=物化拷贝不可写）。四工具全真跑 + ASan 360s 零错误。详见第五十七轮记录。
 - **调试工具链已内置**：`SC_DEBUG_FAIL/STRAND/WIDTH` 编译期插桩、运行时 `scr_trap_fmt` 原生 backtrace、`PI_DBG_TOOL` 参数打印、ASan 构建（`--sanitize`）。方法论详见 **`docs/pi-bin-rewrite-and-debug-guide.md`**（编译期/运行时两套调试流程 + 改写规范 + 成功案例集）。
 - **轮次编号说明**：主线轮次（四十八~五十六，原生二进制真跑/运行时修复）与本会话并行提交的二~二十七轮记录（interactive-mode/TUI 编译期 grind 的另一条时间线）在本文档中并存；内容以提交哈希为准，两者沉淀的规则库一致。
 - **关键命令**：
@@ -79,6 +79,29 @@
 - **运行时增强**：`scr_trap_fmt` 加原生 backtrace 打印（execinfo，trap 时自动输出调用栈帧地址）——**scriptc trap（数组越界/缺键等）从此无需 gdb 即可定位**（gdb 拖慢时序会掩盖竞态类 trap，本机 5 次复现全部被 gdb 掩盖）。解析：`addr2line -e pi-native <帧地址>`。
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
+
+## 第五十七轮记录（tool call 必崩 OOM 根治：renderInlineTokens 越界写 + 渲染器 state 写丢失无限递归）
+
+- **用户报告**：静态二进制 tool call 时 `scriptc: out of memory` → SIGABRT 退出，TS 直跑不复现。**隔离 pane 复现成功（Qwen3.8-27B-MTP）**：发消息后 RSS 5 秒内 10MB→222MB → 死亡。MiniCPM5-1B 幻觉工具调用不可用，后续测试固定 Qwen3.8-27B-MTP（真调用、真流式）。
+- **Bug A：renderInlineTokens 4 字节堆左越界写（ASan 实锤，第五个实锤缺陷的复发）**：`--sanitize` 构建启动即报 `WRITE of size 4`，栈：renderInlineTokens ← renderToken ← render ← UserMessageComponent。**此时源码已全 dyn（第五十二/五十三轮），真正的雷不在源码 typed 操作，而在运行时**：`as unknown[]` 只改静态视图，lexer 产出的 `Token[]` 运行时元素仍是 13 臂联合成员，任何 cast/传参/数组边界穿越都会触发编译器 lowering 的 re-tag 写越界。教训：**第五十一轮 ASan 验证干净后，第五十二/五十三轮又改了渲染管线且未重跑 ASan——ASan 验证必须随每次渲染管线变更重跑**。
+- **Bug A 修复（模式 D 推广到 lexer 边界）**：markdown.ts render() 入口新增 `reviveTokenTree`：把整棵 token 树逐字段重建为纯 record/纯数组（Object.keys + bracket 读写，同 session-manager revive 先例），下游 dyn 通道彻底脱离联合成员；renderTable 残留的 typed 单元读（`header[i].tokens`、`rows.map(cell => cell.tokens)`）一并 dyn 化。修复后 ASan 不再报越界。
+- **journal 揭示 Bug B（真凶）**：修复 A 后进程仍 OOM——journalctl 显示**内核 OOM killer** 反复杀进程（anon-rss 270MB+，`Pane is dead (signal 15)` 均为内核杀），非 ASan 错误。gdb 实时 attach（gdb 作父进程绕 ptrace_scope=1；`-iex 'set debuginfod enabled off'` 免交互）抓到 RSS 431MB 时的现场——**无限递归栈**：
+  ```
+  handleEvent → updateResult → invalidate → updateDisplay
+  → renderResult(edit) → formatEditResult → previewRecordOf → scr_jb_put_json_str
+  → [invalidate 闭包] → invalidate → updateDisplay → renderResult → …（栈内 #4–#13 无限重复）
+  ```
+- **Bug B 根因（规则㉘ 的新高危场景）**：edit.ts `editStateOf(state) = state as EditRenderState` 是 cast 视图 → `state.preview = …` 等字段写全部静默 no-op → 每次 renderResult 都判定 `changed=true` → `context.invalidate()` → updateDisplay → 再 renderResult → 无限递归；每层 JSON.stringify + previewRecordOf 序列化分配 → 分配雪崩。node 下写入生效、递归深度 2 终止，故 TS 直跑不复现。bash.ts 同病（`state.interval` 写丢 → setInterval 无限泄漏）。
+- **探针 probe-recordwrite 定案（新规则㊵）**：
+  | 通道 | node | scriptc |
+  |---|---|---|
+  | Record 类型参数函数内 keyed 写（传参=引用） | 生效 | **生效 ✓** |
+  | 字段链 keyed 写（`holder.payload["v"]=x`） | 生效 | **生效 ✓** |
+  | recordViewOf / `as` cast 视图上的写（物化拷贝） | 生效 | **no-op ✗** |
+  **规则㊵：渲染器需要跨渲染持久的 state 写必须走「以 Record<string,unknown> 为参数的写入函数」通道；任何 cast 表达式的结果（含 recordViewOf 返回值）都是物化拷贝，其上写一律丢弃。**
+- **修复**：tool-types.ts `ToolRenderContext`/`ToolDefinition` 的 TState 默认改 `Record<string, unknown>`（context.state 成为 Record 字段类型，D 通道）；edit.ts/bash.ts 全部 state 写封装为参数写入函数（resetEditState/setEditPreviewState/writeSettledError/markPreviewPending；writeBashStarted/startBashInterval/writeBashEnded/stopBashInterval），读走 recordViewOf 快照 + cast 到已知类型再比较（unknown 直接参与比较/&& 链会 SC1100）；ToolDef 聚合类型 TState 同步。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；**四工具全真跑通过**（write/bash/read/edit + edit diff 渲染正常，正是原递归引爆点）；峰值 RSS 13KB→13MB（修复前 222MB+）；ASan 构建 360s 零错误报告；`--version`/`--list-models` 回归通过。产物更新 `./pi`。第五十五轮「流式渲染 [-1] 竞态」与第五十六轮后「read 渲染 double free」待用户真机复验——很可能同为此递归 OOM 的表现形态。
+- **调试工具沉淀**：journalctl 是分辨「scriptc 自身 OOM abort」vs「内核 OOM kill」的第一手段；gdb 下跑静态产物 + RSS 监控到阈值后 C-c 抓栈，可绕过 ptrace_scope=1；/tmp 的 perry_strip_* 目录是 scriptc 编译器泄漏的中间产物（单目录 195MB），磁盘满 ENOSPC 时先清理。
 
 ## 第五十六轮记录（edit 工具 diff 崩溃：mergeParts 空数组 [-1]——backtrace 工具首战告捷）
 

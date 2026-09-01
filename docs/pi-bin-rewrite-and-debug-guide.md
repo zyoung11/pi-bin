@@ -209,6 +209,7 @@ scriptc 的运行时语义与 JS 有系统偏差，以下是**全部已实锤**�
 | 12 | **satisfies 保留窄字面量类型导致运行时 union re-tag 拒绝** | 改显式宽类型注解 |
 | 13 | **静态构建 process.off 为 no-op**（信号监听器常驻） | 需要退出的路径显式 `process.exit` |
 | 14 | **结束值来自 undefined 而非真实事件**（queue/cursor 模型缺陷） | event-stream 的 events+cursor 重写：done 值永远来自真实事件 |
+| 15 | **渲染器 state 的 cast 视图写 = no-op → changed 恒真 → context.invalidate() 无限递归 → 分配雪崩 OOM**（edit/bash 实锤，node 下递归深度 2 自愈故不复现） | state 写封装为「以 Record<string,unknown> 为参数的写入函数」（传参=引用，写穿透，探针定案）；读走 recordViewOf 快照；unknown 比较先 cast 到已知类型（SC1100） |
 
 ---
 

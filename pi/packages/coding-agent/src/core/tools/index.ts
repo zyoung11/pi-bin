@@ -53,7 +53,7 @@ import { createReadTool, createReadToolDefinition, type ReadToolOptions } from "
 import { createWriteTool, createWriteToolDefinition, type WriteToolOptions } from "./write.ts";
 
 export type Tool = AgentTool;
-export type ToolDef = ToolDefinition<TSchema, unknown, unknown>;
+export type ToolDef = ToolDefinition<TSchema, unknown, Record<string, unknown>>;
 export type ToolName = "read" | "bash" | "edit" | "write";
 export const allToolNames: Set<ToolName> = new Set(["read", "bash", "edit", "write"]);
 

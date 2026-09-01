@@ -242,8 +242,29 @@ export type BashRenderState = {
 	interval: NodeJS.Timeout | undefined;
 };
 
-function bashStateOf(state: unknown): BashRenderState {
-	return state as BashRenderState;
+function bashStateOf(state: unknown): Record<string, unknown> {
+	return state as Record<string, unknown>;
+}
+
+function writeBashStarted(state: Record<string, unknown>): void {
+	state["startedAt"] = Date.now();
+	state["endedAt"] = undefined;
+}
+
+function startBashInterval(state: Record<string, unknown>, invalidate: () => void): void {
+	state["interval"] = setInterval(() => invalidate(), 1000);
+}
+
+function writeBashEnded(state: Record<string, unknown>): void {
+	state["endedAt"] = Date.now();
+}
+
+function stopBashInterval(state: Record<string, unknown>): void {
+	const intervalValue = state["interval"];
+	if (intervalValue !== undefined) {
+		clearInterval(intervalValue as NodeJS.Timeout);
+	}
+	state["interval"] = undefined;
 }
 
 function bashDetailsOf(details: unknown): BashToolDetails | undefined {
@@ -496,36 +517,32 @@ export function createShellToolDefinition(
 			}
 		},
 		renderCall(args, _theme, context) {
-			const state = bashStateOf(context.state);
-			if (context.executionStarted && state.startedAt === undefined) {
-				state.startedAt = Date.now();
-				state.endedAt = undefined;
+			const stateView = bashStateOf(context.state);
+			if (context.executionStarted && stateView["startedAt"] === undefined) {
+				writeBashStarted(context.state);
 			}
 			const text = new Text("", 0, 0);
 			text.setText(formatShellCall(args as { command?: string; timeout?: number } | undefined, config.prompt));
 			return text as Component;
 		},
 		renderResult(result, options, _theme, context) {
-			const state = bashStateOf(context.state);
-			if (state.startedAt !== undefined && options.isPartial && !state.interval) {
-				state.interval = setInterval(() => context.invalidate(), 1000);
+			const stateView = bashStateOf(context.state);
+			if (stateView["startedAt"] !== undefined && options.isPartial && stateView["interval"] === undefined) {
+				startBashInterval(context.state, context.invalidate);
 			}
 			if (!options.isPartial || context.isError) {
-				if (state.endedAt === undefined) {
-					state.endedAt = Date.now();
+				if (stateView["endedAt"] === undefined) {
+					writeBashEnded(context.state);
 				}
-				if (state.interval) {
-					clearInterval(state.interval);
-					state.interval = undefined;
-				}
+				stopBashInterval(context.state);
 			}
 			const component = new BashResultRenderComponent();
 			component.rebuild(
 				result,
 				options,
 				context.showImages,
-				state.startedAt,
-				state.endedAt,
+				stateView["startedAt"] as number | undefined,
+				stateView["endedAt"] as number | undefined,
 			);
 			component.invalidate();
 			return component as Component;

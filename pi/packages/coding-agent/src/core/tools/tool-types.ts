@@ -19,7 +19,7 @@ export interface ToolRenderResultOptions {
 }
 
 /** Context passed to tool renderers. */
-export interface ToolRenderContext<TState = unknown, TArgs = unknown> {
+export interface ToolRenderContext<TState = Record<string, unknown>, TArgs = unknown> {
 	/** Current tool call arguments. Shared across call/result renders for the same tool call. */
 	args: TArgs;
 	/** Unique id for this tool execution. Stable across call/result renders for the same tool call. */
@@ -47,7 +47,7 @@ export interface ToolRenderContext<TState = unknown, TArgs = unknown> {
 }
 
 /** A tool definition registering an LLM-callable tool with rendering hooks. */
-export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown, TState = unknown> {
+export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown, TState = Record<string, unknown>> {
 	/** Tool name (used in LLM tool calls) */
 	name: string;
 	/** Human-readable label for UI */
