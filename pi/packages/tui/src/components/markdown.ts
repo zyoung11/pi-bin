@@ -4,6 +4,10 @@ import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 const STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
 
 class StrictStrikethroughTokenizer extends Tokenizer {
@@ -662,96 +666,94 @@ export class Markdown extends Component {
 		};
 
 		for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
-			const token = tokens[tokenIdx]!;
-			switch (token.type) {
-				case "latex": {
-					const latexToken = token as LatexToken;
-					const rendered =
-						!latexToken.pending && this.options.renderLatex !== false
-							? (renderLatex(latexToken.text) ?? latexToken.raw)
-							: latexToken.raw;
-					result += applyTextWithNewlines(rendered);
-					break;
+			// All field access goes through the dyn channel: the compiler's union
+			// narrowing writes a retag that lands outside the array element (ASan-
+			// confirmed 4-byte heap overflow), so typed switch narrowing is avoided.
+			const tokenView = recordViewOf(tokens[tokenIdx]);
+			const tokenType = tokenView["type"];
+
+			if (tokenType === "latex") {
+				const pending = tokenView["pending"];
+				const latexText = tokenView["text"];
+				const latexRaw = tokenView["raw"];
+				const rendered =
+					pending !== true && this.options.renderLatex !== false && typeof latexText === "string"
+						? (renderLatex(latexText) ?? (typeof latexRaw === "string" ? latexRaw : ""))
+						: typeof latexRaw === "string" ? latexRaw : "";
+				result += applyTextWithNewlines(rendered);
+			} else if (tokenType === "escape") {
+				const escapeText = tokenView["text"];
+				result += applyTextWithNewlines(
+					this.options.preserveBackslashEscapes ? (typeof tokenView["raw"] === "string" ? tokenView["raw"] : "") : typeof escapeText === "string" ? escapeText : "",
+				);
+			} else if (tokenType === "text") {
+				const nested = tokenView["tokens"];
+				if (nested !== null && nested !== undefined && typeof nested === "object" && (nested as unknown[]).length > 0) {
+					result += this.renderInlineTokens(nested as Token[], resolvedStyleContext);
+				} else {
+					const text = tokenView["text"];
+					result += applyTextWithNewlines(typeof text === "string" ? text : "");
 				}
-
-				case "escape":
-					result += applyTextWithNewlines(this.options.preserveBackslashEscapes ? token.raw : (token.text ?? ""));
-					break;
-
-				case "text":
-					// Text tokens in list items can have nested tokens for inline formatting
-					if (token.tokens && token.tokens.length > 0) {
-						result += this.renderInlineTokens(token.tokens, resolvedStyleContext);
+			} else if (tokenType === "paragraph") {
+				const nested = tokenView["tokens"];
+				if (nested !== null && nested !== undefined && typeof nested === "object") {
+					result += this.renderInlineTokens(nested as Token[], resolvedStyleContext);
+				}
+			} else if (tokenType === "strong") {
+				const nested = tokenView["tokens"];
+				const boldContent = this.renderInlineTokens(
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					resolvedStyleContext,
+				);
+				result += this.theme.bold(boldContent) + stylePrefix;
+			} else if (tokenType === "em") {
+				const nested = tokenView["tokens"];
+				const italicContent = this.renderInlineTokens(
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					resolvedStyleContext,
+				);
+				result += this.theme.italic(italicContent) + stylePrefix;
+			} else if (tokenType === "codespan") {
+				const codeText = tokenView["text"];
+				result += this.theme.code(typeof codeText === "string" ? codeText : "") + stylePrefix;
+			} else if (tokenType === "link") {
+				const nested = tokenView["tokens"];
+				const linkText = this.renderInlineTokens(
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					resolvedStyleContext,
+				);
+				const styledLink = this.theme.link(this.theme.underline(linkText));
+				const href = tokenView["href"];
+				const linkOwnText = tokenView["text"];
+				if (getCapabilities().hyperlinks) {
+					result += hyperlink(styledLink, typeof href === "string" ? href : "") + stylePrefix;
+				} else {
+					const hrefStr = typeof href === "string" ? href : "";
+					const hrefForComparison = hrefStr.startsWith("mailto:") ? hrefStr.slice(7) : hrefStr;
+					const ownText = typeof linkOwnText === "string" ? linkOwnText : "";
+					if (ownText === hrefStr || ownText === hrefForComparison) {
+						result += styledLink + stylePrefix;
 					} else {
-						result += applyTextWithNewlines(token.text ?? "");
+						result += styledLink + this.theme.linkUrl(` (${hrefStr})`) + stylePrefix;
 					}
-					break;
-
-				case "paragraph":
-					// Paragraph tokens contain nested inline tokens
-					result += this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
-					break;
-
-				case "strong": {
-					const boldContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
-					result += this.theme.bold(boldContent) + stylePrefix;
-					break;
 				}
-
-				case "em": {
-					const italicContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
-					result += this.theme.italic(italicContent) + stylePrefix;
-					break;
+			} else if (tokenType === "br") {
+				result += "\n";
+			} else if (tokenType === "del") {
+				const nested = tokenView["tokens"];
+				const delContent = this.renderInlineTokens(
+					nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+					resolvedStyleContext,
+				);
+				result += this.theme.strikethrough(delContent) + stylePrefix;
+			} else if (tokenType === "html") {
+				const htmlRaw = tokenView["raw"];
+				result += applyTextWithNewlines(typeof htmlRaw === "string" ? htmlRaw : "");
+			} else {
+				const genericText = tokenView["text"];
+				if (typeof genericText === "string") {
+					result += applyTextWithNewlines(genericText);
 				}
-
-				case "codespan":
-					result += this.theme.code((token as Tokens.Codespan).text ?? "") + stylePrefix;
-					break;
-
-				case "link": {
-					const linkText = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
-					const styledLink = this.theme.link(this.theme.underline(linkText));
-					if (getCapabilities().hyperlinks) {
-						// OSC 8: render as a clickable hyperlink. The URL is not printed inline,
-						// so we always show only the link text regardless of whether it matches href.
-						result += hyperlink(styledLink, (token as Tokens.Link).href) + stylePrefix;
-					} else {
-						// Fallback: print URL in parentheses when text differs from href.
-						// Compare raw token.text (not styled) against href for the equality check.
-						// For mailto: links strip the prefix (autolinked emails use text="foo@bar.com"
-						// but href="mailto:foo@bar.com").
-						const linkToken = token as Tokens.Link;
-						const hrefForComparison = linkToken.href.startsWith("mailto:") ? linkToken.href.slice(7) : linkToken.href;
-						if (linkToken.text === linkToken.href || linkToken.text === hrefForComparison) {
-							result += styledLink + stylePrefix;
-						} else {
-							result += styledLink + this.theme.linkUrl(` (${linkToken.href})`) + stylePrefix;
-						}
-					}
-					break;
-				}
-
-				case "br":
-					result += "\n";
-					break;
-
-				case "del": {
-					const delContent = this.renderInlineTokens(token.tokens ?? [], resolvedStyleContext);
-					result += this.theme.strikethrough(delContent) + stylePrefix;
-					break;
-				}
-
-				case "html":
-					// Render inline HTML as plain text
-					result += applyTextWithNewlines(token.raw);
-					break;
-
-				default:
-					// Handle any other inline token types as plain text
-					const genericText = (token as unknown as TokensText).text;
-						if (typeof genericText === "string") {
-							result += applyTextWithNewlines(genericText);
-						}
 			}
 		}
 

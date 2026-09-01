@@ -23,6 +23,16 @@
 - **ctrl+c 退出 trap**（"record has no key (typed slot)"，gdb 定位 CustomEditor_handleInput）：`this.actionHandlers["app.interrupt"]` 字面键读——**值类型为 `() => void` 的 record 缺键读直接 trap（值类型无 undefined 臂可表示）**，而 app.interrupt/app.exit 从未注册。修复 = hasAction 存在性循环检查（Object.keys）+ onEscape/onCtrlD 提升局部变量后调用（可选方法调用禁，规则②）。**新规则㊱：`Record<K, 函数值>` 的缺键读必 trap，先 Object.keys 存在性检查再直读；dyn 视图 + `as (fn | undefined)` cast 会触发 SC9001 ICE（checked cast 禁含函数值）**。
 - **验证**：tsgo src 清零；scriptc build 0 诊断；SCDBG-FNADAPT 扫描归零；pty 真跑——tmux 下 TUI 启动无 rejection、TUI 发消息"收到"渲染正常、ctrl+c 退出 EXIT=0、--version/--list-models/-c/--print 对话/bash tool_call 全部回归通过。
 
+## 第五十一轮记录（tmux 发消息越界 + ASAN 深挖：编译器 union narrowing 写越界）
+
+- **用户实测 tmux 报告**：TUI 能开（第五十轮修复生效），但一说话 SIGABRT "array index 1 out of bounds (length 1)"。
+- **确切根因**：`Markdown.render` 的 `tokens[i + 1]` 前瞻读取——用户消息只有 1 个 token 时读 [1] 越界（JS 语义 undefined、scriptc trap）。修复 = length 前置检查（block + blockquote 两处）。
+- **同类前瞻/滞后越界批量加固 9 处**：editor segments[i+1]（wrapTextWithAnsi 循环尾）、utils.ts ANSI 38/48 参数 parts[i+1..4]、extractAnsiCode 的 str[pos+1]/str[j+1]（ESC 结尾）、ansi-to-html params[i+1]×4、args.ts args[i+1]×4（--print/--use-theme/--tui-mode/unknownFlags）、autocomplete.ts UTF-8 手写解码 complete[i+1..3]（**`?? 0` 不防越界——越界读取在 ?? 求值前就 trap**）。反向 [i-1] 类审计 7 处全部确认界内。
+- **修复后 pty 复现出新 SIGSEGV（堆损坏）→ `--sanitize`（ASan + RC audit）构建一发命中**：`Markdown_renderInlineTokens` 内 **WRITE of size 4 落在相邻 32B 对象左侧红区**——编译器对 switch union narrowing 的 re-tag 写落到数组元素外。这是 scriptc 编译器级 bug（第五个实锤：cast 擦除配对、narrow 桥 armTag、注册序、字符串生命周期、本条）。
+- **pi 侧规避**：renderInlineTokens 循环体整体改 dyn 通道（recordViewOf + bracket 读 + if 链判别，无 typed switch narrowing、无 union 元素 for-of）。**新规则㊲：大联合（10+ 臂）的 typed switch narrow 与 for-of 元素迭代都可能产生越界 tag 写（ASan 实证），渲染热路径上的联合字段读取一律走 recordViewOf dyn 通道**。顺带实锤独立缺陷：`const x: BigUnion = {...}` 显式联合注解的字面量构造运行时产生损坏 tag 值（探针实证），无注解直接 push 字面量则安全。
+- **验证**：tsgo src 清零；ASan 构建 pty 全流程零报错（EXIT=0）；生产二进制逐字输入+Enter+ctrl+c、--version/--list-models/-c/--print 对话/bash tool_call 全部通过。
+- **工具链沉淀**：`--sanitize` 构建 = pi 侧堆损坏问题的标准定位手段（比 gdb 快得多，gdb 下时序变化会掩盖崩溃）。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。
