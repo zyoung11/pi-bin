@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { spawn, spawnSync } from "child_process";
 import { getBinDir } from "../config.ts";
@@ -193,7 +193,27 @@ export function sanitizeBinaryOutput(str: string): string {
  */
 const trackedDetachedChildPids = new Set<number>();
 
+/**
+ * Read the process group id of a pid, or null when the process does not
+ * exist. Only meaningful on Linux (/proc).
+ */
+function processGroupId(pid: number): number | null {
+	try {
+		const stat = readFileSync(`/proc/${pid}/stat`, "utf-8");
+		// Layout: pid (comm) state ppid pgrp ... — comm may contain spaces, so
+		// scan past the closing parenthesis before splitting.
+		const after = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+		return Number(after[1]);
+	} catch {
+		return null;
+	}
+}
+
 export function trackDetachedChildPid(pid: number): void {
+	// Detached spawn guarantees the child leads its own process group. Verify
+	// before tracking: a child that stayed in our group must never be
+	// group-killed — that would take down the hosting terminal.
+	if (processGroupId(pid) !== pid) return;
 	trackedDetachedChildPids.add(pid);
 }
 
@@ -230,7 +250,11 @@ export function killProcessTree(pid: number): void {
 			// Ignore errors if taskkill fails.
 		}
 	} else {
-		// Use SIGKILL on Unix/Linux/Mac
+		// Guard against pid reuse: only kill the process group while the pid is
+		// still alive AND still leads its own process group (the detached spawn
+		// contract). A dead pid is typically reused for an unrelated process —
+		// a blind group kill here could take down the hosting terminal.
+		if (processGroupId(pid) !== pid) return;
 		try {
 			process.kill(-pid, "SIGKILL");
 		} catch {

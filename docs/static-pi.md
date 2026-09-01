@@ -429,6 +429,13 @@ void tail.then(() => { ... === tail ... });        // 412 同源
 - **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r28-ok）
 - **总账 442→414，interactive-mode 95→67**；剩余全部为机械叶子（splice/parseInt/process 事件面/record 形状零星）
 
+## 事故记录与安全护栏（2026-09-01：tmux pane 被杀事故）
+
+- **事故**：用户正在使用的 tmux pane（内含 pi TUI 与 shell）被杀。根因审计：`killProcessTree` 的 `process.kill(-pid, "SIGKILL")` 进程组 kill 存在 **pid 复用竞态**——bash 工具 spawn 的短命 detached 子进程（echo 类命令）瞬间退出后 pid 被系统复用，退出清理时的组 kill 会命中无关的新进程组（含 pane shell）。本会话高频 -p 冒烟测试大幅放大了竞态窗口。第二轮错误：本人执行 `tmux respawn-pane -k` 又杀掉了一次用户重启的 pi
+- **安全护栏（shell.ts）**：①`trackDetachedChildPid` 只 track 确认为进程组长（/proc/<pid>/stat pgrp==pid）的 pid——detached 失效的子进程永不入组杀名单②`killProcessTree` 组 kill 前重验 pgid==pid，pid 已死/非组长时直接返回，不再盲目组 kill
+- **pi/pi-native 原生二进制已隔离为 pi-native.QUARANTINE**，待原生产物的 kill 语义审计完成后再启用
+- **教训**：涉及进程组 kill 的代码必须有 spawn 契约验证与 pid 存活性双重护栏；宿主终端环境的冒烟测试应使用隔离 pane
+
 ## 阶段 5 grind 第二十七轮记录（进行中：400→442 揭幕，结构性根因 1 已拆、2/3 大幅推进）
 
 - **根因 1 已拆：new Proxy→TuiForwarder 类**：implements TUI，34 成员逐一转发 getTui()（含 getter 转发字段 mode/children/terminal/wantsKeyRelease/onDebug→后改方法转发）；类型导入补齐（TuiStopOptions/TuiInputListener/RgbColor/TerminalColorScheme from terminal-colors.ts）
