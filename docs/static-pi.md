@@ -429,6 +429,14 @@ void tail.then(() => { ... === tail ... });        // 412 同源
 - **验证**：tsgo src 清零；MiniCPM5-1B print + bash tool_call 真跑 OK（r28-ok）
 - **总账 442→414，interactive-mode 95→67**；剩余全部为机械叶子（splice/parseInt/process 事件面/record 形状零星）
 
+## 事故记录补充：原生二进制 double free（2026-09-01）
+
+- **新崩溃报告**：用户 TUI 交互模式下执行 read 工具时，原生二进制崩溃：`double free or corruption (!prev)` + SIGABRT（fish 报告作业终止）。这确认了**编译产物存在内存安全 bug**（C 后端字符串/对象生命周期管理），与第五十轮已知的 text.ts 字符串生命周期 bug 同族
+- **定性**：-p 模式与 node 直跑均不复现（EXIT=0）→ 崩溃在 **TUI 渲染路径**（read 结果的 ToolExecutionComponent/Markdown 流式渲染与结果数据的交互），非文件读取本身；TS 层不可能 double free，确认为 scriptc 编译器/lowering 的内存管理 bug
+- **复现计划（下轮）**：隔离 tmux pane + send-keys 自动化交互（本轮因 session 命名/时序未成功）+ `ulimit -c unlimited` 抓 core；或用户配合复现时抓 core 栈
+- **修复路径预判**：定位触发 double free 的具体 lowering 模式（疑似字符串返回/拼接生命周期），在 TS 层绕过（同 text.ts charCodeAt 先例），或修编译器
+- **风险状态**：pi/pi-native 保持 QUARANTINE；用户如需测试 TUI 请用 TS 直跑（node 不受内存 bug 影响）
+
 ## 事故记录与安全护栏（2026-09-01：tmux pane 被杀事故）
 
 - **事故**：用户正在使用的 tmux pane（内含 pi TUI 与 shell）被杀。根因审计：`killProcessTree` 的 `process.kill(-pid, "SIGKILL")` 进程组 kill 存在 **pid 复用竞态**——bash 工具 spawn 的短命 detached 子进程（echo 类命令）瞬间退出后 pid 被系统复用，退出清理时的组 kill 会命中无关的新进程组（含 pane shell）。本会话高频 -p 冒烟测试大幅放大了竞态窗口。第二轮错误：本人执行 `tmux respawn-pane -k` 又杀掉了一次用户重启的 pi
