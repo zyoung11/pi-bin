@@ -75,7 +75,10 @@ export class ToolExecutionComponent extends Container {
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
 		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.selfRenderContainer = new Box();
+		// selfRenderContainer is used when the tool renders its own framing.
+		// No padding here: self-rendering tools own their background/padding, so the
+		// background spans the full width and vertical rhythm matches default tools.
+		this.selfRenderContainer = new Box(0, 0);
 
 		if (this.hasRendererDefinition()) {
 			this.addChild(this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox);
