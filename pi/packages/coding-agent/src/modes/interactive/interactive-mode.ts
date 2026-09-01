@@ -3015,6 +3015,9 @@ export class InteractiveMode {
 				break;
 
 			case "tool_execution_start": {
+				if (process.env.PI_DBG_TOOL) {
+					console.error(`[IDDBG] tool_execution_start id=${event.toolCallId} name=${event.toolName}`);
+				}
 				let component = this.pendingTools.get(event.toolCallId);
 				if (!component) {
 					component = new ToolExecutionComponent(
