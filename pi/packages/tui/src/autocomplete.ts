@@ -190,13 +190,19 @@ async function walkDirectoryWithFd(
 				codepoint = b0;
 				i += 1;
 			} else if (b0 >= 0xc0 && b0 < 0xe0) {
-				codepoint = ((b0 & 0x1f) << 6) | ((complete[i + 1] ?? 0) & 0x3f);
+				const b1 = i + 1 < complete.length ? complete[i + 1] : 0;
+				codepoint = ((b0 & 0x1f) << 6) | (b1 & 0x3f);
 				i += 2;
 			} else if (b0 >= 0xe0 && b0 < 0xf0) {
-				codepoint = ((b0 & 0x0f) << 12) | ((complete[i + 1] ?? 0) & 0x3f) << 6 | ((complete[i + 2] ?? 0) & 0x3f);
+				const b1 = i + 1 < complete.length ? complete[i + 1] : 0;
+				const b2 = i + 2 < complete.length ? complete[i + 2] : 0;
+				codepoint = ((b0 & 0x0f) << 12) | (b1 & 0x3f) << 6 | (b2 & 0x3f);
 				i += 3;
 			} else {
-				codepoint = ((b0 & 0x07) << 18) | ((complete[i + 1] ?? 0) & 0x3f) << 12 | ((complete[i + 2] ?? 0) & 0x3f) << 6 | ((complete[i + 3] ?? 0) & 0x3f);
+				const b1 = i + 1 < complete.length ? complete[i + 1] : 0;
+				const b2 = i + 2 < complete.length ? complete[i + 2] : 0;
+				const b3 = i + 3 < complete.length ? complete[i + 3] : 0;
+				codepoint = ((b0 & 0x07) << 18) | (b1 & 0x3f) << 12 | (b2 & 0x3f) << 6 | (b3 & 0x3f);
 				i += 4;
 			}
 			if (codepoint < 0x10000) {

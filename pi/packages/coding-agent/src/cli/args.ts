@@ -157,7 +157,7 @@ export function parseArgs(args: string[]): Args {
 			}
 		} else if (arg === "--print" || arg === "-p") {
 			result.print = true;
-			const next = args[i + 1];
+			const next = i + 1 < args.length ? args[i + 1] : undefined;
 			if (next !== undefined && !next.startsWith("@") && (!next.startsWith("-") || next.startsWith("---"))) {
 				result.messages.push(next);
 				i++;
@@ -179,7 +179,7 @@ export function parseArgs(args: string[]): Args {
 			result.themes = result.themes ?? [];
 			result.themes.push(args[++i]);
 		} else if (arg === "--use-theme") {
-			const themeName = args[i + 1];
+			const themeName = i + 1 < args.length ? args[i + 1] : undefined;
 			if (themeName === undefined || themeName.startsWith("-")) {
 				result.diagnostics.push({ type: "error", message: "--use-theme requires a theme name" });
 			} else {
@@ -202,7 +202,7 @@ export function parseArgs(args: string[]): Args {
 				result.listModels = true;
 			}
 		} else if (arg === "--tui-mode") {
-			const mode = args[i + 1];
+			const mode = i + 1 < args.length ? args[i + 1] : undefined;
 			if (mode === "regular" || mode === "fullscreen") {
 				result.tuiMode = mode;
 				i++;
@@ -231,7 +231,7 @@ export function parseArgs(args: string[]): Args {
 				result.unknownFlags.set(arg.slice(2, eqIndex), arg.slice(eqIndex + 1));
 			} else {
 				const flagName = arg.slice(2);
-				const next = args[i + 1];
+				const next = i + 1 < args.length ? args[i + 1] : undefined;
 				if (next !== undefined && !next.startsWith("-") && !next.startsWith("@")) {
 					result.unknownFlags.set(flagName, next);
 					i++;

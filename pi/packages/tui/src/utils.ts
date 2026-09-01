@@ -492,6 +492,7 @@ export function normalizeTerminalOutput(str: string): string {
  */
 export function extractAnsiCode(str: string, pos: number): { code: string; length: number } | null {
 	if (pos >= str.length || str[pos] !== "\x1b") return null;
+	if (pos + 1 >= str.length) return null;
 
 	const next = str[pos + 1];
 
@@ -509,7 +510,7 @@ export function extractAnsiCode(str: string, pos: number): { code: string; lengt
 		let j = pos + 2;
 		while (j < str.length) {
 			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
-			if (str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
 			j++;
 		}
 		return null;
@@ -521,7 +522,7 @@ export function extractAnsiCode(str: string, pos: number): { code: string; lengt
 		let j = pos + 2;
 		while (j < str.length) {
 			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
-			if (str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
 			j++;
 		}
 		return null;
@@ -642,7 +643,7 @@ class AnsiCodeTracker {
 			if (code === 38 || code === 48) {
 				// 38;5;N (256 color fg) or 38;2;R;G;B (RGB fg)
 				// 48;5;N (256 color bg) or 48;2;R;G;B (RGB bg)
-				if (parts[i + 1] === "5" && parts[i + 2] !== undefined) {
+				if (i + 1 < parts.length && parts[i + 1] === "5" && parts[i + 2] !== undefined) {
 					// 256 color: 38;5;N or 48;5;N
 					const colorCode = `${parts[i]};${parts[i + 1]};${parts[i + 2]}`;
 					if (code === 38) {
@@ -652,7 +653,7 @@ class AnsiCodeTracker {
 					}
 					i += 3;
 					continue;
-				} else if (parts[i + 1] === "2" && parts[i + 4] !== undefined) {
+				} else if (i + 1 < parts.length && parts[i + 1] === "2" && parts[i + 4] !== undefined) {
 					// RGB color: 38;2;R;G;B or 48;2;R;G;B
 					const colorCode = `${parts[i]};${parts[i + 1]};${parts[i + 2]};${parts[i + 3]};${parts[i + 4]}`;
 					if (code === 38) {

@@ -186,7 +186,7 @@ export function wordWrapLine(line: string, maxWidth: number, preSegmented?: Segm
 		// (multiple spaces join; the break point is after the last space),
 		// or at a boundary where either side is CJK (CJK allows breaking
 		// between any adjacent characters).
-		const next = segments[i + 1];
+		const next = i + 1 < segments.length ? segments[i + 1] : undefined;
 		if (isWs && next && (isPasteMarker(next.segment) || !isWhitespaceChar(next.segment))) {
 			wrapOppIndex = next.index;
 			wrapOppWidth = currentWidth;

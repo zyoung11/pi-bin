@@ -319,7 +319,7 @@ export class Markdown extends Component {
 
 		for (let i = 0; i < tokens.length; i++) {
 			const token = tokens[i];
-			const nextToken = tokens[i + 1];
+			const nextToken = i + 1 < tokens.length ? tokens[i + 1] : undefined;
 			let nextTokenType: string | undefined;
 			if (nextToken !== undefined) nextTokenType = nextToken.type;
 			const tokenLines = this.renderToken(token, contentWidth, nextTokenType);
@@ -596,7 +596,7 @@ export class Markdown extends Component {
 				const renderedQuoteLines: string[] = [];
 				for (let i = 0; i < quoteTokens.length; i++) {
 					const quoteToken = quoteTokens[i];
-					const nextQuoteToken = quoteTokens[i + 1];
+					const nextQuoteToken = i + 1 < quoteTokens.length ? quoteTokens[i + 1] : undefined;
 					let nextQuoteTokenType: string | undefined;
 					if (nextQuoteToken !== undefined) nextQuoteTokenType = nextQuoteToken.type;
 					renderedQuoteLines.push(
@@ -661,7 +661,8 @@ export class Markdown extends Component {
 			return segments.map((segment: string) => applyText(segment)).join("\n");
 		};
 
-		for (const token of tokens) {
+		for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
+			const token = tokens[tokenIdx]!;
 			switch (token.type) {
 				case "latex": {
 					const latexToken = token as LatexToken;
@@ -797,7 +798,8 @@ export class Markdown extends Component {
 			const itemWidth = Math.max(1, width - visibleWidth(firstPrefix));
 			let renderedAnyLine = false;
 
-			for (const itemToken of item.tokens) {
+			for (let itemTokenIdx = 0; itemTokenIdx < item.tokens.length; itemTokenIdx++) {
+				const itemToken = item.tokens[itemTokenIdx]!;
 				if (itemToken.type === "list") {
 					lines.push(...this.renderList(itemToken as Tokens.List, depth + 1, width, styleContext));
 					renderedAnyLine = true;

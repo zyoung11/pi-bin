@@ -141,11 +141,11 @@ function applySgrCode(params: number[], style: TextStyle): void {
 			style.fg = ANSI_COLORS[code - 30];
 		} else if (code === 38) {
 			// Extended foreground color
-			if (params[i + 1] === 5 && params.length > i + 2) {
+			if (i + 1 < params.length && params[i + 1] === 5 && params.length > i + 2) {
 				// 256-color: 38;5;N
 				style.fg = color256ToHex(params[i + 2]);
 				i += 2;
-			} else if (params[i + 1] === 2 && params.length > i + 4) {
+			} else if (i + 1 < params.length && params[i + 1] === 2 && params.length > i + 4) {
 				// RGB: 38;2;R;G;B
 				const r = params[i + 2];
 				const g = params[i + 3];
@@ -161,11 +161,11 @@ function applySgrCode(params: number[], style: TextStyle): void {
 			style.bg = ANSI_COLORS[code - 40];
 		} else if (code === 48) {
 			// Extended background color
-			if (params[i + 1] === 5 && params.length > i + 2) {
+			if (i + 1 < params.length && params[i + 1] === 5 && params.length > i + 2) {
 				// 256-color: 48;5;N
 				style.bg = color256ToHex(params[i + 2]);
 				i += 2;
-			} else if (params[i + 1] === 2 && params.length > i + 4) {
+			} else if (i + 1 < params.length && params[i + 1] === 2 && params.length > i + 4) {
 				// RGB: 48;2;R;G;B
 				const r = params[i + 2];
 				const g = params[i + 3];
