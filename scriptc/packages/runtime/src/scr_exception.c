@@ -11,6 +11,7 @@
 #include "scr_runtime.h"
 
 #include <stdio.h>
+#include <execinfo.h>
 #include <stdlib.h>
 
 #ifndef SCR_LIB
@@ -31,6 +32,14 @@ _Noreturn void scr_trap_fmt(const char *fmt, ...) {
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
+  /* Best-effort native backtrace to locate the trapping compiled function
+   * without gdb (gdb perturbs timing and hides race-shaped traps). */
+  {
+    void *frames[32];
+    int n = backtrace(frames, 32);
+    fprintf(stderr, "scriptc: trap backtrace (%d frames, resolve with addr2line -e <binary>):\n", n);
+    backtrace_symbols_fd(frames, n, 2);
+  }
   abort();
 }
 #endif /* !SCR_LIB */

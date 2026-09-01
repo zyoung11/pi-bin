@@ -56,6 +56,12 @@
 - **修复**：dyn 视图读 `recordViewOf(extToLang)[ext]` + typeof string 收窄。与第五十一轮 theme 颜色循环同款（规则㊱家族），但这里的新教训是：**"字面量精确 record + 变量键读"在键恰好存在时长期不炸（隐性通过），键缺失才炸**——代码审查时对这类查表模式要全部改 dyn 通道，不能依赖"测试时键都在"。
 - **验证**：print 模式 write 工具真跑（/tmp/zzz-verify.txt 创建成功）、read 工具真跑（内容正确回传，read .txt 的 renderCall 不再崩）；TUI 回归无 trap。
 
+## 第五十五轮记录（trap 回溯工具 + 流式渲染 [-1] 竞态待定位）
+
+- **运行时增强**：`scr_trap_fmt` 加原生 backtrace 打印（execinfo，trap 时自动输出调用栈帧地址）——**scriptc trap（数组越界/缺键等）从此无需 gdb 即可定位**（gdb 拖慢时序会掩盖竞态类 trap，本机 5 次复现全部被 gdb 掩盖）。解析：`addr2line -e pi-native <帧地址>`。
+- **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
+- **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。
