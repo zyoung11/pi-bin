@@ -44,4 +44,10 @@ plans/
 collect.sh
 .scriptc/
 pi-native
+pi
+pi-asan
+*.ll
+core
+core.*
+diag*.txt
 cli.ll
