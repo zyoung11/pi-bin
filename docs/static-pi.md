@@ -80,6 +80,13 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第六十一轮记录（/settings → per-model thinking 子菜单崩溃修复）
+
+- **用户报告**：/settings 点击 "Default thinking level per model" 直接 SIGABRT：`scriptc: TypeError: record has no key (typed slot)`。
+- **根因（规则㊱ 家族第 50 轮 actionHandlers 同款）**：`currentModelThinkingLevels[key]`——`Record<string, ThinkingLevel>`（值域无 undefined）的变量 keyed 读，key 为未配置模型时缺键即 trap。settings.json 里 12 个 override，而可用模型 17 个——5 个未配置模型命中缺键。
+- **修复**：三处缺键读（options 构建/preselect/clear-override 判定）改道 `lookupThinkingLevel()` dyn 辅助（缺键/非字符串返回 undefined）；写/删（Record 局部变量 keyed 写+delete）保持原样（合法通道）。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；隔离 pane 实测子菜单正常打开并显示 17 个模型（含内存合成的 deepseek/zai/mimo provider）。
+
 ## 第六十轮记录（第 2 步：砍死设置 + fullscreen 全家）
 
 - **死设置砍除**：transport（含 websockets 遗留迁移逻辑）、auto-resize-images（processImage 直通无缩放引擎，设置纯摆设；ProcessImageOptions 参数链保留默认行为）、anthropic-extra-usage 警告链（maybeWarnAboutAnthropicSubscriptionAuth + WarningSettings 空接口 + getWarnings/setWarnings + settings-selector warnings 子菜单与条目——anthropic 内置 provider 删除后永不触发；**空接口导致 Settings checked-cast 链全断的连带坑**：WarningSettings 变 `{}` 后 cast 无法验证，整链 SC1090，删除空接口即恢复）。

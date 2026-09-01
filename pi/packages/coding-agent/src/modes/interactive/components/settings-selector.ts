@@ -119,6 +119,15 @@ function modelDisplayLabel(model: Model<Api>): string {
 	return `${model.id} [${model.provider}]`;
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+function lookupThinkingLevel(overrides: unknown, key: string): string | undefined {
+	const value = recordViewOf(overrides)[key];
+	return typeof value === "string" ? value : undefined;
+}
+
 function modelThinkingOverridesSummary(overrides: Record<string, ThinkingLevel>): string {
 	const count = Object.keys(overrides).length;
 	if (count === 0) return "none";
@@ -482,11 +491,11 @@ export class SettingsSelectorComponent extends Container {
 								});
 								const items: SelectItem[] = sorted.map((model) => {
 									const key = modelSettingKey(model);
-									const override = currentModelThinkingLevels[key];
+									const override = lookupThinkingLevel(currentModelThinkingLevels, key);
 									return {
 										value: key,
 										label: modelItemLabel(model),
-										description: override ?? undefined,
+										description: override,
 									};
 								});
 								if (items.length === 0) {
@@ -520,7 +529,7 @@ export class SettingsSelectorComponent extends Container {
 									label: level,
 									description: THINKING_DESCRIPTIONS[level],
 								}));
-								if (currentModelThinkingLevels[selections.model] !== undefined) {
+								if (lookupThinkingLevel(currentModelThinkingLevels, selections.model) !== undefined) {
 									items.push({
 										value: CLEAR_OVERRIDE_VALUE,
 										label: "(clear override)",
@@ -529,7 +538,7 @@ export class SettingsSelectorComponent extends Container {
 								}
 								return items;
 							},
-							preselect: (selections: SteppedSelections) => currentModelThinkingLevels[selections.model],
+							preselect: (selections: SteppedSelections) => lookupThinkingLevel(currentModelThinkingLevels, selections.model),
 						},
 					];
 
