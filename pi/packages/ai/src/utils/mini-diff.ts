@@ -140,7 +140,10 @@ function splitLinesKeepEol(text: string): string[] {
 function mergeParts(entries: { value: string; count: number; op: "equal" | "delete" | "insert" }[]): DiffPart[] {
 	const parts: DiffPart[] = [];
 	for (const entry of entries) {
-		const previous = parts[parts.length - 1];
+		// Guard before the indexed read: an empty `parts` traps on [-1] in the
+		// static runtime (JS returns undefined, which the `previous &&` below
+		// was written to handle).
+		const previous = parts.length > 0 ? parts[parts.length - 1] : undefined;
 		const added = entry.op === "insert";
 		const removed = entry.op === "delete";
 		if (previous && previous.added === added && previous.removed === removed) {

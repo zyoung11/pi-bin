@@ -62,6 +62,12 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第五十六轮记录（edit 工具 diff 崩溃：mergeParts 空数组 [-1]——backtrace 工具首战告捷）
+
+- **用户 backtrace 精确定位**（运行时 trap 回溯功能首战告捷，无 gdb）：`mergeParts`（mini-diff.ts）的 `parts[parts.length - 1]` 在空数组上读 **[-1]**——`previous &&` 守卫写在读取之后，JS 语义 undefined、scriptc trap。触发路径：edit 工具的 computeEditsDiff→generateDiffString→mergeParts，**edit 首次被成功调用即必崩**（此前 edit 从未跑通过所以未暴露）。
+- **修复**：mergeParts 加 `parts.length > 0` 前置守卫；harness edit-diff 同款 `groups[groups.length - 1]` 补守卫；keys.ts:793 与 edit-diff:398 的 split 结果读确认安全（split 恒 ≥1 元素）。
+- **四工具全真跑回归**：write（文件创建）✓、read（内容回传）✓、bash（ls 输出解析）✓、**edit（"line two"→"line two edited" 替换成功，diff 渲染正常）✓**；TUI 对话无 trap。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。

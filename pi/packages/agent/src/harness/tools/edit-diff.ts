@@ -140,7 +140,7 @@ export function applyReplacementsPreservingUnchangedLines(
 	const sortedReplacements = [...replacements].sort((a, b) => a.matchIndex - b.matchIndex);
 	for (const replacement of sortedReplacements) {
 		const range = getReplacementLineRange(baseLines, replacement);
-		const current = groups[groups.length - 1];
+		const current = groups.length > 0 ? groups[groups.length - 1] : undefined;
 		if (current && range.startLine < current.endLine) {
 			current.endLine = Math.max(current.endLine, range.endLine);
 			current.replacements.push(replacement);
