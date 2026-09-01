@@ -709,11 +709,19 @@ export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage
 
 const EXTENDED_THINKING_LEVELS: ModelThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+function lookupThinkingLevelMap(map: unknown, key: string): string | null | undefined {
+	if (map === null || typeof map !== "object") return undefined;
+	const value = (map as Record<string, unknown>)[key];
+	if (value === undefined) return undefined;
+	if (value === null || typeof value === "string") return value;
+	return undefined;
+}
+
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
 	return EXTENDED_THINKING_LEVELS.filter((level) => {
-		const mapped = model.thinkingLevelMap?.[level];
+		const mapped = lookupThinkingLevelMap(model.thinkingLevelMap, level);
 		if (mapped === null) return false;
 		if (level === "xhigh" || level === "max") return mapped !== undefined;
 		return true;

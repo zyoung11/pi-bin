@@ -66,9 +66,12 @@ export function clampReasoning(effort: ThinkingLevel | undefined): Exclude<Think
 }
 
 export function thinkingBudgetForLevel(reasoningLevel: ThinkingLevel, customBudgets?: ThinkingBudgets): number {
-	const budgets = { ...DEFAULT_THINKING_BUDGETS, ...customBudgets };
+	const budgets: unknown = { ...DEFAULT_THINKING_BUDGETS, ...customBudgets };
 	const level = clampReasoning(reasoningLevel)!;
-	return budgets[level]!;
+	// "off" has no entry in the budgets record; a missing key must yield 0
+	// (no thinking budget) instead of trapping on a typed keyed read.
+	const value = (budgets as Record<string, unknown>)[level];
+	return typeof value === "number" ? value : 0;
 }
 
 /** Cap a thinking budget so at least MIN_ANSWER_TOKENS remain under a shared response ceiling. */

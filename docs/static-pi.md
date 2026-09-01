@@ -80,6 +80,16 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第六十二轮记录（typed keyed 读全量审计：再修三处同族雷）
+
+- **审计动机**：per-model thinking 崩溃（第六十一轮）后，对全部斜杠命令 handler、settings 子菜单、选择器组件做 typed record 变量 keyed 读专项审计（grep `Record<string, ...>` 局部量 + `[level]/[key]/[id]` 读点逐一核对）。
+- **再修三处同族雷**：
+  1. `ai/models.ts getSupportedThinkingLevels`：`model.thinkingLevelMap?.[level]` 遍历 7 个标准 level——deepseek 的 tLM **缺 off/xhigh 键**，/thinking 与 clampThinkingLevel 路径必 trap；改 `lookupThinkingLevelMap()` dyn 辅助。
+  2. `ai/simple-options.ts thinkingBudgetForLevel`：`budgets[level]!`——`off` 无条目，`--thinking off` 时 trap（`!` 非空断言不防缺键）；改 dyn 读 + 缺键返回 0（off=无预算，下游 `budget > 0` 语义正确）。
+  3. `settings-submenu buildContext`：`selections["model"] ?? ""` 字面量缺键读（selections 初始为空）+ 回退分支写 `undefined as unknown as string` 进 string 值域 record——改 dyn 读 + `delete`。
+- **确认安全**：THINKING_DESCRIPTIONS[level]（level 恒来自 7 值枚举）、setModelThinkingLevel（有存在性守卫）、config-selector pkgRecord（写+字面量读）、scoped-models-selector（纯数组）、theme.ts Records（构建输出）、compaction entries[0]（有守卫）。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；`--thinking off` 真跑正常；隔离 pane /settings 全部 19 项逐项进出遍历无崩溃。
+
 ## 第六十一轮记录（/settings → per-model thinking 子菜单崩溃修复）
 
 - **用户报告**：/settings 点击 "Default thinking level per model" 直接 SIGABRT：`scriptc: TypeError: record has no key (typed slot)`。

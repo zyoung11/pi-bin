@@ -7,6 +7,11 @@ import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
 import { type Component, Container } from "../../../../../tui/src/tui.ts";
 import { getSelectListTheme, theme } from "../theme/theme.ts";
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+
 const SUBMENU_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
 	minPrimaryColumnWidth: 12,
 	maxPrimaryColumnWidth: 32,
@@ -204,9 +209,12 @@ export class SteppedSubmenu extends Container {
 
 	/** Build the precise callback view from the dynamic selection storage. */
 	private buildContext(): SteppedSelections {
+		const view = recordViewOf(this.selections);
+		const modelValue = view["model"];
+		const levelValue = view["level"];
 		return {
-			model: this.selections["model"] ?? "",
-			level: this.selections["level"] ?? "",
+			model: typeof modelValue === "string" ? modelValue : "",
+			level: typeof levelValue === "string" ? levelValue : "",
 		};
 	}
 
@@ -248,7 +256,7 @@ export class SteppedSubmenu extends Container {
 			},
 			() => {
 				if (stepIndex > 0) {
-					this.selections[step.key] = undefined as unknown as string;
+					delete this.selections[step.key];
 					this.activeComponent = this.buildStep(stepIndex - 1);
 				} else {
 					this.onCancel();
