@@ -992,13 +992,16 @@ function mapTypeInner(type: ts.Type, ctx: TypeMapperCtx): IrType | null {
   // null. Inside a union, null keeps becoming the nullT ARM (the union
   // branch below never recurses here for null parts).
   if (flags & ts.TypeFlags.Null) return unitOnlyUnion(unions);
-  // `never` VALUES are uninhabited — the checker only types dead reads
-  // this way (`for (const v of [])`'s loop var, the empty literal's
-  // `never[]` element) — so any representation is unobservable; f64 is the
-  // cheapest slot. Return positions never reach here (declaredReturnType
-  // and the signature branches map never returns to VOID first), and
-  // construction sites cannot exist (nothing has type never to feed them).
-  if (flags & ts.TypeFlags.Never) return F64;
+  // `never` VALUES are uninhabited — the checker types dead reads this way
+  // (`for (const v of [])`'s loop var, the empty literal's `never[]` element)
+  // AND `as never` assertions whose results flow into real slots. Map to the
+  // dyn: the value re-checks against its actual destination type there
+  // (dyn→typed coercion), so an honest record passes and a lie traps with a
+  // path-annotated TypeError. An f64 slot here manufactured a bogus
+  // "expected number at $" dynCheck for every `as never` parameter cast.
+  // Return positions never reach here (declaredReturnType
+  // and the signature branches map never returns to VOID first).
+  if (flags & ts.TypeFlags.Never) return DYN;
   // `unknown` is a VALUE with a runtime representation (the dyn JSON dyn —
   // JSON.parse results and unknown-typed locals/params/returns).
   if (flags & ts.TypeFlags.Unknown) return DYN;

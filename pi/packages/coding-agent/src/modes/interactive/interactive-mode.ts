@@ -4776,6 +4776,7 @@ export class InteractiveMode {
 		const tree = this.sessionManager.getTree();
 		const realLeafId = this.sessionManager.getLeafId();
 		const initialFilterMode = this.settingsManager.getTreeFilterMode();
+		console.error("[tree-dbg] length =", tree.length, "isArray =", Array.isArray(tree));
 
 		if (tree.length === 0) {
 			this.showStatus("No entries in session");

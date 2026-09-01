@@ -1,4 +1,4 @@
-import { Marked, type Token, type TokensBlockquote, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
+import { Marked, type Token, type TokensBlockquote, type TokensTableCell, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
@@ -155,6 +155,7 @@ const LATEX_MARKDOWN_EXTENSIONS: readonly TokenizerExtension[] = [
 ];
 
 function trimPartialClosingFences(tokens: readonly Token[]): void {
+	if (tokens.length === 0) return;
 	const token = tokens[tokens.length - 1];
 	if (token === undefined) return;
 	if (token.type === "list") {
@@ -473,184 +474,163 @@ export class Markdown extends Component {
 	}
 
 	private renderToken(
-		token: Token,
+		token: unknown,
 		width: number,
 		nextTokenType?: string,
 		styleContext?: InlineStyleContext,
 	): string[] {
+		// Dyn-channel rendering: typed switch narrowing on the 13-arm Token union
+		// writes retags outside the array element (ASan-confirmed heap overflow),
+		// so every field read goes through recordViewOf and dispatch is an if-chain.
 		const lines: string[] = [];
+		const view = recordViewOf(token);
+		const tokenType = view["type"];
 
-		switch (token.type) {
-			case "heading": {
-				const headingLevel = (token as Tokens.Heading).depth ?? 1;
-				const headingPrefix = `${"#".repeat(headingLevel)} `;
+		if (tokenType === "heading") {
+			const rawDepth = view["depth"];
+			const headingLevel = typeof rawDepth === "number" ? rawDepth : 1;
+			const headingPrefix = `${"#".repeat(headingLevel)} `;
 
-				// Build a heading-specific style context so inline tokens (codespan, bold, etc.)
-				// restore heading styling after their own ANSI resets instead of falling back to
-				// the default text style.
-				let headingStyleFn: (text: string) => string;
-				if (headingLevel === 1) {
-					headingStyleFn = (text: string) => this.theme.heading(this.theme.bold(this.theme.underline(text)));
-				} else {
-					headingStyleFn = (text: string) => this.theme.heading(this.theme.bold(text));
-				}
-
-				const headingStyleContext: InlineStyleContext = {
-					applyText: headingStyleFn,
-					stylePrefix: this.getStylePrefix(headingStyleFn),
-				};
-
-				const headingText = this.renderInlineTokens(token.tokens ?? [], headingStyleContext);
-				const styledHeading = headingLevel >= 3 ? headingStyleFn(headingPrefix) + headingText : headingText;
-				lines.push(styledHeading);
-				if (nextTokenType && nextTokenType !== "space") {
-					lines.push(""); // Add spacing after headings (unless space token follows)
-				}
-				break;
+			let headingStyleFn: (text: string) => string;
+			if (headingLevel === 1) {
+				headingStyleFn = (text: string) => this.theme.heading(this.theme.bold(this.theme.underline(text)));
+			} else {
+				headingStyleFn = (text: string) => this.theme.heading(this.theme.bold(text));
 			}
 
-			case "paragraph": {
-				const paragraphText = this.renderInlineTokens(token.tokens ?? [], styleContext);
-				lines.push(paragraphText);
-				// Don't add spacing if next token is space or list
-				if (nextTokenType && nextTokenType !== "list" && nextTokenType !== "space") {
-					lines.push("");
-				}
-				break;
-			}
+			const headingStyleContext: InlineStyleContext = {
+				applyText: headingStyleFn,
+				stylePrefix: this.getStylePrefix(headingStyleFn),
+			};
 
-			case "text":
-				lines.push(this.renderInlineTokens([token], styleContext));
-				break;
-
-			case "latexBlock": {
-				const latexToken = token as LatexToken;
-				const rendered =
-					!latexToken.pending && this.options.renderLatex !== false
-						? (renderLatex(latexToken.text, { display: true }) ?? latexToken.raw.trim())
-						: latexToken.raw.trim();
-				for (const line of rendered.split("\n")) {
-					lines.push(this.applyDefaultStyle(line));
-				}
-				if (nextTokenType && nextTokenType !== "space") {
-					lines.push("");
-				}
-				break;
-			}
-
-			case "code": {
-				const indent = this.theme.codeBlockIndent ?? "  ";
-				lines.push(this.theme.codeBlockBorder(`\`\`\`${token.lang ?? ""}`));
-				const highlightCode = this.theme.highlightCode;
-				if (highlightCode) {
-					const highlightedLines = highlightCode((token as Tokens.Code).text ?? "", (token as Tokens.Code).lang);
-					for (const hlLine of highlightedLines) {
-						lines.push(`${indent}${hlLine}`);
-					}
-				} else {
-					// Split code by newlines and style each line
-					const codeLines = ((token as Tokens.Code).text ?? "").split("\n");
-					for (const codeLine of codeLines) {
-						lines.push(`${indent}${this.theme.codeBlock(codeLine)}`);
-					}
-				}
-				lines.push(this.theme.codeBlockBorder("```"));
-				if (nextTokenType && nextTokenType !== "space") {
-					lines.push(""); // Add spacing after code blocks (unless space token follows)
-				}
-				break;
-			}
-
-			case "list": {
-				const listLines = this.renderList(token as Tokens.List, 0, width, styleContext);
-				lines.push(...listLines);
-				// Don't add spacing after lists if a space token follows
-				// (the space token will handle it)
-				break;
-			}
-
-			case "table": {
-				const tableLines = this.renderTable(token as Tokens.Table, width, nextTokenType, styleContext);
-				lines.push(...tableLines);
-				break;
-			}
-
-			case "blockquote": {
-				const quoteStyle = (text: string) => this.theme.quote(this.theme.italic(text));
-				const quoteStylePrefix = this.getStylePrefix(quoteStyle);
-				const applyQuoteStyle = (line: string): string => {
-					if (!quoteStylePrefix) {
-						return quoteStyle(line);
-					}
-					const lineWithReappliedStyle = line.replace(/\x1b\[0m/g, `\x1b[0m${quoteStylePrefix}`);
-					return quoteStyle(lineWithReappliedStyle);
-				};
-
-				// Calculate available width for quote content (subtract border "│ " = 2 chars)
-				const quoteContentWidth = Math.max(1, width - 2);
-
-				// Blockquotes contain block-level tokens (paragraph, list, code, etc.), so render
-				// children with renderToken() instead of renderInlineTokens().
-				// Default message style should not apply inside blockquotes.
-				const quoteInlineStyleContext: InlineStyleContext = {
-					applyText: (text: string) => text,
-					stylePrefix: quoteStylePrefix,
-				};
-				const quoteTokens = token.tokens ?? [];
-				const renderedQuoteLines: string[] = [];
-				for (let i = 0; i < quoteTokens.length; i++) {
-					const quoteToken = quoteTokens[i];
-					const nextQuoteToken = i + 1 < quoteTokens.length ? quoteTokens[i + 1] : undefined;
-					let nextQuoteTokenType: string | undefined;
-					if (nextQuoteToken !== undefined) nextQuoteTokenType = nextQuoteToken.type;
-					renderedQuoteLines.push(
-						...this.renderToken(quoteToken, quoteContentWidth, nextQuoteTokenType, quoteInlineStyleContext),
-					);
-				}
-
-				// Avoid rendering an extra empty quote line before the outer blockquote spacing.
-				while (renderedQuoteLines.length > 0 && renderedQuoteLines[renderedQuoteLines.length - 1] === "") {
-					renderedQuoteLines.pop();
-				}
-
-				for (const quoteLine of renderedQuoteLines) {
-					const styledLine = applyQuoteStyle(quoteLine);
-					const wrappedLines = wrapTextWithAnsi(styledLine, quoteContentWidth);
-					for (const wrappedLine of wrappedLines) {
-						lines.push(this.theme.quoteBorder("│ ") + wrappedLine);
-					}
-				}
-				if (nextTokenType && nextTokenType !== "space") {
-					lines.push(""); // Add spacing after blockquotes (unless space token follows)
-				}
-				break;
-			}
-
-			case "hr":
-				lines.push(this.theme.hr("─".repeat(Math.min(width, 80))));
-				if (nextTokenType && nextTokenType !== "space") {
-					lines.push(""); // Add spacing after horizontal rules (unless space token follows)
-				}
-				break;
-
-			case "html":
-				// Render HTML as plain text (escaped for terminal)
-				if (typeof token.raw === "string") {
-					lines.push(this.applyDefaultStyle(token.raw.trim()));
-				}
-				break;
-
-			case "space":
-				// Space tokens represent blank lines in markdown
+			const headingNested = view["tokens"];
+			const headingText = this.renderInlineTokens(
+				headingNested !== null && headingNested !== undefined && typeof headingNested === "object" ? (headingNested as Token[]) : [],
+				headingStyleContext,
+			);
+			const styledHeading = headingLevel >= 3 ? headingStyleFn(headingPrefix) + headingText : headingText;
+			lines.push(styledHeading);
+			if (nextTokenType && nextTokenType !== "space") {
 				lines.push("");
-				break;
-
-			default:
-				// Handle any other token types as plain text
-				const genericText = (token as unknown as TokensText).text;
-				if (typeof genericText === "string") {
-					lines.push(genericText);
+			}
+		} else if (tokenType === "paragraph") {
+			const nested = view["tokens"];
+			const paragraphText = this.renderInlineTokens(
+				nested !== null && nested !== undefined && typeof nested === "object" ? (nested as Token[]) : [],
+				styleContext,
+			);
+			lines.push(paragraphText);
+			if (nextTokenType && nextTokenType !== "list" && nextTokenType !== "space") {
+				lines.push("");
+			}
+		} else if (tokenType === "text") {
+			lines.push(this.renderInlineTokens([token as Token], styleContext));
+		} else if (tokenType === "latexBlock") {
+			const pending = view["pending"];
+			const latexText = view["text"];
+			const latexRaw = view["raw"];
+			const rawStr = typeof latexRaw === "string" ? latexRaw : "";
+			const rendered =
+				pending !== true && this.options.renderLatex !== false && typeof latexText === "string"
+					? (renderLatex(latexText, { display: true }) ?? rawStr.trim())
+					: rawStr.trim();
+			for (const line of rendered.split("\n")) {
+				lines.push(this.applyDefaultStyle(line));
+			}
+			if (nextTokenType && nextTokenType !== "space") {
+				lines.push("");
+			}
+		} else if (tokenType === "code") {
+			const indent = this.theme.codeBlockIndent ?? "  ";
+			const lang = view["lang"];
+			const langStr = typeof lang === "string" ? lang : "";
+			lines.push(this.theme.codeBlockBorder(`\`\`\`${langStr}`));
+			const highlightCode = this.theme.highlightCode;
+			const codeText = view["text"];
+			const codeStr = typeof codeText === "string" ? codeText : "";
+			if (highlightCode) {
+				const highlightedLines = highlightCode(codeStr, langStr);
+				for (const hlLine of highlightedLines) {
+					lines.push(`${indent}${hlLine}`);
 				}
+			} else {
+				const codeLines = codeStr.split("\n");
+				for (const codeLine of codeLines) {
+					lines.push(`${indent}${this.theme.codeBlock(codeLine)}`);
+				}
+			}
+			lines.push(this.theme.codeBlockBorder("```"));
+			if (nextTokenType && nextTokenType !== "space") {
+				lines.push("");
+			}
+		} else if (tokenType === "list") {
+			const listLines = this.renderList(view, 0, width, styleContext);
+			lines.push(...listLines);
+		} else if (tokenType === "table") {
+			const tableLines = this.renderTable(view, width, nextTokenType, styleContext);
+			lines.push(...tableLines);
+		} else if (tokenType === "blockquote") {
+			const quoteStyle = (text: string) => this.theme.quote(this.theme.italic(text));
+			const quoteStylePrefix = this.getStylePrefix(quoteStyle);
+			const applyQuoteStyle = (line: string): string => {
+				if (!quoteStylePrefix) {
+					return quoteStyle(line);
+				}
+				const lineWithReappliedStyle = line.replace(/\x1b\[0m/g, `\x1b[0m${quoteStylePrefix}`);
+				return quoteStyle(lineWithReappliedStyle);
+			};
+
+			const quoteContentWidth = Math.max(1, width - 2);
+
+			const quoteInlineStyleContext: InlineStyleContext = {
+				applyText: (text: string) => text,
+				stylePrefix: quoteStylePrefix,
+			};
+			const nested = view["tokens"];
+			const quoteTokens: unknown[] =
+				nested !== null && nested !== undefined && typeof nested === "object" ? (nested as unknown[]) : [];
+			const renderedQuoteLines: string[] = [];
+			for (let i = 0; i < quoteTokens.length; i++) {
+				const quoteToken = quoteTokens[i];
+				const nextQuoteToken = i + 1 < quoteTokens.length ? quoteTokens[i + 1] : undefined;
+				let nextQuoteTokenType: string | undefined;
+				if (nextQuoteToken !== undefined) nextQuoteTokenType = recordViewOf(nextQuoteToken)["type"] as string | undefined;
+				renderedQuoteLines.push(
+					...this.renderToken(quoteToken, quoteContentWidth, nextQuoteTokenType, quoteInlineStyleContext),
+				);
+			}
+
+			while (renderedQuoteLines.length > 0 && renderedQuoteLines[renderedQuoteLines.length - 1] === "") {
+				renderedQuoteLines.pop();
+			}
+
+			for (const quoteLine of renderedQuoteLines) {
+				const styledLine = applyQuoteStyle(quoteLine);
+				const wrappedLines = wrapTextWithAnsi(styledLine, quoteContentWidth);
+				for (const wrappedLine of wrappedLines) {
+					lines.push(this.theme.quoteBorder("│ ") + wrappedLine);
+				}
+			}
+			if (nextTokenType && nextTokenType !== "space") {
+				lines.push("");
+			}
+		} else if (tokenType === "hr") {
+			lines.push(this.theme.hr("─".repeat(Math.min(width, 80))));
+			if (nextTokenType && nextTokenType !== "space") {
+				lines.push("");
+			}
+		} else if (tokenType === "html") {
+			const htmlRaw = view["raw"];
+			if (typeof htmlRaw === "string") {
+				lines.push(this.applyDefaultStyle(htmlRaw.trim()));
+			}
+		} else if (tokenType === "space") {
+			lines.push("");
+		} else {
+			const genericText = view["text"];
+			if (typeof genericText === "string") {
+				lines.push(genericText);
+			}
 		}
 
 		return lines;
@@ -764,46 +744,58 @@ export class Markdown extends Component {
 		return result;
 	}
 
-	private getOrderedListMarker(item: Tokens.ListItem): string | undefined {
-		const match = /^(?: {0,3})(\d{1,9}[.)])[ \t]+/.exec(item.raw);
+	private getOrderedListMarker(item: Record<string, unknown>): string | undefined {
+		const raw = item["raw"];
+		const match = typeof raw === "string" ? /^(?: {0,3})(\d{1,9}[.)])[ \t]+/.exec(raw) : null;
 		return match ? `${match[1]} ` : undefined;
 	}
 
-	private getUnorderedListMarker(item: Tokens.ListItem): string | undefined {
-		const match = /^(?: {0,3})([-+*])(?:[ \t]+|(?=\r?\n|$))/.exec(item.raw);
+	private getUnorderedListMarker(item: Record<string, unknown>): string | undefined {
+		const raw = item["raw"];
+		const match = typeof raw === "string" ? /^(?: {0,3})([-+*])(?:[ \t]+|(?=\r?\n|$))/.exec(raw) : null;
 		return match ? `${match[1]} ` : undefined;
 	}
 
 	/**
 	 * Render a list with proper nesting support
 	 */
-	private renderList(token: Tokens.List, depth: number, width: number, styleContext?: InlineStyleContext): string[] {
+	private renderList(token: Record<string, unknown>, depth: number, width: number, styleContext?: InlineStyleContext): string[] {
 		const lines: string[] = [];
 		const indent = "    ".repeat(depth);
-		// Use the list's start property (defaults to 1 for ordered lists)
-		const startNumber = typeof token.start === "number" ? token.start : 1;
+		const rawStart = token["start"];
+		const startNumber = typeof rawStart === "number" ? rawStart : 1;
+		const ordered = token["ordered"] === true;
+		const loose = token["loose"] === true;
+		const rawItems = token["items"];
+		const items: unknown[] =
+			rawItems !== null && rawItems !== undefined && typeof rawItems === "object" ? (rawItems as unknown[]) : [];
 
-		for (let i = 0; i < token.items.length; i++) {
-			const item = token.items[i];
-			const isLastItem = i === token.items.length - 1;
-			const bullet = token.ordered
+		for (let i = 0; i < items.length; i++) {
+			const itemView = recordViewOf(items[i]);
+			const isLastItem = i === items.length - 1;
+			const bullet = ordered
 				? this.options.preserveOrderedListMarkers
-					? (this.getOrderedListMarker(item) ?? `${startNumber + i}. `)
+					? (this.getOrderedListMarker(itemView) ?? `${startNumber + i}. `)
 					: `${startNumber + i}. `
 				: this.options.preserveOrderedListMarkers
-					? (this.getUnorderedListMarker(item) ?? "- ")
+					? (this.getUnorderedListMarker(itemView) ?? "- ")
 					: "- ";
-			const taskMarker = item.task ? `[${item.checked ? "x" : " "}] ` : "";
+			const taskMarker = itemView["task"] === true ? `[${itemView["checked"] === true ? "x" : " "}] ` : "";
 			const marker = bullet + taskMarker;
 			const firstPrefix = indent + this.theme.listBullet(marker);
 			const continuationPrefix = indent + " ".repeat(visibleWidth(marker));
 			const itemWidth = Math.max(1, width - visibleWidth(firstPrefix));
 			let renderedAnyLine = false;
 
-			for (let itemTokenIdx = 0; itemTokenIdx < item.tokens.length; itemTokenIdx++) {
-				const itemToken = item.tokens[itemTokenIdx]!;
-				if (itemToken.type === "list") {
-					lines.push(...this.renderList(itemToken as Tokens.List, depth + 1, width, styleContext));
+			const rawItemTokens = itemView["tokens"];
+			const itemTokens: unknown[] =
+				rawItemTokens !== null && rawItemTokens !== undefined && typeof rawItemTokens === "object"
+					? (rawItemTokens as unknown[])
+					: [];
+			for (let itemTokenIdx = 0; itemTokenIdx < itemTokens.length; itemTokenIdx++) {
+				const itemToken = itemTokens[itemTokenIdx];
+				if (recordViewOf(itemToken)["type"] === "list") {
+					lines.push(...this.renderList(recordViewOf(itemToken), depth + 1, width, styleContext));
 					renderedAnyLine = true;
 					continue;
 				}
@@ -822,7 +814,7 @@ export class Markdown extends Component {
 				lines.push(firstPrefix);
 			}
 
-			if (token.loose && !isLastItem) {
+			if (loose && !isLastItem) {
 				lines.push("");
 			}
 		}
@@ -865,13 +857,21 @@ export class Markdown extends Component {
 	 * Cells that don't fit are wrapped to multiple lines.
 	 */
 	private renderTable(
-		token: Tokens.Table,
+		token: Record<string, unknown>,
 		availableWidth: number,
 		nextTokenType?: string,
 		styleContext?: InlineStyleContext,
 	): string[] {
 		const lines: string[] = [];
-		const numCols = token.header.length;
+		const rawHeader = token["header"];
+		const header: TokensTableCell[] =
+			rawHeader !== null && rawHeader !== undefined && typeof rawHeader === "object" ? (rawHeader as TokensTableCell[]) : [];
+		const rawRows = token["rows"];
+		const rows: TokensTableCell[][] =
+			rawRows !== null && rawRows !== undefined && typeof rawRows === "object" ? (rawRows as TokensTableCell[][]) : [];
+		const tableRaw = token["raw"];
+		const tableRawText = typeof tableRaw === "string" ? tableRaw : "";
+		const numCols = header.length;
 
 		if (numCols === 0) {
 			return lines;
@@ -883,7 +883,7 @@ export class Markdown extends Component {
 		const availableForCells = availableWidth - borderOverhead;
 		if (availableForCells < numCols) {
 			// Too narrow to render a stable table. Fall back to raw markdown.
-			const fallbackLines = token.raw ? wrapTextWithAnsi(token.raw, availableWidth) : [];
+			const fallbackLines = tableRawText ? wrapTextWithAnsi(tableRawText, availableWidth) : [];
 			if (nextTokenType && nextTokenType !== "space") {
 				fallbackLines.push("");
 			}
@@ -896,11 +896,11 @@ export class Markdown extends Component {
 		const naturalWidths: number[] = [];
 		const minWordWidths: number[] = [];
 		for (let i = 0; i < numCols; i++) {
-			const headerText = this.renderInlineTokens(token.header[i].tokens ?? [], styleContext);
+			const headerText = this.renderInlineTokens(header[i].tokens ?? [], styleContext);
 			naturalWidths[i] = visibleWidth(headerText);
 			minWordWidths[i] = Math.max(1, this.getLongestWordWidth(headerText, maxUnbrokenWordWidth));
 		}
-		for (const row of token.rows) {
+		for (const row of rows) {
 			for (let i = 0; i < row.length; i++) {
 				const cellText = this.renderInlineTokens(row[i].tokens ?? [], styleContext);
 				naturalWidths[i] = Math.max(naturalWidths[i] ?? 0, visibleWidth(cellText));
@@ -987,7 +987,7 @@ export class Markdown extends Component {
 		lines.push(`┌─${topBorderCells.join("─┬─")}─┐`);
 
 		// Render header with wrapping
-		const headerCellLines: string[][] = token.header.map((cell, i) => {
+		const headerCellLines: string[][] = header.map((cell, i) => {
 			const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
 			return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
 		});
@@ -1008,8 +1008,8 @@ export class Markdown extends Component {
 		lines.push(separatorLine);
 
 		// Render rows with wrapping
-		for (let rowIndex = 0; rowIndex < token.rows.length; rowIndex++) {
-			const row = token.rows[rowIndex];
+		for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+			const row = rows[rowIndex];
 			const rowCellLines: string[][] = row.map((cell, i) => {
 				const text = this.renderInlineTokens(cell.tokens ?? [], styleContext);
 				return this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix);
@@ -1024,7 +1024,7 @@ export class Markdown extends Component {
 				lines.push(`│ ${rowParts.join(" │ ")} │`);
 			}
 
-			if (rowIndex < token.rows.length - 1) {
+			if (rowIndex < rows.length - 1) {
 				lines.push(separatorLine);
 			}
 		}

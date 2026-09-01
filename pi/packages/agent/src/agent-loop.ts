@@ -702,6 +702,9 @@ async function executePreparedToolCall(
 	let acceptingUpdates = true;
 
 	try {
+		if (process.env["PI_DBG_TOOL"] === "1") {
+			console.error("[tool-dbg] name =", prepared.toolCall.name, "args =", JSON.stringify(prepared.args), "raw =", JSON.stringify(prepared.toolCall.arguments));
+		}
 		const result = await prepared.tool.execute(
 			prepared.toolCall.id,
 			prepared.args as never,

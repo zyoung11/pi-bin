@@ -33,6 +33,15 @@
 - **验证**：tsgo src 清零；ASan 构建 pty 全流程零报错（EXIT=0）；生产二进制逐字输入+Enter+ctrl+c、--version/--list-models/-c/--print 对话/bash tool_call 全部通过。
 - **工具链沉淀**：`--sanitize` 构建 = pi 侧堆损坏问题的标准定位手段（比 gdb 快得多，gdb 下时序变化会掩盖崩溃）。
 
+## 第五十二轮记录（工具调用全坏 + /tree 崩溃 + 渲染堆损坏根治）
+
+- **用户实测三问题**：①对话中随机 SIGSEGV ②bash 工具全坏（"expected number at $, got object"，每次工具调用必抛）③--no-session 下 /tree 崩溃退出。
+- **bash 工具全坏 = 编译器 never 映射 bug（第六个实锤，影响面最大）**：agent-loop 的 `prepared.args as never`——编译器 type-mapper 把 TS `never` 映射为 **F64(number)**（原假设"值位置的 never 不可观察"被 `as never` 断言打破）→ unknown 实际值（工具参数 object）流入 never→F64 槽 → dynCheck "expected number" **每次必炸**。修复 = never 映射改 **DYN**（dyn 值到达真实参数槽时按真实槽类型校验/转换——合法 record 通过、畸形参数带路径报错，语义正确化）。影响面审计：pi 全仓 never 用法仅穷尽性检查声明位与 never 返回函数（VOID 通道），无回归。
+- **/tree 崩溃 = formatHelpKeys 的 `getKeys(keybinding)[0]` 空数组越界**（keybindings 配置下某绑定无键）+ `filteredNodes[selectedIndex]` 空数组越界（`?.` 不防越界，filteredNodes 可为空）——新增 selectedFlatNode() 安全访问器，9 处直接索引读全部改道。
+- **随机 SIGSEGV 根治（渲染路径全量 dyn 化）**：renderToken/renderList/renderTable 的 typed switch narrow 与 `as Tokens.List` 等 cast 同为 tag 写越界源（renderList bt 实锤）。三个方法签名改 `Record<string, unknown>`/unknown，全部字段读取经 recordViewOf bracket，if 链判别替代 switch narrowing；getOrderedListMarker/getUnorderedListMarker 参数随改。**新规则㊳：renderToken/renderList/renderTable 全 dyn 化后 markdown 渲染路径不再有任何 typed union narrow/cast**。trimPartialClosingFences 补 length===0 空数组守卫。
+- **验证**：tsgo src 清零；print 模式 bash 工具真跑（pwd/echo 输出正确回传）、markdown 列表/表格渲染、/tree、--version/--list-models/-c/TUI 对话+ctrl+c 全部通过。
+- **调试工具沉淀**：gdb python 脚本断点（scr_throw_error 消息过滤抓 dynCheck 现场）；`PI_DBG_TOOL=1` 工具参数打印插桩（agent-loop）。
+
 ## ✅ 阶段 5/7 收尾完成（第四十八轮）：原生二进制全链路真跑通过
 
 - **--print 输出丢失根因**：`blocks = output.content as StreamingBlock[]` cast 视图 push = 静默 no-op（数组赋值 = 值拷贝，与 probe47 结论同类）。修复：fresh 数组 + `output.content = blocks` 引用赋值 + done 前重新同步。

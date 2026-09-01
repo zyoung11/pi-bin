@@ -139,14 +139,31 @@ class TreeList extends Component {
 		this.maxVisibleLines = maxVisibleLines;
 		this.filterMode = initialFilterMode ?? "default";
 		this.multipleRoots = tree.length > 1;
+		console.error("[tl-dbg] flatten start, tree =", tree.length);
 		this.flatNodes = this.flattenTree(tree);
+		console.error("[tl-dbg] flattened =", this.flatNodes.length);
 		this.buildActivePath();
+		console.error("[tl-dbg] activePath built");
 		this.applyFilter();
+		console.error("[tl-dbg] filtered =", this.filteredNodes.length);
 
 		// Start with initialSelectedId if provided, otherwise current leaf
 		const targetId = initialSelectedId ?? currentLeafId;
+		console.error("[tl-dbg] findNearest start, target =", targetId);
 		this.selectedIndex = this.findNearestVisibleIndex(targetId);
-		this.lastSelectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id ?? null;
+		console.error("[tl-dbg] selectedIndex =", this.selectedIndex);
+		this.lastSelectedId =
+			this.filteredNodes.length > 0 ? (this.selectedFlatNode()?.node.entry.id ?? null) : null;
+		console.error("[tl-dbg] constructor done");
+	}
+
+
+	/** Selected node or undefined when the filtered list is empty (empty-array indexed reads trap). */
+	private selectedFlatNode(): FlatNode | undefined {
+		if (this.filteredNodes.length === 0) return undefined;
+		const index = this.selectedIndex;
+		if (index < 0 || index >= this.filteredNodes.length) return undefined;
+		return this.filteredNodes[index];
 	}
 
 	/**
@@ -334,7 +351,7 @@ class TreeList extends Component {
 		// Update lastSelectedId only when we have a valid selection (non-empty list)
 		// This preserves the selection when switching through empty filter results
 		if (this.filteredNodes.length > 0) {
-			this.lastSelectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id ?? this.lastSelectedId;
+			this.lastSelectedId = this.selectedFlatNode()?.node.entry.id ?? this.lastSelectedId;
 		}
 
 		const searchTokens = this.searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -426,7 +443,7 @@ class TreeList extends Component {
 
 		// Update lastSelectedId to the actual selection (may have changed due to parent walk)
 		if (this.filteredNodes.length > 0) {
-			this.lastSelectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id ?? this.lastSelectedId;
+			this.lastSelectedId = this.selectedFlatNode()?.node.entry.id ?? this.lastSelectedId;
 		}
 	}
 
@@ -627,7 +644,7 @@ class TreeList extends Component {
 	}
 
 	getSelectedNode(): SessionTreeNode | undefined {
-		return this.filteredNodes[this.selectedIndex]?.node;
+		return this.selectedFlatNode()?.node;
 	}
 
 	copySelected(): void {
@@ -1001,7 +1018,7 @@ class TreeList extends Component {
 		} else if (kb.matches(keyData, "tui.select.down")) {
 			this.selectedIndex = this.selectedIndex === this.filteredNodes.length - 1 ? 0 : this.selectedIndex + 1;
 		} else if (kb.matches(keyData, "app.tree.foldOrUp")) {
-			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			const currentId = this.selectedFlatNode()?.node.entry.id;
 			if (currentId && this.isFoldable(currentId) && !this.foldedNodes.has(currentId)) {
 				this.foldedNodes.add(currentId);
 				this.applyFilter();
@@ -1009,7 +1026,7 @@ class TreeList extends Component {
 				this.selectedIndex = this.findBranchSegmentStart("up");
 			}
 		} else if (kb.matches(keyData, "app.tree.unfoldOrDown")) {
-			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+			const currentId = this.selectedFlatNode()?.node.entry.id;
 			if (currentId && this.foldedNodes.has(currentId)) {
 				this.foldedNodes.delete(currentId);
 				this.applyFilter();
@@ -1023,7 +1040,7 @@ class TreeList extends Component {
 			// Page down
 			this.selectedIndex = Math.min(this.filteredNodes.length - 1, this.selectedIndex + this.maxVisibleLines);
 		} else if (kb.matches(keyData, "tui.select.confirm")) {
-			const selected = this.filteredNodes[this.selectedIndex];
+			const selected = this.selectedFlatNode();
 			if (selected && this.onSelect) {
 				const onSelect = this.onSelect;
 				onSelect(selected.node.entry.id);
@@ -1084,7 +1101,7 @@ class TreeList extends Component {
 				this.applyFilter();
 			}
 		} else if (kb.matches(keyData, "app.tree.editLabel")) {
-			const selected = this.filteredNodes[this.selectedIndex];
+			const selected = this.selectedFlatNode();
 			if (selected && this.onLabelEdit) {
 				const onLabelEdit = this.onLabelEdit;
 				onLabelEdit(selected.node.entry.id, selected.node.label);
@@ -1126,7 +1143,7 @@ class TreeList extends Component {
 	 * (always following the first child).
 	 */
 	private findBranchSegmentStart(direction: "up" | "down"): number {
-		const selectedId = this.filteredNodes[this.selectedIndex]?.node.entry.id;
+		const selectedId = this.selectedFlatNode()?.node.entry.id;
 		if (!selectedId) return this.selectedIndex;
 
 		const indexByEntryId = new Map(this.filteredNodes.map((node, i) => [node.node.entry.id, i]));
@@ -1242,8 +1259,9 @@ const TREE_HELP_ITEMS: Array<{ keys: Keybinding[]; label: string; labelFirst?: b
 function formatHelpKeys(keybindings: Keybinding[]): string {
 	const keys: string[] = [];
 	for (const keybinding of keybindings) {
-		const key = getKeybindings().getKeys(keybinding)[0];
-		if (key !== undefined) keys.push(key);
+		const boundKeys = getKeybindings().getKeys(keybinding);
+		if (boundKeys.length === 0) continue;
+		keys.push(boundKeys[0]!);
 	}
 	if (keys.length === 0) return "";
 
