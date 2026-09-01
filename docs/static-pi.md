@@ -2,6 +2,24 @@
 
 > ⚠️ 测试提醒（2026-08-29 用户指定）：后续冒烟/真跑一律用 `llamacpp/MiniCPM5-1B` 模型（`--model "llamacpp/MiniCPM5-1B"`）。
 
+## 当前状态总览（2026-09-01，HEAD fbedbd8）
+
+- **编译：100% 达成**。`scriptc build packages/coding-agent/src/cli.ts --npm-static string_decoder` 全图 **0 诊断**（路线 A：不改编译器，全部在 pi 侧改写）。TS 类型检查 `tsgo --noEmit` src 清零。
+- **产物**：8.8MB 原生 ELF（`--version`/`--list-models`/`-c` 会话恢复/`-r` 选择器/`--print` 对话/bash 工具全部真跑通过）。当前产物质在工作区被隔离为 `pi/pi-native.QUARANTINE`（见下）。
+- **剩余问题：运行时内存安全/语义长尾**（编译期已无墙）。第五十~五十六轮连续修的都是这一类：字符串生命周期（double free/堆损坏）、数组越界（前瞻/滞后读）、typed record 缺键 trap、cast 视图写 no-op、JSON 边界 re-tag 崩溃。最新实例：**TUI 下 read 工具渲染路径 double free（SIGABRT）**，-p 模式与 node 直跑不复现，复现/修复进行中（见第五十六轮后的事故记录）。
+- **调试工具链已内置**：`SC_DEBUG_FAIL/STRAND/WIDTH` 编译期插桩、运行时 `scr_trap_fmt` 原生 backtrace、`PI_DBG_TOOL` 参数打印、ASan 构建（`--sanitize`）。方法论详见 **`docs/pi-bin-rewrite-and-debug-guide.md`**（编译期/运行时两套调试流程 + 改写规范 + 成功案例集）。
+- **轮次编号说明**：主线轮次（四十八~五十六，原生二进制真跑/运行时修复）与本会话并行提交的二~二十七轮记录（interactive-mode/TUI 编译期 grind 的另一条时间线）在本文档中并存；内容以提交哈希为准，两者沉淀的规则库一致。
+- **关键命令**：
+  ```bash
+  # 编译（0 诊断 gate）
+  cd pi && PATH="$HOME/bin-node26:$PATH" node ../scriptc/packages/cli/dist/bootstrap.js \
+    build packages/coding-agent/src/cli.ts --npm-static string_decoder --out /tmp/pi-out
+  # 类型检查
+  ./node_modules/.bin/tsgo --noEmit
+  # 冒烟（隔离 pane 中执行，勿在宿主 pane 跑——进程组 kill 护栏已加但仍需隔离）
+  node packages/coding-agent/src/cli.ts --model "llamacpp/MiniCPM5-1B" -p "..."
+  ```
+
 ## 第四十九轮记录（TUI 用户报告 10 项问题修复：SIGSEGV/全白/steering/选择器槽位）
 
 - **用户真机 TUI 报告 10 项**，全部定位到根因并修复，新二进制 `pi/pi-native`（8.6MB）重建。
