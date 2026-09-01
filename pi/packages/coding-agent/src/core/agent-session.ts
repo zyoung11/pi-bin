@@ -811,7 +811,7 @@ export class AgentSession {
 		return (
 			this._autoCompactionAbortController !== null ||
 			this._compactionAbortController !== null ||
-			this._branchSummaryAbortController !== undefined
+			this._branchSummaryAbortController !== null
 		);
 	}
 
@@ -2218,7 +2218,7 @@ export class AgentSession {
 
 	/** Whether auto-retry is currently in progress */
 	get isRetrying(): boolean {
-		return this._retryAbortController !== undefined;
+		return this._retryAbortController !== null;
 	}
 
 	/** Whether auto-retry is enabled */

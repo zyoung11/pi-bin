@@ -2,10 +2,14 @@ import type { AgentMessage } from "../../../agent/src/index.ts";
 import {
 	type ImageContent,
 	type Message,
+	type StopReason,
 	type TextContent,
 	type ThinkingContent,
 	type ToolCall,
 	type Usage,
+	type UserMessage,
+	type AssistantMessage,
+	type ToolResultMessage,
 	uuidv7,
 } from "../../../ai/src/index.ts";
 import { randomUUID } from "crypto";
@@ -587,10 +591,398 @@ class SessionHeaderScanLimitError extends Error {
 	}
 }
 
+/**
+ * Revive a JSON-parsed value into a properly-tagged FileEntry.
+ *
+ * The static runtime cannot re-tag raw JSON.parse records into typed unions
+ * (any typed field read on them fails), so every session line must be rebuilt
+ * field-by-field through unknown-parameter helpers before entering the typed world.
+ */
+function reviveFileEntry(raw: unknown): FileEntry | null {
+	if (raw === null || typeof raw !== "object") return null;
+	const rec = recordViewOf(raw);
+	const type = rec["type"];
+	if (typeof type !== "string") return null;
+
+	if (type === "session") {
+		const header: SessionHeader = {
+			type: "session",
+			id: reviveString(rec["id"]),
+			timestamp: reviveString(rec["timestamp"]),
+			cwd: reviveString(rec["cwd"]),
+		};
+		if (typeof rec["version"] === "number") header.version = rec["version"];
+		if (typeof rec["parentSession"] === "string") header.parentSession = rec["parentSession"];
+		return header;
+	}
+
+	if (type === "message") {
+		const message = reviveAgentMessage(rec["message"]);
+		if (message === undefined) return null;
+		const entry: SessionMessageEntry = {
+			type: "message",
+			message,
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		return entry;
+	}
+
+	if (type === "thinking_level_change") {
+		const entry: ThinkingLevelChangeEntry = {
+			type: "thinking_level_change",
+			thinkingLevel: reviveString(rec["thinkingLevel"]),
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		return entry;
+	}
+
+	if (type === "model_change") {
+		const entry: ModelChangeEntry = {
+			type: "model_change",
+			provider: reviveString(rec["provider"]),
+			modelId: reviveString(rec["modelId"]),
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		return entry;
+	}
+
+	if (type === "compaction") {
+		const entry: CompactionEntry = {
+			type: "compaction",
+			summary: reviveString(rec["summary"]),
+			firstKeptEntryId: reviveString(rec["firstKeptEntryId"]),
+			tokensBefore: reviveNumber(rec["tokensBefore"]),
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (typeof rec["firstKeptEntryIndex"] === "number") entry.firstKeptEntryIndex = rec["firstKeptEntryIndex"];
+		if (rec["details"] !== undefined && rec["details"] !== null && typeof rec["details"] === "object") {
+			entry.details = reviveDetails(rec["details"]);
+		}
+		const usage = reviveUsage(rec["usage"]);
+		if (usage !== undefined) entry.usage = usage;
+		if (typeof rec["fromHook"] === "boolean") entry.fromHook = rec["fromHook"];
+		return entry;
+	}
+
+	if (type === "branch_summary") {
+		const entry: BranchSummaryEntry = {
+			type: "branch_summary",
+			fromId: reviveString(rec["fromId"]),
+			summary: reviveString(rec["summary"]),
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (rec["details"] !== undefined && rec["details"] !== null && typeof rec["details"] === "object") {
+			entry.details = reviveDetails(rec["details"]);
+		}
+		const usage = reviveUsage(rec["usage"]);
+		if (usage !== undefined) entry.usage = usage;
+		if (typeof rec["fromHook"] === "boolean") entry.fromHook = rec["fromHook"];
+		return entry;
+	}
+
+	if (type === "custom") {
+		const entry: CustomEntry = {
+			type: "custom",
+			customType: reviveString(rec["customType"]),
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (rec["data"] !== undefined && rec["data"] !== null && typeof rec["data"] === "object") {
+			entry.data = reviveDetails(rec["data"]);
+		}
+		return entry;
+	}
+
+	if (type === "custom_message") {
+		const content = reviveStringOrBlocks(rec["content"]);
+		if (content === undefined) return null;
+		const entry: CustomMessageEntry = {
+			type: "custom_message",
+			customType: reviveString(rec["customType"]),
+			content,
+			display: rec["display"] === true,
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (rec["details"] !== undefined && rec["details"] !== null && typeof rec["details"] === "object") {
+			entry.details = reviveDetails(rec["details"]);
+		}
+		return entry;
+	}
+
+	if (type === "label") {
+		const entry: LabelEntry = {
+			type: "label",
+			targetId: reviveString(rec["targetId"]),
+			label: typeof rec["label"] === "string" ? rec["label"] : undefined,
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		return entry;
+	}
+
+	if (type === "session_info") {
+		const entry: SessionInfoEntry = {
+			type: "session_info",
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (typeof rec["name"] === "string") entry.name = rec["name"];
+		return entry;
+	}
+
+	return null;
+}
+
+function reviveString(value: unknown): string {
+	return typeof value === "string" ? value : "";
+}
+
+function reviveNumber(value: unknown): number {
+	return typeof value === "number" ? value : 0;
+}
+
+function reviveParentId(value: unknown): string | null {
+	return typeof value === "string" ? value : null;
+}
+
+/** Index-signature details/data payloads pass through the dyn channel. */
+function reviveDetails(value: unknown): CustomData {
+	return value as CustomData;
+}
+
+function reviveStringOrBlocks(value: unknown): string | (TextContent | ImageContent)[] | undefined {
+	if (typeof value === "string") return value;
+	if (value === null || typeof value !== "object") return undefined;
+	return reviveTextImageBlocks(value);
+}
+
+function reviveTextImageBlocks(value: unknown): (TextContent | ImageContent)[] {
+	const blocks: (TextContent | ImageContent)[] = [];
+	if (value === null || typeof value !== "object") return blocks;
+	const arr = value as unknown[];
+	for (const item of arr) {
+		if (item === null || typeof item !== "object") continue;
+		const rec = recordViewOf(item);
+		if (rec["type"] === "text") {
+			blocks.push(reviveTextBlock(rec));
+		} else if (rec["type"] === "image") {
+			const block: ImageContent = {
+				type: "image",
+				data: reviveString(rec["data"]),
+				mimeType: reviveString(rec["mimeType"]),
+			};
+			blocks.push(block);
+		}
+	}
+	return blocks;
+}
+
+function reviveTextBlock(rec: Record<string, unknown>): TextContent {
+	const block: TextContent = { type: "text", text: reviveString(rec["text"]) };
+	if (typeof rec["textSignature"] === "string") block.textSignature = rec["textSignature"];
+	return block;
+}
+
+function reviveUserBlocks(value: unknown): (TextContent | ImageContent)[] {
+	return reviveTextImageBlocks(value);
+}
+
+function reviveAssistantBlocks(value: unknown): (TextContent | ThinkingContent | ToolCall)[] {
+	const blocks: (TextContent | ThinkingContent | ToolCall)[] = [];
+	if (value === null || typeof value !== "object") return blocks;
+	const arr = value as unknown[];
+	for (const item of arr) {
+		if (item === null || typeof item !== "object") continue;
+		const rec = recordViewOf(item);
+		if (rec["type"] === "text") {
+			blocks.push(reviveTextBlock(rec));
+		} else if (rec["type"] === "thinking") {
+			const block: ThinkingContent = { type: "thinking", thinking: reviveString(rec["thinking"]) };
+			if (typeof rec["thinkingSignature"] === "string") block.thinkingSignature = rec["thinkingSignature"];
+			if (typeof rec["redacted"] === "boolean") block.redacted = rec["redacted"];
+			blocks.push(block);
+		} else if (rec["type"] === "toolCall") {
+			const block: ToolCall = {
+				type: "toolCall",
+				id: reviveString(rec["id"]),
+				name: reviveString(rec["name"]),
+				arguments: reviveDetails(rec["arguments"]) as Record<string, unknown>,
+			};
+			if (typeof rec["thoughtSignature"] === "string") block.thoughtSignature = rec["thoughtSignature"];
+			if (typeof rec["namespace"] === "string") block.namespace = rec["namespace"];
+			blocks.push(block);
+		}
+	}
+	return blocks;
+}
+
+function reviveUsage(value: unknown): Usage | undefined {
+	if (value === null || typeof value !== "object") return undefined;
+	const rec = recordViewOf(value);
+	const costRec = rec["cost"];
+	const cost = {
+		input: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["input"]) : 0,
+		output: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["output"]) : 0,
+		cacheRead: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["cacheRead"]) : 0,
+		cacheWrite: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["cacheWrite"]) : 0,
+		total: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["total"]) : 0,
+	};
+	const usage: Usage = {
+		input: reviveNumber(rec["input"]),
+		output: reviveNumber(rec["output"]),
+		cacheRead: reviveNumber(rec["cacheRead"]),
+		cacheWrite: reviveNumber(rec["cacheWrite"]),
+		totalTokens: reviveNumber(rec["totalTokens"]),
+		cost,
+	};
+	if (typeof rec["cacheWrite1h"] === "number") usage.cacheWrite1h = rec["cacheWrite1h"];
+	if (typeof rec["reasoning"] === "number") usage.reasoning = rec["reasoning"];
+	return usage;
+}
+
+function reviveAgentMessage(raw: unknown): AgentMessage | undefined {
+	if (raw === null || typeof raw !== "object") return undefined;
+	const rec = recordViewOf(raw);
+	const role = rec["role"];
+
+	if (role === "user") {
+		const content = reviveStringOrBlocks(rec["content"]);
+		if (content === undefined) return undefined;
+		const message: UserMessage = {
+			role: "user",
+			content,
+			timestamp: reviveNumber(rec["timestamp"]),
+		};
+		return message;
+	}
+
+	if (role === "assistant") {
+		const message: AssistantMessage = {
+			role: "assistant",
+			content: reviveAssistantBlocks(rec["content"]),
+			api: reviveString(rec["api"]),
+			provider: reviveString(rec["provider"]),
+			model: reviveString(rec["model"]),
+			usage: reviveUsage(rec["usage"]) ?? {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: reviveStopReason(rec["stopReason"]),
+			timestamp: reviveNumber(rec["timestamp"]),
+		};
+		if (typeof rec["responseModel"] === "string") message.responseModel = rec["responseModel"];
+		if (typeof rec["responseId"] === "string") message.responseId = rec["responseId"];
+		if (typeof rec["errorMessage"] === "string") message.errorMessage = rec["errorMessage"];
+		if (typeof rec["rawStopReason"] === "string") message.rawStopReason = rec["rawStopReason"];
+		if (typeof rec["endTurn"] === "boolean") message.endTurn = rec["endTurn"];
+		return message;
+	}
+
+	if (role === "toolResult") {
+		const message: ToolResultMessage = {
+			role: "toolResult",
+			toolCallId: reviveString(rec["toolCallId"]),
+			toolName: reviveString(rec["toolName"]),
+			content: reviveTextImageBlocks(rec["content"]),
+			isError: rec["isError"] === true,
+			timestamp: reviveNumber(rec["timestamp"]),
+		};
+		if (rec["details"] !== undefined && rec["details"] !== null && typeof rec["details"] === "object") {
+			message.details = reviveDetails(rec["details"]);
+		}
+		const usage = reviveUsage(rec["usage"]);
+		if (usage !== undefined) message.usage = usage;
+		if (rec["addedToolNames"] !== null && typeof rec["addedToolNames"] === "object") {
+			const names: string[] = [];
+			for (const item of rec["addedToolNames"] as unknown[]) {
+				if (typeof item === "string") names.push(item);
+			}
+			message.addedToolNames = names;
+		}
+		return message;
+	}
+
+	if (role === "bashExecution") {
+		const message: BashExecutionMessage = {
+			role: "bashExecution",
+			command: reviveString(rec["command"]),
+			output: reviveString(rec["output"]),
+			exitCode: typeof rec["exitCode"] === "number" ? rec["exitCode"] : undefined,
+			cancelled: rec["cancelled"] === true,
+			truncated: rec["truncated"] === true,
+			timestamp: reviveNumber(rec["timestamp"]),
+		};
+		if (typeof rec["fullOutputPath"] === "string") message.fullOutputPath = rec["fullOutputPath"];
+		if (typeof rec["excludeFromContext"] === "boolean") message.excludeFromContext = rec["excludeFromContext"];
+		return message;
+	}
+
+	if (role === "custom") {
+		const content = reviveStringOrBlocks(rec["content"]);
+		if (content === undefined) return undefined;
+		return createCustomMessage(
+			reviveString(rec["customType"]),
+			content,
+			rec["display"] === true,
+			rec["details"] !== undefined && rec["details"] !== null && typeof rec["details"] === "object"
+				? reviveDetails(rec["details"])
+				: undefined,
+			reviveString(rec["timestamp"]),
+		);
+	}
+
+	if (role === "branchSummary") {
+		return createBranchSummaryMessage(
+			reviveString(rec["summary"]),
+			reviveString(rec["fromId"]),
+			reviveString(rec["timestamp"]),
+		);
+	}
+
+	if (role === "compactionSummary") {
+		return createCompactionSummaryMessage(
+			reviveString(rec["summary"]),
+			reviveNumber(rec["tokensBefore"]),
+			reviveString(rec["timestamp"]),
+		);
+	}
+
+	return undefined;
+}
+
+function reviveStopReason(value: unknown): StopReason {
+	if (
+		value === "pending" || value === "stop" || value === "length" || value === "toolUse" ||
+		value === "error" || value === "aborted" || value === "deferred"
+	) {
+		return value;
+	}
+	return "error";
+}
+
 function parseSessionEntryLine(line: string): FileEntry | null {
 	if (!line.trim()) return null;
 	try {
-		return JSON.parse(line) as FileEntry;
+		return reviveFileEntry(JSON.parse(line));
 	} catch {
 		// Skip malformed lines
 		return null;

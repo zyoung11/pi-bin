@@ -446,8 +446,8 @@ function withThemeColorFallbacks(colors: ThemeJson["colors"]): Record<string, st
 // ============================================================================
 
 export class Theme {
-	readonly name?: string;
-	readonly sourcePath?: string;
+	name?: string;
+	sourcePath?: string;
 	sourceInfo?: SourceInfo;
 	private fgColors: Map<ThemeColor, string>;
 	private bgColors: Map<ThemeBg, string>;
@@ -474,8 +474,9 @@ export class Theme {
 			fgView["searchMatchText"] as string | number | undefined,
 			fgView["text"] as string | number | undefined,
 		);
+		const colorsView = recordViewOf(colors);
 		for (const key of THEME_COLOR_KEYS) {
-			const value = colors[key];
+			const value = colorsView[key];
 			if (typeof value === "string" || typeof value === "number") {
 				this.fgColors.set(key as ThemeColor, fgAnsi(value, mode));
 			}
@@ -491,8 +492,9 @@ export class Theme {
 			bgView["searchMatchBg"] as string | number | undefined,
 			bgView["selectedBg"] as string | number | undefined,
 		);
+		const backgroundsView = recordViewOf(backgrounds);
 		for (const key of THEME_BG_KEYS) {
-			const value = backgrounds[key];
+			const value = backgroundsView[key];
 			if (typeof value === "string" || typeof value === "number") {
 				this.bgColors.set(key as ThemeBg, bgAnsi(value, mode));
 			}
@@ -500,20 +502,12 @@ export class Theme {
 	}
 
 	copyStateFrom(other: Theme): void {
-		const self = this as unknown as {
-			name?: string;
-			sourcePath?: string;
-			sourceInfo?: SourceInfo;
-			fgColors: Map<ThemeColor, string>;
-			bgColors: Map<ThemeBg, string>;
-			mode: ColorMode;
-		};
-		self.name = other.name;
-		self.sourcePath = other.sourcePath;
-		self.sourceInfo = other.sourceInfo;
-		self.fgColors = other.fgColors;
-		self.bgColors = other.bgColors;
-		self.mode = other.mode;
+		this.name = other.name;
+		this.sourcePath = other.sourcePath;
+		this.sourceInfo = other.sourceInfo;
+		this.fgColors = other.fgColors;
+		this.bgColors = other.bgColors;
+		this.mode = other.mode;
 	}
 
 	fg(color: ThemeColor, text: string): string {
