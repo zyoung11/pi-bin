@@ -90,6 +90,8 @@ export type PackageSource =
 	  };
 
 export interface Settings {
+	/** Preserved for upstream config compatibility; not read by this build. */
+	lastChangelogVersion?: string;
 	defaultProvider?: string;
 	defaultModel?: string;
 	defaultThinkingLevel?: ThinkingLevel;

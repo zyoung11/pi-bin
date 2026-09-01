@@ -80,6 +80,13 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第五十九轮记录（供应商改为内存合成 + settings 兼容性修正）
+
+- **用户需求**：① settings.json 的 `lastChangelogVersion` 是原始 pi 的键，不删不读（恢复字段定义保留透传）；② models.json 不做物理合并（用户手写内容难找），改为**启动时内存合成**。
+- **实施**：① settings-manager 恢复 `lastChangelogVersion?: string` 字段定义（写回链路基于 current 文件 merge，未知键天然保留）；② `ModelConfig.load` 读完 models.json 后从同目录 `models-store.json` 合成缺失 provider（仅 openai-completions api，逐 provider 过 `validateModelsConfig.Check` schema 验证后追加），auth.json 凭据按 providerId 由运行时凭据链自动关联（无需显式读取），settings.json enabledModels 过滤天然生效。models.json 恢复用户原版（仅 llamacpp）。
+- **scriptc 雷区实录（本轮踩坑）**：`new Set(map.keys())` SC2020（Map 迭代→for-of push 数组）；`ReadonlyMap<string, unknown>` 参数 SC2009（Map 值禁 unknown→改传 string[]）；`{...} as unknown as ModelsJson` 双跳 cast SC2002（index-signature→精确 brand 双跳仍拒）→ 改 `candidate: unknown` 单跳 cast（unknown→JSON 形状合法）+ Check 运行时校验；`Array.isArray(unknown)` 需先 cast `Record<string,unknown>[]` 再 bracket 读。
+- **验证**：models.json 仅剩 llamacpp 而 --list-models 17 模型全在（0 warning）；deepseek/glm/mimo 三家真跑全通；Model scope（Ctrl+P）/models /scoped-models 数据源为 runtime snapshot 自动包含合成 provider，ctrl+s 持久化 scope 与 provider 来源解耦无需改动。
+
 ## 第五十八轮记录（接入原 pi API 供应商 + usage:null 静默丢 chunk 修复）
 
 - **用户目标**：从原 pi 的 `~/.pi/agent/` 存量数据（models-store.json + auth.json）恢复 deepseek/zai/xiaomi 等纯 API 供应商（非 OAuth）。

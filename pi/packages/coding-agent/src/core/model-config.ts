@@ -1,6 +1,8 @@
 /** Immutable, credential-blind models.json snapshot. */
 
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "path";
 import { type Static, Compile, Type, type PiValidationError } from "../../../ai/src/schema.ts";
 import { stripJsonComments } from "../utils/json.ts";
 import { normalizePath } from "../utils/paths.ts";
@@ -231,6 +233,122 @@ function deepFreeze<T>(value: T): T {
 	return value;
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+interface ModelsStoreEntry {
+	id?: unknown;
+	name?: unknown;
+	api?: unknown;
+	baseUrl?: unknown;
+	reasoning?: unknown;
+	input?: unknown;
+	contextWindow?: unknown;
+	maxTokens?: unknown;
+	cost?: unknown;
+	compat?: unknown;
+	thinkingLevelMap?: unknown;
+}
+
+/**
+ * Rebuild provider definitions from the upstream models-store.json catalog cache
+ * (written by the original pi for built-in API providers) merged in memory with
+ * the user's models.json. Nothing is written back to disk; credentials resolve
+ * from auth.json by matching provider id at request time. Each synthesized
+ * provider must pass the models.json schema check or it is skipped.
+ */
+function synthesizeProvidersFromModelsStore(
+	modelsStorePath: string,
+	existingProviderIds: readonly string[],
+): { providers: Map<string, ModelsJsonProvider>; error: string | undefined } {
+	let content: string;
+	try {
+		content = readFileSync(modelsStorePath, "utf-8");
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			return { providers: new Map(), error: undefined };
+		}
+		return {
+			providers: new Map(),
+			error: `Failed to load models-store.json: ${error instanceof Error ? error.message : error}\n\nFile: ${modelsStorePath}`,
+		};
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(stripBom(content));
+	} catch (error) {
+		return {
+			providers: new Map(),
+			error: `Failed to parse models-store.json: ${error instanceof Error ? error.message : error}\n\nFile: ${modelsStorePath}`,
+		};
+	}
+	if (parsed === null || typeof parsed !== "object") {
+		return { providers: new Map(), error: undefined };
+	}
+
+	const storeView = recordViewOf(parsed);
+	const providers = new Map<string, ModelsJsonProvider>();
+	for (const providerId of Object.keys(storeView)) {
+		if (existingProviderIds.indexOf(providerId) !== -1) continue;
+		const block = recordViewOf(storeView[providerId]);
+		const rawModels = block["models"];
+		if (!Array.isArray(rawModels)) continue;
+		const entries = rawModels as Record<string, unknown>[];
+		if (entries.length === 0) continue;
+
+		const first = entries[0];
+		if (first === undefined) continue;
+		const api = first["api"];
+		if (api !== "openai-completions") continue;
+
+		const baseUrls: string[] = [];
+		for (const entry of entries) {
+			const url = entry["baseUrl"];
+			if (typeof url === "string" && baseUrls.indexOf(url) === -1) baseUrls.push(url);
+		}
+		if (baseUrls.length !== 1) continue;
+
+		const models: Record<string, unknown>[] = [];
+		for (const entry of entries) {
+			const id = entry["id"];
+			const contextWindow = entry["contextWindow"];
+			if (typeof id !== "string" || typeof contextWindow !== "number") continue;
+			const cost = entry["cost"];
+			const model: Record<string, unknown> = {
+				id,
+				name: typeof entry["name"] === "string" ? entry["name"] : id,
+				reasoning: entry["reasoning"] === true,
+				input: Array.isArray(entry["input"]) ? entry["input"] : ["text"],
+				contextWindow,
+				cost:
+					cost !== null && typeof cost === "object"
+						? cost
+						: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			};
+			const maxTokens = entry["maxTokens"];
+			if (typeof maxTokens === "number") model["maxTokens"] = maxTokens;
+			const compat = entry["compat"];
+			if (compat !== null && typeof compat === "object") model["compat"] = compat;
+			const thinkingLevelMap = entry["thinkingLevelMap"];
+			if (thinkingLevelMap !== null && typeof thinkingLevelMap === "object") {
+				model["thinkingLevelMap"] = thinkingLevelMap;
+			}
+			models.push(model);
+		}
+		if (models.length === 0) continue;
+
+		const providerRecord: Record<string, unknown> = {};
+		providerRecord[providerId] = { baseUrl: baseUrls[0], api, models };
+		const candidate: unknown = { providers: providerRecord };
+		if (!validateModelsConfig.Check(candidate)) continue;
+		const validated = candidate as ModelsJson;
+		providers.set(providerId, deepFreeze(structuredClone(validated.providers[providerId])));
+	}
+	return { providers, error: undefined };
+}
+
 /** One immutable load of models.json. */
 export class ModelConfig {
 	private readonly providers: ReadonlyMap<string, ModelsJsonProvider>;
@@ -279,7 +397,20 @@ export class ModelConfig {
 		for (const [providerId, provider] of Object.entries(config.providers)) {
 			providers.set(providerId, deepFreeze(structuredClone(provider)));
 		}
-		return new ModelConfig(providers);
+
+		// Merge providers from the upstream models-store.json catalog cache in memory
+		// (auth.json credentials resolve by provider id; nothing is written to disk).
+		const existingProviderIds: string[] = [];
+		for (const existingId of providers.keys()) existingProviderIds.push(existingId);
+		const synthesized = synthesizeProvidersFromModelsStore(
+			join(dirname(normalizePath(path)), "models-store.json"),
+			existingProviderIds,
+		);
+		for (const [providerId, provider] of synthesized.providers) {
+			providers.set(providerId, provider);
+		}
+
+		return new ModelConfig(providers, synthesized.error ?? undefined);
 	}
 
 	getProvider(providerId: string): ModelsJsonProvider | undefined {
