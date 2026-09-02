@@ -11,16 +11,8 @@ import { SettingsManager } from "../core/settings-manager.ts";
 import { ExtensionInputComponent } from "../modes/interactive/components/extension-input.ts";
 import { ExtensionSelectorComponent } from "../modes/interactive/components/extension-selector.ts";
 import {
-	FirstTimeSetupComponent,
-	type FirstTimeSetupResult,
-} from "../modes/interactive/components/first-time-setup.ts";
-import {
-	detectTerminalBackgroundFromEnv,
-	detectTerminalThemeForAuto,
 	initTheme,
 	loadThemeFromPath,
-	parseAutoThemeSetting,
-	resolveThemeSetting,
 	setRegisteredThemes,
 	setTheme,
 	type Theme,
@@ -79,8 +71,7 @@ async function loadStartupThemes(settingsManager: SettingsManager): Promise<Them
 
 export async function createStartupTui(settingsManager: SettingsManager): Promise<TuiBase> {
 	setRegisteredThemes(await loadStartupThemes(settingsManager));
-	const terminalTheme = detectTerminalBackgroundFromEnv().theme;
-	initTheme(resolveThemeSetting(settingsManager.getThemeSetting(), terminalTheme) ?? terminalTheme);
+	initTheme(settingsManager.getThemeSetting() ?? "dark");
 	setKeybindings(KeybindingsManager.create());
 	const ui: TuiBase = new TuiMainScreen(new ProcessTerminal(), settingsManager.getShowHardwareCursor(), getAgentDir());
 	ui.setClearOnShrink(settingsManager.getClearOnShrink());
@@ -89,55 +80,12 @@ export async function createStartupTui(settingsManager: SettingsManager): Promis
 
 export function startStartupTui(ui: TuiBase, settingsManager: SettingsManager): void {
 	ui.start();
-	void applyDetectedStartupTheme(ui, settingsManager);
-}
-
-async function applyDetectedStartupTheme(ui: TuiBase, settingsManager: SettingsManager): Promise<void> {
-	const themeSetting = settingsManager.getThemeSetting();
-	if (themeSetting && !parseAutoThemeSetting(themeSetting)) return;
-
-	const terminalTheme = await detectTerminalThemeForAuto({
-		ui: {
-			queryTerminalBackgroundColor: (options) => ui.queryTerminalBackgroundColor(options),
-			queryTerminalColorScheme: (options) => ui.queryTerminalColorScheme(options),
-		},
-		timeoutMs: 100,
-	});
-	setTheme(resolveThemeSetting(themeSetting, terminalTheme) ?? terminalTheme);
-	ui.invalidate();
-	ui.requestRender();
 }
 
 async function clearStartupTui(ui: TuiBase): Promise<void> {
 	ui.clear();
 	ui.requestRender();
 	await new Promise((resolve) => setTimeout(resolve, 25));
-}
-
-/**
- * First-time setup runs when all of these hold:
- * - this is the official Pi distribution (not a fork/rebrand)
- * - experimental features are enabled (PI_EXPERIMENTAL=1)
- * - the default agent directory is used (no custom agent dir override)
- * - setup was not completed before (settings.json does not exist)
- */
-export function shouldRunFirstTimeSetup(settingsPath: string = getSettingsPath()): boolean {
-	if (
-		!isOfficialDistribution({
-			packageName: PACKAGE_NAME,
-			appName: APP_NAME,
-			configDirName: CONFIG_DIR_NAME,
-		})
-	) {
-		return false;
-	}
-	if (!areExperimentalFeaturesEnabled()) {
-		return false;
-	}
-	if (process.env[ENV_AGENT_DIR]) {
-		return false;
-	}
-	return !existsSync(settingsPath);
 }
 
 export async function showStartupSelector(
@@ -172,53 +120,6 @@ export async function showStartupSelector(
 }
 
 /** Show the first-time setup dialog and persist the result */
-export async function showFirstTimeSetup(settingsManager: SettingsManager): Promise<void> {
-	const ui = await createStartupTui(settingsManager);
-	return new Promise((resolve) => {
-		let settled = false;
-		const finish = async (result: FirstTimeSetupResult | undefined) => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			if (result) {
-				settingsManager.setTheme(result.theme);
-				settingsManager.setEnableAnalytics(result.shareAnalytics);
-				await settingsManager.flush();
-			}
-			await clearStartupTui(ui);
-			ui.stop();
-			resolve();
-		};
-
-		const showSetup = async () => {
-			ui.start();
-			const detectedTheme = await detectTerminalThemeForAuto({
-				ui: {
-					queryTerminalBackgroundColor: (options) => ui.queryTerminalBackgroundColor(options),
-					queryTerminalColorScheme: (options) => ui.queryTerminalColorScheme(options),
-				},
-				timeoutMs: 100,
-			});
-			setTheme(detectedTheme);
-			const component = new FirstTimeSetupComponent({
-				detectedTheme,
-				onThemePreview: (themeName) => {
-					setTheme(themeName);
-					ui.requestRender();
-				},
-				onSubmit: (result) => void finish(result),
-				onCancel: () => void finish(undefined),
-			});
-			ui.addChild(component);
-			ui.setFocus(component);
-			ui.requestRender();
-		};
-
-		void showSetup();
-	});
-}
-
 export async function showStartupInput(
 	settingsManager: SettingsManager,
 	title: string,

@@ -80,6 +80,16 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第六十三轮记录（第 3 步：theme 简化——只留 dark + 用户自定义 JSON 主题）
+
+- **范围**：删 light 内置主题与 automatic 双主题模式（"light:x/dark:y" 设置格式、终端背景检测驱动的自动切换）；保留 dark 内置 + `~/.pi/agent/themes/*.json` 用户自定义（**纯 JSON + schema 校验，无 JS 动态加载**）+ 包来源注册主题 + /settings 的 Theme 选择（单列表）。
+- **theme.ts**：getBuiltinThemes 只留 dark；删 parseAutoThemeSetting/resolveThemeSetting/终端背景检测集群（detectTerminalBackground*/getThemeForRgbColor/getColorFgBgBackgroundIndex/亮度函数/TerminalTheme* 接口/getDefaultTheme/isLightTheme/TerminalTheme type）；initTheme/setTheme/getResolvedThemeColors/getThemeExportColors 的默认 fallback 改 "dark"。
+- **theme-controller.ts 重写**：删 autoSync/终端颜色方案监听/detection 分支，纯 apply/set/preview/notify；rebindTui 保留为空实现（调用点兼容）。
+- **settings-selector**：ThemeSubmenu 从 automatic/single 双模式重写为单列表（dark + 自定义主题，含实时预览与 Esc 取消恢复原值）；config.terminalTheme 字段与 TerminalTheme import 删。
+- **连带发现与删除（用户第 2 项诉求的正主）**：① system-prompt.ts 注入的 "Pi documentation" 引导段（教模型用 docs/extensions.md 等教用户扩展 pi——静态 fork 的 docs 目录不存在）；② first-time-setup 向导整体删除（shouldRunFirstTimeSetup 有 isOfficialDistribution 检查，fork 永不触发 = 死代码；含 light/dark 选择与 analytics opt-in）；③ auth-guidance.ts 的 /login 与 docs 路径引用改为 models.json/auth.json 指引；④ agent-session 两处 `/login` 报错文案改 auth.json 指引。
+- **关键发现**：agent 配置目录环境变量是 **PI_CODING_AGENT_DIR**（非 PI_AGENT_DIR）——此前冒烟的"隔离"从未生效（测试一直跑在真实配置上）。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；PI_CODING_AGENT_DIR 隔离冒烟——/settings Theme 子菜单正确列出 dark + 自定义 mydark、选中后 settings.json 持久化 `"theme": "mydark"`、print 对话正常、--list-models 18 行。
+
 ## 第六十二轮记录（typed keyed 读全量审计：再修三处同族雷）
 
 - **审计动机**：per-model thinking 崩溃（第六十一轮）后，对全部斜杠命令 handler、settings 子菜单、选择器组件做 typed record 变量 keyed 读专项审计（grep `Record<string, ...>` 局部量 + `[level]/[key]/[id]` 读点逐一核对）。

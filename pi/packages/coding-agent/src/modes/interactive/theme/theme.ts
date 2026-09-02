@@ -593,11 +593,9 @@ let BUILTIN_THEMES: Record<string, ThemeJson> | undefined;
 
 function getBuiltinThemes(): Record<string, ThemeJson> {
 	if (!BUILTIN_THEMES) {
-		// The dark theme JSON is embedded in the binary; the light entry reuses
-		// the same definition so both terminal theme names stay selectable.
-		const dark = JSON.parse(DARK_THEME_JSON) as ThemeJson;
-		const light = JSON.parse(DARK_THEME_JSON) as ThemeJson;
-		BUILTIN_THEMES = { dark: dark, light: light };
+		// The dark theme JSON is embedded in the binary. Custom themes come from
+		// ~/.pi/agent/themes/*.json (pure data files).
+		BUILTIN_THEMES = { dark: JSON.parse(DARK_THEME_JSON) as ThemeJson };
 	}
 	return BUILTIN_THEMES;
 }
@@ -624,7 +622,6 @@ export function getAvailableThemesWithPaths(): ThemeInfo[] {
 
 	// Built-in themes are embedded in the binary (no file path).
 	addTheme({ name: "dark", path: undefined });
-	addTheme({ name: "light", path: undefined });
 
 	// Custom themes
 	for (const themeInfo of getCustomThemeInfos()) {
@@ -799,162 +796,7 @@ export function getThemeByName(name: string): Theme | undefined {
 	}
 }
 
-export type TerminalTheme = "dark" | "light";
 
-export function parseAutoThemeSetting(
-	themeSetting: string | undefined,
-): { lightTheme: string; darkTheme: string } | undefined {
-	if (!themeSetting) return undefined;
-	const slashIndex = themeSetting.indexOf("/");
-	if (slashIndex === -1 || themeSetting.indexOf("/", slashIndex + 1) !== -1) {
-		return undefined;
-	}
-
-	const lightTheme = themeSetting.slice(0, slashIndex).trim();
-	const darkTheme = themeSetting.slice(slashIndex + 1).trim();
-	if (!lightTheme || !darkTheme) {
-		return undefined;
-	}
-	return { lightTheme, darkTheme };
-}
-
-export function resolveThemeSetting(
-	themeSetting: string | undefined,
-	terminalTheme: TerminalTheme,
-): string | undefined {
-	const autoTheme = parseAutoThemeSetting(themeSetting);
-	if (autoTheme) {
-		return terminalTheme === "light" ? autoTheme.lightTheme : autoTheme.darkTheme;
-	}
-	if (themeSetting?.includes("/")) return undefined;
-	if (typeof themeSetting === "string") return themeSetting;
-	return undefined;
-}
-
-export interface TerminalThemeDetection {
-	theme: TerminalTheme;
-	source: "terminal background" | "COLORFGBG" | "fallback";
-	detail: string;
-	confidence: "high" | "low";
-}
-
-export interface TerminalThemeDetectionOptions {
-	env?: NodeJS.ProcessEnv;
-}
-
-export interface TerminalBackgroundThemeDetector {
-	queryTerminalBackgroundColor({ timeoutMs }: { timeoutMs: number }): Promise<RgbColor | undefined>;
-}
-
-export interface TerminalAutoThemeDetector extends TerminalBackgroundThemeDetector {
-	queryTerminalColorScheme?({ timeoutMs }: { timeoutMs: number }): Promise<TerminalTheme | undefined>;
-}
-
-export interface TerminalBackgroundThemeDetectionOptions extends TerminalThemeDetectionOptions {
-	ui: TerminalBackgroundThemeDetector;
-	timeoutMs: number;
-}
-
-export interface TerminalAutoThemeDetectionOptions extends TerminalThemeDetectionOptions {
-	ui: TerminalAutoThemeDetector;
-	timeoutMs: number;
-}
-
-function getColorFgBgBackgroundIndex(colorfgbg: string): number | undefined {
-	const parts = colorfgbg.split(";");
-	for (let i = parts.length - 1; i >= 0; i--) {
-		const bg = parseInt(parts[i].trim(), 10);
-		if (Number.isInteger(bg) && bg >= 0 && bg <= 255) {
-			return bg;
-		}
-	}
-	return undefined;
-}
-
-function getRgbColorLuminance({ r, g, b }: RgbColor): number {
-	const toLinear = (channel: number) => {
-		const value = channel / 255;
-		return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-	};
-	return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
-}
-
-function getAnsiColorLuminance(index: number): number {
-	return getRgbColorLuminance(hexToRgb(ansi256ToHex(index)));
-}
-
-export function getThemeForRgbColor(rgb: RgbColor): TerminalTheme {
-	return getRgbColorLuminance(rgb) >= 0.5 ? "light" : "dark";
-}
-
-export function detectTerminalBackgroundFromEnv(options: TerminalThemeDetectionOptions = {}): TerminalThemeDetection {
-	const env = options.env ?? process.env;
-	const colorfgbg = env.COLORFGBG || "";
-	const bg = getColorFgBgBackgroundIndex(colorfgbg);
-	if (bg !== undefined) {
-		return {
-			theme: getAnsiColorLuminance(bg) >= 0.5 ? "light" : "dark",
-			source: "COLORFGBG",
-			detail: `background color index ${bg}`,
-			confidence: "high",
-		};
-	}
-
-	return {
-		theme: "dark",
-		source: "fallback",
-		detail: "no terminal background hint found",
-		confidence: "low",
-	};
-}
-
-export async function detectTerminalBackgroundTheme({
-	ui,
-	timeoutMs,
-	env,
-}: TerminalBackgroundThemeDetectionOptions): Promise<TerminalThemeDetection> {
-	try {
-		const rgb = await ui.queryTerminalBackgroundColor({ timeoutMs });
-		if (rgb) {
-			return {
-				theme: getThemeForRgbColor(rgb),
-				source: "terminal background",
-				detail: `OSC 11 background rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`,
-				confidence: "high",
-			};
-		}
-	} catch {
-		// Fall back to environment-based detection when the terminal query fails.
-	}
-
-	return detectTerminalBackgroundFromEnv({ env });
-}
-
-export async function detectTerminalThemeForAuto({
-	ui,
-	timeoutMs,
-	env,
-}: TerminalAutoThemeDetectionOptions): Promise<TerminalTheme> {
-	let colorSchemePromise: Promise<TerminalTheme | undefined> | undefined;
-	try {
-		colorSchemePromise = ui.queryTerminalColorScheme?.({ timeoutMs });
-	} catch {
-		// Fall back to OSC 11 / COLORFGBG detection when starting the color-scheme query fails.
-	}
-	const backgroundThemePromise = detectTerminalBackgroundTheme({ ui, timeoutMs, env });
-
-	try {
-		const colorScheme = colorSchemePromise !== undefined ? await colorSchemePromise : undefined;
-		if (colorScheme) return colorScheme;
-	} catch {
-		// Fall back to the concurrently queried OSC 11 / COLORFGBG detection.
-	}
-	return (await backgroundThemePromise).theme;
-}
-
-export function getDefaultTheme(): string {
-	return detectTerminalBackgroundFromEnv().theme;
-}
 
 // ============================================================================
 // Global Theme Instance
@@ -997,7 +839,7 @@ export function setRegisteredThemes(themes: Theme[]): void {
 }
 
 export function initTheme(themeName?: string, enableWatcher: boolean = false): void {
-	const name = themeName ?? getDefaultTheme();
+	const name = themeName ?? "dark";
 	currentThemeName = name;
 	try {
 		setGlobalTheme(loadTheme(name));
@@ -1185,7 +1027,7 @@ function ansi256ToHex(index: number): string {
  * Used by HTML export to generate CSS custom properties.
  */
 export function getResolvedThemeColors(themeName?: string): Record<string, string> {
-	const name = themeName ?? currentThemeName ?? getDefaultTheme();
+	const name = themeName ?? currentThemeName ?? "dark";
 	const isLight = name === "light";
 	const themeJson = loadThemeJson(name);
 	const resolved = resolveThemeColors(withThemeColorFallbacks(themeJson.colors), themeJson.vars);
@@ -1207,13 +1049,6 @@ export function getResolvedThemeColors(themeName?: string): Record<string, strin
 	return cssColors;
 }
 
-/**
- * Check if a theme is a "light" theme (for CSS that needs light/dark variants).
- */
-export function isLightTheme(themeName?: string): boolean {
-	// Currently just check the name - could be extended to analyze colors
-	return themeName === "light";
-}
 
 /**
  * Get explicit export colors from theme JSON, if specified.
@@ -1224,7 +1059,7 @@ export function getThemeExportColors(themeName?: string): {
 	cardBg?: string;
 	infoBg?: string;
 } {
-	const name = themeName ?? currentThemeName ?? getDefaultTheme();
+	const name = themeName ?? currentThemeName ?? "dark";
 	try {
 		const themeJson = loadThemeJson(name);
 		const exportSection = themeJson.export;

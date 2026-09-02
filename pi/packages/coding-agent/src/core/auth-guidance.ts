@@ -1,13 +1,9 @@
-import { join } from "node:path";
-import { getDocsPath } from "../config.ts";
 
 const UNKNOWN_PROVIDER = "unknown";
 
 export function getProviderLoginHelp(): string {
 	return [
-		"Use /login to log into a provider via OAuth or API key. See:",
-		`  ${join(getDocsPath(), "providers.md")}`,
-		`  ${join(getDocsPath(), "models.md")}`,
+		"Add a provider with its API endpoint and models to models.json (or an API key to auth.json) in the agent config directory.",
 	].join("\n");
 }
 

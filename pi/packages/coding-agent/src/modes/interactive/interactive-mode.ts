@@ -3450,7 +3450,6 @@ export class InteractiveMode {
 			// which the stdout/stderr error handler turns into emergencyTerminalExit;
 			// the render loop is already idle, so this cannot hot-spin (see #4144).
 			await this.runtimeHost.dispose();
-			this.themeController.disableAutoSync();
 			await this.ui.getTerminal().drainInput(1000);
 			this.stop();
 			process.exit(0);
@@ -3461,7 +3460,6 @@ export class InteractiveMode {
 		// the final frame while the process is exiting.
 		// Drain any in-flight Kitty key release events before stopping.
 		// This prevents escape sequences from leaking to the parent shell over slow SSH.
-		this.themeController.disableAutoSync();
 		await this.ui.getTerminal().drainInput(1000);
 
 		this.stop();
@@ -3937,7 +3935,6 @@ export class InteractiveMode {
 					availableThinkingLevels: [...THINKING_LEVEL_OPTIONS],
 					modelThinkingLevels: this.settingsManager.getAllModelThinkingLevels(),
 					currentTheme: this.themeController.getThemeSelection() || "dark",
-					terminalTheme: this.themeController.getTerminalTheme(),
 					availableThemes: getAvailableThemes(),
 					hideThinkingBlock: this.hideThinkingBlock,
 					doubleEscapeAction: this.settingsManager.getDoubleEscapeAction(),
@@ -5226,7 +5223,6 @@ export class InteractiveMode {
 			this.ui.getTerminal().setProgress(false);
 		}
 		this.clearStatusIndicator();
-		this.themeController.disableAutoSync();
 		this.footer.dispose();
 		this.footerDataProvider.dispose();
 		const unsubscribe = this.unsubscribe;
