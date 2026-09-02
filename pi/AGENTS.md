@@ -7,9 +7,10 @@ pi coding agent compiled to a native Linux binary via
 [scriptc](https://scriptc.dev) — no JS engine, no runtime asset reads.
 
 - Main entry: `packages/coding-agent/src/cli.ts`; the built binary is `./pi`.
-- Deeper references live outside this repo: `../docs/static-pi.md` (round-by-round
-  log) and `../docs/pi-bin-rewrite-and-debug-guide.md` (full rewrite/debug guide).
-  Read them when a change touches scriptc-sensitive code or when debugging.
+- Deeper references live outside this repo: `../docs/CHANGELOG.md` (engineering
+  log, one entry per commit) and `../docs/pi-bin-rewrite-and-debug-guide.md`
+  (full rewrite/debug guide). Read them when a change touches scriptc-sensitive
+  code or when debugging.
 - Config dir env var is `PI_CODING_AGENT_DIR` (NOT `PI_AGENT_DIR`); default
   `~/.pi/agent`. Models: `models.json` plus providers synthesized in memory from
   `models-store.json`; API keys from `auth.json`; custom themes from `themes/*.json`.
@@ -36,7 +37,7 @@ pi coding agent compiled to a native Linux binary via
 - Do not preserve backward compatibility unless the user asks for it.
 - Never hardcode key checks (e.g. `matchesKey(keyData, "ctrl+x")`). Add defaults to `DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS` so they stay configurable.
 - There is no unit-test suite (removed: it had drifted far from src). Verification is real-run smoke in an isolated terminal (see Verification below). Do not reintroduce vitest/jest.
-- After a significant fix or feature round, record findings in `../docs/static-pi.md` (round log).
+- After a significant fix or feature round, record findings in `../docs/CHANGELOG.md`.
 
 ## Static Compilation Constraints (scriptc)
 
@@ -137,7 +138,7 @@ Only one session works in this cwd at a time now, but keep the staging disciplin
   you have verified every changed file is yours.
 - Message format: first line `feat:`, `fix:`, `refactor:`, `chore:`, or `doc:`,
   followed by bullet lines (`- change one`, `- change two`). Message is
-  informative and concise; include a `doc:` bullet when `../docs/static-pi.md`
+  informative and concise; include a `doc:` bullet when `../docs/CHANGELOG.md`
   was updated.
 - Never run: `git reset --hard`, `git checkout .`, `git clean -fd`, `git stash`,
   `git commit --no-verify`.
