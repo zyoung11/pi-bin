@@ -1,14 +1,27 @@
 # Development Rules
 
+## Project Overview
+
+This is a static fork of [pi-mono](https://github.com/earendil-works/pi-mono): the
+pi coding agent compiled to a native Linux binary via
+[scriptc](https://scriptc.dev) — no JS engine, no runtime asset reads.
+
+- Main entry: `packages/coding-agent/src/cli.ts`; the built binary is `./pi`.
+- Deeper references live outside this repo: `../docs/static-pi.md` (round-by-round
+  log) and `../docs/pi-bin-rewrite-and-debug-guide.md` (full rewrite/debug guide).
+  Read them when a change touches scriptc-sensitive code or when debugging.
+- Config dir env var is `PI_CODING_AGENT_DIR` (NOT `PI_AGENT_DIR`); default
+  `~/.pi/agent`. Models: `models.json` plus providers synthesized in memory from
+  `models-store.json`; API keys from `auth.json`; custom themes from `themes/*.json`.
+
 ## Conversational Style
 
 - Keep answers short and concise
 - No emojis in commits, issues, PR comments, or code
-- No fluff or cheerful filler text (e.g., "Thanks @user" not "Thanks so much @user!")
+- No fluff or cheerful filler text
 - Technical prose only, be direct
 - Use concise, clear, simple language. Define unavoidable jargon before using it.
-- Explain non-trivial designs and problems as: problem, concrete example or short trace, then solution. State why the solution is necessary and distinguish it from optional complexity.
-- Prefer concrete behavior and small illustrations over abstract summaries, dense terminology, or unexplained lists of changes.
+- Explain non-trivial designs and problems as: problem, concrete example or short trace, then solution.
 - When the user asks a question, answer it first before making edits or running implementation commands.
 - When responding to user feedback or an analysis, explicitly say whether you agree or disagree before saying what you changed.
 
@@ -17,153 +30,119 @@
 - Read files in full before wide-ranging changes, before editing files you have not fully inspected, and when asked to investigate or audit. Do not rely on search snippets for broad changes.
 - No `any` unless absolutely necessary.
 - Inline single-line helpers that have only one call site.
-- Check node_modules for external API types; don't guess.
-- **No inline imports** (`await import()`, `import("pkg").Type`, dynamic type imports). Top-level imports only.
-- Never remove or downgrade code to fix type errors from outdated deps; upgrade the dep instead.
-- Use only erasable TypeScript syntax (Node strip-only mode) in code checked by the root config (`packages/*/src`, `packages/*/test`, `packages/coding-agent/examples`): no parameter properties, `enum`, `namespace`/`module`, `import =`, `export =`, or other constructs needing JS emit. Use explicit fields with constructor assignments.
+- **No inline imports** (`await import()`, `import("pkg").Type`). Top-level imports only.
+- Use only erasable TypeScript syntax (Node strip-only mode) in `packages/*/src`: no parameter properties, `enum`, `namespace`/`module`, `import =`, `export =`. Use explicit fields with constructor assignments.
 - Always ask before removing functionality or code that appears intentional.
 - Do not preserve backward compatibility unless the user asks for it.
 - Never hardcode key checks (e.g. `matchesKey(keyData, "ctrl+x")`). Add defaults to `DEFAULT_EDITOR_KEYBINDINGS` or `DEFAULT_APP_KEYBINDINGS` so they stay configurable.
-- Never modify `packages/ai/src/models.generated.ts` directly; update `packages/ai/scripts/generate-models.ts` instead, then regenerate. Including the resulting `models.generated.ts` diff is always OK, even if regeneration includes unrelated upstream model metadata changes.
+- There is no unit-test suite (removed: it had drifted far from src). Verification is real-run smoke in an isolated terminal (see Verification below). Do not reintroduce vitest/jest.
+- After a significant fix or feature round, record findings in `../docs/static-pi.md` (round log).
 
-## Commands
+## Static Compilation Constraints (scriptc)
 
-- After code changes (not docs): `npm run check` (full output, no tail). Fix all errors, warnings, and infos before committing. Does not run tests.
-- Never run `npm run build` or `npm test` unless requested by the user.
-- Never run the full vitest suite directly: it includes e2e tests that activate when endpoint/auth env vars are present. For all non-e2e tests, run `./test.sh` from the repo root. Otherwise run specific tests from the package root:
-  - Vitest: `node "$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js" --run test/specific.test.ts`
-  - `packages/tui` (`node:test`): `node --test test/specific.test.ts`
-- If you create or modify a test file, run it and iterate on test or implementation until it passes.
-- For `packages/coding-agent/test/suite/`, use `test/suite/harness.ts` + the faux provider. No real provider APIs, keys, or paid tokens.
-- Put issue-specific regressions under `packages/coding-agent/test/suite/regressions/` named `<issue-number>-<short-slug>.test.ts`.
-- For ad-hoc scripts, `write` them to a temp file (e.g. `/tmp`), run, edit if needed, remove when done. Don't embed multi-line scripts in `bash` commands.
-- Never commit unless the user asks.
+Everything in `packages/*/src` must compile through scriptc to native code. The
+scriptc lowering is narrower than TypeScript; these are hard rules, each backed by
+a confirmed runtime bug:
+
+- **Imports**: direct relative imports to source files (`../foo/bar.ts`); never
+  barrel/`index.ts` imports (dual class identity); never namespace re-exports;
+  type-only imports must be marked `type` (runtime verification of value imports).
+- **No dynamic constructs**: no `new Function`, no computed method names, no
+  Symbol-keyed protocol properties — use plain methods and discriminator fields.
+- **Classes consumed across record boundaries**: no getters (use methods), no
+  intersection types, no `any`/`unknown`/function-typed fields where a record
+  shape is expected. Prefer flat interfaces over discriminated unions at dynamic
+  data boundaries.
+- **Unions**: all arms must share identical field types (including `| undefined`
+  arms); no `void` arms; no union-typed function returns for JSON-shaped results
+  (use a flat interface — union return re-tagging corrupts values).
+- **No `new Set(iterable)`**, no `execFileSync` with non-utf8 `encoding`, no
+  `JSON.stringify` of `unknown`-typed values — these have no lowering. Capture
+  binary subprocess output by redirecting to a temp file and `readFileSync` it.
+- **Empty array literals** in union/record contexts need explicit `as T[]`.
+- Spread only at the head of a literal; no spread-after-explicit.
+
+## Runtime Discipline (compiles ≠ runs correctly)
+
+The static runtime traps where JS returns `undefined`. Each rule below is backed
+by a confirmed crash:
+
+- **Missing keyed read = trap.** Reading `record[key]` where `key` is absent on a
+  typed record traps ("record has no key"). `??` and `?.` do NOT protect — the
+  trap fires before they evaluate. Reads over JSON/external/optional-key data go
+  through a dyn helper:
+  ```ts
+  function recordViewOf(value: unknown): Record<string, unknown> {
+      return value as Record<string, unknown>;
+  }
+  function lookupX(map: unknown, key: string): string | undefined {
+      const value = recordViewOf(map)[key];
+      return typeof value === "string" ? value : undefined;
+  }
+  ```
+- **Cast views**: `value as SomeInterface` / `recordViewOf(x)` produce a
+  materialized COPY — reads are correct, writes and deletes are silently lost.
+  Writes must go through a function that takes a `Record<string, unknown>`
+  parameter (parameter passing is by reference — writes reach the original) or
+  through a field chain on a real object (`holder.payload["key"] = v`).
+- **Array bounds**: `[i+1]` lookahead, `[length-1]` on empty arrays, and `[0]` on
+  empty arrays all trap. `?.` does not protect. Guard with a length check first.
+- **Large unions (10+ arms)**: never pass typed union arrays as parameters (element
+  re-tag corrupts); signatures take `unknown[]` and read via `recordViewOf`.
+  Typed `switch` narrowing on union elements writes a retag outside the element —
+  dispatch with an if-chain over a dyn-read discriminator instead.
+- **`for (const x of arr)` with `await` inside runs only the first iteration** —
+  collect into an array, then dispatch with an index `while` loop.
+- **`undefined as T` writes** into a string/number-valued record corrupt it — use
+  `delete record[key]` or write a real value.
+- **Functions returning plain strings** that flow through theme/link helpers may
+  carry OSC/hyperlink escapes; do not assume `.length` equals visible width
+  (use `visibleWidth`).
+
+## Verification (three gates, all required after every change)
+
+1. `npm run check` — biome + `tsgo --noEmit`. Must be clean for `packages/*/src`.
+2. Static build: `npm run build:native` (scriptc, requires Node 24+ at
+   `~/bin-node26` in PATH; output `./pi`). Zero diagnostics required.
+3. Real-run smoke in an ISOLATED tmux session:
+   ```bash
+   tmux new-session -d -s smoke -x 180 -y 45 -c <repo>/pi \
+       "PI_CODING_AGENT_DIR=<tmpdir> ./pi --no-session --model <model>"
+   tmux send-keys -t smoke "prompt" Enter
+   tmux capture-pane -t smoke -p
+   tmux kill-session -t smoke
+   ```
+   Cover: conversation round-trip, at least one tool call, and the settings/
+   selector surfaces touched by the change. Isolation requires
+   `PI_CODING_AGENT_DIR` (pointing at a temp dir seeded with `models.json`,
+   `models-store.json`, `auth.json`) — plain `PI_AGENT_DIR` does nothing.
+
+Debugging tools: `PI_DEBUG_REQ=1` dumps the request body, `PI_DEBUG_SSE=1` prints
+dropped SSE payloads (PARSE-FAIL), scriptc traps print a native backtrace,
+`--sanitize` builds an ASan binary for heap corruption, `journalctl -k` separates
+kernel OOM kills from scriptc aborts. See the guide in `../docs/` for the full
+debugging playbook.
 
 ## Dependency and Install Security
 
 - Treat npm dep and lockfile changes as reviewed code. Direct external deps stay pinned to exact versions.
-- When updating `undici`, you MUST read its changelog/release notes for the target version and evaluate whether any changes may affect functionality before applying the update.
-- Hydrate/update locally with `npm install --ignore-scripts`; clean/CI-style with `npm ci --ignore-scripts`. Don't run lifecycle scripts unless the user asks.
+- Hydrate/update locally with `npm install --ignore-scripts`; don't run lifecycle scripts unless the user asks.
 - If dep metadata changes, refresh `package-lock.json` with `npm install --package-lock-only --ignore-scripts`.
-- If `packages/coding-agent/npm-shrinkwrap.json` needs regen, run `node scripts/generate-coding-agent-shrinkwrap.mjs` (verify with `--check` or `npm run check`). New deps with lifecycle scripts require review and an explicit allowlist entry in that script; never add one silently.
-- Pre-commit blocks lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
 
 ## Git
 
-Multiple pi sessions may be running in this cwd at the same time, each modifying different files. Git operations that touch unstaged, staged, or untracked files outside your own changes will stomp on other sessions' work. Follow these rules:
+Only one session works in this cwd at a time now, but keep the staging discipline:
 
-Committing:
-
-- Only commit files YOU changed in THIS session.
-- Stage explicit paths (`git add <path1> <path2>`); never `git add -A` / `git add .`.
-- Before committing, run `git status` and verify you are only staging your files.
-- `packages/ai/src/models.generated.ts` may always be included alongside your files.
-- Message format: `{feat,fix,docs}[(ai,tui,agent,coding-agent)]: <commit message> (optionally multiple lines)`. Message is informative and concise.
-
-Never run (destroys other agents' work or bypasses checks):
-
-- `git reset --hard`, `git checkout .`, `git clean -fd`, `git stash`, `git add -A`, `git add .`, `git commit --no-verify`.
-
-If rebase conflicts occur:
-
-- Resolve conflicts only in files you modified.
-- If a conflict is in a file you did not modify, abort and ask the user.
-- Never force push.
-
-## Issues and PRs
-
-See `CONTRIBUTING.md` for the contributor gate (auto-close workflows, `lgtm`/`lgtmi`, quality bar).
-
-When reviewing PRs:
-
-- Do not run `gh pr checkout`, `git switch`, or otherwise move the worktree to the PR branch unless the user explicitly asks.
-- Use `gh pr view`, `gh pr diff`, `gh api`, and local `git show`/`git diff` against fetched refs to inspect PR metadata, commits, and patches without changing branches.
-- If you need PR file contents, fetch/read them into temporary files or use `git show <ref>:<path>` without switching branches.
-
-When creating issues:
-
-- Add `pkg:*` labels for affected packages (`pkg:agent`, `pkg:ai`, `pkg:coding-agent`, `pkg:tui`); use all that apply.
-
-When posting issue/PR comments:
-
-- Write the comment to a temp file and post with `gh issue/pr comment --body-file` (never multi-line markdown via `--body`).
-- Keep comments concise, technical, in the user's tone.
-- End every AI-posted comment with the AI-generated disclaimer line specified by the originating prompt (e.g. `This comment is AI-generated by `/wr``).
-
-When closing issues via commit:
-
-- Include `fixes #<number>` or `closes #<number>` in the message so merging auto-closes the issue. For multiple issues, repeat the keyword per issue (`closes #1, closes #2`); a shared keyword (`closes #1, #2`) only closes the first.
-
-## Testing pi Interactive Mode with tmux
-
-Run the TUI in a controlled terminal (from the repo root):
-
-```bash
-tmux new-session -d -s pi-test -x 80 -y 24
-tmux send-keys -t pi-test "./pi-test.sh" Enter
-sleep 3 && tmux capture-pane -t pi-test -p     # capture after startup
-tmux send-keys -t pi-test "your prompt here" Enter
-tmux send-keys -t pi-test Escape               # special keys (also C-o for ctrl+o, etc.)
-tmux kill-session -t pi-test
-```
-
-## Changelog
-
-Location: `packages/*/CHANGELOG.md` (one per package).
-
-Sections under `## [Unreleased]`: `### Breaking Changes` (API changes requiring migration), `### Added`, `### Changed`, `### Fixed`, `### Removed`.
-
-Rules:
-
-- All new entries go under `## [Unreleased]`. Read the full section first and append to existing subsections; never duplicate them.
-- Released version sections (e.g. `## [0.12.2]`) are immutable; never modify them.
-- Do not create changelog entries when working on a branch other than `main` or pull request
-
-Attribution:
-
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/earendil-works/pi-mono/issues/123))`
-- External contributions: `Added feature X ([#456](https://github.com/earendil-works/pi-mono/pull/456) by [@username](https://github.com/username))`
-
-## Releasing
-
-**Lockstep versioning**: all packages share one version; every release updates all together. `patch` = fixes + additions, `minor` = breaking changes. No major releases.
-
-1. **Update CHANGELOGs**: ask the user whether they ran the `/cl` prompt on the latest commit on `main`. If not, they must run `/cl` first to audit and update each package's `[Unreleased]` section before releasing.
-
-2. **Local smoke test**: build an unpublished release and smoke test from outside the repo (so it can't resolve workspace files):
-   ```bash
-   npm run release:local -- --out /tmp/pi-local-release --force
-   cd /tmp
-
-   # Node package install smoke tests
-   /tmp/pi-local-release/node/pi --help
-   /tmp/pi-local-release/node/pi --version
-   /tmp/pi-local-release/node/pi --list-models
-   /tmp/pi-local-release/node/pi -p "Say exactly: ok"
-   /tmp/pi-local-release/node/pi
-
-   # Bun binary smoke tests
-   /tmp/pi-local-release/bun/pi --help
-   /tmp/pi-local-release/bun/pi --version
-   /tmp/pi-local-release/bun/pi --list-models
-   /tmp/pi-local-release/bun/pi -p "Say exactly: ok"
-   /tmp/pi-local-release/bun/pi
-   ```
-   Verify both Node and Bun startup, model/account listing, interactive startup, and at least one real prompt with the intended default provider. The bare commands `/tmp/pi-local-release/node/pi` and `/tmp/pi-local-release/bun/pi` start interactive mode; run each in tmux, submit a prompt, and wait for the model reply before considering the interactive smoke test passed. Failures are release blockers unless the user explicitly accepts the risk.
-
-3. **Run the release script**:
-   ```bash
-   PI_ALLOW_LOCKFILE_CHANGE=1 npm_config_min_release_age=0 npm run release:patch    # fixes + additions
-   PI_ALLOW_LOCKFILE_CHANGE=1 npm_config_min_release_age=0 npm run release:minor    # breaking changes
-   ```
-   Use `npm_config_min_release_age=0` only for the release command. The repo's normal npm age gate can otherwise block the release lockfile refresh when the current workspace package version was published recently. Review any lockfile or shrinkwrap diffs the release creates before push.
-
-   The release script bumps all package versions, updates changelogs, regenerates release artifacts, runs `npm run check`, commits `Release vX.Y.Z`, tags `vX.Y.Z`, adds fresh `## [Unreleased]` changelog sections, commits `Add [Unreleased] section for next cycle`, then pushes `main` and the tag. Do not rerun the release script after a tag was pushed.
-
-4. **CI verifies and announces the npm release**: pushing the `vX.Y.Z` tag triggers `.github/workflows/build-binaries.yml`. The `publish-npm` job uses npm trusted publishing through GitHub Actions OIDC with environment `npm-publish`; no local `npm publish`, `npm whoami`, OTP, or WebAuthn flow is required. After publishing, `announce-pi-dev-release` verifies every public workspace package resolves at the exact release version and that its npm tarball is available, then writes the verified release marker to R2. `pi.dev/api/latest-version` reads that marker; it must never announce a release from npm before this job succeeds.
-
-5. **If CI publish or announcement fails**: inspect the failed job. The publish helper is idempotent and skips package versions already present on npm; the announcement job rechecks availability before updating the R2 marker. Rerun the failed job or workflow after fixing CI or transient npm issues. Do not rerun `npm run release:patch` or `npm run release:minor` for the same version.
+- Stage explicit paths (`git add <path1> <path2>`); prefer `git add -A` only when
+  you have verified every changed file is yours.
+- Message format: first line `feat:`, `fix:`, `refactor:`, `chore:`, or `doc:`,
+  followed by bullet lines (`- change one`, `- change two`). Message is
+  informative and concise; include a `doc:` bullet when `../docs/static-pi.md`
+  was updated.
+- Never run: `git reset --hard`, `git checkout .`, `git clean -fd`, `git stash`,
+  `git commit --no-verify`.
 
 ## User Override
 
-If the user's instructions conflict with any rule in this document, ask for explicit confirmation before overriding. Only then execute their instructions.
+If the user's instructions conflict with any rule in this document, ask for
+explicit confirmation before overriding. Only then execute their instructions.
