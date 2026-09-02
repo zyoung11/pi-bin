@@ -39,19 +39,16 @@ Removed:
   theme-colored text)
 - Telemetry, update checks, first-run wizard
 - OAuth authentication (providers that require it, e.g. Anthropic Claude
-  subscription auth, are no longer usable; API-key providers work fine)
+  subscription auth, are no longer usable. API-key providers work fine)
 - Automatic light/dark theme switching (dark + custom themes only)
-- Image resizing (images pass through as-is; > 4 MB is rejected)
-- macOS and Windows support
-
-Changed:
-
-- Static native binary instead of a Node.js application
-- Providers assembled in memory from `models.json` + `models-store.json`
+- Image resizing (images pass through as-is. Over 4 MB is rejected)
 - `/changelog`, `/login` and the extension slash commands are gone
 
-Everything else — the agent loop, tools, TUI, sessions, compaction, skills,
-prompt templates, the bash/edit/read/write workflow behaves the same.
+Everything else (the agent loop, tools, TUI, sessions, compaction, skills,
+prompt templates, and the bash/edit/read/write workflow) behaves the same.
+
+The scriptc compiler (v0.0.35) is bundled in the repo at `scriptc/`, so no
+separate install is needed. It is included unmodified and pinned for reproducible builds and debugging. No compiler changes were made, and all fixes live in this repo's TypeScript source. 
 
 ## Install
 
@@ -66,7 +63,7 @@ mv pi ~/.local/bin/
 
 Prerequisites:
 
-- Node.js ≥ 24 (scriptc requires it; make sure `node --version` reports ≥ 24)
+- Node.js ≥ 24 (scriptc requires it. Make sure `node --version` reports ≥ 24)
 - Linux x86-64
 
 ```bash
@@ -78,21 +75,18 @@ npm run build:native           # compile → ./pi (8 MB ELF)
 npm run check                  # optional: biome + tsgo --noEmit
 ```
 
-The scriptc compiler (v0.0.35) is bundled in the repo at `scriptc/` — no
-separate install needed. The build reads `packages/coding-agent/src/cli.ts`
-and emits the static binary to `./pi`; move it to `~/.local/bin/` or run it
-in place.
+The build reads `packages/coding-agent/src/cli.ts` and emits the static binary to `./pi`. 
 
 ## Models
 
 Providers are assembled at startup from two files in `~/.pi/agent/`:
 
-- `models.json` — providers you write by hand (baseUrl + api + models)
-- `models-store.json` — the catalog cache from the original pi; its providers
+- `models.json`: providers you write by hand (baseUrl + api + models)
+- `models-store.json`: the catalog cache from the original pi. Its providers
   (deepseek, zai, xiaomi, ...) are synthesized in memory and merged in, so
   models configured through the original pi work without any extra setup
 
-API keys resolve from `auth.json` by provider id — the same keys the original
+API keys resolve from `auth.json` by provider id, the same keys the original
 pi stored.
 
 To add your own provider, append a block to `models.json`:
