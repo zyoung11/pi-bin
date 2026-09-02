@@ -1,16 +1,6 @@
 # Changelog
 
-Engineering log of the pi static-compile fork. Baseline: upstream
-[pi-mono](https://github.com/earendil-works/pi-mono) v0.84.3 (Node.js-based
-coding agent, commit `ca13180`). Goal: compile the agent to a native Linux
-binary via [scriptc](https://scriptc.dev) — no JS engine, no runtime asset
-reads — and keep it fully functional.
-
-Current state: scriptc diagnostics 712 → 0 (scriptc compiler untouched),
-native binary 8.2 MB, all core features verified by real runs. Version 0.1.0.
-
-Detailed debugging methodology lives in `pi-bin-rewrite-and-debug-guide.md`.
-Round numbering in commit messages refers to that log.
+Engineering log of the pi-bin fork. Baseline: upstream [pi-mono](https://github.com/earendil-works/pi-mono) v0.84.3
 
 ---
 
@@ -29,7 +19,7 @@ Round numbering in commit messages refers to that log.
   typebox 1.x byte-for-byte. Switch 16 files from typebox value imports,
   removing the SC1013 namespace re-export wall.
 
-## Phase 2 — Own HTTP transport, remove built-in providers (2026-08-27)
+## Phase 2 — Own HTTP transport, remove built-in providers
 
 - `5da9fb2` — Add `ai/src/api/openai-http.ts`: own chat-completions transport
   (fetch POST + SSE line decoding) replacing the openai SDK; error object
@@ -57,7 +47,7 @@ Round numbering in commit messages refers to that log.
   conditional ordering; 9 Eq checks against typebox all true. schema.ts
   scriptc diagnostics 99 → 0; total 712 → 614.
 
-## Phase 4 — Replace und_lowerable npm dependencies with mini libraries (2026-08-27/28)
+## Phase 4 — Replace und_lowerable npm dependencies with mini libraries
 
 - `f3be31d` — Rewrite `utils/child-process.ts` (cross-spawn removed, local
   handle/stream types). Mini libraries: mini-chalk, mini-semver,
@@ -76,7 +66,7 @@ Round numbering in commit messages refers to that log.
   npm-static reduced to `string_decoder,partial-json`; SC2013 cleared.
 - `ceff93d` — mini partial-JSON parser (11/12 equivalent vs npm package).
 
-## Phase 5 — Scriptc lowering grind, 712 → 0 diagnostics (2026-08-28 → 09-01)
+## Phase 5 — Scriptc lowering grind, 712 → 0 diagnostics
 
 ~110 commits of mechanical + architectural fixes. Every change verified with
 `tsgo --noEmit` clean and a real llamacpp run (print mode + bash tool call).
@@ -121,7 +111,7 @@ Grouped by topic:
   (08d4d2f) → 34 remaining at 99.7% (a832036) → **0 diagnostics, scriptc
   untouched** (bbfaeb3, route A complete).
 
-## Phase 6 — Native binary runtime hardening (2026-09-01)
+## Phase 6 — Native binary runtime hardening
 
 First native run exposed runtime semantics gaps. Fixes, each verified by real
 runs:
@@ -167,7 +157,7 @@ runs:
 - `763bcf7`, `4f853a9` — Documented remaining double-free in the read render
   path; added the state overview + full guide document.
 
-## Phase 7 — Tool-call OOM root fix and provider synthesis (2026-09-02)
+## Phase 7 — Tool-call OOM root fix and provider synthesis
 
 - `c7b2104` — Tool calls crashed with `scriptc: out of memory` (SIGABRT, not
   reproducible via node). Reproduced in an isolated pane: RSS 10 MB → 222 MB
@@ -197,7 +187,7 @@ runs:
   (`getSupportedThinkingLevels` off/xhigh missing keys, `thinkingBudgetForLevel`
   off budget, SteppedSubmenu buildContext) — `--thinking off` now works.
 
-## Phase 8 — Cleanup, theme simplification, images, version 0.1.0 (2026-09-02)
+## Phase 8 — Cleanup, theme simplification, images, version 0.1.0
 
 - `08a0b4d` — edit tool frame styling (double Box padding, background not
   full-width); onboarding line removed; --help aligned with actual features
@@ -229,14 +219,3 @@ runs:
   cross-references; keep 24 docs that match current functionality.
 - `1bfbcd6` — AGENTS.md rewritten in English, integrating the static-compile
   rules, runtime discipline, and verification gates from the rewrite guide.
-
-## Known limitations
-
-- llamacpp endpoints behind the lmgo-v2 proxy fail image requests
-  ("proxy error: Failed to read connection") — server-side issue, curl
-  reproduces it. Use deepseek vision models for image input.
-- Images over 4 MB are rejected (no resize engine in static builds); scale
-  them down externally.
-- The full per-round debugging narrative (crash forensics, scriptc compiler
-  bugs found, probe methodology) lives in this file's
-  git history and `pi-bin-rewrite-and-debug-guide.md`.
