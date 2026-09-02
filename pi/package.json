@@ -17,9 +17,7 @@
     "generate:models": "npm --prefix packages/ai run generate-models && npm --prefix packages/ai run generate-image-models",
     "hydrate:model-data": "npm --prefix packages/ai run hydrate-model-data",
     "check:model-data": "npm --prefix packages/ai run check:model-data",
-    "eval": "npm run eval --workspace=@earendil-works/pi-evals --",
-    "test": "npm run test --workspaces --if-present",
-    "prepare": "husky"
+    "eval": "npm run eval --workspace=@earendil-works/pi-evals --"
   },
   "devDependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.26",
