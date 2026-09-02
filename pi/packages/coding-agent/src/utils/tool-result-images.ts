@@ -46,13 +46,15 @@ export async function normalizeToolResultImages(
 			continue;
 		}
 
-		if (processed.data === block.data && processed.mimeType === block.mimeType && processed.hints.length === 0) {
+		const sameData = processed.data === block.data && processed.mimeType === block.mimeType;
+		const noHints = processed.hints === undefined || processed.hints.length === 0;
+		if (sameData && noHints) {
 			normalized.push(block);
 			continue;
 		}
 
-		normalized.push({ type: "image", data: processed.data, mimeType: processed.mimeType });
-		if (processed.hints.length > 0) {
+		normalized.push({ type: "image", data: processed.data ?? "", mimeType: processed.mimeType ?? block.mimeType });
+		if (processed.hints !== undefined && processed.hints.length > 0) {
 			normalized.push({ type: "text", text: processed.hints.join("\n") });
 		}
 		changed = true;

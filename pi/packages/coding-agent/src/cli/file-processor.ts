@@ -53,19 +53,19 @@ export async function processFileArguments(fileArgs: string[], options?: Process
 			const processed = await processImage(content, mimeType, { autoResizeImages });
 
 			if (!processed.ok) {
-				text += `<file name="${absolutePath}">${processed.message}</file>\n`;
+				text += `<file name="${absolutePath}">${processed.message ?? ""}</file>\n`;
 				continue;
 			}
 
 			const attachment: ImageContent = {
 				type: "image",
-				mimeType: processed.mimeType,
-				data: processed.data,
+				mimeType: processed.mimeType ?? mimeType,
+				data: processed.data ?? "",
 			};
 			images.push(attachment);
 
 			// Add text reference to image with optional processing hints
-			if (processed.hints.length > 0) {
+			if (processed.hints !== undefined && processed.hints.length > 0) {
 				text += `<file name="${absolutePath}">${processed.hints.join("\n")}</file>\n`;
 			} else {
 				text += `<file name="${absolutePath}"></file>\n`;

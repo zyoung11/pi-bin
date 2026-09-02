@@ -272,16 +272,21 @@ export function createReadToolDefinition(
 								const buffer = await ops.readFile(absolutePath);
 								const processed = await processImage(buffer, mimeType, { autoResizeImages });
 								if (!processed.ok) {
-									let textNote = `Read image file [${mimeType}]\n${processed.message}`;
+									let textNote = `Read image file [${mimeType}]\n${processed.message ?? ""}`;
 									if (nonVisionImageNote) textNote += `\n${nonVisionImageNote}`;
 									content = [{ type: "text", text: textNote }];
 								} else {
-									let textNote = `Read image file [${processed.mimeType}]`;
-									if (processed.hints.length > 0) textNote += `\n${processed.hints.join("\n")}`;
+									const resultMime = processed.mimeType ?? mimeType;
+									let textNote = `Read image file [${resultMime}]`;
+									if (processed.hints !== undefined && processed.hints.length > 0) textNote += `\n${processed.hints.join("\n")}`;
 									if (nonVisionImageNote) textNote += `\n${nonVisionImageNote}`;
 									content = [
 										{ type: "text", text: textNote },
-										{ type: "image", data: processed.data, mimeType: processed.mimeType },
+										{
+										type: "image",
+										data: processed.data ?? "",
+										mimeType: processed.mimeType ?? mimeType,
+									},
 									];
 								}
 							} else {

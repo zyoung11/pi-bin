@@ -10,17 +10,18 @@ export interface ProcessImageOptions {
 	resizeOptions?: Record<string, unknown>;
 }
 
-export type ProcessImageResult =
-	| {
-			ok: true;
-			data: string;
-			mimeType: string;
-			hints: string[];
-	  }
-	| {
-			ok: false;
-			message: string;
-	  };
+/**
+ * Flat result shape (no discriminated union): scriptc's union return re-tagging
+ * corrupted the value on first runtime execution (Unhandled rejection: "value
+ * is not representable in the target union"). Consumers branch on `ok`.
+ */
+export interface ProcessImageResult {
+	ok: boolean;
+	data?: string;
+	mimeType?: string;
+	hints?: string[];
+	message?: string;
+}
 
 const MAX_INLINE_IMAGE_BYTES = 4 * 1024 * 1024;
 

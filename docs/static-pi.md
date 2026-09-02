@@ -80,6 +80,21 @@
 - **已修**：formatHelpKeys getKeys 空数组越界（第五十四轮遗漏场景）。
 - **待定位**：用户环境流式渲染期（"Working..." 中）偶发 `array index -1 out of bounds (length 0)`——竞态窗口（本地 MiniCPM 5 次不复现，用户 Gemma/时序必现）。嫌疑区：流式 markdown 重渲染（updateContent→Markdown.invalidate→render）与 chunk 合并交错；assistant-message content 循环的 thinking 回溯（i--）段。**等用户带 backtrace 的复现**，addr2line 直达函数。
 
+## 第六十四轮记录（第 4 步：图片输入——TUI 贴图与消息内图片附件，vision 全链路打通）
+
+- **新增**：
+  - `utils/clipboard-image.ts`：剪贴板图片读取（wl-paste 优先 + xclip fallback；**二进制输出经 sh 重定向到临时文件 + readFileSync 读取**——execFileSync 非 utf8 encoding 无 lowering）+ 临时文件写入。
+  - `utils/image-attachments.ts`：`extractImageAttachments(text)`——从消息文本提取图片路径 token（绝对路径 + 图片扩展名 + existsSync），`processImage` 转 base64 附件并从文本移除路径；**图片存在但无法内联（超大/不支持格式）时返回 error，提交中止并报错**（用户可自行缩放，符合"不缩放、直接报错"决策）。
+  - interactive-mode：handleClipboardPaste 图片优先（剪贴板无图回落文本粘贴）；handleEditorSubmit Normal 分支提取附件（error 时 showError 中止）；`onInputCallback`/`getUserInput` 链路签名扩展 `(text, images?)`；主循环 `session.prompt(text, { images })`。/hotkeys 与启动提示恢复贴图条目。
+- **连带修复（scriptc union re-tag 缺陷，检测集群同族）**：`processImage` 的 `ProcessImageResult` 判别式 union 在静态产物首次执行即崩（"value is not representable in the target union"）——改扁平接口（ok/data?/mimeType?/hints?/message?），read.ts/file-processor.ts/tool-result-images.ts 消费点全部收窄适配。
+- **测试矩阵（deepseek-v4-flash-vision-exp，Gemma 模型 llamacpp 端点见下）**：
+  1. Ctrl+V 剪贴板贴图（wl-paste 读 JPEG → 临时文件 → 编辑器插入路径）✓
+  2. TUI 消息内图片路径 → 附件发送 → 模型正确识别"云。" ✓
+  3. print 模式 @file 附件 → "云。" ✓
+  4. 超大图（test.jpg 6276KB > 4MB）→ `Error: [Image omitted: 6276KB exceeds the 4MB inline limit]` 报错中止 ✓
+- **已知限制**：llamacpp 端点（lmgo-v2 代理）对图像请求返回 "proxy error: Failed to read connection"（curl 直发同样失败，服务端问题非 pi 侧；Gemma 有 --mmproj 但代理转发图像请求失败——待服务端排查）；4MB 上限内图片直通不缩放。
+- **验证**：tsgo src 清零；scriptc build 0 诊断；--thinking off 回归正常；print 模式对话正常。
+
 ## 第六十三轮记录（第 3 步：theme 简化——只留 dark + 用户自定义 JSON 主题）
 
 - **范围**：删 light 内置主题与 automatic 双主题模式（"light:x/dark:y" 设置格式、终端背景检测驱动的自动切换）；保留 dark 内置 + `~/.pi/agent/themes/*.json` 用户自定义（**纯 JSON + schema 校验，无 JS 动态加载**）+ 包来源注册主题 + /settings 的 Theme 选择（单列表）。

@@ -92,6 +92,8 @@ import type { SourceInfo } from "../../core/source-info.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { getUsageCostBreakdown } from "../../core/usage-totals.ts";
 import { copyToClipboard, readClipboardText } from "../../utils/clipboard.ts";
+import { readClipboardImage, writeClipboardImageToTemp } from "../../utils/clipboard-image.ts";
+import { extractImageAttachments } from "../../utils/image-attachments.ts";
 import { parseGitUrl } from "../../utils/git.ts";
 import { openBrowser } from "../../utils/open-browser.ts";
 import { getCwdRelativePath } from "../../utils/paths.ts";
@@ -427,7 +429,7 @@ export class InteractiveMode {
 	private keybindings: KeybindingsManager;
 	private version: string;
 	private isInitialized = false;
-	private onInputCallback?: (text: string) => void;
+	private onInputCallback?: (text: string, images?: ImageContent[]) => void;
 	private pendingUserInputs: string[] = [];
 	private activeStatusIndicator: StatusIndicator | undefined = undefined;
 	private readonly idleStatus = new IdleStatus();
@@ -828,7 +830,7 @@ export class InteractiveMode {
 				rawKeyHint("!!", "to run bash (no context)"),
 				hint("app.message.followUp", "to queue follow-up"),
 				hint("app.message.dequeue", "to edit all queued messages"),
-				hint("app.clipboard.pasteImage", "to paste text from clipboard"),
+				hint("app.clipboard.pasteImage", "to paste image or text"),
 				rawKeyHint("drop files", "to attach"),
 			].join("\n");
 			const compactInstructions = [
@@ -996,7 +998,7 @@ export class InteractiveMode {
 		while (true) {
 			const userInput = await this.getUserInput();
 			try {
-				await this.session.prompt(userInput);
+				await this.session.prompt(userInput.text, { images: userInput.images });
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
 				this.showError(errorMessage);
@@ -2436,6 +2438,14 @@ export class InteractiveMode {
 
 	private async handleClipboardPaste(): Promise<void> {
 		try {
+			const image = readClipboardImage();
+			if (image) {
+				const filePath = writeClipboardImageToTemp(image);
+				this.editor.insertTextAtCursor(filePath);
+				this.ui.requestRender();
+				return;
+			}
+
 			const text = await readClipboardText();
 			if (text) {
 				this.editor.insertTextAtCursor(text);
@@ -2626,11 +2636,20 @@ export class InteractiveMode {
 			// First, move any pending bash components to chat
 			this.flushPendingBashComponents();
 
+			// Inline image file paths as attachments (vision models); failures
+			// (unsupported format / over size limit) abort the send with a message.
+			const attachments = await extractImageAttachments(text);
+			if (attachments.error !== undefined) {
+				this.showError(attachments.error);
+				this.editor.setText(text);
+				return;
+			}
+
 			const onInput = this.onInputCallback;
 			if (onInput) {
-				onInput(text);
+				onInput(attachments.text, attachments.images.length > 0 ? attachments.images : undefined);
 			} else {
-				this.pendingUserInputs.push(text);
+				this.pendingUserInputs.push(attachments.text);
 			}
 			this.editor.addToHistory(text);
 		}
@@ -3389,16 +3408,16 @@ export class InteractiveMode {
 		);
 	}
 
-	async getUserInput(): Promise<string> {
+	async getUserInput(): Promise<{ text: string; images?: ImageContent[] }> {
 		const queuedInput = this.pendingUserInputs.shift();
 		if (queuedInput !== undefined) {
-			return queuedInput;
+			return { text: queuedInput };
 		}
 
 		return new Promise((resolve) => {
-			this.onInputCallback = (text: string) => {
+			this.onInputCallback = (text: string, images?: ImageContent[]) => {
 				this.onInputCallback = undefined;
-				resolve(text);
+				resolve({ text, images });
 			};
 		});
 	}
@@ -5034,6 +5053,7 @@ export class InteractiveMode {
 		const copyMessage = this.getAppKeyDisplay("app.message.copy");
 		const followUp = this.getAppKeyDisplay("app.message.followUp");
 		const dequeue = this.getAppKeyDisplay("app.message.dequeue");
+		const pasteImage = this.getAppKeyDisplay("app.clipboard.pasteImage");
 		let hotkeys = `
 **Navigation**
 | Key | Action |
@@ -5075,7 +5095,7 @@ export class InteractiveMode {
 | \`${externalEditor}\` | Edit message in external editor |
 | \`${copyMessage}\` | Copy last assistant message |
 | \`${followUp}\` | Queue follow-up message |
-| \`${dequeue}\` | Restore queued messages |
+| \`${pasteImage}\` | Paste image or text from clipboard |
 | \`/\` | Slash commands |
 | \`!\` | Run bash command |
 | \`!!\` | Run bash command (excluded from context) |
