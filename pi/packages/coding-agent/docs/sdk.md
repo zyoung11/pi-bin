@@ -632,7 +632,6 @@ await loader.reload();
 const { session } = await createAgentSession({ resourceLoader: loader });
 ```
 
-Extensions can register tools, subscribe to events, add commands, and more. See [extensions.md](extensions.md) for the full API.
 
 **Named inline extensions:** By default, inline factories display as `<inline:1>`, `<inline:2>`, etc. in the startup Extensions list. To show a descriptive name instead, wrap the factory:
 
@@ -669,7 +668,6 @@ await loader.reload();
 eventBus.on("my-extension:status", (data) => console.log(data));
 ```
 
-> See [examples/sdk/06-extensions.ts](../examples/sdk/06-extensions.ts) and [docs/extensions.md](extensions.md)
 
 ### Skills
 
@@ -1216,4 +1214,3 @@ type PromptTemplate
 type Tool
 ```
 
-For extension types, see [extensions.md](extensions.md) for the full API.
