@@ -16,42 +16,42 @@ Round numbering in commit messages refers to that log.
 
 ## Phase 1 — Extension removal and schema decoupling (2026-08-27)
 
-- `ea12947` — Static-compile plan: goals, analysis, findings, approach.
-- `7f4801a` — Remove the extension system entirely (core/extensions,
+- `28fc460` — Static-compile plan: goals, analysis, findings, approach.
+- `3500210` — Remove the extension system entirely (core/extensions,
   src/extensions, examples/extensions). Tool definitions de-extended:
   `ToolDefinition.execute` drops `ExtensionContext`; AgentSession loses event
   hooks, command interception, compaction interception, `before_agent_start`;
   bash/read tools take session context via closures. Remove the photon image
   pipeline and clipboard image paste branch; delete 29 extension/image test
   files.
-- `2bb416f` — Add `pi-ai/schema` subpath export: a mini JSON Schema library
+- `204ebb1` — Add `pi-ai/schema` subpath export: a mini JSON Schema library
   (15 Type builders + Compile/Value/Guard), runtime-shape compatible with
   typebox 1.x byte-for-byte. Switch 16 files from typebox value imports,
   removing the SC1013 namespace re-export wall.
 
 ## Phase 2 — Own HTTP transport, remove built-in providers (2026-08-27)
 
-- `5f3fb5a` — Add `ai/src/api/openai-http.ts`: own chat-completions transport
+- `5da9fb2` — Add `ai/src/api/openai-http.ts`: own chat-completions transport
   (fetch POST + SSE line decoding) replacing the openai SDK; error object
   shape aligned with the SDK so the retry chain stays untouched. Verified
   against a real llamacpp endpoint (print round-trip + bash tool call).
-- `ad12dba` — Remove all built-in providers and SDK-backed API
+- `ae55011` — Remove all built-in providers and SDK-backed API
   implementations from pi-ai (121 files); compat.ts slimmed to
   openai-completions + faux. Checkpoint (tsgo red at this point).
-- `2f0f939` — Finish consumer adaptation; delete orphan OAuth flows
+- `29fd855` — Finish consumer adaptation; delete orphan OAuth flows
   (11 files), bun entry (3 files), dead build scripts; ai build scripts
   become plain tsgo.
 
 ## Phase 3 — One program graph, local schema (2026-08-27)
 
-- `02ef443` — Decision B: rewrite 241 cross-package bare imports in 168 files
+- `cefcb70` — Decision B: rewrite 241 cross-package bare imports in 168 files
   to relative imports pointing directly at src, merging all workspace packages
   into one scriptc program graph. Cut an SC1016 import cycle. New baseline:
   691 diagnostics.
-- `c47854d` — Rewrite `schema.ts` type layer: brand types mirrored from
+- `1879b0d` — Rewrite `schema.ts` type layer: brand types mirrored from
   typebox 1.x as local structures; builders become a `SchemaBuilders` class
   (object-literal methods drop optional params on function values).
-- `e322105` — Break the "three walls": remove `~kind`/`~unsafe` runtime
+- `4d72130` — Break the "three walls": remove `~kind`/`~unsafe` runtime
   markers entirely, `~optional` becomes a transient wrapper unwrapped at
   Object construction. Local `Static<>` mechanism via brand generics +
   conditional ordering; 9 Eq checks against typebox all true. schema.ts
@@ -59,22 +59,22 @@ Round numbering in commit messages refers to that log.
 
 ## Phase 4 — Replace und_lowerable npm dependencies with mini libraries (2026-08-27/28)
 
-- `35b5688` — Rewrite `utils/child-process.ts` (cross-spawn removed, local
+- `f3be31d` — Rewrite `utils/child-process.ts` (cross-spawn removed, local
   handle/stream types). Mini libraries: mini-chalk, mini-semver,
   mini-minimatch, mini-lockfile, mini-diff (byte-equal to jsdiff 8.0.4 on
   8/8 assertions), east-asian-width table, mini-hosted-git-info. http
   dispatcher drops undici. 664 → 532 diagnostics.
-- `82a6be4` — Local `TextSegmenter` replacing `Intl.Segmenter` (no lowering):
+- `a58c276` — Local `TextSegmenter` replacing `Intl.Segmenter` (no lowering):
   UAX#29 practical subset for grapheme segmentation. 6 v-flag regexes
   eliminated.
-- `b7213c8` — Drop highlight.js (API surface kept, degrades to plain theme
+- `0221074` — Drop highlight.js (API surface kept, degrades to plain theme
   colors); remove mermaid rendering; add mini-yaml (10/10 scenarios
   byte-equal); ignore/string_decoder/partial-json compile via --npm-static.
-- `20f1b22` — Add `tui/mini-markdown.ts` replacing the marked package:
+- `d4d775b` — Add `tui/mini-markdown.ts` replacing the marked package:
   block lexer + inline lexer, 17/17 scenarios field-equal to marked v18.
-- `6983dd2` — mini-ignore (gitignore subset matcher, 10/10 equivalent).
+- `4b66797` — mini-ignore (gitignore subset matcher, 10/10 equivalent).
   npm-static reduced to `string_decoder,partial-json`; SC2013 cleared.
-- `e6451bd` — mini partial-JSON parser (11/12 equivalent vs npm package).
+- `ceff93d` — mini partial-JSON parser (11/12 equivalent vs npm package).
 
 ## Phase 5 — Scriptc lowering grind, 712 → 0 diagnostics (2026-08-28 → 09-01)
 
@@ -126,108 +126,108 @@ Grouped by topic:
 First native run exposed runtime semantics gaps. Fixes, each verified by real
 runs:
 
-- `a15fd03` — Event stream rewritten to events+cursor model (undefined values
+- `9842626` — Event stream rewritten to events+cursor model (undefined values
   flowing as end markers caused traps); pending bash components re-render;
   streaming block cast-view writes (silent no-op) → fresh array + reference
   assignment.
-- `78a3f3c` — `--print` output loss: cast-view array push was a no-op; fixed
+- `ce791f2` — `--print` output loss: cast-view array push was a no-op; fixed
   via reference assignment. Signal listeners left registered → explicit
   `process.exit`.
-- `ae48a79` — Startup chain: empty-array destructuring and missing-key reads
+- `c097994` — Startup chain: empty-array destructuring and missing-key reads
   guarded (typed record no-undefined rule).
-- `72a9a3e` — Theme color chain rebuilt with explicit key traversal (typed
+- `9985dbc` — Theme color chain rebuilt with explicit key traversal (typed
   record keyed reads trap on missing keys).
-- `f1eb7a9` — Session loader: JSON.parse results cannot be re-tagged into
+- `f2858e9` — Session loader: JSON.parse results cannot be re-tagged into
   typed unions — added a revive deserializer (`reviveFileEntry`, ~380 lines)
   rebuilding every field through unknown channels.
-- `05b2ced` — TUI first-run fixes: reviver, theme chain, slot alignment,
+- `45b1ffd` — TUI first-run fixes: reviver, theme chain, slot alignment,
   command trims.
-- `0e95a11` — `spawnProcess` optional-field undefined leak (cwd/windowsHide)
+- `4071b49` — `spawnProcess` optional-field undefined leak (cwd/windowsHide)
   normalized — tmux keyboard check crashed at startup.
-- `ef22cb4` — Markdown lookahead OOB (`tokens[i+1]` on single-token messages)
+- `fbb964a` — Markdown lookahead OOB (`tokens[i+1]` on single-token messages)
   → length guards; 9 more lookahead/lag reads hardened.
-- `677a9a5` — Same root cause, ASan build pinpointed a 4-byte heap overflow in
+- `26bdebb` — Same root cause, ASan build pinpointed a 4-byte heap overflow in
   `Markdown_renderInlineTokens` (union switch narrowing retag outside the
   element) — loop body moved to the dyn channel.
-- `cf07a30` — Compiler bug fixed in scriptc (never → F64 mapping broke every
+- `8e0b8da` — Compiler bug fixed in scriptc (never → F64 mapping broke every
   tool call: "expected number"); markdown rendering pipeline fully dyn-ified;
   `/tree` empty-array OOB fixed.
-- `a733c6a` — All on-screen text vanished: `Token[]` parameter passing
+- `d84522e` — All on-screen text vanished: `Token[]` parameter passing
   corrupted 13-arm union elements — signatures changed to `unknown[]`,
   callers cast; markdown pipeline now has zero typed Token union boundaries.
-- `69cf876` — read/write tool render crash: literal exact-shape record with
+- `7ea3090` — read/write tool render crash: literal exact-shape record with
   variable keyed read (`extToLang[ext]`) traps when the key is absent —
   recordViewOf dyn view.
-- `5586045` — tree-selector empty-array `[0]` read; runtime traps now print a
+- `6791eec` — tree-selector empty-array `[0]` read; runtime traps now print a
   native backtrace (no gdb needed).
-- `f6f9cd6` — edit tool diff crash: `parts[parts.length-1]` on an empty array
+- `3fcac7f` — edit tool diff crash: `parts[parts.length-1]` on an empty array
   (mergeParts) — length guard; edit tool verified working for the first time.
-- `0831e4f` — tmux pane kill incident: killProcessTree group-kill pid-reuse
+- `38ae87f` — tmux pane kill incident: killProcessTree group-kill pid-reuse
   race — dual guardrails (pgrp==pid verification before group kill).
-- `fbedbd8`, `4f853a9` — Documented remaining double-free in the read render
+- `763bcf7`, `4f853a9` — Documented remaining double-free in the read render
   path; added the state overview + full guide document.
 
 ## Phase 7 — Tool-call OOM root fix and provider synthesis (2026-09-02)
 
-- `0164495` — Tool calls crashed with `scriptc: out of memory` (SIGABRT, not
+- `c7b2104` — Tool calls crashed with `scriptc: out of memory` (SIGABRT, not
   reproducible via node). Reproduced in an isolated pane: RSS 10 MB → 222 MB
   in seconds. Two root causes fixed: (1) `processImage` discriminated-union
   return corrupted on first static execution (value not representable in
   target union); (2) renderer state writes on cast views were silent no-ops →
   `changed` always true → `context.invalidate()` infinite recursion, each
   level JSON-serializing (allocation avalanche). See round 57 log.
-- `d8f0464` — Remove the /changelog command cluster; delete
+- `3aa651c` — Remove the /changelog command cluster; delete
   `packages/*/CHANGELOG.md`, first-run wizard (dead code: never triggers on a
   fork), "Pi documentation" injection in the system prompt; auth guidance now
   points to models.json/auth.json.
-- `c39a2cc` — Wire up the original pi API providers: provider definitions from
+- `563947a` — Wire up the original pi API providers: provider definitions from
   `models-store.json` merged into `models.json`; deepseek/zai/xiaomi verified
   with real runs. Fixed `usage: null` in stream chunks (checked-cast rejected
   → every chunk silently dropped — deepseek/mimo returned nothing) and
   `thinkingLevelMap` null-value keyed reads (glm-5.2-highspeed trap).
-- `a4da244` — Provider synthesis moved fully in memory: `ModelConfig.load`
+- `ad00395` — Provider synthesis moved fully in memory: `ModelConfig.load`
   merges models-store.json providers (schema-checked) after models.json;
   models.json restored to user-authored content only. credentials resolve from
   auth.json by provider id.
-- `08ef73e` — /settings → per-model thinking submenu crashed (missing-key
+- `1426a0e` — /settings → per-model thinking submenu crashed (missing-key
   keyed read on `modelThinkingLevels` for unconfigured models) — three reads
   moved to a dyn helper.
-- `e51cb56` — Full audit of typed record variable keyed reads across all slash
+- `7ddd7b0` — Full audit of typed record variable keyed reads across all slash
   commands, settings submenus, and selectors: fixed three more instances
   (`getSupportedThinkingLevels` off/xhigh missing keys, `thinkingBudgetForLevel`
   off budget, SteppedSubmenu buildContext) — `--thinking off` now works.
 
 ## Phase 8 — Cleanup, theme simplification, images, version 0.1.0 (2026-09-02)
 
-- `9ee05a8` — edit tool frame styling (double Box padding, background not
+- `08a0b4d` — edit tool frame styling (double Box padding, background not
   full-width); onboarding line removed; --help aligned with actual features
   (29 dead env-var docs, --extension flags, bearer-token auth, stale examples);
   /hotkeys trimmed to supported entries.
-- `66f069d` — Theme simplification: dark built-in + user JSON themes only
+- `3f2afc4` — Theme simplification: dark built-in + user JSON themes only
   (`~/.pi/agent/themes/*.json`, pure data). Removed: light builtin, automatic
   light/dark switching, terminal background detection cluster, first-run
   wizard (never triggers on a fork), "Pi documentation" injection in the
   system prompt, /login references. ThemeSubmenu rewritten as a flat list.
-- `9121fcd` — Image input: clipboard paste (wl-paste with xclip fallback,
+- `82f4628` — Image input: clipboard paste (wl-paste with xclip fallback,
   binary output captured via temp-file redirection), message text paths
   extracted as inline image attachments, oversized images (> 4 MB) rejected
   with an explicit error. Verified: deepseek-v4-flash-vision-exp answers
   "cloud." for a cloud photo via Ctrl+V paste, message path, and print-mode
   @file.
-- `f417f8f` — Version 0.0.3 → 0.1.0.
-- `6d30782` — Repo cleanup: 41 MB compile artifact, upstream test launchers,
+- `8b0723e` — Version 0.0.3 → 0.1.0.
+- `303416d` — Repo cleanup: 41 MB compile artifact, upstream test launchers,
   CONTRIBUTING/SECURITY/tui-plan, 35 upstream release/stats scripts;
   package.json scripts whitelisted (check/build:native/generate:models/eval/
   test); README rewritten for the fork.
-- `8a00d70` — Remove packages' CHANGELOG.md (9), README.md (8), LICENSE
+- `e92409f` — Remove packages' CHANGELOG.md (9), README.md (8), LICENSE
   files (npm-publishing artifacts) — 14k lines.
-- `b11b99c` — Remove all package test suites (459 files, 8.4 MB, 1795 TS
+- `4c83567` — Remove all package test suites (459 files, 8.4 MB, 1795 TS
   errors, referencing long-removed features) and vitest configs. Verification
   is real-run smoke only.
-- `87b489f` — Remove outdated package docs (extensions, containerization,
+- `e35c2c2` — Remove outdated package docs (extensions, containerization,
   termux, windows, first-run wizard, old screenshots) and fix dangling
   cross-references; keep 24 docs that match current functionality.
-- `d51c4a4` — AGENTS.md rewritten in English, integrating the static-compile
+- `1bfbcd6` — AGENTS.md rewritten in English, integrating the static-compile
   rules, runtime discipline, and verification gates from the rewrite guide.
 
 ## Known limitations
