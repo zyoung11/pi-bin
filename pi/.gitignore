@@ -51,3 +51,4 @@ core
 core.*
 diag*.txt
 cli.ll
+pi
