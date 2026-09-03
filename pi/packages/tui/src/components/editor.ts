@@ -2,6 +2,7 @@ import type { AutocompleteProvider, AutocompleteSuggestions } from "../autocompl
 import { getKeybindings } from "../keybindings.ts";
 import { decodePrintableKey, matchesKey } from "../keys.ts";
 import { KillRing } from "../kill-ring.ts";
+import type { SegmentData, TextSegmenter } from "../segmenter.ts";
 import { Component, CURSOR_MARKER, type Focusable, type TUI } from "../tui.ts";
 import { UndoStack } from "../undo-stack.ts";
 import {
@@ -13,7 +14,6 @@ import {
 	sliceByColumn,
 	visibleWidth,
 } from "../utils.ts";
-import { TextSegmenter, type SegmentData } from "../segmenter.ts";
 import { findWordBackward, findWordForward } from "../word-navigation.ts";
 import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
 
@@ -38,11 +38,7 @@ function isPasteMarker(segment: string): boolean {
  *
  * Only markers whose numeric ID exists in `validIds` are merged.
  */
-function segmentWithMarkers(
-	text: string,
-	baseSegmenter: TextSegmenter,
-	validIds: Set<number>,
-): SegmentData[] {
+function segmentWithMarkers(text: string, baseSegmenter: TextSegmenter, validIds: Set<number>): SegmentData[] {
 	// Fast path: no paste markers in the text or no valid IDs.
 	if (validIds.size === 0 || !text.includes("[paste #")) {
 		return baseSegmenter.segment(text);
@@ -713,7 +709,7 @@ export class Editor extends Component implements Focusable {
 					this.setCursorCol(result.cursorCol);
 					this.cancelAutocomplete();
 					const changeHandler = this.onChange;
-				if (changeHandler !== undefined) changeHandler(this.getText());
+					if (changeHandler !== undefined) changeHandler(this.getText());
 				}
 				return;
 			}
@@ -740,7 +736,7 @@ export class Editor extends Component implements Focusable {
 					} else {
 						this.cancelAutocomplete();
 						const changeHandler = this.onChange;
-				if (changeHandler !== undefined) changeHandler(this.getText());
+						if (changeHandler !== undefined) changeHandler(this.getText());
 						return;
 					}
 				}
@@ -1020,11 +1016,45 @@ export class Editor extends Component implements Focusable {
 	}
 
 	private expandPasteMarkers(text: string): string {
-		let result = text;
-		for (const [pasteId, pasteContent] of this.pastes) {
-			const marker = `[paste #${pasteId}]`;
-			result = result.split(marker).join(pasteContent);
+		if (this.pastes.size === 0 || !text.includes("[paste #")) return text;
+		let result = "";
+		let scanFrom = 0;
+		while (scanFrom <= text.length) {
+			const openIdx = text.indexOf("[paste #", scanFrom);
+			if (openIdx === -1) break;
+			let cursor = openIdx + 8;
+			let digits = "";
+			while (cursor < text.length) {
+				const code = text.charCodeAt(cursor);
+				if (code < 48 || code > 57) break;
+				digits += text.charAt(cursor);
+				cursor++;
+			}
+			let closed = false;
+			if (digits !== "" && text.charAt(cursor) === "]") {
+				closed = true;
+			} else if (digits !== "" && text.charAt(cursor) === " ") {
+				const closeIdx = text.indexOf("]", cursor);
+				if (closeIdx !== -1) {
+					cursor = closeIdx;
+					closed = true;
+				}
+			}
+			if (!closed) {
+				result += text.slice(scanFrom, openIdx + 1);
+				scanFrom = openIdx + 1;
+				continue;
+			}
+			const id = parseDecimalInt(digits);
+			const content = id !== undefined ? this.pastes.get(id) : undefined;
+			if (content === undefined) {
+				result += text.slice(scanFrom, cursor + 1);
+			} else {
+				result += text.slice(scanFrom, openIdx) + content;
+			}
+			scanFrom = cursor + 1;
 		}
+		result += text.slice(scanFrom);
 		return result;
 	}
 
@@ -1255,7 +1285,8 @@ export class Editor extends Component implements Focusable {
 		// Split into lines to check for large paste
 		const pastedLines = filteredText.split("\n");
 
-		// Check if this is a large paste (> 10 lines or > 1000 characters)
+		// Check if this is a large paste (> 10 lines or > 1000 characters);
+		// submitValue() expands the marker back to the full content on submit
 		const totalChars = filteredText.length;
 		if (pastedLines.length > 10 || totalChars > 1000) {
 			// Store the paste and insert a marker
@@ -2060,19 +2091,19 @@ export class Editor extends Component implements Focusable {
 			// Insert middle lines
 			for (let i = 1; i < lines.length - 1; i++) {
 				this.state.lines.push("");
-			for (let j = this.state.lines.length - 1; j > this.state.cursorLine + i; j--) {
-				this.state.lines[j] = this.state.lines[j - 1];
-			}
-			this.state.lines[this.state.cursorLine + i] = lines[i] ?? "";
+				for (let j = this.state.lines.length - 1; j > this.state.cursorLine + i; j--) {
+					this.state.lines[j] = this.state.lines[j - 1];
+				}
+				this.state.lines[this.state.cursorLine + i] = lines[i] ?? "";
 			}
 
 			// Last line merges with text after cursor
 			const lastLineIndex = this.state.cursorLine + lines.length - 1;
 			this.state.lines.push("");
-		for (let j = this.state.lines.length - 1; j > lastLineIndex; j--) {
-			this.state.lines[j] = this.state.lines[j - 1];
-		}
-		this.state.lines[lastLineIndex] = (lines[lines.length - 1] ?? "") + after;
+			for (let j = this.state.lines.length - 1; j > lastLineIndex; j--) {
+				this.state.lines[j] = this.state.lines[j - 1];
+			}
+			this.state.lines[lastLineIndex] = (lines[lines.length - 1] ?? "") + after;
 
 			// Update cursor position
 			this.state.cursorLine = lastLineIndex;
@@ -2116,11 +2147,11 @@ export class Editor extends Component implements Focusable {
 
 			// Remove all lines from startLine to cursorLine and replace with merged line
 			this.state.lines.splice(startLine, yankLines.length);
-		this.state.lines.push("");
-		for (let j = this.state.lines.length - 1; j > startLine; j--) {
-			this.state.lines[j] = this.state.lines[j - 1];
-		}
-		this.state.lines[startLine] = beforeYank + afterCursor;
+			this.state.lines.push("");
+			for (let j = this.state.lines.length - 1; j > startLine; j--) {
+				this.state.lines[j] = this.state.lines[j - 1];
+			}
+			this.state.lines[startLine] = beforeYank + afterCursor;
 
 			// Update cursor
 			this.state.cursorLine = startLine;
@@ -2304,11 +2335,9 @@ export class Editor extends Component implements Focusable {
 
 		if (options.force) {
 			const shouldTriggerFn = this.autocompleteProvider.shouldTriggerFileCompletion;
-			const shouldTrigger = shouldTriggerFn === undefined || shouldTriggerFn(
-				this.state.lines,
-				this.state.cursorLine,
-				this.state.cursorCol,
-			);
+			const shouldTrigger =
+				shouldTriggerFn === undefined ||
+				shouldTriggerFn(this.state.lines, this.state.cursorLine, this.state.cursorCol);
 			if (!shouldTrigger) {
 				return;
 			}

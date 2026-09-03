@@ -526,7 +526,7 @@ export type AssistantMessageEvent =
 	| { type: "thinking_start"; contentIndex: number; partial: AssistantMessage }
 	| { type: "thinking_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
 	| { type: "thinking_end"; contentIndex: number; content: string; partial: AssistantMessage }
-	| { type: "toolcall_start"; contentIndex: number; partial: AssistantMessage }
+	| { type: "toolcall_start"; contentIndex: number; id: string; toolName: string; partial: AssistantMessage }
 	| { type: "toolcall_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
 	| { type: "toolcall_end"; contentIndex: number; toolCall: ToolCall; partial: AssistantMessage }
 	| {

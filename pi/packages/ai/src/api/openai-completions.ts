@@ -42,10 +42,7 @@ import {
 	resolveJsonSchemaStrictSampling,
 } from "./constrained-sampling.ts";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.ts";
-import {
-	type ChatCompletionChunk,
-	streamOpenAIChatCompletions,
-} from "./openai-http.ts";
+import { type ChatCompletionChunk, streamOpenAIChatCompletions } from "./openai-http.ts";
 import { clampOpenAIPromptCacheKey } from "./openai-prompt-cache.ts";
 import { buildBaseOptions, clampThinkingBudgetToAnswerRoom, thinkingBudgetForLevel } from "./simple-options.ts";
 import { transformMessages } from "./transform-messages.ts";
@@ -151,7 +148,7 @@ type ChatCompletionTool =
 			type: "function";
 			function: { name: string; description?: string; parameters?: Record<string, unknown>; strict?: boolean };
 			cache_control?: OpenAICompatCacheControl;
-		}
+	  }
 	| {
 			type: "custom";
 			custom: {
@@ -160,7 +157,7 @@ type ChatCompletionTool =
 				format?: { type: string; grammar: { syntax: string; definition: string } };
 			};
 			cache_control?: OpenAICompatCacheControl;
-		};
+	  };
 type ChatCompletionCreateParams = Record<string, unknown>;
 
 type ChatCompletionTextPart = { type: "text"; text: string; cache_control?: OpenAICompatCacheControl };
@@ -484,173 +481,178 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 			const blocks: (TextContent | ThinkingContent | StreamingToolCallBlock)[] = [];
 			output.content = blocks;
 			const getCustomToolCallInput = (block: StreamingToolCallBlock): string => {
-			const property = block.customInput?.property;
-			if (property === undefined) return "";
-			const value = block.arguments[property];
-			return typeof value === "string" ? value : "";
-		};
-		const appendCustomToolCallInput = (
-			block: StreamingToolCallBlock,
-			nextInput: string,
-			close: boolean,
-		): string | undefined => {
-			const customInput = block.customInput;
-			if (!customInput) return undefined;
-			const delta = appendGrammarToolInputJsonDelta(
-				customInput.jsonBuffer,
-				customInput.property,
-				nextInput,
-				close,
-			);
-			block.arguments = { [customInput.property]: nextInput };
-			return delta;
-		};
-		const finishBlock = (block: StreamingBlock) => {
-			if (block.type === "text") {
-				stream.push({
-					type: "text_end",
-					contentIndex: textBlockIndex,
-					content: block.text,
-					partial: output,
-				});
-			} else if (block.type === "thinking") {
-				applyStreamedReasoningDetails(block);
-				stream.push({
-					type: "thinking_end",
-					contentIndex: thinkingBlockIndex,
-					content: block.thinking,
-					partial: output,
-				});
-			} else {
-				const contentIndex = block.contentIndex;
-				if (contentIndex === undefined) {
-					return;
-				}
-				if (block.customInput) {
-					const delta = appendCustomToolCallInput(block, getCustomToolCallInput(block), true);
-					if (delta !== undefined) {
-						stream.push({
-							type: "toolcall_delta",
-							contentIndex,
-							delta,
-							partial: output,
-						});
-					}
+				const property = block.customInput?.property;
+				if (property === undefined) return "";
+				const value = block.arguments[property];
+				return typeof value === "string" ? value : "";
+			};
+			const appendCustomToolCallInput = (
+				block: StreamingToolCallBlock,
+				nextInput: string,
+				close: boolean,
+			): string | undefined => {
+				const customInput = block.customInput;
+				if (!customInput) return undefined;
+				const delta = appendGrammarToolInputJsonDelta(
+					customInput.jsonBuffer,
+					customInput.property,
+					nextInput,
+					close,
+				);
+				block.arguments = { [customInput.property]: nextInput };
+				return delta;
+			};
+			const finishBlock = (block: StreamingBlock) => {
+				if (block.type === "text") {
+					stream.push({
+						type: "text_end",
+						contentIndex: textBlockIndex,
+						content: block.text,
+						partial: output,
+					});
+				} else if (block.type === "thinking") {
+					applyStreamedReasoningDetails(block);
+					stream.push({
+						type: "thinking_end",
+						contentIndex: thinkingBlockIndex,
+						content: block.thinking,
+						partial: output,
+					});
 				} else {
-					block.arguments = parseStreamingJson(block.partialArgs);
+					const contentIndex = block.contentIndex;
+					if (contentIndex === undefined) {
+						return;
+					}
+					if (block.customInput) {
+						const delta = appendCustomToolCallInput(block, getCustomToolCallInput(block), true);
+						if (delta !== undefined) {
+							stream.push({
+								type: "toolcall_delta",
+								contentIndex,
+								delta,
+								partial: output,
+							});
+						}
+					} else {
+						block.arguments = parseStreamingJson(block.partialArgs);
+					}
+					block.partialArgs = undefined;
+					block.customInput = undefined;
+					block.streamIndex = undefined;
+					stream.push({
+						type: "toolcall_end",
+						contentIndex,
+						toolCall: block,
+						partial: output,
+					});
 				}
-				block.partialArgs = undefined;
-				block.customInput = undefined;
-				block.streamIndex = undefined;
-				stream.push({
-					type: "toolcall_end",
-					contentIndex,
-					toolCall: block,
-					partial: output,
-				});
-			}
-		};
-		const ensureTextBlock = () => {
-			if (!textBlock) {
-				textBlock = { type: "text", text: "" };
-				blocks.push(textBlock);
-				textBlockIndex = blocks.length - 1;
-				stream.push({ type: "text_start", contentIndex: textBlockIndex, partial: output });
-			}
-			return textBlock;
-		};
-		const ensureThinkingBlock = (thinkingSignature: string) => {
-			if (!thinkingBlock) {
-				thinkingBlock = {
-					type: "thinking",
-					thinking: "",
-					thinkingSignature,
-				};
-				blocks.push(thinkingBlock);
-				thinkingBlockIndex = blocks.length - 1;
-				stream.push({ type: "thinking_start", contentIndex: thinkingBlockIndex, partial: output });
-			}
-			return thinkingBlock;
-		};
-	const ensureToolCallBlock = (toolCall: StreamingToolCallDelta) => {
-			const streamIndex = typeof toolCall.index === "number" ? toolCall.index : undefined;
-			const name = toolCall.fn?.name ?? toolCall.custom?.name ?? "";
-			let block = streamIndex !== undefined ? toolCallBlocksByIndex.get(streamIndex) : undefined;
-			if (!block && toolCall.id) {
-				block = toolCallBlocksById.get(toolCall.id);
-			}
-			if (!block) {
-				// Note: the "input" fallback here should/must not be taken.  in case the LLM makes up
-				// a tool we don't knwo about, we at least have a place to stash our stuff.
-				const customInputProperty =
-					toolCall.custom && !toolCall.fn ? (grammarToolInputProperties.get(name) ?? "input") : undefined;
-				const hasCustomInput = customInputProperty !== undefined;
-				const initialArgs: Record<string, unknown> = {};
-				if (customInputProperty !== undefined) {
-					initialArgs[customInputProperty] = "";
+			};
+			const ensureTextBlock = () => {
+				if (!textBlock) {
+					textBlock = { type: "text", text: "" };
+					blocks.push(textBlock);
+					textBlockIndex = blocks.length - 1;
+					output.content = blocks;
+					stream.push({ type: "text_start", contentIndex: textBlockIndex, partial: output });
 				}
-				block = {
-					type: "toolCall",
-					id: toolCall.id || "",
-					name,
-					["arguments"]: initialArgs,
-					partialArgs: hasCustomInput ? undefined : "",
-					customInput: hasCustomInput
-						? { property: customInputProperty, jsonBuffer: { input: "", started: false, closed: false } }
-						: undefined,
-					streamIndex,
-				};
-				if (streamIndex !== undefined) {
+				return textBlock;
+			};
+			const ensureThinkingBlock = (thinkingSignature: string) => {
+				if (!thinkingBlock) {
+					thinkingBlock = {
+						type: "thinking",
+						thinking: "",
+						thinkingSignature,
+					};
+					blocks.push(thinkingBlock);
+					thinkingBlockIndex = blocks.length - 1;
+					output.content = blocks;
+					stream.push({ type: "thinking_start", contentIndex: thinkingBlockIndex, partial: output });
+				}
+				return thinkingBlock;
+			};
+			const ensureToolCallBlock = (toolCall: StreamingToolCallDelta) => {
+				const streamIndex = typeof toolCall.index === "number" ? toolCall.index : undefined;
+				const name = toolCall.fn?.name ?? toolCall.custom?.name ?? "";
+				let block = streamIndex !== undefined ? toolCallBlocksByIndex.get(streamIndex) : undefined;
+				if (!block && toolCall.id) {
+					block = toolCallBlocksById.get(toolCall.id);
+				}
+				if (!block) {
+					// Note: the "input" fallback here should/must not be taken.  in case the LLM makes up
+					// a tool we don't knwo about, we at least have a place to stash our stuff.
+					const customInputProperty =
+						toolCall.custom && !toolCall.fn ? (grammarToolInputProperties.get(name) ?? "input") : undefined;
+					const hasCustomInput = customInputProperty !== undefined;
+					const initialArgs: Record<string, unknown> = {};
+					if (customInputProperty !== undefined) {
+						initialArgs[customInputProperty] = "";
+					}
+					block = {
+						type: "toolCall",
+						id: toolCall.id || "",
+						name,
+						["arguments"]: initialArgs,
+						partialArgs: hasCustomInput ? undefined : "",
+						customInput: hasCustomInput
+							? { property: customInputProperty, jsonBuffer: { input: "", started: false, closed: false } }
+							: undefined,
+						streamIndex,
+					};
+					if (streamIndex !== undefined) {
+						toolCallBlocksByIndex.set(streamIndex, block);
+					}
+					if (toolCall.id) {
+						toolCallBlocksById.set(toolCall.id, block);
+					}
+					blocks.push(block);
+					block.contentIndex = blocks.length - 1;
+					output.content = blocks;
+					stream.push({
+						type: "toolcall_start",
+						contentIndex: block.contentIndex,
+						id: block.id,
+						toolName: block.name,
+						partial: output,
+					});
+				}
+				if (streamIndex !== undefined && block.streamIndex === undefined) {
+					block.streamIndex = streamIndex;
 					toolCallBlocksByIndex.set(streamIndex, block);
 				}
 				if (toolCall.id) {
 					toolCallBlocksById.set(toolCall.id, block);
 				}
-				blocks.push(block);
-				block.contentIndex = blocks.length - 1;
-				stream.push({
-					type: "toolcall_start",
-					contentIndex: block.contentIndex,
-					partial: output,
-				});
-			}
-			if (streamIndex !== undefined && block.streamIndex === undefined) {
-				block.streamIndex = streamIndex;
-				toolCallBlocksByIndex.set(streamIndex, block);
-			}
-			if (toolCall.id) {
-				toolCallBlocksById.set(toolCall.id, block);
-			}
-			if (!block.name && name) {
-				block.name = name;
-			}
-			if (toolCall.custom && !toolCall.fn && !block.customInput) {
-				const customInputProperty = grammarToolInputProperties.get(block.name) ?? "input";
-				block.arguments = { [customInputProperty]: "" };
-				block.customInput = {
-					property: customInputProperty,
-					jsonBuffer: { input: "", started: false, closed: false },
-				};
-				block.partialArgs = undefined;
-			}
-			return block;
-		};
+				if (!block.name && name) {
+					block.name = name;
+				}
+				if (toolCall.custom && !toolCall.fn && !block.customInput) {
+					const customInputProperty = grammarToolInputProperties.get(block.name) ?? "input";
+					block.arguments = { [customInputProperty]: "" };
+					block.customInput = {
+						property: customInputProperty,
+						jsonBuffer: { input: "", started: false, closed: false },
+					};
+					block.partialArgs = undefined;
+				}
+				return block;
+			};
 
-		const onChunk = async (chunk: ChatCompletionChunk): Promise<void> => {
-			if (!chunk || typeof chunk !== "object") {
-				return;
-			}
+			const onChunk = async (chunk: ChatCompletionChunk): Promise<void> => {
+				if (!chunk || typeof chunk !== "object") {
+					return;
+				}
 
 				// OpenAI documents ChatCompletionChunk.id as the unique chat completion identifier,
 				// and each chunk in a streamed completion carries the same id.
-			if (!output.responseId && chunk.id !== undefined) {
-				output.responseId = chunk.id;
-			}
-			if (typeof chunk.model === "string" && chunk.model.length > 0 && chunk.model !== model.id) {
-				if (!output.responseModel) {
-					output.responseModel = chunk.model;
+				if (!output.responseId && chunk.id !== undefined) {
+					output.responseId = chunk.id;
 				}
-			}
+				if (typeof chunk.model === "string" && chunk.model.length > 0 && chunk.model !== model.id) {
+					if (!output.responseModel) {
+						output.responseModel = chunk.model;
+					}
+				}
 				if (chunk.usage) {
 					output.usage = parseChunkUsage(chunk.usage, model);
 				}
@@ -731,31 +733,31 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 								const toolCall = normalizeToolCallDelta(rawToolCall);
 								if (toolCall === undefined) continue;
 								const block = ensureToolCallBlock(toolCall);
-							if (!block.id && toolCall.id) {
-								block.id = toolCall.id;
-								toolCallBlocksById.set(toolCall.id, block);
-							}
-							const name = toolCall.fn?.name ?? toolCall.custom?.name;
-							if (!block.name && name) {
-								block.name = name;
-							}
+								if (!block.id && toolCall.id) {
+									block.id = toolCall.id;
+									toolCallBlocksById.set(toolCall.id, block);
+								}
+								const name = toolCall.fn?.name ?? toolCall.custom?.name;
+								if (!block.name && name) {
+									block.name = name;
+								}
 
-							let delta = "";
-							if (toolCall.fn?.args) {
-								delta = toolCall.fn.args;
-								block.partialArgs = (block.partialArgs ?? "") + toolCall.fn.args;
-								block.arguments = parseStreamingJson(block.partialArgs);
-							} else if (toolCall.custom?.input) {
-								const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
-								delta = appendCustomToolCallInput(block, nextInput, false) ?? "";
+								let delta = "";
+								if (toolCall.fn?.args) {
+									delta = toolCall.fn.args;
+									block.partialArgs = (block.partialArgs ?? "") + toolCall.fn.args;
+									block.arguments = parseStreamingJson(block.partialArgs);
+								} else if (toolCall.custom?.input) {
+									const nextInput = getCustomToolCallInput(block) + toolCall.custom.input;
+									delta = appendCustomToolCallInput(block, nextInput, false) ?? "";
+								}
+								stream.push({
+									type: "toolcall_delta",
+									contentIndex: block.contentIndex ?? 0,
+									delta,
+									partial: output,
+								});
 							}
-							stream.push({
-								type: "toolcall_delta",
-								contentIndex: block.contentIndex ?? 0,
-								delta,
-								partial: output,
-							});
-						}
 						}
 					}
 
@@ -774,28 +776,28 @@ export const stream: StreamFunction<"openai-completions", OpenAICompletionsOptio
 				}
 			};
 
-		stream.push({ type: "start", partial: output });
-		await retryProviderRequest(
-			() =>
-				streamOpenAIChatCompletions(
-					{
-						url: transport.url,
-						apiKey: transport.apiKey,
-						headers: transport.headers,
-						body: params,
-						fetchImpl: options?.fetch,
-						signal: options?.signal,
-						timeoutMs: options?.timeoutMs,
-					},
-					onChunk,
-				),
-			{
-				maxRetries: options?.maxRetries,
-				maxRetryDelayMs: options?.maxRetryDelayMs,
-				signal: options?.signal,
-			},
-		);
-		await options?.onResponse?.({ status: 200, headers: {} }, model);
+			stream.push({ type: "start", partial: output });
+			await retryProviderRequest(
+				() =>
+					streamOpenAIChatCompletions(
+						{
+							url: transport.url,
+							apiKey: transport.apiKey,
+							headers: transport.headers,
+							body: params,
+							fetchImpl: options?.fetch,
+							signal: options?.signal,
+							timeoutMs: options?.timeoutMs,
+						},
+						onChunk,
+					),
+				{
+					maxRetries: options?.maxRetries,
+					maxRetryDelayMs: options?.maxRetryDelayMs,
+					signal: options?.signal,
+				},
+			);
+			await options?.onResponse?.({ status: 200, headers: {} }, model);
 
 			for (const block of blocks) {
 				finishBlock(block);
@@ -985,9 +987,7 @@ function buildParams(
 	const thinkingBudget = resolveClampedThinkingBudget(model, options, params);
 
 	if (compat.thinkingFormat === "zai" && model.reasoning) {
-		params["thinking"] = options?.reasoningEffort
-			? { type: "enabled", clear_thinking: false }
-			: { type: "disabled" };
+		params["thinking"] = options?.reasoningEffort ? { type: "enabled", clear_thinking: false } : { type: "disabled" };
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
 			const mappedEffort = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort);
 			const effort = mappedEffort === undefined ? options.reasoningEffort : mappedEffort;
@@ -998,7 +998,8 @@ function buildParams(
 	} else if (compat.thinkingFormat === "qwen" && model.reasoning) {
 		params["enable_thinking"] = !!options?.reasoningEffort;
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			const effort = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+			const effort =
+				lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 			if (typeof effort === "string") {
 				params["reasoning_effort"] = effort;
 			}
@@ -1020,7 +1021,9 @@ function buildParams(
 		}
 		if (compat.supportsReasoningEffort) {
 			const requestedEffort = options?.reasoningEffort;
-			const mappedEffort = requestedEffort ? lookupThinkingLevelMap(thinkingLevelMapValue, requestedEffort) : lookupThinkingLevelMap(thinkingLevelMapValue, "off");
+			const mappedEffort = requestedEffort
+				? lookupThinkingLevelMap(thinkingLevelMapValue, requestedEffort)
+				: lookupThinkingLevelMap(thinkingLevelMapValue, "off");
 			const effort = mappedEffort === undefined ? requestedEffort : mappedEffort;
 			if (typeof effort === "string") {
 				params["reasoning_effort"] = effort;
@@ -1033,7 +1036,8 @@ function buildParams(
 			params["thinking"] = { type: "disabled" };
 		}
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+			params["reasoning_effort"] =
+				lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 		}
 	} else if (compat.thinkingFormat === "openrouter" && model.reasoning) {
 		if (options?.reasoningEffort) {
@@ -1051,16 +1055,19 @@ function buildParams(
 	} else if (compat.thinkingFormat === "together" && model.reasoning) {
 		params["reasoning"] = { enabled: !!options?.reasoningEffort };
 		if (options?.reasoningEffort && compat.supportsReasoningEffort) {
-			params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+			params["reasoning_effort"] =
+				lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 		}
 	} else if (compat.thinkingFormat === "string-thinking" && model.reasoning) {
 		if (options?.reasoningEffort) {
-			params["thinking"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+			params["thinking"] =
+				lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 		} else if (lookupThinkingLevelMap(thinkingLevelMapValue, "off") !== null) {
 			params["thinking"] = lookupThinkingLevelMap(thinkingLevelMapValue, "off") ?? "none";
 		}
 	} else if (options?.reasoningEffort && model.reasoning && compat.supportsReasoningEffort) {
-		params["reasoning_effort"] = lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+		params["reasoning_effort"] =
+			lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
 	} else if (!options?.reasoningEffort && model.reasoning && compat.supportsReasoningEffort) {
 		const offValue = lookupThinkingLevelMap(thinkingLevelMapValue, "off");
 		if (typeof offValue === "string") {
@@ -1170,7 +1177,9 @@ function resolveChatTemplateKwargValue(
 		return thinkingBudget;
 	}
 
-	const mappedValue = reasoningEffort ? lookupThinkingLevelMap(mapValue, reasoningEffort) : lookupThinkingLevelMap(mapValue, "off");
+	const mappedValue = reasoningEffort
+		? lookupThinkingLevelMap(mapValue, reasoningEffort)
+		: lookupThinkingLevelMap(mapValue, "off");
 	return mappedValue === undefined ? reasoningEffort : typeof mappedValue === "string" ? mappedValue : undefined;
 }
 
@@ -1626,10 +1635,7 @@ function convertMessages(
 	return params;
 }
 
-function convertTools(
-	tools: Tool[],
-	compat: ResolvedOpenAICompletionsCompat,
-): ChatCompletionTool[] {
+function convertTools(tools: Tool[], compat: ResolvedOpenAICompletionsCompat): ChatCompletionTool[] {
 	return tools.map((tool): ChatCompletionTool => {
 		const grammar = resolveGrammarConstrainedSampling(tool, compat.supportsOpenAIGrammarTools);
 		if (grammar) {
@@ -1864,8 +1870,7 @@ function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletion
 			overrides.requiresAssistantAfterToolResult ?? detected.requiresAssistantAfterToolResult,
 		requiresThinkingAsText: overrides.requiresThinkingAsText ?? detected.requiresThinkingAsText,
 		requiresReasoningContentOnAssistantMessages:
-			overrides.requiresReasoningContentOnAssistantMessages ??
-			detected.requiresReasoningContentOnAssistantMessages,
+			overrides.requiresReasoningContentOnAssistantMessages ?? detected.requiresReasoningContentOnAssistantMessages,
 		thinkingFormat: overrides.thinkingFormat ?? detected.thinkingFormat,
 		openRouterRouting: overrides.openRouterRouting ?? {},
 		vercelGatewayRouting: overrides.vercelGatewayRouting ?? detected.vercelGatewayRouting,

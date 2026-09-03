@@ -219,3 +219,56 @@ runs:
   cross-references; keep 24 docs that match current functionality.
 - `1bfbcd6` — AGENTS.md rewritten in English, integrating the static-compile
   rules, runtime discipline, and verification gates from the rewrite guide.
+
+## Phase 9 — Streaming event and timeout fixes (pending commit)
+
+Root cause shared by Bug A and Bug B: in scriptc, a record field holding an
+array (`output.content = blocks`) is a value snapshot, not a reference. The
+openai-completions transport assigned `output.content = blocks` once at
+request start (empty array), so every downstream reader of
+`event.partial.content` saw the empty snapshot until the finish-stage
+reassignment. Probes confirmed: `content.length` read 0 during
+text_start/text_delta and 1 only at text_end (24 chars). Fixes:
+
+- openai-completions: reassign `output.content = blocks` after every block
+  push (ensureTextBlock / ensureThinkingBlock / ensureToolCallBlock), so
+  downstream sees live content. faux provider already used the safe pattern.
+- json-event: `toolcall_start` no longer reverse-reads `event.partial` —
+  the event now carries `id`/`toolName` directly (types.ts arm extended,
+  openai-completions/faux/proxy fill them). Removes the JSON-mode trap on
+  tool calls; removed the recordOf(JSON round-trip) helper.
+- agent-loop: `message_update` emits `message: partialMessage` by reference
+  instead of a spread copy (spread snapshot contributed to the same
+  empty-content picture at TUI consumers).
+
+Other fixes verified with mock SSE endpoints (drip/stall/tool-call/thinking):
+
+- openai-http: `timeoutMs` was an absolute request timer (default 300 s)
+  killing long generations mid-stream with "This operation was aborted".
+  Now an idle timer re-armed on every chunk (undici bodyTimeout semantics),
+  cleared in `finally`, with an explicit "Request idle timeout: no data
+  received for Ns" error instead of the opaque DOMException message.
+- editor: `expandPasteMarkers` used a literal `[paste #N]` split after
+  2f2556b removed the dynamic RegExp, but inserted markers always carry a
+  suffix (`+X lines`/`X chars`), so expansion silently never matched and
+  sent the placeholder to the model. Replaced with a manual scanner handling
+  both marker forms, matching the upstream editor semantics (the upstream
+  implementation uses a dynamic RegExp that scriptc cannot lower). The
+  fold-on-paste behavior is unchanged from upstream (> 10 lines or
+  > 1000 chars becomes a marker; short pastes insert verbatim).
+- openai-http: dialect reasoning fields (`reasoning_content`, `reasoning`,
+  `reasoning_text`) added to `ChatCompletionChunkDelta` — undeclared fields
+  are dropped by scriptc cast copies, so thinking blocks were never created
+  from OpenAI-compatible endpoints. TUI now streams and persists thinking.
+
+Verified: TUI frames show incremental text/thinking during streaming (was
+spinner-only for the whole stream); JSON mode full tool-call round trip
+(toolcall_start event, bash execution, second-turn reply); 20-line paste
+folds to a marker in the editor and expands to the full 150-char payload on
+submit; short paste inserts verbatim; idle-timeout fires
+with a clear error and does not fire during active streaming.
+
+Known issue (new): a models.json provider without a `compat` field fails
+composition with "expected object | object | object | object at $, got
+undefined" — likely the same undeclared-field cast-copy behavior on the
+ProviderCompatSchema union. Workaround: declare `compat` explicitly.

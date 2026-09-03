@@ -4,11 +4,11 @@ import type {
 	AssistantMessage,
 	AssistantMessageEventStream,
 	Context,
-	KnownApi,
 	DeferredCancelOptions,
 	DeferredFetchOptions,
 	DeferredHandle,
 	ImageContent,
+	KnownApi,
 	Message,
 	Model,
 	SimpleStreamOptions,
@@ -405,7 +405,13 @@ async function streamWithDeltas(
 		}
 
 		partial.content = [...partial.content, { type: "toolCall", id: block.id, name: block.name, arguments: {} }];
-		stream.push({ type: "toolcall_start", contentIndex: index, partial: { ...partial } });
+		stream.push({
+			type: "toolcall_start",
+			contentIndex: index,
+			id: block.id,
+			toolName: block.name,
+			partial: { ...partial },
+		});
 		for (const chunk of splitStringByTokenSize(JSON.stringify(block.arguments), minTokenSize, maxTokenSize)) {
 			await scheduleChunk(chunk, tokensPerSecond);
 			if (signal?.aborted) {

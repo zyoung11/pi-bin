@@ -7,8 +7,8 @@ import {
 	type AssistantMessage,
 	type AssistantMessageEvent,
 	type Context,
-	type EventStreamNextResult,
 	EventStream,
+	type EventStreamNextResult,
 	type MessageDetails,
 	type ToolResultMessage,
 	validateToolArguments,
@@ -322,8 +322,7 @@ async function streamAssistantResponse(
 
 	// Resolve API key (important for expiring tokens)
 	const getApiKey = config.getApiKey;
-	const resolvedApiKey =
-		(getApiKey ? await getApiKey(config.model.provider) : undefined) || config.apiKey;
+	const resolvedApiKey = (getApiKey ? await getApiKey(config.model.provider) : undefined) || config.apiKey;
 
 	const response = await streamFunction(config.model, llmContext, {
 		...config,
@@ -360,7 +359,7 @@ async function streamAssistantResponse(
 					await emit({
 						type: "message_update",
 						assistantMessageEvent: event,
-						message: { ...partialMessage },
+						message: partialMessage,
 					});
 				}
 				break;
@@ -703,7 +702,14 @@ async function executePreparedToolCall(
 
 	try {
 		if (process.env["PI_DBG_TOOL"] === "1") {
-			console.error("[tool-dbg] name =", prepared.toolCall.name, "args =", JSON.stringify(prepared.args), "raw =", JSON.stringify(prepared.toolCall.arguments));
+			console.error(
+				"[tool-dbg] name =",
+				prepared.toolCall.name,
+				"args =",
+				JSON.stringify(prepared.args),
+				"raw =",
+				JSON.stringify(prepared.toolCall.arguments),
+			);
 		}
 		const result = await prepared.tool.execute(
 			prepared.toolCall.id,
@@ -712,15 +718,15 @@ async function executePreparedToolCall(
 			(partialResult) => {
 				if (!acceptingUpdates) return;
 				const updateTask = async (): Promise<void> => {
-				await emit({
+					await emit({
 						type: "tool_execution_update",
 						toolCallId: prepared.toolCall.id,
 						toolName: prepared.toolCall.name,
 						args: prepared.toolCall.arguments,
 						partialResult,
 					});
-			};
-			updateEvents.push(updateTask());
+				};
+				updateEvents.push(updateTask());
 			},
 		);
 		acceptingUpdates = false;

@@ -318,7 +318,13 @@ function processProxyEvent(
 				arguments: {},
 				partialJson: "",
 			} satisfies ToolCall & { partialJson: string } as ToolCall;
-			return { type: "toolcall_start", contentIndex: proxyEvent.contentIndex, partial };
+			return {
+				type: "toolcall_start",
+				contentIndex: proxyEvent.contentIndex,
+				id: proxyEvent.id,
+				toolName: proxyEvent.toolName,
+				partial,
+			};
 
 		case "toolcall_delta": {
 			const content = partial.content[proxyEvent.contentIndex];

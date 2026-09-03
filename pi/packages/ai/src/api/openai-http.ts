@@ -4,8 +4,8 @@
  * the retry-layer-compatible error fields (status + Headers) pi relies on.
  */
 
-import { ProviderHttpError } from "../utils/provider-retry.ts";
 import type { JsonValue, ProviderHeaders } from "../types.ts";
+import { ProviderHttpError } from "../utils/provider-retry.ts";
 
 export type ChatCompletionChunkUsage = {
 	prompt_tokens?: number;
@@ -20,6 +20,10 @@ export type ChatCompletionChunkDelta = {
 	content?: string | null;
 	tool_calls?: JsonValue;
 	reasoning_details?: JsonValue;
+	/** Dialect fields from OpenAI-compatible endpoints (llama.cpp, OpenRouter, ...). */
+	reasoning_content?: string | null;
+	reasoning?: string | null;
+	reasoning_text?: string | null;
 };
 
 export type ChatCompletionChunkChoice = {
@@ -46,8 +50,6 @@ export interface OpenAIHttpOptions {
 	signal?: AbortSignal;
 	timeoutMs?: number;
 }
-
-
 
 function buildHeaders(apiKey: string | undefined, headers: ProviderHeaders | undefined): Record<string, string> {
 	const out: Record<string, string> = { "Content-Type": "application/json" };
@@ -124,14 +126,17 @@ export async function streamOpenAIChatCompletions(
 		}
 		options.signal.addEventListener("abort", onUserAbort, { once: true });
 	}
-	if (options.timeoutMs !== undefined && options.timeoutMs > 0) {
+	const armIdleTimer = (): void => {
+		if (options.timeoutMs === undefined || options.timeoutMs <= 0) return;
+		if (timeoutId !== undefined) clearTimeout(timeoutId);
 		timeoutId = setTimeout(() => {
 			timedOut = true;
 			controller.abort();
 		}, options.timeoutMs);
-	}
+	};
+	armIdleTimer();
 
-try {
+	try {
 		if (process.env.PI_DEBUG_REQ) {
 			console.error(`[REQ] ${JSON.stringify(options.body)}`);
 		}
@@ -166,6 +171,9 @@ try {
 
 			while (true) {
 				const readResult = await reader.read();
+				if (!readResult.done) {
+					armIdleTimer();
+				}
 				if (readResult.done) {
 					if (pendingBytes !== undefined && pendingBytes.length > 0) {
 						buffer += decoder.decode(pendingBytes);
@@ -203,7 +211,7 @@ try {
 							streamDone = true;
 							break;
 						}
-							payloads.push(payload);
+						payloads.push(payload);
 					}
 					newlineIndex = buffer.indexOf("\n");
 				}
@@ -239,7 +247,12 @@ try {
 
 		await readAndProcessChunks();
 	} catch (error) {
-		if (timeoutId !== undefined) clearTimeout(timeoutId);
+		if (timedOut) {
+			const timeoutSeconds = Math.round((options.timeoutMs ?? 0) / 1000);
+			throw new Error(`Request idle timeout: no data received for ${String(timeoutSeconds)}s`);
+		}
 		throw error;
+	} finally {
+		if (timeoutId !== undefined) clearTimeout(timeoutId);
 	}
 }
