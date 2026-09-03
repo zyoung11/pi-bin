@@ -25,10 +25,7 @@ export interface ModelsStoreOperationOptions {
 
 /** Persistent model catalogs keyed by provider ID. */
 export abstract class ModelsStore {
-	abstract read(
-		providerId: string,
-		options?: ModelsStoreOperationOptions,
-	): Promise<ModelsStoreEntry | undefined>;
+	abstract read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined>;
 	abstract write(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void>;
 	abstract delete(providerId: string, options?: ModelsStoreOperationOptions): Promise<void>;
 }

@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { basename, dirname, join, resolve, sep } from "path";
+import { parseDecimalInt } from "../../../tui/src/utils.ts";
 import { CONFIG_DIR_NAME } from "../config.ts";
 import { parseFrontmatter } from "../utils/frontmatter.ts";
-import { parseDecimalInt } from "../../../tui/src/utils.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 
@@ -92,7 +92,8 @@ export function substituteArgs(content: string, args: string[]): string {
 					const defaultValue = inner.slice(sepIdx + 2);
 					const digitsOnly = target !== "" && /^[0-9]+$/.test(target);
 					if (target === "@" || target === "ARGUMENTS" || digitsOnly) {
-						const value = target === "@" || target === "ARGUMENTS" ? allArgs : args[(parseDecimalInt(target) ?? 1) - 1];
+						const value =
+							target === "@" || target === "ARGUMENTS" ? allArgs : args[(parseDecimalInt(target) ?? 1) - 1];
 						out += value ? value : defaultValue;
 						i = closeIdx + 1;
 						continue;

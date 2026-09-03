@@ -6,20 +6,16 @@
  */
 
 import type { AgentMessage, StreamFn } from "../../../../agent/src/index.ts";
-import type {
-	Api,
-	ProviderHeaders,
-	RetryCallbacks, RetryPolicy
-} from "../../../../ai/src/index.ts"
-import { contentText } from "../../../../ai/src/index.ts";
 import type { Model, SimpleStreamOptions, Usage } from "../../../../ai/src/compat.ts";
+import type { Api, ProviderHeaders, RetryCallbacks, RetryPolicy } from "../../../../ai/src/index.ts";
+import { contentText } from "../../../../ai/src/index.ts";
 import {
 	convertToLlm,
 	createBranchSummaryMessage,
 	createCompactionSummaryMessage,
 	createCustomMessage,
 } from "../messages.ts";
-import { type SessionEntry, entryParentIdOf, SessionManager } from "../session-manager.ts";
+import { entryParentIdOf, type SessionEntry, type SessionManager } from "../session-manager.ts";
 import { completeSummarization, estimateTokens, getSummarizationFailure } from "./compaction.ts";
 import {
 	computeFileLists,

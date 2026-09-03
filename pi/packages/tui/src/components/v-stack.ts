@@ -1,5 +1,5 @@
-import { allocateStackSizes, Stack, type StackEntry, type StackOptions, visibleStackEntries } from "./stack.ts";
 import type { StackLayoutNode } from "../layout-node.ts";
+import { allocateStackSizes, Stack, type StackEntry, type StackOptions, visibleStackEntries } from "./stack.ts";
 
 export class VStack extends Stack {
 	protected readonly layoutType = "vstack" as const;

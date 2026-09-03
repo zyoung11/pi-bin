@@ -1,5 +1,5 @@
-import { CredentialStore } from "../../../ai/src/index.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
+import { CredentialStore } from "../../../ai/src/index.ts";
 
 /** Abort the pending operation when its request signal is already aborted. */
 function throwIfSignalAborted(options?: AuthOperationOptions): void {

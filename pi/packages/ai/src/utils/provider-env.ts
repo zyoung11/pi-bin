@@ -1,6 +1,6 @@
 import type { ProviderEnv } from "../types.ts";
 
-let procEnvCache: Map<string, string> = new Map();
+const procEnvCache: Map<string, string> = new Map();
 
 /**
  * Fallback for https://github.com/oven-sh/bun/issues/27802.

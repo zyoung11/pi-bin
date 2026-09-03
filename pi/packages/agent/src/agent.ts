@@ -26,10 +26,11 @@ import type {
 	PrepareNextTurnContext,
 	QueueMode,
 	ShouldStopAfterTurnContext,
-	ThinkingLevel,
 	StreamFn,
+	ThinkingLevel,
 	ToolExecutionMode,
 } from "./types.ts";
+
 export type { QueueMode } from "./types.ts";
 
 async function defaultConvertToLlm(messages: AgentMessage[]): Promise<Message[]> {
@@ -122,12 +123,16 @@ export interface AgentOptions {
 	getApiKey?: (provider: string) => Promise<string | undefined>;
 	onPayload?: SimpleStreamOptions["onPayload"];
 	onResponse?: SimpleStreamOptions["onResponse"];
-	beforeToolCall?: (context: BeforeToolCallContext, signal: AbortSignal | undefined) => Promise<BeforeToolCallResult | undefined>;
-	afterToolCall?: (context: AfterToolCallContext, signal: AbortSignal | undefined) => Promise<AfterToolCallResult | undefined>;
-	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal: AbortSignal | undefined) => Promise<boolean>;
-	prepareNextTurn?: (
+	beforeToolCall?: (
+		context: BeforeToolCallContext,
 		signal: AbortSignal | undefined,
-	) => Promise<AgentLoopTurnUpdate | undefined>;
+	) => Promise<BeforeToolCallResult | undefined>;
+	afterToolCall?: (
+		context: AfterToolCallContext,
+		signal: AbortSignal | undefined,
+	) => Promise<AfterToolCallResult | undefined>;
+	shouldStopAfterTurn?: (context: ShouldStopAfterTurnContext, signal: AbortSignal | undefined) => Promise<boolean>;
+	prepareNextTurn?: (signal: AbortSignal | undefined) => Promise<AgentLoopTurnUpdate | undefined>;
 	prepareNextTurnWithContext?: (
 		context: PrepareNextTurnContext,
 		signal: AbortSignal | undefined,
@@ -213,9 +218,7 @@ export class Agent {
 		context: ShouldStopAfterTurnContext,
 		signal: AbortSignal | undefined,
 	) => Promise<boolean>;
-	public prepareNextTurn?: (
-		signal: AbortSignal | undefined,
-	) => Promise<AgentLoopTurnUpdate | undefined>;
+	public prepareNextTurn?: (signal: AbortSignal | undefined) => Promise<AgentLoopTurnUpdate | undefined>;
 	public prepareNextTurnWithContext?: (
 		context: PrepareNextTurnContext,
 		signal: AbortSignal | undefined,

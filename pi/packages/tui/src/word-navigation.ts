@@ -1,5 +1,5 @@
-import { getWordSegmenter, isPunctuationChar, isWhitespaceChar } from "./utils.ts";
 import type { SegmentData } from "./segmenter.ts";
+import { getWordSegmenter, isPunctuationChar, isWhitespaceChar } from "./utils.ts";
 
 const wordSegmenter = getWordSegmenter();
 

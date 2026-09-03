@@ -5,9 +5,9 @@ import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
-import type { AgentToolResult, ToolDefinition, ToolRenderContext } from "../../../core/tools/tool-types.ts";
 import { createAllToolDefinitions, type ToolName } from "../../../core/tools/index.ts";
 import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import type { AgentToolResult, ToolDefinition, ToolRenderContext } from "../../../core/tools/tool-types.ts";
 import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
 

@@ -4,8 +4,8 @@
 
 import type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode } from "../../../../agent/src/index.ts";
 import type { ConstrainedSamplingConfig } from "../../../../ai/src/index.ts";
+import type { Static, PiSchema as TSchema } from "../../../../ai/src/schema.ts";
 import type { Component } from "../../../../tui/src/tui.ts";
-import type { Static,  PiSchema as TSchema } from "../../../../ai/src/schema.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 
 export type { AgentToolResult, AgentToolUpdateCallback, ToolExecutionMode };
@@ -47,7 +47,11 @@ export interface ToolRenderContext<TState = Record<string, unknown>, TArgs = unk
 }
 
 /** A tool definition registering an LLM-callable tool with rendering hooks. */
-export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown, TState = Record<string, unknown>> {
+export interface ToolDefinition<
+	TParams extends TSchema = TSchema,
+	TDetails = unknown,
+	TState = Record<string, unknown>,
+> {
 	/** Tool name (used in LLM tool calls) */
 	name: string;
 	/** Human-readable label for UI */
@@ -86,11 +90,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	): Promise<AgentToolResult<TDetails>>;
 
 	/** Custom rendering for tool call display */
-	renderCall?(
-		args: unknown,
-		theme: Theme,
-		context: ToolRenderContext<TState, unknown>,
-	): Component;
+	renderCall?(args: unknown, theme: Theme, context: ToolRenderContext<TState, unknown>): Component;
 
 	/** Custom rendering for tool result display */
 	renderResult?(

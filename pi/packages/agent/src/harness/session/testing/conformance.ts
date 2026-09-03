@@ -180,10 +180,7 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "rejects duplicate ids without changing state", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry(
-				{ type: "message", id: "shared", message: createUserMessage("root") },
-				"main",
-			);
+			await session.appendEntry({ type: "message", id: "shared", message: createUserMessage("root") }, "main");
 			await rejectsWithCode(
 				session.appendRecord(operationStarted("shared", { lane: "main", kind: "run" })),
 				"already_exists",
@@ -201,15 +198,9 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "isolates lanes while sharing the tree", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry(
-				{ type: "message", id: "root", message: createUserMessage("root") },
-				"main",
-			);
+			await session.appendEntry({ type: "message", id: "root", message: createUserMessage("root") }, "main");
 			await session.createLane("thread", "root");
-			await session.appendEntry(
-				{ type: "message", id: "main-child", message: createUserMessage("main") },
-				"main",
-			);
+			await session.appendEntry({ type: "message", id: "main-child", message: createUserMessage("main") }, "main");
 			await session.appendEntry(
 				{ type: "message", id: "thread-child", message: createUserMessage("thread") },
 				"thread",
@@ -253,26 +244,14 @@ export function createSessionBackendConformance(
 			"supports bounded filtered and cursor-based queries",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				await session.appendEntry(
-					{ type: "message", id: "root", message: createUserMessage("root") },
-					"main",
-				);
-				await session.appendEntry(
-					{ type: "custom", id: "old-note", customType: "note", data: 1 },
-					"main",
-				);
+				await session.appendEntry({ type: "message", id: "root", message: createUserMessage("root") }, "main");
+				await session.appendEntry({ type: "custom", id: "old-note", customType: "note", data: 1 }, "main");
 				await session.appendEntry(
 					{ type: "compaction", id: "compact", summary: "summary", retainedTail: [], tokensBefore: 10 },
 					"main",
 				);
-				await session.appendEntry(
-					{ type: "custom", id: "new-note", customType: "note", data: 2 },
-					"main",
-				);
-				await session.appendEntry(
-					{ type: "message", id: "tail", message: createAssistantMessage("tail") },
-					"main",
-				);
+				await session.appendEntry({ type: "custom", id: "new-note", customType: "note", data: 2 }, "main");
+				await session.appendEntry({ type: "message", id: "tail", message: createAssistantMessage("tail") }, "main");
 
 				deepStrictEqual(await entryIds(session.findEntries()), ["tail", "new-note", "compact", "old-note", "root"]);
 				deepStrictEqual(
@@ -564,10 +543,7 @@ export function createSessionBackendConformance(
 					totalTokens: 20,
 					cost: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 },
 				};
-				await session.appendEntry(
-					{ type: "message", id: "user", message: createUserMessage("question") },
-					"main",
-				);
+				await session.appendEntry({ type: "message", id: "user", message: createUserMessage("question") }, "main");
 				await session.appendEntry({ type: "message", id: "assistant", message: assistant }, "main");
 				await session.appendRecord({
 					type: "usage",
@@ -627,8 +603,11 @@ export function createSessionBackendConformance(
 					usageRecords.map((record) => (record as { cause: string }).cause),
 					["assistant", "deferred_fetch", "adjustment"],
 				);
-				const deferredUsage = usageRecords.find((record) => (record as { cause?: string }).cause === "deferred_fetch");
-				if ((deferredUsage as { cause?: string } | undefined)?.cause !== "deferred_fetch") throw new Error("Expected deferred usage record");
+				const deferredUsage = usageRecords.find(
+					(record) => (record as { cause?: string }).cause === "deferred_fetch",
+				);
+				if ((deferredUsage as { cause?: string } | undefined)?.cause !== "deferred_fetch")
+					throw new Error("Expected deferred usage record");
 				strictEqual((deferredUsage as { stopReason: string }).stopReason, "deferred");
 				deepStrictEqual(await session.getStats(), {
 					messageCount: 2,
@@ -721,10 +700,10 @@ export function createSessionBackendConformance(
 			"appends provisioned entries with their existing ids",
 			async (repository) => {
 				const session = await repository.create({ id: "session" });
-				const entry = await session.appendEntry(
+				const entry = (await session.appendEntry(
 					{ type: "custom", id: "provisioned", customType: "note", data: { value: 1 } },
 					"main",
-				) as CustomEntry;
+				)) as CustomEntry;
 
 				strictEqual(entry.customType, "note");
 				deepStrictEqual(
@@ -829,10 +808,7 @@ export function createSessionBackendConformance(
 
 		createCase(factory, "entries and lanes", "linearizes concurrent writes across two lanes", async (repository) => {
 			const session = await repository.create({ id: "session" });
-			await session.appendEntry(
-				{ type: "message", id: "root", message: createUserMessage("root") },
-				"main",
-			);
+			await session.appendEntry({ type: "message", id: "root", message: createUserMessage("root") }, "main");
 			await session.createLane("thread", "root");
 			const completionOrder: string[] = [];
 			const writes = [

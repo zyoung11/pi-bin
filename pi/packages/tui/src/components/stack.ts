@@ -1,4 +1,4 @@
-import { type LayoutViewport, type StackLayoutEntry, type StackLayoutNode } from "../layout-node.ts";
+import type { LayoutViewport, StackLayoutEntry, StackLayoutNode } from "../layout-node.ts";
 import { type Component, Container } from "../tui.ts";
 
 export interface StackEntryOptions {

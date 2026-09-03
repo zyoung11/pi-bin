@@ -7,46 +7,43 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { spawn } from "child_process";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
-import type { Api,
-} from "../../../../ai/src/index.ts"
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
+import type { Api } from "../../../../ai/src/index.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
 	CombinedAutocompleteProvider,
 	type SlashCommand,
 } from "../../../../tui/src/autocomplete.ts";
+import type { Editor } from "../../../../tui/src/components/editor.ts";
 import { Markdown, type MarkdownTheme } from "../../../../tui/src/components/markdown.ts";
 import { ScrollView } from "../../../../tui/src/components/scroll-view.ts";
 import { Spacer } from "../../../../tui/src/components/spacer.ts";
+import type { StackEntry } from "../../../../tui/src/components/stack.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
 import { VStack } from "../../../../tui/src/components/v-stack.ts";
-import type { StackEntry } from "../../../../tui/src/components/stack.ts";
-import { type EditorComponent } from "../../../../tui/src/editor-component.ts";
-import { Editor } from "../../../../tui/src/components/editor.ts";
+import type { EditorComponent } from "../../../../tui/src/editor-component.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
 import { type KeyId, matchesKey } from "../../../../tui/src/keys.ts";
 import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
-import { getCapabilities, hyperlink } from "../../../../tui/src/terminal-image.ts";
 import type { RgbColor, TerminalColorScheme } from "../../../../tui/src/terminal-colors.ts";
+import { getCapabilities, hyperlink } from "../../../../tui/src/terminal-image.ts";
 import {
 	type Component,
 	Container,
 	type OverlayHandle,
 	type OverlayOptions,
+	type TUI,
+	type TuiBase,
 	type TuiInputListener,
 	type TuiStopOptions,
-	TuiBase,
-	type TUI,
 } from "../../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
 import { visibleWidth } from "../../../../tui/src/utils.ts";
-import chalk from "../../utils/mini-chalk.ts";
-import { spawn } from "child_process";
-import { spawnProcess } from "../../utils/child-process.ts";
 import {
 	APP_NAME,
 	APP_TITLE,
@@ -60,7 +57,6 @@ import {
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { type AgentSessionRuntime, SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
 import type { AgentSessionRuntimeDiagnostic } from "../../core/agent-session-services.ts";
-import type { ProjectTrustContext } from "../../core/project-trust.ts";
 import {
 	CACHE_TTL_MS,
 	type CacheMiss,
@@ -78,6 +74,7 @@ import {
 	findExactModelReferenceMatch,
 	resolveModelScopeFromModels,
 } from "../../core/model-resolver.ts";
+import type { ProjectTrustContext } from "../../core/project-trust.ts";
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
 import {
@@ -91,10 +88,12 @@ import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { getUsageCostBreakdown } from "../../core/usage-totals.ts";
+import { spawnProcess } from "../../utils/child-process.ts";
 import { copyToClipboard, readClipboardText } from "../../utils/clipboard.ts";
 import { readClipboardImage, writeClipboardImageToTemp } from "../../utils/clipboard-image.ts";
-import { extractImageAttachments } from "../../utils/image-attachments.ts";
 import { parseGitUrl } from "../../utils/git.ts";
+import { extractImageAttachments } from "../../utils/image-attachments.ts";
+import chalk from "../../utils/mini-chalk.ts";
 import { openBrowser } from "../../utils/open-browser.ts";
 import { getCwdRelativePath } from "../../utils/paths.ts";
 import { getPiUserAgent } from "../../utils/pi-user-agent.ts";
@@ -113,11 +112,11 @@ import { DaxnutsComponent } from "./components/daxnuts.ts";
 import { DynamicBorder } from "./components/dynamic-border.ts";
 import { EarendilAnnouncementComponent } from "./components/earendil-announcement.ts";
 import { ExtensionEditorComponent } from "./components/extension-editor.ts";
-import type { MarkdownTransformer } from "./components/markdown-transform.ts";
 import { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import type { MarkdownTransformer } from "./components/markdown-transform.ts";
 import { ModelSelectorComponent } from "./components/model-selector.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
@@ -150,7 +149,7 @@ import {
 	onThemeChange,
 	setRegisteredThemes,
 	stopThemeWatcher,
-	Theme,
+	type Theme,
 	type ThemeColor,
 	theme,
 } from "./theme/theme.ts";
@@ -627,7 +626,6 @@ export class InteractiveMode {
 		return description ? `[${sourceTag}] ${description}` : `[${sourceTag}]`;
 	}
 
-
 	private createBaseAutocompleteProvider(): AutocompleteProvider {
 		// Define commands for autocomplete
 		const slashCommands: SlashCommand[] = BUILTIN_SLASH_COMMANDS.map((command) => {
@@ -657,11 +655,16 @@ export class InteractiveMode {
 					label: `${m.provider}/${m.id}`,
 				}));
 
-				return createFuzzyAutocompleteItems(items, prefix, (item: (typeof items)[number]) => getModelSearchText(item), (item): AutocompleteItem => ({
-					value: item.label,
-					label: item.id,
-					description: item.provider,
-				}));
+				return createFuzzyAutocompleteItems(
+					items,
+					prefix,
+					(item: (typeof items)[number]) => getModelSearchText(item),
+					(item): AutocompleteItem => ({
+						value: item.label,
+						label: item.id,
+						description: item.provider,
+					}),
+				);
 			};
 		}
 
@@ -679,7 +682,6 @@ export class InteractiveMode {
 				);
 			};
 		}
-
 
 		// Convert prompt templates to SlashCommand format for autocomplete
 		const templateCommands: SlashCommand[] = this.session.promptTemplates.map((cmd) => {
@@ -1350,7 +1352,7 @@ export class InteractiveMode {
 				lines.push(theme.fg("dim", `    ${options.formatPath(item)}`));
 			}
 
-			const sortedPackages: [string, (typeof group.packages) extends Map<string, infer V> ? V : never][] = [];
+			const sortedPackages: [string, typeof group.packages extends Map<string, infer V> ? V : never][] = [];
 			for (const entry of group.packages) {
 				sortedPackages.push([entry[0], entry[1]]);
 			}
@@ -1444,10 +1446,7 @@ export class InteractiveMode {
 		return lines.join("\n");
 	}
 
-	private showLoadedResources(options?: {
-		force?: boolean;
-		showDiagnosticsWhenQuiet?: boolean;
-	}): void {
+	private showLoadedResources(options?: { force?: boolean; showDiagnosticsWhenQuiet?: boolean }): void {
 		// Resource rendering is idempotent; chat clears no longer clear this separate container.
 		this.loadedResourcesContainer.clear();
 
@@ -1616,7 +1615,6 @@ export class InteractiveMode {
 		this.setupAutocompleteProvider();
 		this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
 	}
-
 
 	private applyRuntimeSettings(): void {
 		configureHttpDispatcher(this.settingsManager.getHttpIdleTimeoutMs());
@@ -1898,9 +1896,7 @@ export class InteractiveMode {
 	 * Set a custom footer component, or restore the built-in footer.
 	 */
 	private setExtensionFooter(
-		factory:
-			| ((tui: TUI, thm: Theme, footerData: FooterDataProvider) => Component)
-			| undefined,
+		factory: ((tui: TUI, thm: Theme, footerData: FooterDataProvider) => Component) | undefined,
 	): void {
 		// Dispose existing custom footer
 		if (this.customFooter !== undefined) {
@@ -2471,188 +2467,188 @@ export class InteractiveMode {
 		text = text.trim();
 		if (!text) return;
 
-			// Handle commands
-			if (text === "/settings") {
-				this.showSettingsSelector();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/scoped-models") {
-				this.editor.setText("");
-				await this.showModelsSelector();
-				return;
-			}
-			if (text === "/model" || text.startsWith("/model ")) {
-				const searchTerm = text.startsWith("/model ") ? text.slice(7).trim() : undefined;
-				this.editor.setText("");
-				await this.handleModelCommand(searchTerm);
-				return;
-			}
-			if (text === "/thinking" || text.startsWith("/thinking ")) {
-				const searchTerm = text.startsWith("/thinking ") ? text.slice(10).trim() : undefined;
-				this.editor.setText("");
-				this.handleThinkingCommand(searchTerm);
-				return;
-			}
-			if (text === "/export" || text.startsWith("/export ")) {
-				await this.handleExportCommand(text);
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/import" || text.startsWith("/import ")) {
-				await this.handleImportCommand(text);
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/share") {
-				await this.handleShareCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/copy") {
-				await this.handleCopyCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/name" || text.startsWith("/name ")) {
-				this.handleNameCommand(text);
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/session") {
-				this.handleSessionCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/hotkeys") {
-				this.handleHotkeysCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/fork") {
-				this.showUserMessageSelector();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/clone") {
-				this.editor.setText("");
-				await this.handleCloneCommand();
-				return;
-			}
-			if (text === "/tree") {
-				this.showTreeSelector();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/trust") {
-				this.showTrustSelector();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/new") {
-				this.editor.setText("");
-				await this.handleClearCommand();
-				return;
-			}
-			if (text === "/compact" || text.startsWith("/compact ")) {
-				const customInstructions = text.startsWith("/compact ") ? text.slice(9).trim() : undefined;
-				this.editor.setText("");
-				await this.handleCompactCommand(customInstructions);
-				return;
-			}
-			if (text === "/reload") {
-				this.editor.setText("");
-				await this.handleReloadCommand();
-				return;
-			}
-			if (text === "/debug") {
-				this.handleDebugCommand();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/arminsayshi") {
-				this.handleArminSaysHi();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/dementedelves") {
-				this.handleDementedDelves();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/resume") {
-				this.showSessionSelector();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/quit") {
-				this.editor.setText("");
-				await this.shutdown();
-				return;
-			}
+		// Handle commands
+		if (text === "/settings") {
+			this.showSettingsSelector();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/scoped-models") {
+			this.editor.setText("");
+			await this.showModelsSelector();
+			return;
+		}
+		if (text === "/model" || text.startsWith("/model ")) {
+			const searchTerm = text.startsWith("/model ") ? text.slice(7).trim() : undefined;
+			this.editor.setText("");
+			await this.handleModelCommand(searchTerm);
+			return;
+		}
+		if (text === "/thinking" || text.startsWith("/thinking ")) {
+			const searchTerm = text.startsWith("/thinking ") ? text.slice(10).trim() : undefined;
+			this.editor.setText("");
+			this.handleThinkingCommand(searchTerm);
+			return;
+		}
+		if (text === "/export" || text.startsWith("/export ")) {
+			await this.handleExportCommand(text);
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/import" || text.startsWith("/import ")) {
+			await this.handleImportCommand(text);
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/share") {
+			await this.handleShareCommand();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/copy") {
+			await this.handleCopyCommand();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/name" || text.startsWith("/name ")) {
+			this.handleNameCommand(text);
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/session") {
+			this.handleSessionCommand();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/hotkeys") {
+			this.handleHotkeysCommand();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/fork") {
+			this.showUserMessageSelector();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/clone") {
+			this.editor.setText("");
+			await this.handleCloneCommand();
+			return;
+		}
+		if (text === "/tree") {
+			this.showTreeSelector();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/trust") {
+			this.showTrustSelector();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/new") {
+			this.editor.setText("");
+			await this.handleClearCommand();
+			return;
+		}
+		if (text === "/compact" || text.startsWith("/compact ")) {
+			const customInstructions = text.startsWith("/compact ") ? text.slice(9).trim() : undefined;
+			this.editor.setText("");
+			await this.handleCompactCommand(customInstructions);
+			return;
+		}
+		if (text === "/reload") {
+			this.editor.setText("");
+			await this.handleReloadCommand();
+			return;
+		}
+		if (text === "/debug") {
+			this.handleDebugCommand();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/arminsayshi") {
+			this.handleArminSaysHi();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/dementedelves") {
+			this.handleDementedDelves();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/resume") {
+			this.showSessionSelector();
+			this.editor.setText("");
+			return;
+		}
+		if (text === "/quit") {
+			this.editor.setText("");
+			await this.shutdown();
+			return;
+		}
 
-			// Handle bash command (! for normal, !! for excluded from context)
-			if (text.startsWith("!")) {
-				const isExcluded = text.startsWith("!!");
-				const command = isExcluded ? text.slice(2).trim() : text.slice(1).trim();
-				if (command) {
-					if (this.session.isBashRunning) {
-						this.showWarning("A bash command is already running. Press Esc to cancel it first.");
-						this.editor.setText(text);
-						return;
-					}
-					this.editor.addToHistory(text);
-					await this.handleBashCommand(command, isExcluded);
-					this.isBashMode = false;
-					this.updateEditorBorderColor();
+		// Handle bash command (! for normal, !! for excluded from context)
+		if (text.startsWith("!")) {
+			const isExcluded = text.startsWith("!!");
+			const command = isExcluded ? text.slice(2).trim() : text.slice(1).trim();
+			if (command) {
+				if (this.session.isBashRunning) {
+					this.showWarning("A bash command is already running. Press Esc to cancel it first.");
+					this.editor.setText(text);
 					return;
 				}
-			}
-
-			// Queue input during compaction (extension commands execute immediately)
-			if (this.session.isCompacting) {
-				if (this.isExtensionCommand(text)) {
-					this.editor.addToHistory(text);
-					this.editor.setText("");
-					await this.session.prompt(text);
-				} else {
-					this.queueCompactionMessage(text, "steer");
-				}
+				this.editor.addToHistory(text);
+				await this.handleBashCommand(command, isExcluded);
+				this.isBashMode = false;
+				this.updateEditorBorderColor();
 				return;
 			}
+		}
 
-			// If streaming, use prompt() with steer behavior
-			// This handles extension commands (execute immediately), prompt template expansion, and queueing
-			if (this.session.isStreaming) {
+		// Queue input during compaction (extension commands execute immediately)
+		if (this.session.isCompacting) {
+			if (this.isExtensionCommand(text)) {
 				this.editor.addToHistory(text);
 				this.editor.setText("");
-				await this.session.prompt(text, { streamingBehavior: "steer" });
-				this.updatePendingMessagesDisplay();
-				this.ui.requestRender();
-				return;
-			}
-
-			// Normal message submission
-			// First, move any pending bash components to chat
-			this.flushPendingBashComponents();
-
-			// Inline image file paths as attachments (vision models); failures
-			// (unsupported format / over size limit) abort the send with a message.
-			const attachments = await extractImageAttachments(text);
-			if (attachments.error !== undefined) {
-				this.showError(attachments.error);
-				this.editor.setText(text);
-				return;
-			}
-
-			const onInput = this.onInputCallback;
-			if (onInput) {
-				onInput(attachments.text, attachments.images.length > 0 ? attachments.images : undefined);
+				await this.session.prompt(text);
 			} else {
-				this.pendingUserInputs.push(attachments.text);
+				this.queueCompactionMessage(text, "steer");
 			}
-			this.editor.addToHistory(text);
+			return;
 		}
+
+		// If streaming, use prompt() with steer behavior
+		// This handles extension commands (execute immediately), prompt template expansion, and queueing
+		if (this.session.isStreaming) {
+			this.editor.addToHistory(text);
+			this.editor.setText("");
+			await this.session.prompt(text, { streamingBehavior: "steer" });
+			this.updatePendingMessagesDisplay();
+			this.ui.requestRender();
+			return;
+		}
+
+		// Normal message submission
+		// First, move any pending bash components to chat
+		this.flushPendingBashComponents();
+
+		// Inline image file paths as attachments (vision models); failures
+		// (unsupported format / over size limit) abort the send with a message.
+		const attachments = await extractImageAttachments(text);
+		if (attachments.error !== undefined) {
+			this.showError(attachments.error);
+			this.editor.setText(text);
+			return;
+		}
+
+		const onInput = this.onInputCallback;
+		if (onInput) {
+			onInput(attachments.text, attachments.images.length > 0 ? attachments.images : undefined);
+		} else {
+			this.pendingUserInputs.push(attachments.text);
+		}
+		this.editor.addToHistory(text);
+	}
 
 	private subscribeToAgent(): void {
 		this.unsubscribe = this.session.subscribe(async (event) => {
@@ -3077,9 +3073,7 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
-	private addCustomEntryToChat(): void {
-	}
-
+	private addCustomEntryToChat(): void {}
 
 	private addMessageToChat(message: AgentMessage, options?: { populateHistory?: boolean }): void {
 		switch (message.role) {
@@ -3907,9 +3901,7 @@ export class InteractiveMode {
 	 * Shows a selector component in place of the editor.
 	 * @param create Factory that receives a `done` callback and returns the component and focus target
 	 */
-	private showSelector(
-		create: (done: () => void) => SelectorHandle,
-	): void {
+	private showSelector(create: (done: () => void) => SelectorHandle): void {
 		const token: Record<string, never> = {};
 		let dispose: (() => void) | undefined;
 		const done = () => {
@@ -4927,7 +4919,9 @@ export class InteractiveMode {
 		this.session.setSessionName(name);
 		const sessionName = this.sessionManager.getSessionName();
 		if (sessionName !== name) {
-			this.showWarning(`Session name was normalized from ${JSON.stringify(name ?? "")} to ${JSON.stringify(sessionName ?? "")}`);
+			this.showWarning(
+				`Session name was normalized from ${JSON.stringify(name ?? "")} to ${JSON.stringify(sessionName ?? "")}`,
+			);
 		}
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(theme.fg("dim", `Session name set: ${sessionName ?? name}`), 1, 0));
@@ -4967,8 +4961,7 @@ export class InteractiveMode {
 		if (promptTokens > 0 && (cacheRead > 0 || cacheWrite > 0)) {
 			const hitRate = theme.fg("dim", `(${((cacheRead / promptTokens) * 100).toFixed(1)}%)`);
 			info += `  ${theme.fg("dim", "Cached:")} ${formatNumber(cacheRead)} ${hitRate}\n`;
-			const written =
-				cacheWrite > 0 ? ` ${theme.fg("dim", `(${formatNumber(cacheWrite)} written to cache)`)}` : "";
+			const written = cacheWrite > 0 ? ` ${theme.fg("dim", `(${formatNumber(cacheWrite)} written to cache)`)}` : "";
 			info += `  ${theme.fg("dim", "Uncached:")} ${formatNumber(input + cacheWrite)}${written}\n`;
 		}
 		info += `${theme.fg("dim", "Output:")} ${formatNumber(stats.tokens.output)}\n`;
@@ -5054,7 +5047,7 @@ export class InteractiveMode {
 		const followUp = this.getAppKeyDisplay("app.message.followUp");
 		const dequeue = this.getAppKeyDisplay("app.message.dequeue");
 		const pasteImage = this.getAppKeyDisplay("app.clipboard.pasteImage");
-		let hotkeys = `
+		const hotkeys = `
 **Navigation**
 | Key | Action |
 |-----|--------|

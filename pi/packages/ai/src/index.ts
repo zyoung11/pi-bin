@@ -1,5 +1,3 @@
-export type { Static } from "./schema.ts";
-export type { PiSchema as TSchema } from "./schema.ts";
 // Core only, side-effect free: no generated catalogs, no provider factories,
 // no api-registry, no OAuth implementations, no compat. Provider factories
 // live under "@earendil-works/pi-ai/providers/*", API implementations under
@@ -14,6 +12,7 @@ export * from "./auth/types.ts";
 export * from "./models.ts";
 export * from "./models-store.ts";
 export * from "./providers/faux.ts";
+export type { PiSchema as TSchema, Static } from "./schema.ts";
 export { Type } from "./schema.ts";
 export * from "./session-resources.ts";
 export * from "./types.ts";

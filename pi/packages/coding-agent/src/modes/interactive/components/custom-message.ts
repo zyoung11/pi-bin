@@ -1,8 +1,8 @@
-import type { Component } from "../../../../../tui/src/tui.ts";
 import { Box } from "../../../../../tui/src/components/box.ts";
 import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
+import type { Component } from "../../../../../tui/src/tui.ts";
 import { Container } from "../../../../../tui/src/tui.ts";
 import type { CustomMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
@@ -19,11 +19,7 @@ export class CustomMessageComponent extends Container {
 	private _expanded = false;
 	private outputPad: number;
 
-	constructor(
-		message: CustomMessage<unknown>,
-		markdownTheme: MarkdownTheme = getMarkdownTheme(),
-		outputPad = 1,
-	) {
+	constructor(message: CustomMessage<unknown>, markdownTheme: MarkdownTheme = getMarkdownTheme(), outputPad = 1) {
 		super();
 		this.message = message;
 		this.markdownTheme = markdownTheme;

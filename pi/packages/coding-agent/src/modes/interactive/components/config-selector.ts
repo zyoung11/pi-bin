@@ -841,12 +841,8 @@ class ResourceList extends Component implements Focusable {
 		return left === right;
 	}
 
-
 	/** Read one of the four resource arrays from a settings record without dynamic keyed reads. */
-	private resourceArrayFor(
-		record: Record<string, unknown>,
-		resourceType: ResourceItem["resourceType"],
-	): string[] {
+	private resourceArrayFor(record: Record<string, unknown>, resourceType: ResourceItem["resourceType"]): string[] {
 		if (resourceType === "extensions") return (record["extensions"] as string[] | undefined) ?? [];
 		if (resourceType === "skills") return (record["skills"] as string[] | undefined) ?? [];
 		if (resourceType === "prompts") return (record["prompts"] as string[] | undefined) ?? [];

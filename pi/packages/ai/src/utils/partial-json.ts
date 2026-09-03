@@ -38,7 +38,21 @@ function closeOpenStructures(text: string): string | undefined {
 		const tail = tailMatch[0];
 		const prevChar = out.length > tail.length ? out[out.length - tail.length - 1] : "";
 		if ("[{,: \t".includes(prevChar)) {
-			const full = { t: "true", tr: "true", tru: "true", f: "false", fa: "false", fal: "false", fals: "false", n: "null", nu: "null", nul: "null", N: "NaN", Na: "NaN", Nan: "NaN" }[tail];
+			const full = {
+				t: "true",
+				tr: "true",
+				tru: "true",
+				f: "false",
+				fa: "false",
+				fal: "false",
+				fals: "false",
+				n: "null",
+				nu: "null",
+				nul: "null",
+				N: "NaN",
+				Na: "NaN",
+				Nan: "NaN",
+			}[tail];
 			if (full !== undefined) out = out.slice(0, out.length - tail.length) + full;
 		}
 	}

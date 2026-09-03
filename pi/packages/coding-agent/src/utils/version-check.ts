@@ -1,5 +1,5 @@
-import { compare, valid } from "./mini-semver.ts";
 import { fetchWithRetry } from "./management-http.ts";
+import { compare, valid } from "./mini-semver.ts";
 import { getPiUserAgent } from "./pi-user-agent.ts";
 
 const LATEST_VERSION_URL = "https://pi.dev/api/latest-version";

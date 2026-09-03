@@ -14,7 +14,6 @@ import {
 	type CredentialInfo,
 	type CredentialStore,
 	createModels,
-	ModelsImpl,
 	type DeferredCancelOptions,
 	type DeferredFetchOptions,
 	type DeferredHandle,
@@ -25,6 +24,7 @@ import {
 	type ModelsDeferredCancelOptions,
 	type ModelsDeferredFetchOptions,
 	ModelsError,
+	type ModelsImpl,
 	type ModelsRefreshOptions,
 	type ModelsRefreshResult,
 	type ModelsRequestTransforms,
@@ -99,7 +99,9 @@ export class CredentialSynchronizationError extends Error {
 		credential: Credential | undefined,
 		cause?: unknown,
 	) {
-		super(`Credential ${operation} committed for ${providerId}, but local synchronization failed${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`);
+		super(
+			`Credential ${operation} committed for ${providerId}, but local synchronization failed${cause instanceof Error && cause.message ? `: ${cause.message}` : ""}`,
+		);
 		this.name = "CredentialSynchronizationError";
 		this.providerId = providerId;
 		this.operation = operation;
@@ -221,7 +223,9 @@ export class ModelRuntime implements Models {
 		const modelsStore: ModelsStore =
 			options.modelsStore ??
 			(modelsPath
-				? (new FileModelsStore(options.modelsStorePath ?? join(dirname(modelsPath), "models-store.json")) as ModelsStore)
+				? (new FileModelsStore(
+						options.modelsStorePath ?? join(dirname(modelsPath), "models-store.json"),
+					) as ModelsStore)
 				: (new InMemoryCodingAgentModelsStore() as ModelsStore));
 		const runtime = new ModelRuntime(
 			credentials,
@@ -493,7 +497,10 @@ export class ModelRuntime implements Models {
 		return this.snapshot.configuredProviders.has(providerId);
 	}
 
-	getAuth(providerOrModel: string | Model<Api>, overrides?: ModelRuntimeAuthOverrides): Promise<AuthResult | undefined>;
+	getAuth(
+		providerOrModel: string | Model<Api>,
+		overrides?: ModelRuntimeAuthOverrides,
+	): Promise<AuthResult | undefined>;
 	async getAuth(
 		providerOrModel: string | Model<Api>,
 		overrides: ModelRuntimeAuthOverrides = {},
@@ -511,10 +518,7 @@ export class ModelRuntime implements Models {
 			...resolution,
 			auth: {
 				...resolution.auth,
-				headers: mergeHeaders(
-				resolution.auth.headers,
-				configuredHeaders as ProviderHeaders | undefined,
-			),
+				headers: mergeHeaders(resolution.auth.headers, configuredHeaders as ProviderHeaders | undefined),
 			},
 		};
 	}
@@ -654,7 +658,11 @@ export class ModelRuntime implements Models {
 	streamSimple(model: Model<Api>, context: Context, options?: ModelsSimpleStreamOptions): AssistantMessageEventStream {
 		return lazyStream(model, async () => {
 			const prepared = await this.prepareRequest(model, options);
-			return prepared.provider.streamSimple(prepared.model, context, prepared.options as unknown as SimpleStreamOptions);
+			return prepared.provider.streamSimple(
+				prepared.model,
+				context,
+				prepared.options as unknown as SimpleStreamOptions,
+			);
 		});
 	}
 
@@ -672,7 +680,11 @@ export class ModelRuntime implements Models {
 			if (!prepared.provider.fetchDeferred) {
 				throw new ModelsError("provider", `Provider ${model.provider} does not support deferred responses`);
 			}
-			return prepared.provider.fetchDeferred(prepared.model, handle, prepared.options as unknown as DeferredFetchOptions);
+			return prepared.provider.fetchDeferred(
+				prepared.model,
+				handle,
+				prepared.options as unknown as DeferredFetchOptions,
+			);
 		}).result();
 	}
 
@@ -685,18 +697,27 @@ export class ModelRuntime implements Models {
 		if (!prepared.provider.cancelDeferred) {
 			throw new ModelsError("provider", `Provider ${model.provider} does not support deferred responses`);
 		}
-		await prepared.provider.cancelDeferred(prepared.model, handle, prepared.options as unknown as DeferredCancelOptions);
+		await prepared.provider.cancelDeferred(
+			prepared.model,
+			handle,
+			prepared.options as unknown as DeferredCancelOptions,
+		);
 	}
 
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
 		const signal = operationSignal(interaction.signal);
 		let credentialHolder: Credential | undefined;
-		const credentialPromise = enqueueCredentialOperation(this.credentialOperations, providerId, signal, async (): Promise<unknown> => {
-			const credential = await this.models.login(providerId, type, { ...interaction, signal });
-			await this.synchronizeCredentialState(providerId, "login", credential, signal);
-			credentialHolder = credential;
-			return undefined;
-		});
+		const credentialPromise = enqueueCredentialOperation(
+			this.credentialOperations,
+			providerId,
+			signal,
+			async (): Promise<unknown> => {
+				const credential = await this.models.login(providerId, type, { ...interaction, signal });
+				await this.synchronizeCredentialState(providerId, "login", credential, signal);
+				credentialHolder = credential;
+				return undefined;
+			},
+		);
 		return credentialPromise.then(() => {
 			if (credentialHolder === undefined) {
 				throw new Error(`Login for provider ${providerId} did not produce a credential`);

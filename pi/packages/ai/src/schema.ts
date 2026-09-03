@@ -128,13 +128,16 @@ export interface PiRef<Name extends string = string> {
 	description?: string;
 }
 
-export interface PiCyclic<Defs extends Record<string, PiSchema> = Record<string, PiSchema>, Ref extends string = string> {
+export interface PiCyclic<
+	Defs extends Record<string, PiSchema> = Record<string, PiSchema>,
+	Ref extends string = string,
+> {
 	$defs: Record<string, PiSchema>;
 	$ref: Ref;
 	description?: string;
 }
 
-export interface PiUnsafe<Type extends unknown = unknown> {}
+export interface PiUnsafe<Type = unknown> {}
 
 export type Static<S> = StaticOf<S, StaticDefs>;
 

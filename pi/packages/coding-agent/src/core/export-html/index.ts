@@ -1,18 +1,17 @@
-import type { AgentState } from "../../../../agent/src/index.ts";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { basename, join } from "path";
+import type { AgentState } from "../../../../agent/src/index.ts";
 import { APP_NAME, getExportTemplateDir } from "../../config.ts";
 import { getResolvedThemeColors, getThemeExportColors } from "../../modes/interactive/theme/theme.ts";
 import { normalizePath, resolvePath } from "../../utils/paths.ts";
-import type { ToolDefinition } from "../tools/tool-types.ts";
 import type { SessionEntry } from "../session-manager.ts";
 import { SessionManager } from "../session-manager.ts";
+import type { ToolDefinition } from "../tools/tool-types.ts";
 
 /** JSON.stringify an arbitrary value via an unknown parameter. */
 function jsonOf(value: unknown): string {
 	return JSON.stringify(value) ?? "";
 }
-
 
 /**
  * Interface for rendering custom tools to HTML.
@@ -216,7 +215,12 @@ function preRenderCustomTools(
 			// Only render if we have a pre-rendered call OR it's not template-rendered
 			const existing = renderedTools[msg.toolCallId];
 			if (existing || !TEMPLATE_RENDERED_TOOLS.has(toolName)) {
-				const renderContent: Array<{ type: string; text: string | undefined; data: string | undefined; mimeType: string | undefined }> = [];
+				const renderContent: Array<{
+					type: string;
+					text: string | undefined;
+					data: string | undefined;
+					mimeType: string | undefined;
+				}> = [];
 				for (const block of msg.content) {
 					if (block.type === "text") {
 						renderContent.push({ type: "text", text: block.text, data: undefined, mimeType: undefined });

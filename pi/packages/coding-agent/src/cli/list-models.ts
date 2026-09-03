@@ -4,9 +4,9 @@
 
 import type { Api, Model } from "../../../ai/src/index.ts";
 import { fuzzyFilter } from "../../../tui/src/fuzzy.ts";
-import chalk from "../utils/mini-chalk.ts";
 import { formatNoModelsAvailableMessage } from "../core/auth-guidance.ts";
 import type { ModelRuntime } from "../core/model-runtime.ts";
+import chalk from "../utils/mini-chalk.ts";
 
 /** Column width: header length vs the longest cell in the column. */
 function columnWidth(header: string, cells: string[]): number {
@@ -16,7 +16,6 @@ function columnWidth(header: string, cells: string[]): number {
 	}
 	return max;
 }
-
 
 /**
  * Format a number as human-readable (e.g., 200000 -> "200K", 1000000 -> "1M")
@@ -91,12 +90,30 @@ export async function listModels(
 	};
 
 	const widths = {
-		provider: columnWidth(headers.provider, rows.map((r) => r.provider)),
-		model: columnWidth(headers.model, rows.map((r) => r.model)),
-		context: columnWidth(headers.context, rows.map((r) => r.context)),
-		maxOut: columnWidth(headers.maxOut, rows.map((r) => r.maxOut)),
-		thinking: columnWidth(headers.thinking, rows.map((r) => r.thinking)),
-		images: columnWidth(headers.images, rows.map((r) => r.images)),
+		provider: columnWidth(
+			headers.provider,
+			rows.map((r) => r.provider),
+		),
+		model: columnWidth(
+			headers.model,
+			rows.map((r) => r.model),
+		),
+		context: columnWidth(
+			headers.context,
+			rows.map((r) => r.context),
+		),
+		maxOut: columnWidth(
+			headers.maxOut,
+			rows.map((r) => r.maxOut),
+		),
+		thinking: columnWidth(
+			headers.thinking,
+			rows.map((r) => r.thinking),
+		),
+		images: columnWidth(
+			headers.images,
+			rows.map((r) => r.images),
+		),
 	};
 
 	// Print header

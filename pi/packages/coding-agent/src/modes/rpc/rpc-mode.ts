@@ -13,11 +13,7 @@
 import * as crypto from "node:crypto";
 import type { AgentSession } from "../../core/agent-session.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
-import {
-	flushRawStdout,
-	takeOverStdout,
-	writeRawStdout,
-} from "../../core/output-guard.ts";
+import { flushRawStdout, takeOverStdout, writeRawStdout } from "../../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { toJsonEvent } from "../json-event.ts";
@@ -44,11 +40,7 @@ export type {
  * Run in RPC mode.
  * Listens for JSON commands on stdin, outputs events and responses on stdout.
  */
-function success(
-	id: string | undefined,
-	command: string,
-	data?: object | null,
-): RpcResponse {
+function success(id: string | undefined, command: string, data?: object | null): RpcResponse {
 	if (data === undefined) {
 		return { id, type: "response", command, success: true } as RpcResponse;
 	}
@@ -84,8 +76,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		unsubscribe = session.subscribe((event) => {
 			output(toJsonEvent(event));
 		});
-		unsubscribeBackpressure = session.agent.subscribe(async () => {
-					});
+		unsubscribeBackpressure = session.agent.subscribe(async () => {});
 	};
 
 	const registerSignalHandlers = (): void => {
@@ -455,7 +446,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					`Failed to parse command: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
 				),
 			);
-						return;
+			return;
 		}
 
 		const command = parsed as RpcCommand;
@@ -463,7 +454,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			const response = await handleCommand(command);
 			if (response) {
 				output(response);
-							}
+			}
 		} catch (commandError: unknown) {
 			output(
 				error(
@@ -472,7 +463,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 					commandError instanceof Error ? commandError.message : String(commandError),
 				),
 			);
-					}
+		}
 	};
 
 	const onInputEnd = () => {

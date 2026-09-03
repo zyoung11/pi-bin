@@ -22,8 +22,8 @@ import { Input } from "../../tui/src/components/input.ts";
 import { SelectList } from "../../tui/src/components/select-list.ts";
 import { matchesKey } from "../../tui/src/keys.ts";
 import { ProcessTerminal } from "../../tui/src/terminal.ts";
-import { TuiMainScreen } from "../../tui/src/tui-main-screen.ts";
 import { Component, Container, type TUI } from "../../tui/src/tui.ts";
+import { TuiMainScreen } from "../../tui/src/tui-main-screen.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

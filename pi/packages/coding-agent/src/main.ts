@@ -6,8 +6,8 @@
  */
 
 import { createInterface } from "node:readline";
+import type { CredentialStore } from "../../ai/src/auth/types.ts";
 import { type ImageContent, modelsAreEqual } from "../../ai/src/index.ts";
-import chalk from "./utils/mini-chalk.ts";
 import { type Args, type Mode, normalizeSessionName, parseArgs, printHelp } from "./cli/args.ts";
 import {
 	type AuthCheckResult,
@@ -40,7 +40,6 @@ import {
 	createAgentSessionServices,
 } from "./core/agent-session-services.ts";
 import { formatNoModelsAvailableMessage } from "./core/auth-guidance.ts";
-import type { CredentialStore } from "../../ai/src/auth/types.ts";
 import { AuthStorage, ReadOnlyAuthStorage } from "./core/auth-storage.ts";
 import { exportFromFile } from "./core/export-html/index.ts";
 import { applyHttpProxySettings, configureHttpDispatcher } from "./core/http-dispatcher.ts";
@@ -63,10 +62,15 @@ import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/tru
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
-import { cleanupManagedInstall, getPackageCommandExitCode, handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
+import {
+	cleanupManagedInstall,
+	getPackageCommandExitCode,
+	handleConfigCommand,
+	handlePackageCommand,
+} from "./package-manager-cli.ts";
+import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
-
 
 /**
  * Read all content from piped stdin.
@@ -97,7 +101,13 @@ function reportDiagnostics(diagnostics: readonly AgentSessionRuntimeDiagnostic[]
 	for (const diagnostic of diagnostics) {
 		const prefix = diagnostic.type === "error" ? "Error: " : diagnostic.type === "warning" ? "Warning: " : "";
 		const message = `${prefix}${diagnostic.message}`;
-		console.error(diagnostic.type === "error" ? chalk.red(message) : diagnostic.type === "warning" ? chalk.yellow(message) : chalk.dim(message));
+		console.error(
+			diagnostic.type === "error"
+				? chalk.red(message)
+				: diagnostic.type === "warning"
+					? chalk.yellow(message)
+					: chalk.dim(message),
+		);
 	}
 }
 
@@ -861,10 +871,7 @@ export async function main(args: string[]) {
 	}
 	time("readPipedStdin");
 
-	const { initialMessage, initialImages } = await prepareInitialMessage(
-		parsed,
-		stdinContent,
-	);
+	const { initialMessage, initialImages } = await prepareInitialMessage(parsed, stdinContent);
 	time("prepareInitialMessage");
 	initTheme(settingsManager.getTheme(), appMode === "interactive");
 	time("initTheme");

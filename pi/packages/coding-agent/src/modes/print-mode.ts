@@ -18,7 +18,6 @@ function jsonOf(value: unknown): string {
 	return JSON.stringify(value) ?? "";
 }
 
-
 /** Read the role field off a message without triggering union field-read walls. */
 function messageRoleOf(message: unknown): string {
 	const record = message as unknown as Record<string, unknown>;
@@ -98,11 +97,7 @@ export async function runPrintMode(runtimeHost: AgentSessionRuntime, options: Pr
 				writeRawStdout(`${jsonOf(toJsonEvent(event))}\n`);
 			}
 		});
-		unsubscribeBackpressure =
-			mode === "json"
-				? session.agent.subscribe(async () => {
-											})
-				: undefined;
+		unsubscribeBackpressure = mode === "json" ? session.agent.subscribe(async () => {}) : undefined;
 	};
 
 	try {

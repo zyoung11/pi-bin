@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+
 let lastTimestamp = -Infinity;
 let sequence = 0;
 

@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "../../../ai/src/index.ts";
-import type { SessionEntry } from "./session-manager.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
+import type { SessionEntry } from "./session-manager.ts";
 
 /**
  * Prompt-cache TTL: idle gaps longer than this are worth mentioning as the
@@ -29,7 +29,6 @@ export interface CacheWasteTotals {
 	/** Number of counted misses (turns above the noise floor). */
 	missCount: number;
 }
-
 
 /** The last request seen by the scan; everything in its prompt should be cached. */
 interface PreviousRequest {
@@ -146,10 +145,7 @@ export function computeCacheWaste(entries: SessionEntry[], models: ModelRuntime)
  * (by reference) that paid for them. Used to re-derive transcript notices when
  * rebuilding the chat from entries (resume, post-compaction rebuild).
  */
-export function collectCacheMisses(
-	entries: SessionEntry[],
-	models: ModelRuntime,
-): CacheMissEntry[] {
+export function collectCacheMisses(entries: SessionEntry[], models: ModelRuntime): CacheMissEntry[] {
 	return scan(entries, models).misses;
 }
 

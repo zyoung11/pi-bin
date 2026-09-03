@@ -3,8 +3,8 @@ import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { Container } from "../../../../../tui/src/tui.ts";
-import type { MarkdownTransformer } from "./markdown-transform.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
+import type { MarkdownTransformer } from "./markdown-transform.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";

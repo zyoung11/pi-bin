@@ -6,9 +6,7 @@
  */
 
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
-import type { Api,
-	ImageContent, Model
-} from "../../../../ai/src/index.ts"
+import type { Api, ImageContent, Model } from "../../../../ai/src/index.ts";
 import type { SessionStats } from "../../core/agent-session.ts";
 import type { BashResult } from "../../core/bash-executor.ts";
 import type { CompactionResult } from "../../core/compaction/index.ts";

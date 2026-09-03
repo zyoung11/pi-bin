@@ -2,9 +2,9 @@
  * Shared diff computation utilities for the edit and similar tools.
  */
 
-import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
+import { accessSync, readFileSync } from "node:fs";
 import { constants } from "fs";
-import { readFileSync, accessSync } from "node:fs";
+import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
 import { splitBom } from "../../utils/text.ts";
 import { resolveToCwd } from "./path-utils.ts";
 

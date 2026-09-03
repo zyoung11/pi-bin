@@ -1,6 +1,6 @@
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
-import { Type, type Static } from "../../../../ai/src/schema.ts";
+import { type Static, Type } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { Component, Container } from "../../../../tui/src/tui.ts";
 import { truncateToWidth } from "../../../../tui/src/utils.ts";
@@ -22,7 +22,6 @@ import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
 import type { ToolDefinition, ToolRenderResultOptions } from "./tool-types.ts";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from "./truncate.ts";
-import { existsSync } from "node:fs";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
@@ -284,62 +283,62 @@ class BashResultRenderComponent extends Container {
 		cachedSkipped: undefined,
 	};
 	rebuild(
-	result: AgentToolResult<unknown>,
-	options: ToolRenderResultOptions,
-	showImages: boolean,
-	startedAt: number | undefined,
-	endedAt: number | undefined,
+		result: AgentToolResult<unknown>,
+		options: ToolRenderResultOptions,
+		showImages: boolean,
+		startedAt: number | undefined,
+		endedAt: number | undefined,
 	): void {
-	const state = this.state;
-	this.clear();
+		const state = this.state;
+		this.clear();
 
-	let output = getTextOutput(result, showImages).trim();
-	const details = bashDetailsOf(result.details);
-	const truncation = details?.truncation;
-	const fullOutputPath = details?.fullOutputPath;
-	if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {
-		const footerStart = output.lastIndexOf("\n\n[");
-		if (footerStart !== -1 && output.slice(footerStart).includes(fullOutputPath)) {
-			output = output.slice(0, footerStart).trimEnd();
-		}
-	}
-
-	if (output) {
-		const styledOutput = output
-			.split("\n")
-			.map((line) => theme.fg("toolOutput", line))
-			.join("\n");
-
-		if (options.expanded) {
-			this.addChild(new Text(`\n${styledOutput}`, 0, 0));
-		} else {
-			const adHoc = new BashPreviewComponent(styledOutput, state);
-			this.addChild(adHoc);
-		}
-	}
-
-	if (truncation?.truncated || fullOutputPath) {
-		const warnings: string[] = [];
-		if (fullOutputPath) {
-			warnings.push(`Full output: ${fullOutputPath}`);
-		}
-		if (truncation?.truncated) {
-			if (truncation.truncatedBy === "lines") {
-				warnings.push(`Truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines`);
-			} else {
-				warnings.push(
-					`Truncated: ${truncation.outputLines} lines shown (${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit)`,
-				);
+		let output = getTextOutput(result, showImages).trim();
+		const details = bashDetailsOf(result.details);
+		const truncation = details?.truncation;
+		const fullOutputPath = details?.fullOutputPath;
+		if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {
+			const footerStart = output.lastIndexOf("\n\n[");
+			if (footerStart !== -1 && output.slice(footerStart).includes(fullOutputPath)) {
+				output = output.slice(0, footerStart).trimEnd();
 			}
 		}
-		this.addChild(new Text(`\n${theme.fg("warning", `[${warnings.join(". ")}]`)}`, 0, 0));
-	}
 
-	if (startedAt !== undefined) {
-		const label = options.isPartial ? "Elapsed" : "Took";
-		const endTime = endedAt ?? Date.now();
-		this.addChild(new Text(`\n${theme.fg("muted", `${label} ${formatDuration(endTime - startedAt)}`)}`, 0, 0));
-	}
+		if (output) {
+			const styledOutput = output
+				.split("\n")
+				.map((line) => theme.fg("toolOutput", line))
+				.join("\n");
+
+			if (options.expanded) {
+				this.addChild(new Text(`\n${styledOutput}`, 0, 0));
+			} else {
+				const adHoc = new BashPreviewComponent(styledOutput, state);
+				this.addChild(adHoc);
+			}
+		}
+
+		if (truncation?.truncated || fullOutputPath) {
+			const warnings: string[] = [];
+			if (fullOutputPath) {
+				warnings.push(`Full output: ${fullOutputPath}`);
+			}
+			if (truncation?.truncated) {
+				if (truncation.truncatedBy === "lines") {
+					warnings.push(`Truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines`);
+				} else {
+					warnings.push(
+						`Truncated: ${truncation.outputLines} lines shown (${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit)`,
+					);
+				}
+			}
+			this.addChild(new Text(`\n${theme.fg("warning", `[${warnings.join(". ")}]`)}`, 0, 0));
+		}
+
+		if (startedAt !== undefined) {
+			const label = options.isPartial ? "Elapsed" : "Took";
+			const endTime = endedAt ?? Date.now();
+			this.addChild(new Text(`\n${theme.fg("muted", `${label} ${formatDuration(endTime - startedAt)}`)}`, 0, 0));
+		}
 	}
 }
 
@@ -380,15 +379,11 @@ export function createShellToolDefinition(
 		label: config.label,
 		description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
 		promptSnippet: config.promptSnippet,
-		promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? config.promptGuidelines.slice() : undefined,
+		promptGuidelines:
+			exposeSessionEnvironment && config.promptGuidelines ? config.promptGuidelines.slice() : undefined,
 		parameters: bashSchema,
 		constrainedSampling: getExperimentalToolSampling(),
-		async execute(
-			_toolCallId,
-			params: unknown,
-			signal,
-			onUpdate,
-		): Promise<AgentToolResult<unknown>> {
+		async execute(_toolCallId, params: unknown, signal, onUpdate): Promise<AgentToolResult<unknown>> {
 			const { command, timeout } = params as { command: string; timeout?: number };
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(
@@ -560,10 +555,7 @@ const bashToolConfig: ShellToolConfig = {
 	tempFilePrefix: "pi-bash",
 };
 
-export function createBashToolDefinition(
-	cwd: string,
-	options?: BashToolOptions,
-): ToolDefinition<typeof bashSchema> {
+export function createBashToolDefinition(cwd: string, options?: BashToolOptions): ToolDefinition<typeof bashSchema> {
 	return createShellToolDefinition(cwd, bashToolConfig, options);
 }
 

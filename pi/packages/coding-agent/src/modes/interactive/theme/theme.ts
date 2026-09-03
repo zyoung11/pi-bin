@@ -1,20 +1,20 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
-import { type Static, Compile, Type } from "../../../../../ai/src/schema.ts";
+import { Compile, type Static, Type } from "../../../../../ai/src/schema.ts";
 import type { EditorTheme } from "../../../../../tui/src/components/editor.ts";
 import type { MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
 import type { SelectListTheme } from "../../../../../tui/src/components/select-list.ts";
 import type { SettingsListTheme } from "../../../../../tui/src/components/settings-list.ts";
 import type { RgbColor } from "../../../../../tui/src/terminal-colors.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
-import chalk from "../../../utils/mini-chalk.ts";
 import { getCustomThemesDir } from "../../../config.ts";
-import { DARK_THEME_JSON } from "./theme-dark.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
-import { closeWatcher, watchWithErrorHandler, type FsPollWatcher } from "../../../utils/fs-watch.ts";
+import { closeWatcher, type FsPollWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";
+import chalk from "../../../utils/mini-chalk.ts";
 import { highlight, supportsLanguage } from "../../../utils/syntax-highlight.ts";
 import { stripBom } from "../../../utils/text.ts";
+import { DARK_THEME_JSON } from "./theme-dark.ts";
 
 // ============================================================================
 // Types & Schema
@@ -434,10 +434,22 @@ function withThemeColorFallbacks(colors: ThemeJson["colors"]): Record<string, st
 		const value = source[key];
 		if (value !== undefined) merged[key] = value as string | number;
 	}
-	merged.thinkingMax = (source["thinkingMax"] as string | number | undefined) ?? (source["thinkingXhigh"] as string | number | undefined) ?? "";
-	merged.scrollbarThumb = (source["scrollbarThumb"] as string | number | undefined) ?? (source["selectedBg"] as string | number | undefined) ?? "";
-	merged.searchMatchBg = (source["searchMatchBg"] as string | number | undefined) ?? (source["selectedBg"] as string | number | undefined) ?? "";
-	merged.searchMatchText = (source["searchMatchText"] as string | number | undefined) ?? (source["text"] as string | number | undefined) ?? "";
+	merged.thinkingMax =
+		(source["thinkingMax"] as string | number | undefined) ??
+		(source["thinkingXhigh"] as string | number | undefined) ??
+		"";
+	merged.scrollbarThumb =
+		(source["scrollbarThumb"] as string | number | undefined) ??
+		(source["selectedBg"] as string | number | undefined) ??
+		"";
+	merged.searchMatchBg =
+		(source["searchMatchBg"] as string | number | undefined) ??
+		(source["selectedBg"] as string | number | undefined) ??
+		"";
+	merged.searchMatchText =
+		(source["searchMatchText"] as string | number | undefined) ??
+		(source["text"] as string | number | undefined) ??
+		"";
 	return merged;
 }
 
@@ -671,7 +683,7 @@ function assertThemeNameIsValid(name: string): void {
 function parseThemeJson(label: string, json: unknown): ThemeJson {
 	if (!validateThemeJson.Check(json)) {
 		const errors: { keyword: string; instancePath: string; message: string; params?: unknown }[] = [];
-	// PiValidationError 结构按 keyword/instancePath/message 读取
+		// PiValidationError 结构按 keyword/instancePath/message 读取
 		for (const error of validateThemeJson.Errors(json)) errors.push(error);
 		const missingColors = new Set<string>();
 		const otherErrors: string[] = [];
@@ -695,9 +707,7 @@ function parseThemeJson(label: string, json: unknown): ThemeJson {
 			const missingList: string[] = [];
 			for (const color of missingColors) missingList.push(color);
 			missingList.sort();
-			errorMessage += missingList
-				.map((color) => `  - ${color}`)
-				.join("\n");
+			errorMessage += missingList.map((color) => `  - ${color}`).join("\n");
 			errorMessage += '\n\nPlease add these colors to your theme\'s "colors" object.';
 			errorMessage += "\nSee the built-in themes (dark.json, light.json) for reference values.";
 		}
@@ -795,8 +805,6 @@ export function getThemeByName(name: string): Theme | undefined {
 		return undefined;
 	}
 }
-
-
 
 // ============================================================================
 // Global Theme Instance
@@ -1048,7 +1056,6 @@ export function getResolvedThemeColors(themeName?: string): Record<string, strin
 	}
 	return cssColors;
 }
-
 
 /**
  * Get explicit export colors from theme JSON, if specified.

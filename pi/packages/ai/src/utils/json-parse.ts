@@ -5,7 +5,7 @@ const VALID_JSON_ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t", "u"
 function toHex4(value: number): string {
 	const digits = "0123456789abcdef";
 	let out = "";
-	let v = value;
+	const v = value;
 	for (let shift = 12; shift >= 0; shift -= 4) {
 		out += digits[(v >> shift) & 0xf];
 	}

@@ -157,7 +157,7 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
 function convertMessageToLlm(m: AgentMessage): Message | undefined {
 	switch (m.role) {
 		case "bashExecution":
-				// Skip messages excluded from context (!! prefix)
+			// Skip messages excluded from context (!! prefix)
 			if (m.excludeFromContext) {
 				return undefined;
 			}

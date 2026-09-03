@@ -21,7 +21,12 @@ function stripComment(text: string): string {
 			inSingle = !inSingle;
 		} else if (char === '"' && !inSingle) {
 			inDouble = !inDouble;
-		} else if (char === "#" && !inSingle && !inDouble && (index === 0 || text[index - 1] === " " || text[index - 1] === "\t")) {
+		} else if (
+			char === "#" &&
+			!inSingle &&
+			!inDouble &&
+			(index === 0 || text[index - 1] === " " || text[index - 1] === "\t")
+		) {
 			return text.slice(0, index);
 		}
 	}
@@ -72,10 +77,10 @@ function parseScalar(raw: string): YamlValue {
 		if (current.trim() !== "") items.push(parseScalar(current));
 		return items;
 	}
-	if ((text.startsWith('"') && text.endsWith('"') && text.length >= 2)) {
+	if (text.startsWith('"') && text.endsWith('"') && text.length >= 2) {
 		return text.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 	}
-	if ((text.startsWith("'") && text.endsWith("'") && text.length >= 2)) {
+	if (text.startsWith("'") && text.endsWith("'") && text.length >= 2) {
 		return text.slice(1, -1).replace(/''/g, "'");
 	}
 	const asNumber = Number(text);
@@ -107,7 +112,11 @@ function parseBlock(lines: Line[], start: number, indent: number): [number, Yaml
 	if (first.content.startsWith("- ") || first.content === "-") {
 		const items: YamlValue[] = [];
 		let index = start;
-		while (index < lines.length && lines[index].indent === first.indent && (lines[index].content.startsWith("- ") || lines[index].content === "-")) {
+		while (
+			index < lines.length &&
+			lines[index].indent === first.indent &&
+			(lines[index].content.startsWith("- ") || lines[index].content === "-")
+		) {
 			const line = lines[index];
 			const rest = line.content === "-" ? "" : line.content.slice(2);
 			if (rest === "") {

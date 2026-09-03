@@ -10,8 +10,6 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { Markdown, type MarkdownTheme } from "../../tui/src/components/markdown.ts";
-import chalk from "./utils/mini-chalk.ts";
-import lockfile from "./utils/mini-lockfile.ts";
 import { selectConfig } from "./cli/config-selector.ts";
 import { createProjectTrustContext } from "./cli/project-trust.ts";
 import {
@@ -34,6 +32,8 @@ import { DefaultResourceLoader } from "./core/resource-loader.ts";
 import { SettingsManager } from "./core/settings-manager.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
 import { spawnProcess, spawnProcessSync, waitForChildProcess } from "./utils/child-process.ts";
+import chalk from "./utils/mini-chalk.ts";
+import lockfile from "./utils/mini-lockfile.ts";
 import { canonicalizePath, getCwdRelativePath } from "./utils/paths.ts";
 import { getPiUserAgent } from "./utils/pi-user-agent.ts";
 import { formatVersionCheckError, getLatestPiRelease, isNewerPackageVersion } from "./utils/version-check.ts";
@@ -771,9 +771,7 @@ export function getPackageCommandExitCode(): number | undefined {
 	return packageCommandExitCode;
 }
 
-export async function handleConfigCommand(
-	args: string[],
-): Promise<boolean> {
+export async function handleConfigCommand(args: string[]): Promise<boolean> {
 	const command = args.length > 0 ? args[0] : undefined;
 	const rest = args.slice(1);
 	if (command !== "config") {
@@ -843,9 +841,7 @@ export async function handleConfigCommand(
 	process.exit(0);
 }
 
-export async function handlePackageCommand(
-	args: string[],
-): Promise<boolean> {
+export async function handlePackageCommand(args: string[]): Promise<boolean> {
 	const options = parsePackageCommand(args);
 	if (!options) {
 		return false;

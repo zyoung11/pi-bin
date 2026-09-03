@@ -3,16 +3,6 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { contentText } from "../../ai/src/index.ts";
-import {
-	type AgentSession,
-	type CreateAgentSessionOptions,
-	createAgentSessionFromServices,
-	createAgentSessionServices,
-	ModelRuntime,
-	SessionManager,
-	SettingsManager,
-} from "../../coding-agent/src/index.ts";
 import {
 	createHarness,
 	type Harness,
@@ -23,6 +13,16 @@ import {
 	type TranscriptEvent,
 	toJsonValue,
 } from "vitest-evals/harness";
+import { contentText } from "../../ai/src/index.ts";
+import {
+	type AgentSession,
+	type CreateAgentSessionOptions,
+	createAgentSessionFromServices,
+	createAgentSessionServices,
+	ModelRuntime,
+	SessionManager,
+	SettingsManager,
+} from "../../coding-agent/src/index.ts";
 import { PI_SESSION_SNAPSHOT_ARTIFACT } from "./vitest-evals/artifacts.ts";
 
 export type PiCodingAgentInput = string | Array<{ type: "prompt"; content: string } | { type: "reload" }>;

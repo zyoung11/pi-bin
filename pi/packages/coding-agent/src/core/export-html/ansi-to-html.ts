@@ -222,7 +222,7 @@ export function ansiToHtml(text: string): string {
 
 		// Parse SGR parameters
 		const paramStr = match[1];
-				const params: number[] = [];
+		const params: number[] = [];
 		if (paramStr) {
 			for (const p of paramStr.split(";")) {
 				const parsed = Number(p);

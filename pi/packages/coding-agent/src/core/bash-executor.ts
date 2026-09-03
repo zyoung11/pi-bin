@@ -7,10 +7,9 @@
  */
 
 import { randomBytes } from "node:crypto";
-
+import { appendFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendFileSync, writeFileSync } from "node:fs";
 import { stripAnsi } from "../utils/ansi.ts";
 import { sanitizeBinaryOutput } from "../utils/shell.ts";
 import type { BashOperations } from "./tools/bash.ts";

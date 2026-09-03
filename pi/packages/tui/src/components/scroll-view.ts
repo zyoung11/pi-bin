@@ -1,4 +1,4 @@
-import { type ScrollLayoutNode } from "../layout-node.ts";
+import type { ScrollLayoutNode } from "../layout-node.ts";
 import { type Component, Container } from "../tui.ts";
 
 export type ScrollViewScrollbar = "hidden" | "auto" | "always";

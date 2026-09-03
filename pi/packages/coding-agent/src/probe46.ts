@@ -1,18 +1,18 @@
 // Probe for r46: wide-boundary tool definition patterns (Route W regression probe).
 import { Box } from "../../tui/src/components/box.ts";
 import { Text as RealText } from "../../tui/src/components/text.ts";
-import { type Component } from "../../tui/src/tui.ts";
+import type { Component } from "../../tui/src/tui.ts";
 
 void Box;
 
-import type { ToolDefinition } from "./core/tools/tool-types.ts";
 import type { AgentToolResult } from "../../agent/src/index.ts";
 import type { BashToolDetails } from "./core/tools/bash.ts";
 import { createBashToolDefinition } from "./core/tools/bash.ts";
-import { createReadToolDefinition } from "./core/tools/read.ts";
 import { createEditToolDefinition } from "./core/tools/edit.ts";
+import { createToolDefinition, type ToolDef } from "./core/tools/index.ts";
+import { createReadToolDefinition } from "./core/tools/read.ts";
+import type { ToolDefinition } from "./core/tools/tool-types.ts";
 import { createWriteToolDefinition } from "./core/tools/write.ts";
-import { type ToolDef, createToolDefinition } from "./core/tools/index.ts";
 import { theme } from "./modes/interactive/theme/theme.ts";
 import "./core/keybindings.ts";
 
@@ -176,4 +176,5 @@ export const p4call: P4State = p4({});
 export function classDoubleJump(provider: unknown): ModelsImpl {
 	return provider as unknown as ModelsImpl;
 }
-import { ModelsImpl } from "../../ai/src/models.ts";
+
+import type { ModelsImpl } from "../../ai/src/models.ts";

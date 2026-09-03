@@ -28,7 +28,13 @@ export function stripJsonComments(input: string): string {
 		}
 		if (ch === ",") {
 			let j = i + 1;
-			while (j < input.length && (input.charAt(j) === " " || input.charAt(j) === "\t" || input.charAt(j) === "\n" || input.charAt(j) === "\r")) {
+			while (
+				j < input.length &&
+				(input.charAt(j) === " " ||
+					input.charAt(j) === "\t" ||
+					input.charAt(j) === "\n" ||
+					input.charAt(j) === "\r")
+			) {
 				j++;
 			}
 			const next = input.charAt(j);

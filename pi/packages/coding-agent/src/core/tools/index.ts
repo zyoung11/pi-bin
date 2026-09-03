@@ -45,11 +45,11 @@ export {
 } from "./write.ts";
 
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import type { ToolDefinition } from "./tool-types.ts";
 import type { PiSchema as TSchema } from "../../../../ai/src/schema.ts";
 import { type BashToolOptions, createBashTool, createBashToolDefinition } from "./bash.ts";
 import { createEditTool, createEditToolDefinition, type EditToolOptions } from "./edit.ts";
 import { createReadTool, createReadToolDefinition, type ReadToolOptions } from "./read.ts";
+import type { ToolDefinition } from "./tool-types.ts";
 import { createWriteTool, createWriteToolDefinition, type WriteToolOptions } from "./write.ts";
 
 export type Tool = AgentTool;
@@ -126,9 +126,7 @@ export function createCodingTools(cwd: string, options?: ToolsOptions): Tool[] {
 }
 
 export function createReadOnlyTools(cwd: string, options?: ToolsOptions): Tool[] {
-	return [
-		createReadTool(cwd, options?.read),
-	];
+	return [createReadTool(cwd, options?.read)];
 }
 
 export function createAllTools(cwd: string, options?: ToolsOptions): Record<ToolName, Tool> {

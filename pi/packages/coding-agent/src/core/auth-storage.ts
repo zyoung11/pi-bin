@@ -3,14 +3,15 @@
  * Provider auth orchestration belongs to ModelRuntime and pi-ai Models.
  */
 
-import { CredentialStore } from "../../../ai/src/index.ts";
-import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-import lockfile, { LockError } from "../utils/mini-lockfile.ts";
-import { sleep } from "../utils/sleep.ts";import { getAgentDir } from "../config.ts";
+import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../ai/src/index.ts";
+import { CredentialStore } from "../../../ai/src/index.ts";
+import { getAgentDir } from "../config.ts";
 import { abortReason, raceWithAbortSignal } from "../utils/abort.ts";
+import lockfile, { LockError } from "../utils/mini-lockfile.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
+import { sleep } from "../utils/sleep.ts";
 import { stripBom } from "../utils/text.ts";
 import { isCommandConfigValue, resolveConfigValue } from "./resolve-config-value.ts";
 
@@ -57,7 +58,6 @@ export type LockResult<T> = {
 	result: T;
 	next?: string;
 };
-
 
 type AuthFileReload = {
 	controller: AbortController;
@@ -538,7 +538,7 @@ export class AuthStorage extends CredentialStore {
 	): Promise<Credential | undefined> {
 		let latestData = this.readState.data;
 		let revision: string | undefined;
-		let result: Credential | undefined = undefined;
+		let result: Credential | undefined;
 		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const currentData = this.parseStorageData(content);
 			const next = await fn(recordViewOf(currentData)[provider] as Credential | undefined);

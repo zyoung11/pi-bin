@@ -3,6 +3,7 @@ import { defaultProviderAuthContext as defaultAuthContext } from "./auth/context
 import { InMemoryCredentialStore } from "./auth/credential-store.ts";
 import { type AuthResolutionOverrides, ModelsError, resolveProviderAuth } from "./auth/resolve.ts";
 import type {
+	ApiKeyCredential,
 	AuthCheck,
 	AuthContext,
 	AuthInteraction,
@@ -13,7 +14,6 @@ import type {
 	CredentialStore,
 	ProviderAuth,
 	ProviderAuthInteraction,
-	ApiKeyCredential,
 } from "./auth/types.ts";
 import { InMemoryModelsStore, type ModelsStore } from "./models-store.ts";
 import type {
@@ -44,7 +44,6 @@ import {
 } from "./utils/abort.ts";
 
 export { ModelsError, type ModelsErrorCode } from "./auth/resolve.ts";
-
 
 export interface ModelsRefreshOptions {
 	allowNetwork?: boolean;
@@ -110,11 +109,7 @@ export interface Provider<TApi extends Api = Api> {
 	 */
 	filterModels?(models: readonly Model<TApi>[], credential: Credential | undefined): readonly Model<TApi>[];
 
-	stream(
-		model: Model<TApi>,
-		context: Context,
-		options?: StreamOptions,
-	): AssistantMessageEventStream;
+	stream(model: Model<TApi>, context: Context, options?: StreamOptions): AssistantMessageEventStream;
 
 	streamSimple(model: Model<TApi>, context: Context, options?: SimpleStreamOptions): AssistantMessageEventStream;
 	fetchDeferred?(

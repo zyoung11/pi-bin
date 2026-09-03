@@ -1,5 +1,5 @@
 import { eastAsianWidth } from "./east-asian-width.ts";
-import { TextSegmenter, type SegmentData } from "./segmenter.ts";
+import { type SegmentData, TextSegmenter } from "./segmenter.ts";
 
 const graphemeSegmenter = new TextSegmenter("grapheme");
 const wordSegmenter = new TextSegmenter("word");
@@ -117,8 +117,20 @@ const markCharRegex = /^\p{Mark}$/u;
 const spacingMarkRegex = /^\p{Spacing_Mark}$/u;
 const excludedSpacingMarks: string[] = ["\u1734", "\u302E", "\u302F"];
 const extraTerminalSpacingMarks: string[] = [
-	"\u065F", "\u0F7F", "\u102B", "\u102C", "\u1031", "\u1033", "\u1034", "\u1035",
-	"\u1038", "\u103A", "\u103B", "\u103C", "\u103D", "\u103E",
+	"\u065F",
+	"\u0F7F",
+	"\u102B",
+	"\u102C",
+	"\u1031",
+	"\u1033",
+	"\u1034",
+	"\u1035",
+	"\u1038",
+	"\u103A",
+	"\u103B",
+	"\u103C",
+	"\u103D",
+	"\u103E",
 ];
 
 function isTerminalSpacingMarkRun(text: string): boolean {
@@ -510,7 +522,8 @@ export function extractAnsiCode(str: string, pos: number): { code: string; lengt
 		let j = pos + 2;
 		while (j < str.length) {
 			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
-			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\")
+				return { code: str.substring(pos, j + 2), length: j + 2 - pos };
 			j++;
 		}
 		return null;
@@ -522,7 +535,8 @@ export function extractAnsiCode(str: string, pos: number): { code: string; lengt
 		let j = pos + 2;
 		while (j < str.length) {
 			if (str[j] === "\x07") return { code: str.substring(pos, j + 1), length: j + 1 - pos };
-			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\") return { code: str.substring(pos, j + 2), length: j + 2 - pos };
+			if (j + 1 < str.length && str[j] === "\x1b" && str[j + 1] === "\\")
+				return { code: str.substring(pos, j + 2), length: j + 2 - pos };
 			j++;
 		}
 		return null;

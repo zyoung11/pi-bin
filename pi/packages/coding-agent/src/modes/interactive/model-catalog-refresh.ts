@@ -8,10 +8,12 @@ interface ActiveModelCatalogRefresh {
 	waiters: number;
 }
 
-
 /** Concrete-typed race with abort (the generic helper's Promise<unknown> slots reject
  * ModelsRefreshResult's Map-bearing record; a local concrete executor lowers cleanly). */
-function raceRefreshWithAbort(operation: Promise<ModelsRefreshResult>, signal: AbortSignal): Promise<ModelsRefreshResult> {
+function raceRefreshWithAbort(
+	operation: Promise<ModelsRefreshResult>,
+	signal: AbortSignal,
+): Promise<ModelsRefreshResult> {
 	if (signal.aborted) {
 		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
@@ -88,9 +90,6 @@ class ModelCatalogRefreshCoordinator {
 const modelCatalogRefreshCoordinator = new ModelCatalogRefreshCoordinator();
 
 /** Share concurrent interactive all-catalog refreshes while keeping each caller's cancellation independent. */
-export function refreshModelCatalogs(
-	modelRuntime: ModelRuntime,
-	signal: AbortSignal,
-): Promise<ModelsRefreshResult> {
+export function refreshModelCatalogs(modelRuntime: ModelRuntime, signal: AbortSignal): Promise<ModelsRefreshResult> {
 	return modelCatalogRefreshCoordinator.refresh(modelRuntime, signal);
 }

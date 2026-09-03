@@ -21,7 +21,7 @@ export async function extractImageAttachments(text: string): Promise<{
 }> {
 	const tokenPattern = /(^|\s)((?:\/|~\/)[^\s'"]+)/g;
 	const images: ImageContent[] = [];
-	let consumed: Array<{ start: number; end: number }> = [];
+	const consumed: Array<{ start: number; end: number }> = [];
 	let error: string | undefined;
 
 	for (const match of text.matchAll(tokenPattern)) {

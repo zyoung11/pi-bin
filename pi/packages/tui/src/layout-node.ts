@@ -1,5 +1,5 @@
-import type { Component } from "./tui.ts";
 import type { ScrollView } from "./components/scroll-view.ts";
+import type { Component } from "./tui.ts";
 
 export interface LayoutViewport {
 	width: number;
@@ -39,5 +39,3 @@ export interface ScrollLayoutNode {
 }
 
 export type LayoutNode = StackLayoutNode | ScrollLayoutNode;
-
-

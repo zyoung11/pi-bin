@@ -1,11 +1,11 @@
+import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
+import { dirname } from "path";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
+import { type Static, Type } from "../../../../ai/src/schema.ts";
 import type { ImageContent, TextContent } from "../../../../ai/src/types.ts";
-import { Type, type Static } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import type { Component } from "../../../../tui/src/tui.ts";
 import { Container } from "../../../../tui/src/tui.ts";
-import { mkdir as fsMkdir, writeFile as fsWriteFile } from "fs/promises";
-import { dirname } from "path";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";
 import { getExperimentalToolSampling } from "../experimental.ts";
@@ -80,15 +80,7 @@ class WriteCallRenderComponent extends Text {
 		} else {
 			this.cache = undefined;
 		}
-		this.setText(
-			formatWriteCall(
-				renderArgs,
-				{ expanded, isPartial },
-				theme,
-				this.cache,
-				cwd,
-			),
-		);
+		this.setText(formatWriteCall(renderArgs, { expanded, isPartial }, theme, this.cache, cwd));
 	}
 }
 
@@ -216,10 +208,7 @@ function formatWriteResult(
 	return `\n${theme.fg("error", output)}`;
 }
 
-export function createWriteToolDefinition(
-	cwd: string,
-	options?: WriteToolOptions,
-): ToolDefinition<typeof writeSchema> {
+export function createWriteToolDefinition(cwd: string, options?: WriteToolOptions): ToolDefinition<typeof writeSchema> {
 	const ops = options?.operations ?? defaultWriteOperations;
 	return {
 		name: "write",
@@ -264,7 +253,16 @@ export function createWriteToolDefinition(
 			const rawPath = str(renderArgs?.file_path ?? renderArgs?.path);
 			const fileContent = str(renderArgs?.content);
 			const component = new WriteCallRenderComponent();
-			component.apply(rawPath, fileContent, context.argsComplete, renderArgs, context.expanded, context.isPartial, theme, context.cwd);
+			component.apply(
+				rawPath,
+				fileContent,
+				context.argsComplete,
+				renderArgs,
+				context.expanded,
+				context.isPartial,
+				theme,
+				context.cwd,
+			);
 			return component as Component;
 		},
 		renderResult(result, _options, theme, context) {

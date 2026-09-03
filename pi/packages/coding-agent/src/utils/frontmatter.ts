@@ -1,5 +1,6 @@
 import { parse } from "../../../ai/src/utils/mini-yaml.ts";
 import { stripBom } from "./text.ts";
+
 type ParsedFrontmatter<T extends Record<string, unknown>> = {
 	frontmatter: T;
 	body: string;

@@ -1,9 +1,9 @@
-import type { ThinkingLevel } from "../../../agent/src/index.ts";
 import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-import lockfile from "../utils/mini-lockfile.ts";
+import type { ThinkingLevel } from "../../../agent/src/index.ts";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
+import lockfile from "../utils/mini-lockfile.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dispatcher.ts";
@@ -31,7 +31,6 @@ export interface RetrySettings {
 	baseDelayMs?: number; // default: 2000 (exponential backoff: 2s, 4s, 8s)
 	provider?: ProviderRetrySettings;
 }
-
 
 export interface TerminalSettings {
 	showImages?: boolean; // default: true (only relevant if terminal supports images)
@@ -423,7 +422,6 @@ export class SettingsManager {
 			delete record["queueMode"];
 		}
 
-
 		// Migrate old skills object format to new array format
 		const skillsValue = record["skills"];
 		if (
@@ -455,9 +453,7 @@ export class SettingsManager {
 			const retrySettings = recordViewOf(retryValue);
 			const providerValue = retrySettings["provider"];
 			const providerSettings =
-				typeof providerValue === "object" && providerValue !== null
-					? recordViewOf(providerValue)
-					: undefined;
+				typeof providerValue === "object" && providerValue !== null ? recordViewOf(providerValue) : undefined;
 			const maxDelayMs = retrySettings["maxDelayMs"];
 			if (
 				typeof maxDelayMs === "number" &&
@@ -636,8 +632,7 @@ export class SettingsManager {
 				if (modifiedNestedFields.has(field) && typeof value === "object" && value !== null) {
 					const nestedModified = modifiedNestedFields.get(field)!;
 					const baseValue = currentFileView[field];
-					const baseNested =
-						typeof baseValue === "object" && baseValue !== null ? recordViewOf(baseValue) : {};
+					const baseNested = typeof baseValue === "object" && baseValue !== null ? recordViewOf(baseValue) : {};
 					const inMemoryNested = recordViewOf(value);
 					const mergedNested: Record<string, unknown> = {};
 					for (const nestedKey of Object.keys(baseNested)) mergedNested[nestedKey] = baseNested[nestedKey];
@@ -1155,7 +1150,6 @@ export class SettingsManager {
 		this.markModified("terminal", "showTerminalProgress");
 		this.save();
 	}
-
 
 	getBlockImages(): boolean {
 		return this.settings.images?.blockImages ?? false;

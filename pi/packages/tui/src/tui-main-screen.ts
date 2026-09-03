@@ -1,6 +1,6 @@
-import { ProcessTerminal } from "./terminal.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { ProcessTerminal } from "./terminal.ts";
 import { deleteKittyImage, isImageLine } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { visibleWidth } from "./utils.ts";

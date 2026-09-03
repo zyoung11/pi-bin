@@ -22,10 +22,7 @@ function createSetupErrorMessage(model: Model<Api>, error: unknown): AssistantMe
 	};
 }
 
-async function forwardStream(
-	target: AssistantMessageEventStream,
-	source: AssistantMessageEventStream,
-): Promise<void> {
+async function forwardStream(target: AssistantMessageEventStream, source: AssistantMessageEventStream): Promise<void> {
 	let step = await source.next();
 	while (!step.done) {
 		target.push(step.value as AssistantMessageEvent);

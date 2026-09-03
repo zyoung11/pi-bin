@@ -30,7 +30,11 @@ export function getAuthCommandUsage(kind: AuthCommandKind): string {
 }
 
 export function isAuthCommandHelp(args: string[]): boolean {
-	return args.length > 0 && args[0] === "auth" && (args.length === 1 || args[1] === "help" || args.includes("--help") || args.includes("-h"));
+	return (
+		args.length > 0 &&
+		args[0] === "auth" &&
+		(args.length === 1 || args[1] === "help" || args.includes("--help") || args.includes("-h"))
+	);
 }
 
 export function printAuthCommandHelp(): void {

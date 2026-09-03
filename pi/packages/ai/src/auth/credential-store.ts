@@ -1,6 +1,6 @@
 import { operationSignal, raceUnknownWithAbort } from "../utils/abort.ts";
-import { CredentialStore } from "./types.ts";
 import type { AuthOperationOptions, Credential, CredentialInfo } from "./types.ts";
+import { CredentialStore } from "./types.ts";
 
 /** Abort the pending operation when its request signal is already aborted. */
 function throwIfSignalAborted(options?: AuthOperationOptions): void {

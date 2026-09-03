@@ -106,12 +106,7 @@ export interface RetryPolicy {
 /** Optional callbacks emitted by {@link retryAssistantCall} around each retry. */
 export interface RetryCallbacks {
 	/** Emitted before the backoff sleep of each retry attempt (1-indexed). */
-	onRetryScheduled?: (
-		attempt: number,
-		maxAttempts: number,
-		delayMs: number,
-		errorMessage: string,
-	) => void;
+	onRetryScheduled?: (attempt: number, maxAttempts: number, delayMs: number, errorMessage: string) => void;
 	/** Emitted after the backoff sleep, immediately before the retried call starts. */
 	onRetryAttemptStart?: () => void;
 	/** Emitted once when the loop ends: success if a later call completed normally. */

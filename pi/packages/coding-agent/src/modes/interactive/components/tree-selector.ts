@@ -152,11 +152,9 @@ class TreeList extends Component {
 		console.error("[tl-dbg] findNearest start, target =", targetId);
 		this.selectedIndex = this.findNearestVisibleIndex(targetId);
 		console.error("[tl-dbg] selectedIndex =", this.selectedIndex);
-		this.lastSelectedId =
-			this.filteredNodes.length > 0 ? (this.selectedFlatNode()?.node.entry.id ?? null) : null;
+		this.lastSelectedId = this.filteredNodes.length > 0 ? (this.selectedFlatNode()?.node.entry.id ?? null) : null;
 		console.error("[tl-dbg] constructor done");
 	}
-
 
 	/** Selected node or undefined when the filtered list is empty (empty-array indexed reads trap). */
 	private selectedFlatNode(): FlatNode | undefined {
@@ -262,7 +260,9 @@ class TreeList extends Component {
 		// Add roots in reverse order, prioritizing the one containing the active leaf
 		// If multiple roots, treat them as children of a virtual root that branches
 		const multipleRoots = roots.length > 1;
-		const orderedRoots = [...roots].sort((a, b) => Number(containsActive.get(b.entry.id) === true) - Number(containsActive.get(a.entry.id) === true));
+		const orderedRoots = [...roots].sort(
+			(a, b) => Number(containsActive.get(b.entry.id) === true) - Number(containsActive.get(a.entry.id) === true),
+		);
 		for (let i = orderedRoots.length - 1; i >= 0; i--) {
 			const isLast = i === orderedRoots.length - 1;
 			stack.push([orderedRoots[i], multipleRoots ? 1 : 0, multipleRoots, multipleRoots, isLast, [], multipleRoots]);

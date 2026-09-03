@@ -1,9 +1,9 @@
 /** Immutable, credential-blind models.json snapshot. */
 
-import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { dirname, join } from "path";
-import { type Static, Compile, Type, type PiValidationError } from "../../../ai/src/schema.ts";
+import { Compile, type PiValidationError, type Static, Type } from "../../../ai/src/schema.ts";
 import { stripJsonComments } from "../utils/json.ts";
 import { normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
@@ -219,7 +219,8 @@ type ModelsJson = Static<typeof ModelsConfigSchema>;
 function formatValidationPath(error: PiValidationError): string {
 	if (error.keyword === "required") {
 		const requiredProperties = (error.params as { requiredProperties?: string[] }).requiredProperties;
-		const requiredProperty = requiredProperties !== undefined && requiredProperties.length > 0 ? requiredProperties[0] : undefined;
+		const requiredProperty =
+			requiredProperties !== undefined && requiredProperties.length > 0 ? requiredProperties[0] : undefined;
 		if (requiredProperty) {
 			const basePath = error.instancePath.replace(/^\//, "").replace(/\//g, ".");
 			return basePath ? `${basePath}.${requiredProperty}` : requiredProperty;
@@ -323,9 +324,7 @@ function synthesizeProvidersFromModelsStore(
 				input: Array.isArray(entry["input"]) ? entry["input"] : ["text"],
 				contextWindow,
 				cost:
-					cost !== null && typeof cost === "object"
-						? cost
-						: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					cost !== null && typeof cost === "object" ? cost : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			};
 			const maxTokens = entry["maxTokens"];
 			if (typeof maxTokens === "number") model["maxTokens"] = maxTokens;

@@ -74,8 +74,7 @@ export function fromUrl(url: string): HostedInfo | null {
 	if (!urlMatch) return null;
 	const rule = HOSTS.find((host) => host.domain === urlMatch[2]);
 	if (!rule) return null;
-	const webUrl =
-		urlMatch[1] === "ssh" || urlMatch[1] === "git" ? `https://${urlMatch[2]}/${urlMatch[3]}` : withoutRef;
+	const webUrl = urlMatch[1] === "ssh" || urlMatch[1] === "git" ? `https://${urlMatch[2]}/${urlMatch[3]}` : withoutRef;
 	const schemeIdx = webUrl.indexOf("://");
 	if (schemeIdx === -1) return null;
 	const afterScheme = webUrl.slice(schemeIdx + 3);

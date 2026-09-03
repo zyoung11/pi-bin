@@ -25,7 +25,6 @@ import type {
 	PrepareNextTurnContext,
 	ThinkingLevel,
 } from "../../../agent/src/index.ts";
-import { contentText } from "../../../ai/src/index.ts";
 import type {
 	AssistantMessage,
 	AuthResult,
@@ -46,6 +45,7 @@ import {
 	type RetryCallbacks,
 	resetApiProviders,
 } from "../../../ai/src/compat.ts";
+import { contentText } from "../../../ai/src/index.ts";
 import { getThemeByName, theme } from "../modes/interactive/theme/theme.ts";
 import { stripFrontmatter } from "../utils/frontmatter.ts";
 import { sleep } from "../utils/sleep.ts";
@@ -67,7 +67,6 @@ import {
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.ts";
 import { exportSessionToHtml, type ToolHtmlRenderer } from "./export-html/index.ts";
 import { createToolHtmlRenderer } from "./export-html/tool-renderer.ts";
-import type { ToolDefinition } from "./tools/tool-types.ts";
 import type { BashExecutionMessage, CustomMessage } from "./messages.ts";
 import { ModelRegistry } from "./model-registry.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
@@ -89,6 +88,7 @@ import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-promp
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool, wrapToolDefinitions } from "./tools/tool-definition-wrapper.ts";
+import type { ToolDefinition } from "./tools/tool-types.ts";
 import { addUsageToTotals, createUsageTotals } from "./usage-totals.ts";
 
 // ============================================================================
@@ -465,8 +465,7 @@ export class AgentSession {
 		this.agent.afterToolCall = async (context, _signal) => {
 			const { result } = context;
 			const originalContent: (TextContent | ImageContent)[] = result.content ?? [];
-			const normalizedContent = await normalizeToolResultImages(originalContent, {
-			});
+			const normalizedContent = await normalizeToolResultImages(originalContent, {});
 
 			if (normalizedContent === originalContent) {
 				return undefined;
@@ -1356,7 +1355,6 @@ export class AgentSession {
 		// Per-model thinking level overrides take priority over the global default.
 		// Model persistence does not implicitly rewrite the global thinking default.
 		this.setThinkingLevel(thinkingLevel);
-
 	}
 
 	private _addPersistedDefaultToNonEmptyScope(model: Model<Api>): void {
@@ -1425,7 +1423,6 @@ export class AgentSession {
 		// Model persistence does not implicitly rewrite the global thinking default.
 		this.setThinkingLevel(thinkingLevel);
 
-
 		return { model: next.model, thinkingLevel: this.thinkingLevel, isScoped: true };
 	}
 
@@ -1455,7 +1452,6 @@ export class AgentSession {
 		// Apply thinking level for the new model.
 		// Model persistence does not implicitly rewrite the global thinking default.
 		this.setThinkingLevel(thinkingLevel);
-
 
 		return { model: nextModel, thinkingLevel: this.thinkingLevel, isScoped: false };
 	}
@@ -1669,7 +1665,14 @@ export class AgentSession {
 				throw new Error("Compaction cancelled");
 			}
 
-			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details as CustomData | undefined, false, usage);
+			this.sessionManager.appendCompaction(
+				summary,
+				firstKeptEntryId,
+				tokensBefore,
+				details as CustomData | undefined,
+				false,
+				usage,
+			);
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
@@ -1912,7 +1915,14 @@ export class AgentSession {
 				return false;
 			}
 
-			this.sessionManager.appendCompaction(summary, firstKeptEntryId, tokensBefore, details as CustomData | undefined, false, usage);
+			this.sessionManager.appendCompaction(
+				summary,
+				firstKeptEntryId,
+				tokensBefore,
+				details as CustomData | undefined,
+				false,
+				usage,
+			);
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
@@ -2071,9 +2081,9 @@ export class AgentSession {
 		const shellCommandPrefix = this.settingsManager.getShellCommandPrefix();
 		const shellPath = this.settingsManager.getShellPath();
 		const baseToolDefinitions = createAllToolDefinitions(this._cwd, {
-				read: { modelProvider: () => this.model },
-				bash: { commandPrefix: shellCommandPrefix, shellPath, sessionEnvProvider: () => this._sessionEnvironment() },
-			});
+			read: { modelProvider: () => this.model },
+			bash: { commandPrefix: shellCommandPrefix, shellPath, sessionEnvProvider: () => this._sessionEnvironment() },
+		});
 
 		this._baseToolDefinitions = new Map(
 			Object.entries(baseToolDefinitions).map(([name, tool]) => [name, tool as ToolDefinition]),
@@ -2102,7 +2112,6 @@ export class AgentSession {
 		await this._resourceLoader.reload();
 		this._buildRuntime({ activeToolNames: this.getActiveToolNames() });
 	}
-
 
 	// =========================================================================
 	// Auto-Retry
@@ -2720,5 +2729,4 @@ export class AgentSession {
 
 		return text.trim() || undefined;
 	}
-
 }

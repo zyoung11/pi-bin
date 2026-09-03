@@ -1,6 +1,5 @@
 // Core TUI interfaces and classes
 
-export { Marked, type Token, type Tokens } from "./mini-markdown.ts";
 // Autocomplete support
 export {
 	type AutocompleteItem,
@@ -74,6 +73,7 @@ export {
 } from "./keys.ts";
 // LaTeX rendering
 export { type RenderLatexOptions, renderLatex } from "./latex.ts";
+export { Marked, type Token, type Tokens } from "./mini-markdown.ts";
 // Input buffering for batch splitting
 export { StdinBuffer, type StdinBufferEventMap, type StdinBufferOptions } from "./stdin-buffer.ts";
 // Terminal interface and implementations

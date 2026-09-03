@@ -1,6 +1,6 @@
-import type { Api } from "../../../../../ai/src/types.ts";
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
 import { getSupportedThinkingLevels, type Model, type Transport } from "../../../../../ai/src/index.ts";
+import type { Api } from "../../../../../ai/src/types.ts";
 import type { ScrollViewScrollbar } from "../../../../../tui/src/components/scroll-view.ts";
 import type { SelectItem } from "../../../../../tui/src/components/select-list.ts";
 import { type SettingItem, SettingsList } from "../../../../../tui/src/components/settings-list.ts";
@@ -9,14 +9,12 @@ import { Text } from "../../../../../tui/src/components/text.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container } from "../../../../../tui/src/tui.ts";
 import { formatHttpIdleTimeoutMs, HTTP_IDLE_TIMEOUT_CHOICES } from "../../../core/http-dispatcher.ts";
-import type {
-	DefaultProjectTrust,
-	MermaidRenderingMode,
-} from "../../../core/settings-manager.ts";
+import type { DefaultProjectTrust, MermaidRenderingMode } from "../../../core/settings-manager.ts";
 import { getSettingsListTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";
-import { SelectSubmenu, SteppedSubmenu, type SteppedSelections, type SteppedSubmenuStep } from "./settings-submenu.ts";
+import { SelectSubmenu, type SteppedSelections, SteppedSubmenu, type SteppedSubmenuStep } from "./settings-submenu.ts";
+
 const noSelection: string | undefined = undefined;
 const noOptions: { navigateTo?: string } | undefined = undefined;
 
@@ -351,7 +349,8 @@ export class SettingsSelectorComponent extends Container {
 								}
 								return items;
 							},
-							preselect: (selections: SteppedSelections) => lookupThinkingLevel(currentModelThinkingLevels, selections.model),
+							preselect: (selections: SteppedSelections) =>
+								lookupThinkingLevel(currentModelThinkingLevels, selections.model),
 						},
 					];
 

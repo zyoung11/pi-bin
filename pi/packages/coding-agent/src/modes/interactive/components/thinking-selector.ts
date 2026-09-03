@@ -1,6 +1,10 @@
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
 import { Input } from "../../../../../tui/src/components/input.ts";
-import { type SelectItem, SelectList, type SelectListLayoutOptions } from "../../../../../tui/src/components/select-list.ts";
+import {
+	type SelectItem,
+	SelectList,
+	type SelectListLayoutOptions,
+} from "../../../../../tui/src/components/select-list.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";

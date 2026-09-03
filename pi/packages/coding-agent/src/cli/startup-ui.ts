@@ -1,8 +1,8 @@
+import { existsSync } from "fs";
 import { setKeybindings } from "../../../tui/src/keybindings.ts";
 import { ProcessTerminal } from "../../../tui/src/terminal.ts";
-import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
 import type { TuiBase } from "../../../tui/src/tui.ts";
-import { existsSync } from "fs";
+import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir, getSettingsPath, PACKAGE_NAME } from "../config.ts";
 import { areExperimentalFeaturesEnabled } from "../core/experimental.ts";
 import { KeybindingsManager } from "../core/keybindings.ts";

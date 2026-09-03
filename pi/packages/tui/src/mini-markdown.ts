@@ -243,7 +243,8 @@ interface BlockRule {
 }
 
 const HEADING_PATTERN = /^(#{1,6})(?:\s+|$)([^\n]*?)(?:\n+|$)/;
-const HR_PATTERN = /^(?: {0,3}(?:-[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:\*[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:_[ \t]*){3,}(?:\n+|$))))/;
+const HR_PATTERN =
+	/^(?: {0,3}(?:-[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:\*[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:_[ \t]*){3,}(?:\n+|$))))/;
 const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})[ \t]*([^\n`]*)\n?/;
 const BLOCKQUOTE_PATTERN = /^ {0,3}>/;
 const LIST_PATTERN = /^( {0,3})([*+-]|\d{1,9}[.)])([ \t]+|$)/;
@@ -362,14 +363,24 @@ class InlineLexer {
 			const strongEmMatch = /^(\*\*\*|___)(?=\S)([\s\S]*?\S)\1/.exec(rest);
 			if (strongEmMatch) {
 				flushPlain();
-				tokens.push({ type: "strong", raw: strongEmMatch[0], text: strongEmMatch[2], tokens: this.inlineTokens(strongEmMatch[2]) });
+				tokens.push({
+					type: "strong",
+					raw: strongEmMatch[0],
+					text: strongEmMatch[2],
+					tokens: this.inlineTokens(strongEmMatch[2]),
+				});
 				position += strongEmMatch[0].length;
 				continue;
 			}
 			const strongMatch = /^(\*\*|__)(?=\S)([\s\S]*?\S)\1(?!\1|[*_])/.exec(rest);
 			if (strongMatch) {
 				flushPlain();
-				tokens.push({ type: "strong", raw: strongMatch[0], text: strongMatch[2], tokens: this.inlineTokens(strongMatch[2]) });
+				tokens.push({
+					type: "strong",
+					raw: strongMatch[0],
+					text: strongMatch[2],
+					tokens: this.inlineTokens(strongMatch[2]),
+				});
 				position += strongMatch[0].length;
 				continue;
 			}
@@ -380,7 +391,10 @@ class InlineLexer {
 				position += emMatch[0].length;
 				continue;
 			}
-			const imageMatch = /^!\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:\"([^\"]*)\"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(rest);
+			const imageMatch =
+				/^!\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
+					rest,
+				);
 			if (imageMatch) {
 				flushPlain();
 				tokens.push({
@@ -394,7 +408,10 @@ class InlineLexer {
 				position += imageMatch[0].length;
 				continue;
 			}
-			const linkMatch = /^\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:\"([^\"]*)\"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(rest);
+			const linkMatch =
+				/^\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
+					rest,
+				);
 			if (linkMatch) {
 				flushPlain();
 				const linkText = linkMatch[1];
@@ -414,7 +431,13 @@ class InlineLexer {
 				flushPlain();
 				const url = autolinkMatch[1];
 				const urlText: TokensText = { type: "text", raw: url, text: url };
-				const autolinkToken: TokensLink = { type: "link", raw: autolinkMatch[0], text: url, href: url, tokens: [urlText] };
+				const autolinkToken: TokensLink = {
+					type: "link",
+					raw: autolinkMatch[0],
+					text: url,
+					href: url,
+					tokens: [urlText],
+				};
 				tokens.push(autolinkToken);
 				position += autolinkMatch[0].length;
 				continue;
@@ -487,7 +510,9 @@ export class Lexer {
 				let cursor = index + 1;
 				let closed = false;
 				while (cursor < lines.length) {
-					const closeMatch = new RegExp(`^ {0,3}${fence[0] === "`" ? "`" : "~"}{${fence.length},}[ \\t]*$`).exec(lines[cursor]);
+					const closeMatch = new RegExp(`^ {0,3}${fence[0] === "`" ? "`" : "~"}{${fence.length},}[ \\t]*$`).exec(
+						lines[cursor],
+					);
 					if (closeMatch) {
 						closed = true;
 						cursor += 1;
@@ -528,7 +553,14 @@ export class Lexer {
 			if (BLOCKQUOTE_PATTERN.test(line)) {
 				const quoteLines: string[] = [];
 				let cursor = index;
-				while (cursor < lines.length && (BLOCKQUOTE_PATTERN.test(lines[cursor]) || (lines[cursor] !== "" && quoteLines.length > 0 && !BLANK_PATTERN.test(lines[cursor - 1]) && !this.startsBlock(lines[cursor])))) {
+				while (
+					cursor < lines.length &&
+					(BLOCKQUOTE_PATTERN.test(lines[cursor]) ||
+						(lines[cursor] !== "" &&
+							quoteLines.length > 0 &&
+							!BLANK_PATTERN.test(lines[cursor - 1]) &&
+							!this.startsBlock(lines[cursor])))
+				) {
 					quoteLines.push(lines[cursor].replace(/^ {0,3}>[ \t]?/, ""));
 					cursor += 1;
 				}
@@ -551,7 +583,12 @@ export class Lexer {
 					continue;
 				}
 			}
-			if (line.includes("|") && index + 1 < lines.length && /^[ \t]*\|?[ :|-]+\|?[ :|-]*$/.test(lines[index + 1]) && lines[index + 1].includes("-")) {
+			if (
+				line.includes("|") &&
+				index + 1 < lines.length &&
+				/^[ \t]*\|?[ :|-]+\|?[ :|-]*$/.test(lines[index + 1]) &&
+				lines[index + 1].includes("-")
+			) {
 				const table = this.lexTable(lines, index);
 				if (table) {
 					tokens.push(table.token);
@@ -574,7 +611,10 @@ export class Lexer {
 			if (INDENTED_CODE_PATTERN.test(line)) {
 				const codeLines: string[] = [];
 				let cursor = index;
-				while (cursor < lines.length && (INDENTED_CODE_PATTERN.test(lines[cursor]) || BLANK_PATTERN.test(lines[cursor]))) {
+				while (
+					cursor < lines.length &&
+					(INDENTED_CODE_PATTERN.test(lines[cursor]) || BLANK_PATTERN.test(lines[cursor]))
+				) {
 					codeLines.push(BLANK_PATTERN.test(lines[cursor]) ? "" : lines[cursor].slice(4));
 					cursor += 1;
 				}
@@ -591,7 +631,11 @@ export class Lexer {
 			}
 			const paragraphLines: string[] = [];
 			let paragraphCursor = index;
-			while (paragraphCursor < lines.length && !BLANK_PATTERN.test(lines[paragraphCursor]) && !this.startsBlock(lines[paragraphCursor])) {
+			while (
+				paragraphCursor < lines.length &&
+				!BLANK_PATTERN.test(lines[paragraphCursor]) &&
+				!this.startsBlock(lines[paragraphCursor])
+			) {
 				paragraphLines.push(lines[paragraphCursor]);
 				paragraphCursor += 1;
 			}
@@ -618,7 +662,7 @@ export class Lexer {
 			HR_PATTERN.test(`${line}\n`) ||
 			BLOCKQUOTE_PATTERN.test(line) ||
 			LIST_PATTERN.test(line) ||
-			HTML_BLOCK_PATTERN.test(line.trimStart()) === true && line.trimStart().startsWith("<")
+			(HTML_BLOCK_PATTERN.test(line.trimStart()) === true && line.trimStart().startsWith("<"))
 		);
 	}
 
@@ -634,14 +678,20 @@ export class Lexer {
 			if (!extension.tokenizer) continue;
 			const produced = extension.tokenizer(rest, []);
 			if (produced) {
-				const consumedLines = produced.raw.endsWith("\n") ? produced.raw.split("\n").length - 1 : produced.raw.split("\n").length;
+				const consumedLines = produced.raw.endsWith("\n")
+					? produced.raw.split("\n").length - 1
+					: produced.raw.split("\n").length;
 				return { token: produced as Token, next: index + Math.max(1, consumedLines) };
 			}
 		}
 		return undefined;
 	}
 
-	private lexList(lines: string[], index: number, firstMatch: RegExpExecArray): { token: Token; next: number } | undefined {
+	private lexList(
+		lines: string[],
+		index: number,
+		firstMatch: RegExpExecArray,
+	): { token: Token; next: number } | undefined {
 		const ordered = /\d/.test(firstMatch[2]);
 		const startValue = ordered ? Number(firstMatch[2].slice(0, -1)) : "";
 		const items: TokensListItem[] = [];
@@ -671,7 +721,11 @@ export class Lexer {
 				while (cursor < lines.length) {
 					const next = lines[cursor];
 					if (BLANK_PATTERN.test(next)) {
-						if (cursor + 1 < lines.length && !BLANK_PATTERN.test(lines[cursor + 1]) && (LIST_PATTERN.test(lines[cursor + 1]) ?? false)) {
+						if (
+							cursor + 1 < lines.length &&
+							!BLANK_PATTERN.test(lines[cursor + 1]) &&
+							(LIST_PATTERN.test(lines[cursor + 1]) ?? false)
+						) {
 							if (LIST_PATTERN.exec(lines[cursor + 1])?.[1].length === 0) break;
 							itemLines.push("");
 							cursor += 1;
@@ -680,7 +734,12 @@ export class Lexer {
 						break;
 					}
 					const nested = LIST_PATTERN.exec(next);
-					if (nested && nested[1].length <= markerIndent && (cursor + 1 >= lines.length || !LIST_PATTERN.test(next))) break;
+					if (
+						nested &&
+						nested[1].length <= markerIndent &&
+						(cursor + 1 >= lines.length || !LIST_PATTERN.test(next))
+					)
+						break;
 					if (nested && nested[1].length === 0) break;
 					itemLines.push(next.slice(Math.min(contentIndent, next.length)));
 					cursor += 1;
@@ -719,7 +778,11 @@ export class Lexer {
 				return token;
 			});
 			if (item.task) {
-				const checkbox: TokensCheckbox = { type: "checkbox", raw: item.checked ? "[x] " : "[ ] ", checked: item.checked === true };
+				const checkbox: TokensCheckbox = {
+					type: "checkbox",
+					raw: item.checked ? "[x] " : "[ ] ",
+					checked: item.checked === true,
+				};
 				mapped.unshift(checkbox);
 			}
 			item.tokens = mapped;

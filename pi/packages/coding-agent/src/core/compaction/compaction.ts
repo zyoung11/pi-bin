@@ -7,11 +7,23 @@ import type { Api } from "../../../../ai/src/types.ts";
  */
 
 import type { AgentMessage, StreamFn, ThinkingLevel } from "../../../../agent/src/index.ts";
-import { contentText, type RetryCallbacks, type RetryPolicy, retryAssistantCall, uuidv7 } from "../../../../ai/src/index.ts";
 import type { AssistantMessage, Context, Model, SimpleStreamOptions, Usage } from "../../../../ai/src/compat.ts";
 import { completeSimple } from "../../../../ai/src/compat.ts";
+import {
+	contentText,
+	type RetryCallbacks,
+	type RetryPolicy,
+	retryAssistantCall,
+	uuidv7,
+} from "../../../../ai/src/index.ts";
 import { convertToLlm } from "../messages.ts";
-import { entryIdOf, buildSessionContext, type CompactionEntry, type SessionEntry, sessionEntryToContextMessages,  } from "../session-manager.ts";
+import {
+	buildSessionContext,
+	type CompactionEntry,
+	entryIdOf,
+	type SessionEntry,
+	sessionEntryToContextMessages,
+} from "../session-manager.ts";
 import {
 	computeFileLists,
 	createFileOps,
@@ -277,9 +289,7 @@ export function estimateTokens(message: AgentMessage): number {
 
 	switch (message.role) {
 		case "user": {
-			chars = estimateTextAndImageContentChars(
-				recordViewOf(message)["content"],
-			);
+			chars = estimateTextAndImageContentChars(recordViewOf(message)["content"]);
 			return Math.ceil(chars / 4);
 		}
 		case "assistant": {

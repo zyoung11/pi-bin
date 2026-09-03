@@ -1,6 +1,6 @@
 import { getKeybindings } from "../keybindings.ts";
-import { Loader } from "./loader.ts";
 import { createAbortHandle } from "../utils.ts";
+import { Loader } from "./loader.ts";
 
 /**
  * Loader that can be cancelled with Escape.

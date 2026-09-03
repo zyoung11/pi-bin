@@ -1,12 +1,13 @@
+import { existsSync } from "node:fs";
+import { constants } from "fs";
+import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
-import { Type, type Static } from "../../../../ai/src/schema.ts";
+import { type Static, Type } from "../../../../ai/src/schema.ts";
+import type { ImageContent, TextContent } from "../../../../ai/src/types.ts";
 import { Box } from "../../../../tui/src/components/box.ts";
 import { Spacer } from "../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { type Component, Container } from "../../../../tui/src/tui.ts";
-import { constants } from "fs";
-import { existsSync } from "node:fs";
-import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import { renderDiff } from "../../modes/interactive/components/diff.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { splitBom } from "../../utils/text.ts";
@@ -27,7 +28,6 @@ import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { renderToolPath, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
-import type { ImageContent, TextContent } from "../../../../ai/src/types.ts";
 import type { ToolDefinition } from "./tool-types.ts";
 
 type EditPreview = EditDiffResult | EditDiffError;
@@ -389,10 +389,7 @@ function setEditPreviewState(
 	return changed;
 }
 
-export function createEditToolDefinition(
-	cwd: string,
-	options?: EditToolOptions,
-): ToolDefinition<typeof editSchema> {
+export function createEditToolDefinition(cwd: string, options?: EditToolOptions): ToolDefinition<typeof editSchema> {
 	const ops = options?.operations ?? defaultEditOperations;
 	return {
 		name: "edit",
@@ -495,7 +492,12 @@ export function createEditToolDefinition(
 			const component = new EditCallRenderComponent();
 			component.preview = editStateOf(context.state)["preview"] as EditPreview | undefined;
 			component.settledError = stateView["settledError"] === true;
-			return buildEditCallComponent(component, args as RenderableEditArgs | undefined, theme, context.cwd) as Component;
+			return buildEditCallComponent(
+				component,
+				args as RenderableEditArgs | undefined,
+				theme,
+				context.cwd,
+			) as Component;
 		},
 		renderResult(result, _options, _theme, context) {
 			const stateView = editStateOf(context.state);
@@ -523,8 +525,15 @@ export function createEditToolDefinition(
 				context.invalidate();
 			}
 
-			const activePreview = resultPreview !== undefined ? resultPreview : (stateView["preview"] as EditPreview | undefined);
-			const output = formatEditResult(context.args as RenderableEditArgs | undefined, activePreview, { content: result.content, details: typedDetails }, _theme, context.isError);
+			const activePreview =
+				resultPreview !== undefined ? resultPreview : (stateView["preview"] as EditPreview | undefined);
+			const output = formatEditResult(
+				context.args as RenderableEditArgs | undefined,
+				activePreview,
+				{ content: result.content, details: typedDetails },
+				_theme,
+				context.isError,
+			);
 			const component = new Container();
 			component.clear();
 			if (!output) {

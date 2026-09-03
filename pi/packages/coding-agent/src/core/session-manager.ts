@@ -1,27 +1,13 @@
-import type { AgentMessage } from "../../../agent/src/index.ts";
-import {
-	type ImageContent,
-	type Message,
-	type StopReason,
-	type TextContent,
-	type ThinkingContent,
-	type ToolCall,
-	type Usage,
-	type UserMessage,
-	type AssistantMessage,
-	type ToolResultMessage,
-	uuidv7,
-} from "../../../ai/src/index.ts";
 import { randomUUID } from "crypto";
 import {
 	appendFileSync,
-	existsSync,
 	closeSync,
+	existsSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
-	readSync,
 	readFileSync,
+	readSync,
 	statSync,
 	writeFileSync,
 } from "fs";
@@ -29,6 +15,20 @@ import { readdir } from "fs/promises";
 import { join, resolve } from "path";
 import { createInterface } from "readline";
 import { StringDecoder } from "string_decoder";
+import type { AgentMessage } from "../../../agent/src/index.ts";
+import {
+	type AssistantMessage,
+	type ImageContent,
+	type Message,
+	type StopReason,
+	type TextContent,
+	type ThinkingContent,
+	type ToolCall,
+	type ToolResultMessage,
+	type Usage,
+	type UserMessage,
+	uuidv7,
+} from "../../../ai/src/index.ts";
 import { APP_NAME, getAgentDir as getDefaultAgentDir, getSessionsDir } from "../config.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import {
@@ -67,7 +67,6 @@ export function entryTypeOf(entry: unknown): string | undefined {
 function stringifyEntry(entry: unknown): string {
 	return JSON.stringify(entry) ?? "";
 }
-
 
 export const CURRENT_SESSION_VERSION = 3;
 
@@ -325,7 +324,6 @@ function migrateV2ToV3(entries: FileEntry[]): void {
 	for (const entry of entries) {
 		if (entry.type === "session") {
 			entry.version = 3;
-			continue;
 		}
 
 		// v2 → v3 dropped the hookMessage role rename: old files keep their role spelling and
@@ -839,7 +837,8 @@ function reviveUsage(value: unknown): Usage | undefined {
 		input: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["input"]) : 0,
 		output: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["output"]) : 0,
 		cacheRead: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["cacheRead"]) : 0,
-		cacheWrite: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["cacheWrite"]) : 0,
+		cacheWrite:
+			costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["cacheWrite"]) : 0,
 		total: costRec !== null && typeof costRec === "object" ? reviveNumber(recordViewOf(costRec)["total"]) : 0,
 	};
 	const usage: Usage = {
@@ -971,8 +970,13 @@ function reviveAgentMessage(raw: unknown): AgentMessage | undefined {
 
 function reviveStopReason(value: unknown): StopReason {
 	if (
-		value === "pending" || value === "stop" || value === "length" || value === "toolUse" ||
-		value === "error" || value === "aborted" || value === "deferred"
+		value === "pending" ||
+		value === "stop" ||
+		value === "length" ||
+		value === "toolUse" ||
+		value === "error" ||
+		value === "aborted" ||
+		value === "deferred"
 	) {
 		return value;
 	}
@@ -1382,9 +1386,12 @@ export class SessionManager {
 			}
 
 			let header: SessionHeader | undefined;
-		for (const e of this.fileEntries) {
-			if (e.type === "session") { header = e; break; }
-		}
+			for (const e of this.fileEntries) {
+				if (e.type === "session") {
+					header = e;
+					break;
+				}
+			}
 			this.sessionId = header?.id ?? createSessionId();
 
 			if (migrateToCurrentVersion(this.fileEntries)) {
@@ -1437,7 +1444,7 @@ export class SessionManager {
 		for (const entry of this.fileEntries) {
 			if (entry.type === "session") continue;
 			this.byId.set(entry.id, entry);
-		this.idClaims.set(entry.id, true);
+			this.idClaims.set(entry.id, true);
 			this.idClaims.set(entry.id, true);
 			this.leafId = entry.id;
 			if (entry.type === "label") {
@@ -1937,7 +1944,9 @@ export class SessionManager {
 
 		if (this.persist) {
 			// Build label entries
-			const lastEntryId = entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ?? null;
+			const lastEntryId =
+				entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ??
+				null;
 			let parentId = lastEntryId;
 			const labelEntries: LabelEntry[] = [];
 			for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
@@ -1979,7 +1988,8 @@ export class SessionManager {
 
 		// In-memory mode: replace current session with the path + labels
 		const labelEntries: LabelEntry[] = [];
-		let parentId = entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ?? null;
+		let parentId =
+			entryIdOf(pathWithoutLabels.length > 0 ? pathWithoutLabels[pathWithoutLabels.length - 1] : undefined) ?? null;
 		for (const { targetId, label, timestamp: labelTimestamp } of labelsToWrite) {
 			const labelKeys: string[] = [];
 			for (const id of pathEntryIds) labelKeys.push(id);
@@ -2080,13 +2090,13 @@ export class SessionManager {
 			throw new Error(`Cannot fork: source session file is empty or invalid: ${resolvedSourcePath}`);
 		}
 
-			let sourceHeader: SessionHeader | undefined;
-	for (const sourceEntry of sourceEntries) {
-		if (entryTypeOf(sourceEntry) === "session") {
-			sourceHeader = sourceEntry as unknown as SessionHeader;
-			break;
+		let sourceHeader: SessionHeader | undefined;
+		for (const sourceEntry of sourceEntries) {
+			if (entryTypeOf(sourceEntry) === "session") {
+				sourceHeader = sourceEntry as unknown as SessionHeader;
+				break;
+			}
 		}
-	}
 		if (!sourceHeader) {
 			throw new Error(`Cannot fork: source session has no header: ${resolvedSourcePath}`);
 		}

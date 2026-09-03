@@ -7,11 +7,12 @@ function throwIfSignalAborted(options?: ModelsStoreOperationOptions): void {
 	const signal = options?.signal;
 	if (signal) signal.throwIfAborted();
 }
+
 import { getAgentDir } from "../config.ts";
 import { abortReason } from "../utils/abort.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
-import { type AuthStorageBackend, type LockResult, FileAuthStorageBackend } from "./auth-storage.ts";
+import { type AuthStorageBackend, FileAuthStorageBackend, type LockResult } from "./auth-storage.ts";
 
 type StoredModels = Record<string, ModelsStoreEntry>;
 
@@ -29,7 +30,6 @@ type ModelsFileReadState = {
 
 // Optimize the common path without retaining an unbounded set of custom paths.
 let sharedModelsFileReadState: { path: string; readState: ModelsFileReadState } | undefined;
-
 
 /** Concrete-typed race with abort (Promise<unknown> slots reject index-signature inners). */
 function raceStoredModelsWithAbort(
@@ -74,7 +74,10 @@ export class InMemoryCodingAgentModelsStore extends ModelsStore {
 		return this.readAsync(providerId, options);
 	}
 
-	private async readAsync(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
+	private async readAsync(
+		providerId: string,
+		options?: ModelsStoreOperationOptions,
+	): Promise<ModelsStoreEntry | undefined> {
 		throwIfSignalAborted(options);
 		const entry = this.entries.get(providerId);
 		return entry ? structuredClone(entry) : undefined;
@@ -84,7 +87,11 @@ export class InMemoryCodingAgentModelsStore extends ModelsStore {
 		return this.writeAsync(providerId, entry, options);
 	}
 
-	private async writeAsync(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
+	private async writeAsync(
+		providerId: string,
+		entry: ModelsStoreEntry,
+		options?: ModelsStoreOperationOptions,
+	): Promise<void> {
 		throwIfSignalAborted(options);
 		this.entries.set(providerId, structuredClone(entry));
 	}
@@ -181,7 +188,10 @@ export class FileModelsStore extends ModelsStore {
 		return this.readAsync(providerId, options);
 	}
 
-	private async readAsync(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
+	private async readAsync(
+		providerId: string,
+		options?: ModelsStoreOperationOptions,
+	): Promise<ModelsStoreEntry | undefined> {
 		const entry = (await this.readLatest(this.readState, options))[providerId];
 		throwIfSignalAborted(options);
 		return entry ? structuredClone(entry) : undefined;
@@ -191,7 +201,11 @@ export class FileModelsStore extends ModelsStore {
 		return this.writeAsync(providerId, entry, options);
 	}
 
-	private async writeAsync(providerId: string, entry: ModelsStoreEntry, options?: ModelsStoreOperationOptions): Promise<void> {
+	private async writeAsync(
+		providerId: string,
+		entry: ModelsStoreEntry,
+		options?: ModelsStoreOperationOptions,
+	): Promise<void> {
 		let latest: StoredModels | undefined;
 		await this.storage.withLockAsync(async (content): Promise<LockResult<unknown>> => {
 			const current = this.parse(content);

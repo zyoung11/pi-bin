@@ -1,14 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-	writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
 function recordViewOf(value: unknown): Record<string, unknown> {
@@ -36,16 +27,16 @@ function getEnv(): NodeJS.ProcessEnv {
 
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import ignore from "../../../ai/src/utils/mini-ignore.ts";
-import { minimatch } from "../utils/mini-minimatch.ts";
-import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "../utils/mini-semver.ts";
 import { CONFIG_DIR_NAME } from "../config.ts";
 import {
+	type ChildProcessHandle,
 	spawnProcess,
 	spawnProcessSync,
 	waitForChildProcess,
-	type ChildProcessHandle,
 } from "../utils/child-process.ts";
 import { type GitSource, parseGitUrl } from "../utils/git.ts";
+import { minimatch } from "../utils/mini-minimatch.ts";
+import { gt, maxSatisfying, rcompare, satisfies, valid, validRange } from "../utils/mini-semver.ts";
 import { canonicalizePath, isLocalPath, markPathIgnoredByCloudSync, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { isStdoutTakenOver } from "./output-guard.ts";
@@ -1270,9 +1261,7 @@ export class DefaultPackageManager implements PackageManager {
 		for (const entry of packageSources) {
 			if (entry.scope !== "temporary") checkInputs.push({ pkg: entry.pkg, scope: entry.scope });
 		}
-		const checkTask = async (
-			input: unknown,
-		): Promise<PackageUpdate | undefined> => {
+		const checkTask = async (input: unknown): Promise<PackageUpdate | undefined> => {
 			const entry = input as { pkg: PackageSource; scope: InstalledSourceScope };
 			const source = typeof entry.pkg === "string" ? entry.pkg : entry.pkg.source;
 			const parsed = this.parseSource(source);
@@ -1742,8 +1731,6 @@ export class DefaultPackageManager implements PackageManager {
 			},
 		});
 	}
-
-
 
 	/**
 	 * Get a unique identity for a package, ignoring version/ref.
@@ -2648,15 +2635,15 @@ export class DefaultPackageManager implements PackageManager {
 			entries: Map<string, { metadata: PathMetadata; enabled: boolean }>,
 		): ResolvedResource[] => {
 			const resolved: ResolvedResource[] = [];
-		entries.forEach((value, path) => {
-			const { metadata, enabled } = value;
-			resolved.push({
-				path,
-				enabled,
-				metadata,
+			entries.forEach((value, path) => {
+				const { metadata, enabled } = value;
+				resolved.push({
+					path,
+					enabled,
+					metadata,
+				});
 			});
-		});
-		resolved.sort((a, b) => resourcePrecedenceRank(a.metadata) - resourcePrecedenceRank(b.metadata));
+			resolved.sort((a, b) => resourcePrecedenceRank(a.metadata) - resourcePrecedenceRank(b.metadata));
 
 			const seen = new Set<string>();
 			return resolved.filter((entry) => {

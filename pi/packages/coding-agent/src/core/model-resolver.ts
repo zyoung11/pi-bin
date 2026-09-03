@@ -10,9 +10,9 @@ import {
 	type Model,
 	modelsAreEqual,
 } from "../../../ai/src/index.ts";
+import { isValidThinkingLevel } from "../cli/args.ts";
 import chalk from "../utils/mini-chalk.ts";
 import { minimatch } from "../utils/mini-minimatch.ts";
-import { isValidThinkingLevel } from "../cli/args.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 

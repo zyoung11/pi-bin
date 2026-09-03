@@ -1,5 +1,14 @@
-import { Marked, type Token, type TokensBlockquote, type TokensText, Tokenizer, type TokenizerExtension, type Tokens, type TokensGeneric } from "../mini-markdown.ts";
 import { renderLatex } from "../latex.ts";
+import {
+	Marked,
+	type Token,
+	Tokenizer,
+	type TokenizerExtension,
+	type Tokens,
+	type TokensBlockquote,
+	type TokensGeneric,
+	type TokensText,
+} from "../mini-markdown.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
@@ -182,16 +191,25 @@ function trimPartialClosingFences(tokens: readonly unknown[]): void {
 	const tokenType = view["type"];
 	if (tokenType === "list") {
 		const rawItems = view["items"];
-		const items: unknown[] = rawItems !== null && rawItems !== undefined && typeof rawItems === "object" ? (rawItems as unknown[]) : [];
+		const items: unknown[] =
+			rawItems !== null && rawItems !== undefined && typeof rawItems === "object" ? (rawItems as unknown[]) : [];
 		if (items.length === 0) return;
 		const lastItem = recordViewOf(items[items.length - 1]);
 		const lastTokens = lastItem["tokens"];
-		trimPartialClosingFences(lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object" ? (lastTokens as unknown[]) : []);
+		trimPartialClosingFences(
+			lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object"
+				? (lastTokens as unknown[])
+				: [],
+		);
 		return;
 	}
 	if (tokenType === "blockquote") {
 		const lastTokens = view["tokens"];
-		trimPartialClosingFences(lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object" ? (lastTokens as unknown[]) : []);
+		trimPartialClosingFences(
+			lastTokens !== null && lastTokens !== undefined && typeof lastTokens === "object"
+				? (lastTokens as unknown[])
+				: [],
+		);
 		return;
 	}
 	if (tokenType !== "code") {
@@ -541,7 +559,9 @@ export class Markdown extends Component {
 
 			const headingNested = view["tokens"];
 			const headingText = this.renderInlineTokens(
-				headingNested !== null && headingNested !== undefined && typeof headingNested === "object" ? (headingNested as unknown[]) : [],
+				headingNested !== null && headingNested !== undefined && typeof headingNested === "object"
+					? (headingNested as unknown[])
+					: [],
 				headingStyleContext,
 			);
 			const styledHeading = headingLevel >= 3 ? headingStyleFn(headingPrefix) + headingText : headingText;
@@ -630,7 +650,8 @@ export class Markdown extends Component {
 				const quoteToken = quoteTokens[i];
 				const nextQuoteToken = i + 1 < quoteTokens.length ? quoteTokens[i + 1] : undefined;
 				let nextQuoteTokenType: string | undefined;
-				if (nextQuoteToken !== undefined) nextQuoteTokenType = recordViewOf(nextQuoteToken)["type"] as string | undefined;
+				if (nextQuoteToken !== undefined)
+					nextQuoteTokenType = recordViewOf(nextQuoteToken)["type"] as string | undefined;
 				renderedQuoteLines.push(
 					...this.renderToken(quoteToken, quoteContentWidth, nextQuoteTokenType, quoteInlineStyleContext),
 				);
@@ -695,16 +716,29 @@ export class Markdown extends Component {
 				const rendered =
 					pending !== true && this.options.renderLatex !== false && typeof latexText === "string"
 						? (renderLatex(latexText) ?? (typeof latexRaw === "string" ? latexRaw : ""))
-						: typeof latexRaw === "string" ? latexRaw : "";
+						: typeof latexRaw === "string"
+							? latexRaw
+							: "";
 				result += applyTextWithNewlines(rendered);
 			} else if (tokenType === "escape") {
 				const escapeText = tokenView["text"];
 				result += applyTextWithNewlines(
-					this.options.preserveBackslashEscapes ? (typeof tokenView["raw"] === "string" ? tokenView["raw"] : "") : typeof escapeText === "string" ? escapeText : "",
+					this.options.preserveBackslashEscapes
+						? typeof tokenView["raw"] === "string"
+							? tokenView["raw"]
+							: ""
+						: typeof escapeText === "string"
+							? escapeText
+							: "",
 				);
 			} else if (tokenType === "text") {
 				const nested = tokenView["tokens"];
-				if (nested !== null && nested !== undefined && typeof nested === "object" && (nested as unknown[]).length > 0) {
+				if (
+					nested !== null &&
+					nested !== undefined &&
+					typeof nested === "object" &&
+					(nested as unknown[]).length > 0
+				) {
 					result += this.renderInlineTokens(nested as unknown[], resolvedStyleContext);
 				} else {
 					const text = tokenView["text"];
@@ -795,7 +829,12 @@ export class Markdown extends Component {
 	/**
 	 * Render a list with proper nesting support
 	 */
-	private renderList(token: Record<string, unknown>, depth: number, width: number, styleContext?: InlineStyleContext): string[] {
+	private renderList(
+		token: Record<string, unknown>,
+		depth: number,
+		width: number,
+		styleContext?: InlineStyleContext,
+	): string[] {
 		const lines: string[] = [];
 		const indent = "    ".repeat(depth);
 		const rawStart = token["start"];
@@ -933,7 +972,10 @@ export class Markdown extends Component {
 		const minWordWidths: number[] = [];
 		for (let i = 0; i < numCols; i++) {
 			const headerCellTokens = recordViewOf(header[i])["tokens"];
-			const headerCellList = headerCellTokens !== null && headerCellTokens !== undefined && typeof headerCellTokens === "object" ? (headerCellTokens as unknown[]) : [];
+			const headerCellList =
+				headerCellTokens !== null && headerCellTokens !== undefined && typeof headerCellTokens === "object"
+					? (headerCellTokens as unknown[])
+					: [];
 			const headerText = this.renderInlineTokens(headerCellList, styleContext);
 			naturalWidths[i] = visibleWidth(headerText);
 			minWordWidths[i] = Math.max(1, this.getLongestWordWidth(headerText, maxUnbrokenWordWidth));
@@ -942,7 +984,10 @@ export class Markdown extends Component {
 			const row = rows[rowIdx] as unknown[];
 			for (let i = 0; i < row.length; i++) {
 				const cellTokens = recordViewOf(row[i])["tokens"];
-				const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+				const cellList =
+					cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object"
+						? (cellTokens as unknown[])
+						: [];
 				const cellText = this.renderInlineTokens(cellList, styleContext);
 				naturalWidths[i] = Math.max(naturalWidths[i] ?? 0, visibleWidth(cellText));
 				minWordWidths[i] = Math.max(
@@ -1031,7 +1076,10 @@ export class Markdown extends Component {
 		const headerCellLines: string[][] = [];
 		for (let i = 0; i < header.length; i++) {
 			const cellTokens = recordViewOf(header[i])["tokens"];
-			const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+			const cellList =
+				cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object"
+					? (cellTokens as unknown[])
+					: [];
 			const text = this.renderInlineTokens(cellList, styleContext);
 			headerCellLines.push(this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix));
 		}
@@ -1057,7 +1105,10 @@ export class Markdown extends Component {
 			const rowCellLines: string[][] = [];
 			for (let i = 0; i < row.length; i++) {
 				const cellTokens = recordViewOf(row[i])["tokens"];
-				const cellList = cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object" ? (cellTokens as unknown[]) : [];
+				const cellList =
+					cellTokens !== null && cellTokens !== undefined && typeof cellTokens === "object"
+						? (cellTokens as unknown[])
+						: [];
 				const text = this.renderInlineTokens(cellList, styleContext);
 				rowCellLines.push(this.wrapCellText(text, columnWidths[i], styleContext?.stylePrefix));
 			}

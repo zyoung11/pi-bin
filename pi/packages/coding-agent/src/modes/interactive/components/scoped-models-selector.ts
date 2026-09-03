@@ -1,6 +1,4 @@
-import type { Api,
-	Model
-} from "../../../../../ai/src/index.ts"
+import type { Api, Model } from "../../../../../ai/src/index.ts";
 import { Input } from "../../../../../tui/src/components/input.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";

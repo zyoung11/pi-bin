@@ -225,11 +225,7 @@ class UnavailableRegistry implements Hooks, Events {
 		this.isClosed = isClosed;
 	}
 
-	on(
-		_name: HookName | string,
-		_handler: (event: unknown) => unknown,
-		_options?: { id?: string },
-	): () => void {
+	on(_name: HookName | string, _handler: (event: unknown) => unknown, _options?: { id?: string }): () => void {
 		throw this.isClosed() ? new HarnessClosed() : new HarnessNotImplemented(this.operation);
 	}
 }

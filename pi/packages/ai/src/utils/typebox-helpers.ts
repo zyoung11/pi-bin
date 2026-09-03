@@ -1,4 +1,4 @@
-import { Type, type PiUnsafe } from "../schema.ts";
+import { type PiUnsafe, Type } from "../schema.ts";
 
 /**
  * Creates a string enum schema compatible with Google's API and other providers

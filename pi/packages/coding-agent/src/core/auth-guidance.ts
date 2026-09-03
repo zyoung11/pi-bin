@@ -1,4 +1,3 @@
-
 const UNKNOWN_PROVIDER = "unknown";
 
 export function getProviderLoginHelp(): string {

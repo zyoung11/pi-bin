@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { appendFileSync, writeFileSync } from "node:fs";  // appendFileSync(path, data) keeps bytes
+import { appendFileSync, writeFileSync } from "node:fs"; // appendFileSync(path, data) keeps bytes
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult, truncateTail } from "./truncate.ts";
 import { incompleteUtf8TailLength } from "../../../../ai/src/api/openai-http.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type TruncationResult, truncateTail } from "./truncate.ts";
 
 export interface OutputAccumulatorOptions {
 	maxLines?: number;

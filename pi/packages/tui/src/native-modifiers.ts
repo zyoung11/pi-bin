@@ -1,11 +1,10 @@
-
 export type ModifierKey = "shift" | "command" | "control" | "option";
 
 type NativeModifiersHelper = {
 	isModifierPressed: (name: ModifierKey) => boolean;
 };
 
-let nativeModifiersHelper: NativeModifiersHelper | null | undefined = null;
+const nativeModifiersHelper: NativeModifiersHelper | null | undefined = null;
 
 function loadNativeModifiersHelper(): NativeModifiersHelper | undefined {
 	// Native accelerator helpers are unavailable in the static build (no module

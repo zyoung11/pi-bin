@@ -1,5 +1,4 @@
-import type { FileError } from "../../agent/src/harness/types.ts";
-import type { Result } from "../../agent/src/harness/types.ts";
+import type { FileError, Result } from "../../agent/src/harness/types.ts";
 
 export function p21(v: FileError[]): string {
 	return v.length.toString();

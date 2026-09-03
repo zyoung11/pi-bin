@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import type { Keybindings } from "../../../tui/src/keybindings.ts";
 import {
 	type Keybinding,
 	type KeybindingDefinitions,
@@ -5,10 +8,7 @@ import {
 	TUI_KEYBINDINGS,
 	KeybindingsManager as TuiKeybindingsManager,
 } from "../../../tui/src/keybindings.ts";
-import type { Keybindings } from "../../../tui/src/keybindings.ts";
 import type { KeyId } from "../../../tui/src/keys.ts";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
 import { getAgentDir } from "../config.ts";
 import { stripBom } from "../utils/text.ts";
 

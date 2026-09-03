@@ -3,15 +3,15 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Editor } from "../../../../tui/src/components/editor.ts";
+import type { Editor } from "../../../../tui/src/components/editor.ts";
 import { hyperlink } from "../../../../tui/src/terminal-image.ts";
 import type { Container, TUI } from "../../../../tui/src/tui.ts";
 import { getAuthCredential } from "../../cli/auth-command.ts";
 import { getShareViewerUrl } from "../../config.ts";
 import type { AgentSession } from "../../core/agent-session.ts";
 import { exportSessionToJsonl } from "../../core/session-export.ts";
-import { BorderedLoader } from "./components/bordered-loader.ts";
 import type { ChildProcessHandle } from "../../utils/child-process.ts";
+import { BorderedLoader } from "./components/bordered-loader.ts";
 import { theme } from "./theme/theme.ts";
 
 interface SessionShareContext {

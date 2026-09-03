@@ -1,4 +1,4 @@
-import { Type, type Static } from "../../../../ai/src/schema.ts";
+import { type Static, Type } from "../../../../ai/src/schema.ts";
 import type { AgentHarnessTool, FileError } from "../types.ts";
 import {
 	applyEditsToNormalizedContent,

@@ -1,4 +1,5 @@
 import { parseDecimalInt } from "./utils.ts";
+
 /**
  * Keyboard input handling for terminal applications.
  *

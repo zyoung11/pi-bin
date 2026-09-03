@@ -6,11 +6,7 @@ import { Loader } from "../../../../../tui/src/components/loader.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
 import { Component, Container, type TUI } from "../../../../../tui/src/tui.ts";
-import {
-	DEFAULT_MAX_BYTES,
-	DEFAULT_MAX_LINES,
-	truncateTail,
-} from "../../../core/tools/truncate.ts";
+import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateTail } from "../../../core/tools/truncate.ts";
 import { stripAnsi } from "../../../utils/ansi.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

@@ -1,4 +1,4 @@
-import { ProcessTerminal } from "./terminal.ts";
+import type { ProcessTerminal } from "./terminal.ts";
 /**
  * Minimal TUI implementation with differential rendering
  */
@@ -350,7 +350,6 @@ export interface TUI {
 	queryTerminalBackgroundColor(options: { timeoutMs: number }): Promise<RgbColor | undefined>;
 	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined>;
 }
-
 
 export abstract class TuiBase extends Container implements TUI {
 	readonly mode: TuiMode = "regular";

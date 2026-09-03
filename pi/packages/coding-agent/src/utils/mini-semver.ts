@@ -181,7 +181,10 @@ export function validRange(range: string): string | null {
 		const hyphenMatch = /^(\S+)\s+-\s+(\S+)$/.exec(alternative.trim());
 		const tokens = hyphenMatch
 			? [`>=${hyphenMatch[1]}`, `<=${hyphenMatch[2]}`]
-			: alternative.trim().split(/\s+/).filter((token) => token !== "");
+			: alternative
+					.trim()
+					.split(/\s+/)
+					.filter((token) => token !== "");
 		if (tokens.length === 0) return null;
 		for (const token of tokens) {
 			if (parseComparator(token) === null) return null;

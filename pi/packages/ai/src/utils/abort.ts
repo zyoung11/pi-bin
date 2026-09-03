@@ -1,5 +1,5 @@
-import type { Api, Model } from "../types.ts";
 import type { AuthCheck, AuthResult, Credential } from "../auth/types.ts";
+import type { Api, Model } from "../types.ts";
 
 function abortReason(signal: AbortSignal): unknown {
 	if (signal.reason !== undefined) return signal.reason;
@@ -21,9 +21,13 @@ export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal)
 	return Promise.race([
 		operation,
 		new Promise<void>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
@@ -35,9 +39,13 @@ export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortS
 	return Promise.race([
 		operation,
 		new Promise<boolean>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
@@ -49,9 +57,13 @@ export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal:
 	return Promise.race([
 		operation,
 		new Promise<boolean[]>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
@@ -63,37 +75,55 @@ export function raceUnknownWithAbort(operation: Promise<unknown>, signal: AbortS
 	return Promise.race([
 		operation,
 		new Promise<unknown>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
 /** Race an auth-check operation against an abort signal (concrete-type variant). */
-export function raceAuthCheckWithAbort(operation: Promise<AuthCheck | undefined>, signal: AbortSignal): Promise<AuthCheck | undefined> {
+export function raceAuthCheckWithAbort(
+	operation: Promise<AuthCheck | undefined>,
+	signal: AbortSignal,
+): Promise<AuthCheck | undefined> {
 	if (signal.aborted) {
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
 		operation,
 		new Promise<AuthCheck | undefined>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
 /** Race a model-list operation against an abort signal (concrete-type variant). */
-export function raceModelsWithAbort(operation: Promise<readonly Model<Api>[]>, signal: AbortSignal): Promise<readonly Model<Api>[]> {
+export function raceModelsWithAbort(
+	operation: Promise<readonly Model<Api>[]>,
+	signal: AbortSignal,
+): Promise<readonly Model<Api>[]> {
 	if (signal.aborted) {
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
 		operation,
 		new Promise<readonly Model<Api>[]>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
@@ -105,23 +135,34 @@ export function raceCredentialWithAbort(operation: Promise<Credential>, signal: 
 	return Promise.race([
 		operation,
 		new Promise<Credential>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }
 /** Race an auth-result operation against an abort signal (concrete-type variant). */
-export function raceAuthResultWithAbort(operation: Promise<AuthResult | undefined>, signal: AbortSignal): Promise<AuthResult | undefined> {
+export function raceAuthResultWithAbort(
+	operation: Promise<AuthResult | undefined>,
+	signal: AbortSignal,
+): Promise<AuthResult | undefined> {
 	if (signal.aborted) {
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
 		operation,
 		new Promise<AuthResult | undefined>((_resolve, reject) => {
-			signal.addEventListener("abort", () => {
-				reject(abortReason(signal));
-			}, { once: true });
+			signal.addEventListener(
+				"abort",
+				() => {
+					reject(abortReason(signal));
+				},
+				{ once: true },
+			);
 		}),
 	]);
 }

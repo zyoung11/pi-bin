@@ -1,4 +1,4 @@
-import { Compile, Value, type PiValidationError } from "../schema.ts";
+import { Compile, type PiValidationError, Value } from "../schema.ts";
 import type { Tool, ToolCall } from "../types.ts";
 
 interface JsonSchemaObject {

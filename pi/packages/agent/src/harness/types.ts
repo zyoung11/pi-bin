@@ -1,5 +1,5 @@
 import type { SimpleStreamOptions, Transport } from "../../../ai/src/index.ts";
-import type { Static,  PiSchema as TSchema } from "../../../ai/src/schema.ts";
+import type { Static, PiSchema as TSchema } from "../../../ai/src/schema.ts";
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from "../types.ts";
 
 /** Result of a fallible operation. Expected failures are returned as `ok: false` instead of thrown. */
@@ -94,9 +94,7 @@ export type AgentHarnessTool<
 };
 
 /** Static tool context or zero-argument provider resolved for each turn snapshot. */
-export type AgentHarnessToolContextSource<TContext extends object | undefined> =
-	| TContext
-	| (() => Promise<TContext>);
+export type AgentHarnessToolContextSource<TContext extends object | undefined> = TContext | (() => Promise<TContext>);
 
 /** Curated provider request options owned by the harness and snapshotted per turn. */
 export interface AgentHarnessStreamOptions {

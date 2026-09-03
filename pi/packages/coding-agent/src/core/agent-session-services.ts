@@ -1,11 +1,8 @@
 import { join } from "node:path";
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import type { Api,
-	Model
-} from "../../../ai/src/index.ts"
+import type { Api, Model } from "../../../ai/src/index.ts";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
-import type { ToolDefinition } from "./tools/tool-types.ts";
 import { ModelRuntime } from "./model-runtime.ts";
 import {
 	DefaultResourceLoader,
@@ -16,6 +13,7 @@ import {
 import { type CreateAgentSessionOptions, type CreateAgentSessionResult, createAgentSession } from "./sdk.ts";
 import type { SessionManager } from "./session-manager.ts";
 import { SettingsManager } from "./settings-manager.ts";
+import type { ToolDefinition } from "./tools/tool-types.ts";
 
 /**
  * Non-fatal issues collected while creating services or sessions.
@@ -78,7 +76,6 @@ export interface AgentSessionServices {
 	resourceLoader: ResourceLoader;
 	diagnostics: AgentSessionRuntimeDiagnostic[];
 }
-
 
 /**
  * Create cwd-bound runtime services.

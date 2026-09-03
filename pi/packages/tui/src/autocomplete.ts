@@ -196,13 +196,13 @@ async function walkDirectoryWithFd(
 			} else if (b0 >= 0xe0 && b0 < 0xf0) {
 				const b1 = i + 1 < complete.length ? complete[i + 1] : 0;
 				const b2 = i + 2 < complete.length ? complete[i + 2] : 0;
-				codepoint = ((b0 & 0x0f) << 12) | (b1 & 0x3f) << 6 | (b2 & 0x3f);
+				codepoint = ((b0 & 0x0f) << 12) | ((b1 & 0x3f) << 6) | (b2 & 0x3f);
 				i += 3;
 			} else {
 				const b1 = i + 1 < complete.length ? complete[i + 1] : 0;
 				const b2 = i + 2 < complete.length ? complete[i + 2] : 0;
 				const b3 = i + 3 < complete.length ? complete[i + 3] : 0;
-				codepoint = ((b0 & 0x07) << 18) | (b1 & 0x3f) << 12 | (b2 & 0x3f) << 6 | (b3 & 0x3f);
+				codepoint = ((b0 & 0x07) << 18) | ((b1 & 0x3f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
 				i += 4;
 			}
 			if (codepoint < 0x10000) {
@@ -298,7 +298,6 @@ export interface AutocompleteItem {
 	label: string;
 	description?: string;
 }
-
 
 export interface SlashCommand {
 	name: string;

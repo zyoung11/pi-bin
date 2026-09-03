@@ -19,7 +19,10 @@ export function shortenPath(path: unknown): string {
 export function linkPath(styledText: string, rawPath: string, cwd: string): string {
 	if (!getCapabilities().hyperlinks) return styledText;
 	const absolutePath = resolvePath(rawPath, cwd);
-	const encoded = absolutePath.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+	const encoded = absolutePath
+		.split("/")
+		.map((segment) => encodeURIComponent(segment))
+		.join("/");
 	return hyperlink(styledText, `file://${encoded}`);
 }
 

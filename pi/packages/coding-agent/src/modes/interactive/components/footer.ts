@@ -1,10 +1,10 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import type { Usage } from "../../../../../ai/src/index.ts";
 import { Component } from "../../../../../tui/src/tui.ts";
 import { truncateToWidth, visibleWidth } from "../../../../../tui/src/utils.ts";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { FooterDataProvider } from "../../../core/footer-data-provider.ts";
-import type { Usage } from "../../../../../ai/src/index.ts";
 import { addUsageToTotals, createUsageTotals } from "../../../core/usage-totals.ts";
 import { theme } from "../theme/theme.ts";
 

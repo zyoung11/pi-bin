@@ -1,6 +1,6 @@
 import type { AgentTool } from "../../../../agent/src/index.ts";
-import type { ToolDefinition } from "./tool-types.ts";
 import type { PiSchema as TSchema } from "../../../../ai/src/schema.ts";
+import type { ToolDefinition } from "./tool-types.ts";
 
 /** Wrap a ToolDefinition into an AgentTool for the core runtime. */
 export function wrapToolDefinition<TParams extends TSchema, TDetails = unknown, TState = unknown>(
@@ -14,8 +14,7 @@ export function wrapToolDefinition<TParams extends TSchema, TDetails = unknown, 
 		constrainedSampling: definition.constrainedSampling,
 		prepareArguments: definition.prepareArguments,
 		executionMode: definition.executionMode,
-		execute: (toolCallId, params, signal, onUpdate) =>
-			definition.execute(toolCallId, params, signal, onUpdate),
+		execute: (toolCallId, params, signal, onUpdate) => definition.execute(toolCallId, params, signal, onUpdate),
 	};
 }
 

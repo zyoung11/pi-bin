@@ -1,11 +1,11 @@
+import { getApiProvider } from "../../../ai/src/compat.ts";
 import {
 	type Api,
 	type ApiKeyAuth,
+	type ApiKeyCredential,
 	type AssistantMessageEventStream,
 	type AuthContext,
-	type ApiKeyCredential,
 	type AuthInteraction,
-	type ProviderAuthInteraction,
 	type AuthResult,
 	type Context,
 	type Credential,
@@ -17,11 +17,11 @@ import {
 	type OAuthCredentials,
 	type OAuthLoginCallbacks,
 	type Provider,
+	type ProviderAuthInteraction,
 	type ProviderHeaders,
 	type SimpleStreamOptions,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
-import { getApiProvider } from "../../../ai/src/compat.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
 import {
 	clearConfigValueCache,
@@ -68,7 +68,7 @@ export interface ProviderConfigInput {
 		samplingParams?: Record<string, unknown>;
 		headers?: Record<string, string>;
 		compat?: Model<Api>["compat"];
-	}>
+	}>;
 }
 
 export type AuthStatus = {
@@ -87,9 +87,7 @@ function copyCompatRecord(source: unknown): Record<string, unknown> {
 	return target;
 }
 
-function mergeStringRecords(
-	...records: Array<Record<string, string> | undefined>
-): Record<string, string> {
+function mergeStringRecords(...records: Array<Record<string, string> | undefined>): Record<string, string> {
 	const merged: Record<string, string> = {};
 	for (const record of records) {
 		if (!record) continue;
@@ -100,9 +98,7 @@ function mergeStringRecords(
 	return merged;
 }
 
-function mergeUnknownRecords(
-	...records: Array<Record<string, unknown> | undefined>
-): Record<string, unknown> {
+function mergeUnknownRecords(...records: Array<Record<string, unknown> | undefined>): Record<string, unknown> {
 	const merged: Record<string, unknown> = {};
 	for (const record of records) {
 		if (!record) continue;
@@ -233,7 +229,7 @@ function applyModelsJson(
 	}));
 	for (const definition of config.models ?? []) {
 		const existingIndex = models.findIndex((model) => model.id === definition.id);
-		const defaults = existingIndex >= 0 ? models[existingIndex] : (models.length > 0 ? models[0] : undefined);
+		const defaults = existingIndex >= 0 ? models[existingIndex] : models.length > 0 ? models[0] : undefined;
 		const model = modelFromJson(providerId, definition, config, defaults);
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);
@@ -414,17 +410,17 @@ function composeApiKeyAuth(
 	// OAuth-only providers get no fabricated API-key login method.
 	if (!inherited && rawKey === undefined && hasOAuth) return undefined;
 	const rawHeaders = configuredHeaders(config, extension);
-		let composedLogin: ((interaction: ProviderAuthInteraction) => Promise<ApiKeyCredential>) | undefined;
-		if (inherited?.login) {
-			const inheritedLogin = inherited.login;
-			composedLogin = (interaction: ProviderAuthInteraction) => inheritedLogin(interaction);
-		} else {
-			composedLogin = async (interaction: ProviderAuthInteraction) => {
-				const key = await interaction.prompt({ type: "secret", message: "Enter API key" });
-				const credential: ApiKeyCredential = { type: "api_key", key };
-				return credential;
-			};
-		}
+	let composedLogin: ((interaction: ProviderAuthInteraction) => Promise<ApiKeyCredential>) | undefined;
+	if (inherited?.login) {
+		const inheritedLogin = inherited.login;
+		composedLogin = (interaction: ProviderAuthInteraction) => inheritedLogin(interaction);
+	} else {
+		composedLogin = async (interaction: ProviderAuthInteraction) => {
+			const key = await interaction.prompt({ type: "secret", message: "Enter API key" });
+			const credential: ApiKeyCredential = { type: "api_key", key };
+			return credential;
+		};
+	}
 	const authHeader = extension?.authHeader ?? config?.authHeader ?? false;
 	return {
 		name: inherited?.name ?? "API key",
@@ -560,7 +556,7 @@ export function composeModelProvider(
 	// models.json modelOverrides are the topmost user-config layer: they apply once,
 	// after custom-model upserts, extension model replacement, and legacy OAuth projection.
 	const getModels = () => {
-		let models = applyExtension(
+		const models = applyExtension(
 			providerId,
 			applyModelsJson(providerId, base?.getModels() ?? [], config),
 			currentExtension(),

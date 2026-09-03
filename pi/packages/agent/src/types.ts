@@ -5,16 +5,16 @@ import type {
 	AssistantMessageEventStream,
 	Context,
 	ImageContent,
-	ToolResultMessage,
-	UserMessage,
 	Message,
 	Model,
 	SimpleStreamOptions,
 	TextContent,
 	Tool,
+	ToolResultMessage,
 	Usage,
+	UserMessage,
 } from "../../ai/src/index.ts";
-import type { Static,  PiSchema as TSchema } from "../../ai/src/schema.ts";
+import type { Static, PiSchema as TSchema } from "../../ai/src/schema.ts";
 
 /**
  * Stream function used by the agent loop. `Models.streamSimple` satisfies
@@ -227,9 +227,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * Return replacement context/model/thinking state to affect the next turn in this run.
 	 * Return undefined to keep using the current context/config.
 	 */
-	prepareNextTurn?: (
-		context: PrepareNextTurnContext,
-	) => Promise<AgentLoopTurnUpdate | undefined>;
+	prepareNextTurn?: (context: PrepareNextTurnContext) => Promise<AgentLoopTurnUpdate | undefined>;
 
 	/**
 	 * Returns steering messages to inject into the conversation mid-run.
@@ -459,5 +457,11 @@ export type AgentEvent =
 	| { type: "message_end"; message: AgentMessage }
 	// Tool execution lifecycle
 	| { type: "tool_execution_start"; toolCallId: string; toolName: string; args: Record<string, unknown> }
-	| { type: "tool_execution_update"; toolCallId: string; toolName: string; args: Record<string, unknown>; partialResult: unknown }
+	| {
+			type: "tool_execution_update";
+			toolCallId: string;
+			toolName: string;
+			args: Record<string, unknown>;
+			partialResult: unknown;
+	  }
 	| { type: "tool_execution_end"; toolCallId: string; toolName: string; result: unknown; isError: boolean };

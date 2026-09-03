@@ -1,7 +1,7 @@
+import type { StackLayoutNode } from "../layout-node.ts";
 import { compositeTuiLine } from "../tui.ts";
 import { visibleWidth } from "../utils.ts";
 import { allocateStackSizes, Stack, type StackEntry, type StackOptions, visibleStackEntries } from "./stack.ts";
-import type { StackLayoutNode } from "../layout-node.ts";
 
 export class HStack extends Stack {
 	protected readonly layoutType = "hstack" as const;

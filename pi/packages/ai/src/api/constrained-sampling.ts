@@ -314,7 +314,9 @@ function resolveJsonSchemaStrictSamplingImpl(tool: Tool, supportsStrictMode: boo
 		}
 	}
 	if (strictMode === "require") {
-		throw new Error(`Tool "${tool.name}" requires JSON-schema constrained sampling, but strict tools are unsupported.`);
+		throw new Error(
+			`Tool "${tool.name}" requires JSON-schema constrained sampling, but strict tools are unsupported.`,
+		);
 	}
 	return undefined;
 }

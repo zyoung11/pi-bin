@@ -28,13 +28,13 @@ export {
 export { type BashExecutorOptions, type BashResult, executeBashWithOperations } from "./bash-executor.ts";
 export type { CompactionResult } from "./compaction/index.ts";
 export { createEventBus, type EventBus, type EventBusController } from "./event-bus.ts";
-export { areExperimentalFeaturesEnabled } from "./experimental.ts";
-export type { BuildSystemPromptOptions } from "./system-prompt.ts";
 export type { ExecOptions, ExecResult } from "./exec.ts";
+export { areExperimentalFeaturesEnabled } from "./experimental.ts";
+export { createSyntheticSourceInfo } from "./source-info.ts";
+export type { BuildSystemPromptOptions } from "./system-prompt.ts";
 export {
 	defineTool,
 	type ToolDefinition,
 	type ToolRenderContext,
 	type ToolRenderResultOptions,
 } from "./tools/tool-types.ts";
-export { createSyntheticSourceInfo } from "./source-info.ts";

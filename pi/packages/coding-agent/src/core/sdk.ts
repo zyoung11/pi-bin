@@ -1,14 +1,12 @@
-import type { Api } from "../../../ai/src/types.ts";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "../../../agent/src/index.ts";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "../../../ai/src/compat.ts";
-import type { ImageContent, TextContent } from "../../../ai/src/types.ts";
+import type { Api, ImageContent, TextContent } from "../../../ai/src/types.ts";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { AgentSession } from "./agent-session.ts";
 import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
-import type { ToolDefinition } from "./tools/tool-types.ts";
 import { convertToLlm } from "./messages.ts";
 import { findInitialModel } from "./model-resolver.ts";
 import { ModelRuntime } from "./model-runtime.ts";
@@ -28,6 +26,7 @@ import {
 	type ToolName,
 	withFileMutationQueue,
 } from "./tools/index.ts";
+import type { ToolDefinition } from "./tools/tool-types.ts";
 
 // Preserve the pre-0.81 fallback for extensions that construct Agent instances
 // or invoke low-level agent loops without supplying streamFn. Agent core remains
@@ -93,11 +92,11 @@ export interface CreateAgentSessionResult {
 
 // Re-exports
 
-export type { SlashCommandInfo, SlashCommandSource } from "./slash-commands.ts";
-export type { ToolDefinition } from "./tools/tool-types.ts";
 export type { PromptTemplate } from "./prompt-templates.ts";
 export type { Skill } from "./skills.ts";
+export type { SlashCommandInfo, SlashCommandSource } from "./slash-commands.ts";
 export type { Tool } from "./tools/index.ts";
+export type { ToolDefinition } from "./tools/tool-types.ts";
 
 export {
 	withFileMutationQueue,
@@ -289,7 +288,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 						for (const c of content) {
 							if (c.type === "image") {
 								const placeholder: TextContent = { type: "text", text: "Image reading is disabled." };
-								const previous = filteredContent.length > 0 ? filteredContent[filteredContent.length - 1] : undefined;
+								const previous =
+									filteredContent.length > 0 ? filteredContent[filteredContent.length - 1] : undefined;
 								if (
 									previous !== undefined &&
 									previous.type === "text" &&
@@ -335,11 +335,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
 				maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
 				transformHeaders: async (requestHeaders) => {
-					const headers = mergeProviderAttributionHeaders(
-						model,
-						options?.sessionId,
-						requestHeaders,
-					);
+					const headers = mergeProviderAttributionHeaders(model, options?.sessionId, requestHeaders);
 					return headers ?? {};
 				},
 			});

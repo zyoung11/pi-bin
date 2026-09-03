@@ -1,13 +1,12 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { resolvePath } from "../utils/paths.ts";
-import { entryIdOf, CURRENT_SESSION_VERSION, type SessionHeader, type SessionManager } from "./session-manager.ts";
+import { CURRENT_SESSION_VERSION, entryIdOf, type SessionHeader, type SessionManager } from "./session-manager.ts";
 
 /** JSON.stringify an arbitrary value via an unknown parameter. */
 function jsonOf(value: unknown): string {
 	return JSON.stringify(value) ?? "";
 }
-
 
 /** Write the current session branch and optional trailing export-only entries as JSONL. */
 export function exportSessionToJsonl(

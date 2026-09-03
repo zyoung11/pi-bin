@@ -2,14 +2,14 @@
  * Process @file CLI arguments into text content and image attachments
  */
 
-import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import type { ImageContent } from "../../../ai/src/index.ts";
-import chalk from "../utils/mini-chalk.ts";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "path";
+import type { ImageContent } from "../../../ai/src/index.ts";
 import { resolveReadPath } from "../core/tools/path-utils.ts";
 import { processImage } from "../utils/image-process.ts";
 import { detectSupportedImageMimeTypeFromFile } from "../utils/mime.ts";
+import chalk from "../utils/mini-chalk.ts";
 import { stripBom } from "../utils/text.ts";
 
 export interface ProcessedFiles {

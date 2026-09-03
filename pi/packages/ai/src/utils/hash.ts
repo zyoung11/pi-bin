@@ -1,4 +1,3 @@
-
 function toBase36(value: number): string {
 	const digits = "0123456789abcdefghijklmnopqrstuvwxyz";
 	let v = value >>> 0;
@@ -16,7 +15,7 @@ function imul(a: number, b: number): number {
 	const al = a & 0xffff;
 	const bh = (b >>> 16) & 0xffff;
 	const bl = b & 0xffff;
-	return ((al * bl) + ((((ah * bl) + (al * bh)) << 16) >>> 0) | 0);
+	return (al * bl + (((ah * bl + al * bh) << 16) >>> 0)) | 0;
 }
 
 export function shortHash(str: string): string {
