@@ -1136,7 +1136,7 @@ export function findMostRecentSession(sessionDir: string, cwd?: string): string 
 				return 0;
 			});
 
-		return files[0]?.path || null;
+		return files.length > 0 ? files[0]!.path : null;
 	} catch {
 		// Directory access and stat races make recent-session discovery unavailable.
 		return null;
@@ -2039,7 +2039,8 @@ export class SessionManager {
 				// The bounded scan is only a discovery optimization. A full load remains
 				// authoritative for legacy files with very large headers or prefixes.
 				preloadedFileEntries = loadEntriesFromFile(resolvedPath);
-				const firstEntry = preloadedFileEntries[0];
+				const firstEntry =
+					preloadedFileEntries.length > 0 ? preloadedFileEntries[0] : undefined;
 				const firstType = entryTypeOf(firstEntry);
 				header = firstType === "session" ? (firstEntry as unknown as SessionHeader) : null;
 			}
