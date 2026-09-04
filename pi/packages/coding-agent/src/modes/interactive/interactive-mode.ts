@@ -2478,10 +2478,10 @@ export class InteractiveMode {
 		if (text === "/login" || text.startsWith("/login ")) {
 			const providerRef = text.startsWith("/login ") ? text.slice(7).trim() : undefined;
 			this.editor.setText("");
-			if (process.env.PI_TUI_DEBUG) {
-				fs.appendFileSync("/tmp/pi-tui-debug.log", "dispatch /login reached\n");
-			}
-			void this.handleLoginCommand(providerRef || undefined);
+			this.handleLoginCommand(providerRef || undefined).catch((error: unknown) => {
+				fs.appendFileSync("/tmp/pi-tui-debug.log", `handleLoginCommand REJECTED: ${String(error)}\n`);
+				this.showError(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
+			});
 			return;
 		}
 		if (text === "/scoped-models") {
@@ -3958,9 +3958,7 @@ export class InteractiveMode {
 	}
 
 	private async handleLoginCommand(providerRef?: string): Promise<void> {
-		if (process.env.PI_TUI_DEBUG) {
-			fs.appendFileSync("/tmp/pi-tui-debug.log", "handleLoginCommand entered\n");
-		}
+
 		if (!providerRef) {
 			this.showLoginProviderSelector("api_key");
 			return;
@@ -3979,9 +3977,6 @@ export class InteractiveMode {
 
 	private showLoginProviderSelector(authType: "api_key", initialSearchInput?: string): void {
 		const providerOptions = this.getLoginProviderOptions();
-		if (process.env.PI_TUI_DEBUG) {
-			fs.appendFileSync("/tmp/pi-tui-debug.log", `loginSelector: providers=${String(providerOptions.length)}\n`);
-		}
 		if (providerOptions.length === 0) {
 			this.showStatus("No API key providers available.");
 			return;
