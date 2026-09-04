@@ -131,7 +131,7 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 			const child = spawnProcess(shellConfig.shell, [...shellConfig.args, command], {
 				cwd,
 				detached: process.platform !== "win32",
-				env: env ?? getShellEnv(),
+				env: { ...(env ?? getShellEnv()), LC_MESSAGES: "C" },
 				stdio: ["ignore", "pipe", "pipe"],
 				windowsHide: true,
 			});
