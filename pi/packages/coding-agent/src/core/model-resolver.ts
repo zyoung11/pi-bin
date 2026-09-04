@@ -16,6 +16,20 @@ import { minimatch } from "../utils/mini-minimatch.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 
+/** Dyn view over external-data records (missing keys yield undefined, not trap). */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
+function lookupThinkingLevel(
+	map: Record<string, ThinkingLevel> | undefined,
+	key: string,
+): ThinkingLevel | undefined {
+	if (map === undefined) return undefined;
+	const value = recordViewOf(map)[key];
+	return typeof value === "string" ? (value as ThinkingLevel) : undefined;
+}
+
 /** Default model IDs for each known provider */
 export const defaultModelPerProvider: Record<string, string> = {
 	"amazon-bedrock": "us.anthropic.claude-opus-4-6-v1",
@@ -663,7 +677,7 @@ export async function findInitialModel(options: {
 	// 2. Use first model from scoped models (skip if continuing/resuming)
 	if (scopedModels.length > 0 && !isContinuing) {
 		const scopedModel = scopedModels[0];
-		const perModel = modelThinkingLevels?.[`${scopedModel.model.provider}/${scopedModel.model.id}`];
+		const perModel = lookupThinkingLevel(modelThinkingLevels, `${scopedModel.model.provider}/${scopedModel.model.id}`);
 		return {
 			model: scopedModel.model,
 			thinkingLevel: scopedModel.thinkingLevel ?? perModel ?? defaultThinkingLevel ?? DEFAULT_THINKING_LEVEL,
@@ -676,7 +690,7 @@ export async function findInitialModel(options: {
 		const found = modelRuntime.getModel(defaultProvider, defaultModelId);
 		if (found && modelRuntime.hasConfiguredAuth(found.provider)) {
 			model = found;
-			const perModel = modelThinkingLevels?.[`${defaultProvider}/${defaultModelId}`];
+			const perModel = lookupThinkingLevel(modelThinkingLevels, `${defaultProvider}/${defaultModelId}`);
 			if (perModel) {
 				thinkingLevel = perModel;
 			} else if (defaultThinkingLevel) {

@@ -782,7 +782,13 @@ export class SettingsManager {
 	}
 
 	getModelThinkingLevel(provider: string, modelId: string): ThinkingLevel | undefined {
-		return this.settings.modelThinkingLevels?.[`${provider}/${modelId}`];
+		// External JSON: keyed reads go through the dyn view (missing keys must
+		// yield undefined, not trap — a model picked for the first time has no
+		// modelThinkingLevels entry).
+		const map = recordViewOf(this.settings)["modelThinkingLevels"];
+		if (typeof map !== "object" || map === null) return undefined;
+		const value = recordViewOf(map)[`${provider}/${modelId}`];
+		return typeof value === "string" ? (value as ThinkingLevel) : undefined;
 	}
 
 	getAllModelThinkingLevels(): Record<string, ThinkingLevel> {
