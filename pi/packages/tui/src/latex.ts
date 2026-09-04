@@ -1,5 +1,10 @@
 import { visibleWidth } from "./utils.ts";
 
+/** Dyn view over lookup tables: dynamic keys may be absent (scriptc traps typed keyed reads on missing keys). */
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 const SYMBOLS: Readonly<Record<string, string>> = {
 	alpha: "α",
 	beta: "β",
@@ -587,7 +592,7 @@ const ACCENTS: Readonly<Record<string, string>> = {
 function replaceCharacters(value: string, replacements: Readonly<Record<string, string>>): string | undefined {
 	let result = "";
 	for (const character of value) {
-		const replacement = replacements[character];
+		const replacement = recordViewOf(replacements)[character];
 		if (replacement === undefined) {
 			return undefined;
 		}
@@ -989,8 +994,8 @@ class LatexParser {
 		}
 		if (command === "not") {
 			const value = this.parseRequiredArgument(false).trim();
-			const negated = NEGATED_SYMBOLS[value];
-			if (negated !== undefined) {
+			const negated = recordViewOf(NEGATED_SYMBOLS)[value];
+			if (typeof negated === "string") {
 				return ` ${negated} `;
 			}
 			const characters = Array.from(value);
@@ -1004,8 +1009,8 @@ class LatexParser {
 			return this.parseOperator(command, "bracket", true, true);
 		}
 
-		const symbol = SYMBOLS[command];
-		if (symbol !== undefined) {
+		const symbol = recordViewOf(SYMBOLS)[command];
+		if (typeof symbol === "string") {
 			if (DISPLAY_LIMIT_SYMBOLS.has(command)) {
 				return this.parseOperator(symbol, "script", true);
 			}
@@ -1058,7 +1063,7 @@ class LatexParser {
 		if (command === "binom" || command === "dbinom" || command === "tbinom") {
 			return `(${this.parseRequiredArgument()} choose ${this.parseRequiredArgument()})`;
 		}
-		const accent = ACCENTS[command];
+		const accent = recordViewOf(ACCENTS)[command];
 		if (accent !== undefined) {
 			const value = this.parseRequiredArgument();
 			return Array.from(value).length === 1 ? `${value}${accent}` : `${command}(${value})`;
@@ -1066,7 +1071,8 @@ class LatexParser {
 		if (command === "mathbb") {
 			const value = this.parseRequiredArgument();
 			let mapped = "";
-			for (const character of value) mapped += BLACKBOARD[character] ?? character;
+			const blackboard = recordViewOf(BLACKBOARD);
+			for (const character of value) mapped += blackboard[character] ?? character;
 			return mapped;
 		}
 		if (command === "operatorname") {
