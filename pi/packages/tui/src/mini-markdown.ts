@@ -456,6 +456,15 @@ class InlineLexer {
 				position += brMatch[0].length;
 				continue;
 			}
+			const first = text.charCodeAt(position);
+			if (first >= 0xd800 && first <= 0xdbff && position + 1 < text.length) {
+				const second = text.charCodeAt(position + 1);
+				if (second >= 0xdc00 && second <= 0xdfff) {
+					plain += text.slice(position, position + 2);
+					position += 2;
+					continue;
+				}
+			}
 			plain += text[position];
 			position += 1;
 		}
