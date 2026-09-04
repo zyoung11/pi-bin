@@ -179,7 +179,8 @@ function modelFromJson(
 	if (definition.maxTokens !== undefined && definition.maxTokens <= 0) {
 		throw new Error(`Provider ${providerId}, model ${definition.id}: invalid maxTokens`);
 	}
-	return {
+	const compatValue = mergeCompat(providerConfig.compat, definition.compat);
+	const model: Model<Api> = {
 		id: definition.id,
 		name: definition.name ?? definition.id,
 		api: api as Api,
@@ -193,8 +194,11 @@ function modelFromJson(
 		maxTokens: definition.maxTokens ?? 16384,
 		samplingParams: definition.samplingParams,
 		headers: undefined,
-		compat: mergeCompat(providerConfig.compat, definition.compat) as NonNullable<Model<Api>["compat"]>,
 	};
+	if (compatValue !== undefined && compatValue !== null) {
+		model.compat = compatValue as Model<Api>["compat"];
+	}
+	return model;
 }
 
 function applyModelsJson(
