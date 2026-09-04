@@ -37,8 +37,18 @@ export function spawnProcess(command: string, args: string[], options: SpawnProc
 			if (envValue !== undefined) spawnEnv[envKey] = envValue;
 		}
 	}
+	const cwd = options.cwd === undefined ? process.cwd() : options.cwd;
+	if (options.detached === true) {
+		return nodeSpawn(command, args, {
+			cwd,
+			env: spawnEnv,
+			detached: true,
+			windowsHide: options.windowsHide === true,
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+	}
 	return nodeSpawn(command, args, {
-		cwd: options.cwd === undefined ? process.cwd() : options.cwd,
+		cwd,
 		env: spawnEnv,
 		windowsHide: options.windowsHide === true,
 		stdio: ["ignore", "pipe", "pipe"],

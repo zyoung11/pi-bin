@@ -203,7 +203,8 @@ function processGroupId(pid: number): number | null {
 		// Layout: pid (comm) state ppid pgrp ... — comm may contain spaces, so
 		// scan past the closing parenthesis before splitting.
 		const after = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
-		return Number(after[1]);
+		// after[0]=state, after[1]=ppid, after[2]=pgrp
+		return Number(after[2]);
 	} catch {
 		return null;
 	}
@@ -250,13 +251,20 @@ export function killProcessTree(pid: number): void {
 			// Ignore errors if taskkill fails.
 		}
 	} else {
-		// Guard against pid reuse: only kill the process group while the pid is
-		// still alive AND still leads its own process group (the detached spawn
-		// contract). A dead pid is typically reused for an unrelated process —
-		// a blind group kill here could take down the hosting terminal.
-		if (processGroupId(pid) !== pid) return;
+		// Guard against pid reuse: group-kill only while the pid is still alive
+		// AND still leads its own process group (the detached spawn contract) —
+		// a blind group kill of a reused pid could take down the hosting terminal.
+		// Non-group-leaders get a single-pid kill so the command still aborts.
+		if (processGroupId(pid) === pid) {
+			try {
+				process.kill(-pid, "SIGKILL");
+				return;
+			} catch {
+				// Fall through to the single-pid kill.
+			}
+		}
 		try {
-			process.kill(-pid, "SIGKILL");
+			process.kill(pid, "SIGKILL");
 		} catch {
 			// Fallback to killing just the child if process group kill fails
 			try {
