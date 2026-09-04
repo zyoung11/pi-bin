@@ -1,8 +1,11 @@
 import type {
 	Api,
 	AssistantMessage,
+	AuthInteraction,
 	AuthResult,
+	AuthType,
 	Context,
+	Credential,
 	Model,
 	ModelsApiStreamOptions,
 	ModelsRefreshOptions,
@@ -94,6 +97,10 @@ export class ModelRegistry {
 
 	getProviderAuthStatus(provider: string): AuthStatus {
 		return this.runtime.getProviderAuthStatus(provider);
+	}
+
+	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
+		return this.runtime.login(providerId, type, interaction);
 	}
 
 	getProvider(provider: string): Provider | undefined {

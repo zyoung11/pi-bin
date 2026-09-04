@@ -10,7 +10,7 @@ import * as path from "node:path";
 import { spawn } from "child_process";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
-import type { Api } from "../../../../ai/src/index.ts";
+import type { Api, AuthEvent, AuthInteraction, AuthPrompt, Credential } from "../../../../ai/src/index.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -118,6 +118,8 @@ import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
 import type { MarkdownTransformer } from "./components/markdown-transform.ts";
 import { ModelSelectorComponent } from "./components/model-selector.ts";
+import { OAuthSelectorComponent, type AuthSelectorProvider } from "./components/oauth-selector.ts";
+import { LoginDialogComponent } from "./components/login-dialog.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
 import { SettingsSelectorComponent } from "./components/settings-selector.ts";
@@ -2473,6 +2475,15 @@ export class InteractiveMode {
 			this.editor.setText("");
 			return;
 		}
+		if (text === "/login" || text.startsWith("/login ")) {
+			const providerRef = text.startsWith("/login ") ? text.slice(7).trim() : undefined;
+			this.editor.setText("");
+			if (process.env.PI_TUI_DEBUG) {
+				fs.appendFileSync("/tmp/pi-tui-debug.log", "dispatch /login reached\n");
+			}
+			void this.handleLoginCommand(providerRef || undefined);
+			return;
+		}
 		if (text === "/scoped-models") {
 			this.editor.setText("");
 			await this.showModelsSelector();
@@ -3922,6 +3933,221 @@ export class InteractiveMode {
 		this.editorContainer.addChild(created.component);
 		this.ui.setFocus(created.focus);
 		this.ui.requestRender();
+	}
+
+	// =========================================================================
+	// /login - API key provider login (upstream oauth flow trimmed to API keys)
+	// =========================================================================
+
+	private getLoginProviderOptions(): AuthSelectorProvider[] {
+		const options: AuthSelectorProvider[] = [];
+		for (const provider of this.session.modelRuntime.getProviders()) {
+			const authStatus = this.session.modelRuntime.getProviderAuthStatus(provider.id);
+			const status = authStatus.configured
+				? { type: "api_key" as const, source: authStatus.label ?? authStatus.source }
+				: undefined;
+			options.push({
+				id: provider.id,
+				name: provider.name,
+				authType: "api_key",
+				method: provider.auth.apiKey,
+				status,
+			});
+		}
+		return options.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	private async handleLoginCommand(providerRef?: string): Promise<void> {
+		if (process.env.PI_TUI_DEBUG) {
+			fs.appendFileSync("/tmp/pi-tui-debug.log", "handleLoginCommand entered\n");
+		}
+		if (!providerRef) {
+			this.showLoginProviderSelector("api_key");
+			return;
+		}
+		const normalized = providerRef.trim().toLowerCase();
+		const matches = this.getLoginProviderOptions().filter(
+			(provider) =>
+				provider.id.toLowerCase().includes(normalized) || provider.name.toLowerCase().includes(normalized),
+		);
+		if (matches.length === 1) {
+			await this.startProviderLogin(matches[0]!);
+			return;
+		}
+		this.showLoginProviderSelector("api_key", providerRef);
+	}
+
+	private showLoginProviderSelector(authType: "api_key", initialSearchInput?: string): void {
+		const providerOptions = this.getLoginProviderOptions();
+		if (process.env.PI_TUI_DEBUG) {
+			fs.appendFileSync("/tmp/pi-tui-debug.log", `loginSelector: providers=${String(providerOptions.length)}\n`);
+		}
+		if (providerOptions.length === 0) {
+			this.showStatus("No API key providers available.");
+			return;
+		}
+
+		this.showSelector((done): SelectorHandle => {
+			const selector = new OAuthSelectorComponent(
+				"login",
+				providerOptions,
+				(providerId) => {
+					done();
+					const providerOption = providerOptions.find((provider) => provider.id === providerId);
+					if (!providerOption) {
+						return;
+					}
+					void this.startProviderLogin(providerOption);
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+				initialSearchInput,
+			);
+			return { component: selector, focus: selector };
+		});
+	}
+
+	private async startProviderLogin(providerOption: AuthSelectorProvider): Promise<void> {
+		if (providerOption.method?.login) {
+			await this.showApiKeyLoginDialog(providerOption.id, providerOption.name);
+		} else {
+			this.showStatus(`Authentication for ${providerOption.name} is configured outside pi.`);
+		}
+	}
+
+	private showApiKeyLoginDialog(providerId: string, providerName: string): Promise<void> {
+		const previousModel = this.session.model;
+		const dialog = new LoginDialogComponent(this.ui, providerId, () => {}, providerName);
+		this.editorContainer.clear();
+		this.editorContainer.addChild(dialog);
+		this.ui.setFocus(dialog);
+		this.ui.requestRender();
+
+		const restoreEditor = () => {
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+			this.ui.requestRender();
+		};
+
+		return this.loginProvider(dialog, providerId)
+			.then(async () => {
+				restoreEditor();
+				await this.completeProviderAuthentication(providerId, providerName, previousModel);
+			})
+			.catch((error: unknown) => {
+				restoreEditor();
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				if (errorMsg !== "Login cancelled") {
+					this.showError(`Failed to login to ${providerName}: ${errorMsg}`);
+				}
+			});
+	}
+
+	private loginProvider(dialog: LoginDialogComponent, providerId: string): Promise<Credential> {
+		return this.session.modelRuntime.login(providerId, "api_key", {
+			signal: dialog.signal,
+			prompt: (prompt) => this.showAuthPrompt(dialog, prompt),
+			notify: (event) => this.notifyAuthDialog(dialog, event),
+		});
+	}
+
+	private async showAuthPrompt(dialog: LoginDialogComponent, prompt: AuthPrompt): Promise<string> {
+		const placeholder =
+			prompt.type !== "select" && typeof prompt.placeholder === "string" ? prompt.placeholder : undefined;
+		const response = dialog.showPrompt(prompt.message, placeholder);
+		if (!prompt.signal) return response;
+		if (prompt.signal.aborted) throw new Error("Login cancelled");
+		const signal = prompt.signal;
+		let onAbort: (() => void) | undefined;
+		const aborted = new Promise<string>((_resolve, reject) => {
+			onAbort = () => reject(new Error("Login cancelled"));
+			signal.addEventListener("abort", onAbort, { once: true });
+		});
+		try {
+			return await Promise.race([response, aborted]);
+		} finally {
+			if (onAbort) signal.removeEventListener("abort", onAbort);
+		}
+	}
+
+	private notifyAuthDialog(dialog: LoginDialogComponent, event: AuthEvent): void {
+		if (event.type === "info") {
+			dialog.showInfo(event.message, event.links);
+			return;
+		}
+		if ("message" in event) {
+			dialog.showProgress(event.message);
+		}
+	}
+
+	private async completeProviderAuthentication(
+		providerId: string,
+		providerName: string,
+		previousModel: Model<Api> | undefined,
+	): Promise<void> {
+		const actionLabel = `Saved API key for ${providerName}`;
+
+		let selectedModel: Model<Api> | undefined;
+		let selectionError: string | undefined;
+		if (isUnknownModel(previousModel)) {
+			const availableModels = this.session.modelRuntime.getAvailableSnapshot();
+			const providerModels = availableModels.filter((model) => model.provider === providerId);
+			if (!hasDefaultModelProvider(providerId)) {
+				selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
+			} else if (providerModels.length === 0) {
+				selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
+			} else {
+				const defaultModelId = defaultModelPerProvider[providerId];
+				selectedModel = providerModels.find((model) => model.id === defaultModelId);
+				if (!selectedModel) {
+					selectionError = `${actionLabel}, but its default model "${String(defaultModelId)}" is not available. Use /model to select a model.`;
+				} else {
+					try {
+						await this.session.setModel(selectedModel, { persist: true });
+					} catch (error: unknown) {
+						selectedModel = undefined;
+						const errorMessage = error instanceof Error ? error.message : String(error);
+						selectionError = `${actionLabel}, but selecting its default model failed: ${errorMessage}. Use /model to select a model.`;
+					}
+				}
+			}
+		}
+
+		await this.updateAvailableProviderCount();
+		this.footer.invalidate();
+		this.updateEditorBorderColor();
+		if (selectedModel) {
+			this.showStatus(`${actionLabel}. Selected ${selectedModel.id}. Credentials saved to ${getAuthPath()}`);
+		} else {
+			this.showStatus(`${actionLabel}. Credentials saved to ${getAuthPath()}`);
+			if (selectionError) {
+				this.showError(selectionError);
+			}
+		}
+
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 15_000);
+		void this.session.modelRuntime
+			.refresh({ providers: [providerId], signal: controller.signal })
+			.then((result) => {
+				if (result.aborted) {
+					this.showWarning(`${actionLabel}, but its model catalog refresh timed out; using cached models.`);
+				} else if (result.errors.size > 0) {
+					this.showWarning(`${actionLabel}, but its model catalog could not be refreshed; using cached models.`);
+				}
+				this.updateAvailableProviderCount();
+				this.footer.invalidate();
+				this.ui.requestRender();
+			})
+			.catch((error: unknown) => {
+				this.showWarning(
+					`${actionLabel}, but its model catalog could not be refreshed: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			})
+			.finally(() => clearTimeout(timeout));
 	}
 
 	private showSettingsSelector(): void {
