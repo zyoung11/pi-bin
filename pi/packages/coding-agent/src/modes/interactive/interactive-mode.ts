@@ -380,9 +380,13 @@ const STREAM_RENDER_INTERVAL_MS = 150;
 class MemoContainer extends Container {
 	private memoWidth?: number;
 	private memoLines?: string[];
+	private memoCovered = 0;
+	private memoBulk = false;
 
 	private dropMemo(): void {
 		this.memoLines = undefined;
+		this.memoCovered = 0;
+		this.memoBulk = false;
 	}
 
 	/** Drop the memo without cascading into children. */
@@ -390,19 +394,51 @@ class MemoContainer extends Container {
 		this.dropMemo();
 	}
 
-	override addChild(component: Component): void {
-		super.addChild(component);
-		this.dropMemo();
+	/**
+	 * Enter append-only mode with an empty warm memo: addChild keeps the memo
+	 * valid (new children stay uncovered until coverThrough folds them in), so
+	 * the fill-end mount walk hits the memo instead of re-rendering every
+	 * child through the dynamic engine.
+	 */
+	beginBulkAppend(width: number): void {
+		this.memoLines = [];
+		this.memoWidth = width;
+		this.memoCovered = 0;
+		this.memoBulk = true;
 	}
 
-	override removeChild(component: Component): void {
-		super.removeChild(component);
-		this.dropMemo();
+	/**
+	 * Render children [memoCovered, children.length) at the given width and
+	 * append their lines to the memo. Also primes those components (their
+	 * markdown caches fill on this render). No-op while the memo is cold or
+	 * the width changed; the next full render rebuilds everything.
+	 */
+	coverThrough(count: number, width: number): void {
+		if (this.memoLines === undefined || this.memoWidth !== width || !this.memoBulk) return;
+		if (count > this.children.length) count = this.children.length;
+		for (let i = this.memoCovered; i < count; i++) {
+			const childLines = this.children[i].render(width);
+			this.memoLines = this.memoLines.concat(childLines);
+		}
+		if (this.memoCovered < count) this.memoCovered = count;
+	}
+
+	coveredCount(): number {
+		return this.memoCovered;
+	}
+
+	isWarm(width: number): boolean {
+		return this.memoLines !== undefined && this.memoWidth === width;
+	}
+
+	override addChild(component: Component): void {
+		super.addChild(component);
+		if (!this.memoBulk) this.dropMemo();
 	}
 
 	override clear(): void {
-		super.clear();
 		this.dropMemo();
+		super.clear();
 	}
 
 	override invalidate(): void {
@@ -411,12 +447,14 @@ class MemoContainer extends Container {
 	}
 
 	override render(width: number): string[] {
-		if (this.memoLines !== undefined && this.memoWidth === width) {
+		if (this.memoLines !== undefined && this.memoWidth === width && this.memoCovered === this.children.length) {
 			return this.memoLines;
 		}
 		const lines = super.render(width);
 		this.memoWidth = width;
 		this.memoLines = lines;
+		this.memoCovered = this.children.length;
+		this.memoBulk = false;
 		return lines;
 	}
 }
@@ -3229,6 +3267,7 @@ export class InteractiveMode {
 		this.initialFillMisses = misses;
 		this.initialFillIndex = 0;
 		this.initialFillPrimeWidth = this.ui.getTerminal().columns();
+		this.historyContainer.beginBulkAppend(this.initialFillPrimeWidth);
 		this.initialFillGeneration += 1;
 		if (process.env.PI_TIMING === "1") {
 			const chain = (): void => {
@@ -3250,47 +3289,51 @@ export class InteractiveMode {
 
 	private runInitialFillTick(generation: number, tick: () => void): void {
 		if (generation !== this.initialFillGeneration || this.shutdownRequested) return;
-		if (this.initialFillIndex >= this.initialFillItems.length) {
-			this.finishInitialFill();
-			return;
-		}
 		const budgetStart = Date.now();
-		while (
-			this.initialFillIndex < this.initialFillItems.length &&
-			Date.now() - budgetStart < INITIAL_FILL_TICK_BUDGET_MS
-		) {
-			const item = this.initialFillItems[this.initialFillIndex];
-			const itemStart = Date.now();
-			const before = this.historyContainer.children.length;
-			this.initialFillIndex += 1;
-			const updated = this.renderSingleSessionItem(
-				item,
-				this.historyContainer,
-				this.initialFillPending,
-				this.initialFillMisses,
-				false,
-			);
-			// Prime the freshly created components at the current terminal width so
-			// their markdown caches are warm before the fill-end mount; without this
-			// the first walk after mounting re-parses the whole transcript in one
-			// atomic block on the main thread.
-			const grown = this.historyContainer.children;
-			for (let i = before; i < grown.length; i++) grown[i].render(this.initialFillPrimeWidth);
-			if (updated !== undefined) updated.render(this.initialFillPrimeWidth);
-			const itemMs = Date.now() - itemStart;
-			if (process.env.PI_TIMING === "1" && itemMs > 200) {
-				let role = "custom";
-				if (!isCustomSessionEntry(item) && !isCompactionCostNotice(item)) {
-					const message = item;
-					role = message.role;
-				}
-				console.error(
-					`[perf-fill] idx=${this.initialFillIndex}/${this.initialFillItems.length} role=${role} ms=${itemMs}`,
+		while (Date.now() - budgetStart < INITIAL_FILL_TICK_BUDGET_MS) {
+			if (this.initialFillIndex < this.initialFillItems.length) {
+				const item = this.initialFillItems[this.initialFillIndex];
+				const itemStart = Date.now();
+				this.initialFillIndex += 1;
+				this.renderSingleSessionItem(
+					item,
+					this.historyContainer,
+					this.initialFillPending,
+					this.initialFillMisses,
+					false,
 				);
+				// Fold freshly created components into the history memo; the render
+				// call primes their markdown caches so the fill-end mount walk hits
+				// the memo instead of re-parsing the whole transcript in one atomic
+				// block. Unresolved tool calls stay uncovered as a trailing suffix
+				// (their pending display would go stale once updateResult fires) and
+				// are folded in when their results pair up.
+				this.historyContainer.coverThrough(
+					this.historyContainer.children.length - this.initialFillPending.size,
+					this.initialFillPrimeWidth,
+				);
+				const itemMs = Date.now() - itemStart;
+				if (process.env.PI_TIMING === "1" && itemMs > 200) {
+					let role = "custom";
+					if (!isCustomSessionEntry(item) && !isCompactionCostNotice(item)) {
+						const message = item;
+						role = message.role;
+					}
+					console.error(
+						`[perf-fill] idx=${this.initialFillIndex}/${this.initialFillItems.length} role=${role} ms=${itemMs}`,
+					);
+				}
+			} else {
+				// Items exhausted: fold any held-back components (pending tool calls
+				// whose results never arrived) in bounded slices, then mount.
+				const children = this.historyContainer.children.length;
+				const covered = this.historyContainer.coveredCount();
+				if (covered >= children || !this.historyContainer.isWarm(this.initialFillPrimeWidth)) {
+					this.finishInitialFill();
+					return;
+				}
+				this.historyContainer.coverThrough(Math.min(children, covered + 300), this.initialFillPrimeWidth);
 			}
-		}
-		if (process.env.PI_TIMING === "1" && this.initialFillIndex % 500 < 4) {
-			console.error(`[perf-fill] progress idx=${this.initialFillIndex}/${this.initialFillItems.length}`);
 		}
 		this.initialFillTimer = setTimeout(tick, 0);
 	}
@@ -3299,8 +3342,12 @@ export class InteractiveMode {
 		this.initialFillPending.clear();
 		if (this.historyContainer.children.length === 0) return;
 		if (process.env.PI_TIMING === "1") console.error(`[perf-fill] finish`);
+		this.historyContainer.coverThrough(this.historyContainer.children.length, this.initialFillPrimeWidth);
 		this.mountHistoryContainer();
-		this.ui.invalidate();
+		// requestRender only: an invalidate here would cascade into
+		// historyContainer and drop the warm memo built during the fill, turning
+		// the mount repaint into a full cold re-render (~5s on a 30k-line
+		// transcript).
 		this.ui.requestRender();
 	}
 

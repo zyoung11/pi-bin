@@ -167,6 +167,15 @@ export function setCapabilities(caps: TerminalCapabilities): void {
 const KITTY_PREFIX = "\x1b_G";
 const ITERM2_PREFIX = "\x1b]1337;File=";
 
+/**
+ * Single native scan over the joined frame payload instead of a per-line
+ * predicate pass (a per-line loop through the dynamic engine costs ~90µs per
+ * line on a 30k-line transcript).
+ */
+export function joinedLinePayloadHasImages(joined: string): boolean {
+	return joined.includes(KITTY_PREFIX) || joined.includes(ITERM2_PREFIX);
+}
+
 export function isImageLine(line: string): boolean {
 	// Fast path: sequence at line start (single-row images)
 	if (line.startsWith(KITTY_PREFIX) || line.startsWith(ITERM2_PREFIX)) {

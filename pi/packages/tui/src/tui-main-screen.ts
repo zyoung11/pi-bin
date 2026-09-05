@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { deleteKittyImage, isImageLine } from "./terminal-image.ts";
+import { deleteKittyImage, isImageLine, joinedLinePayloadHasImages } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { visibleWidth } from "./utils.ts";
 
@@ -273,9 +273,14 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		}
 
 		// Extract cursor position before applying line resets (marker must be found first)
+		const __t2 = __t0 !== 0 ? performance.now() : 0;
 		const cursorPos = this.extractCursorPosition(newLines, height);
 
 		newLines = this.applyLineResets(newLines);
+		const __t3 = __t0 !== 0 ? performance.now() : 0;
+		if (__t0 !== 0 && __t3 - __t0 > 300) {
+			console.error(`[perf-render] phases: cursor+resets=${(__t3 - __t2).toFixed(0)}ms lines=${newLines.length}`);
+		}
 
 		// Helper to clear scrollback and viewport and render all new lines
 		const fullRender = (clear: boolean): void => {
@@ -286,25 +291,41 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				output.append(this.deleteKittyImages(this.previousKittyImageIds));
 				output.append("\x1b[2J\x1b[H\x1b[3J"); // Clear screen, home, then clear scrollback
 			}
-			for (let i = 0; i < newLines.length; i++) {
-				if (i > 0) output.append("\r\n");
-				const line = newLines[i];
-				const isImage = isImageLine(line);
-				const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i) : 1;
-				if (imageReservedRows > 1 && imageReservedRows <= height) {
-					for (let row = 1; row < imageReservedRows; row++) {
-						output.append("\r\n");
+			// Fast path: one native join + append for image-free frames; the
+			// per-line append loop costs ~90µs per line through the dynamic
+			// engine (~5s on a 30k-line transcript).
+			const joined = newLines.join("\r\n");
+			if (joinedLinePayloadHasImages(joined)) {
+				for (let i = 0; i < newLines.length; i++) {
+					if (i > 0) output.append("\r\n");
+					const line = newLines[i];
+					const isImage = isImageLine(line);
+					const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i) : 1;
+					if (imageReservedRows > 1 && imageReservedRows <= height) {
+						for (let row = 1; row < imageReservedRows; row++) {
+							output.append("\r\n");
+						}
+						output.append(`\x1b[${imageReservedRows - 1}A`);
+						output.append(line);
+						output.append(`\x1b[${imageReservedRows - 1}B`);
+						i += imageReservedRows - 1;
+						continue;
 					}
-					output.append(`\x1b[${imageReservedRows - 1}A`);
 					output.append(line);
-					output.append(`\x1b[${imageReservedRows - 1}B`);
-					i += imageReservedRows - 1;
-					continue;
 				}
-				output.append(line);
+			} else {
+				output.append(joined);
 			}
 			output.append("\x1b[?2026l"); // End synchronized output
 			output.flush();
+			if (__t0 !== 0) {
+				const total = performance.now() - __t0;
+				if (total > 300) {
+					console.error(
+						`[perf-render] paint: fullRender total=${total.toFixed(0)}ms (post-render=${(total - (__t1 - __t0)).toFixed(0)}ms)`,
+					);
+				}
+			}
 			this.cursorRow = Math.max(0, newLines.length - 1);
 			this.hardwareCursorRow = this.cursorRow;
 			// Reset max lines when clearing, otherwise track growth
@@ -317,7 +338,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			this.previousViewportTop = Math.max(0, bufferLength - height);
 			this.positionHardwareCursor(cursorPos, newLines.length);
 			this.previousLines = newLines;
-			this.previousKittyImageIds = this.collectKittyImageIds(newLines);
+			this.previousKittyImageIds = joinedLinePayloadHasImages(joined)
+				? this.collectKittyImageIds(newLines)
+				: new Set<number>();
 			this.previousWidth = width;
 			this.previousHeight = height;
 		};
