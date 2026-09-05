@@ -44,25 +44,6 @@ Removed:
 - Image resizing (images pass through as-is. Over 4 MB is rejected)
 - `/changelog` and the extension slash commands are gone
 
-Added:
-
-- `/login` and `/logout` for API-key providers: a static catalog of 23
-  supported providers (642 models) ships inside the binary, so the provider
-  list is always complete. Selecting a provider registers it immediately, the
-  key is stored in `auth.json`, and its model catalog persists into
-  `models-store.json`
-- Startup background refresh: providers with a stored key are updated against
-  models.dev, so new models appear without any action
-- Bash tool commands run with `LC_MESSAGES=C` (errors and prompts are English
-  regardless of the host locale)
-
-Changed:
-
-- `/login` is API-key only (upstream also offers OAuth/subscription flows,
-  which the static build does not implement)
-- Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) still work
-  through a hand-written `models.json`
-
 Everything else (the agent loop, tools, TUI, sessions, compaction, skills,
 prompt templates, and the bash/edit/read/write workflow) behaves the same.
 
