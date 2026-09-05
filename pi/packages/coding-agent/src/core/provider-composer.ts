@@ -251,14 +251,15 @@ function applyExtension(
 		return config.baseUrl ? models.map((model) => ({ ...model, baseUrl: config.baseUrl! })) : [...models];
 	}
 	return config.models.map((definition) => {
-		const defaults = models.find((model) => model.id === definition.id) ?? models[0];
-		const api = definition.api ?? config.api ?? defaults?.api;
+		const matched = models.find((model) => model.id === definition.id);
+		const defaults = matched !== undefined ? matched : models.length > 0 ? models[0] : undefined;
+		const api = definition.api ?? config.api ?? (defaults !== undefined ? defaults.api : undefined);
 		if (!api) {
 			throw new Error(
 				`Provider ${providerId}, model ${definition.id}: no "api" specified. Set at provider or model level.`,
 			);
 		}
-		const baseUrl = definition.baseUrl ?? config.baseUrl ?? defaults?.baseUrl;
+		const baseUrl = definition.baseUrl ?? config.baseUrl ?? (defaults !== undefined ? defaults.baseUrl : undefined);
 		if (!baseUrl) throw new Error(`Provider ${providerId}: "baseUrl" is required when defining custom models.`);
 		return {
 			...definition,

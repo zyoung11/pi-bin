@@ -10,7 +10,7 @@ import * as path from "node:path";
 import { spawn } from "child_process";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
-import type { Api, AuthEvent, AuthInteraction, AuthPrompt, Credential } from "../../../../ai/src/index.ts";
+import type { Api, AuthEvent, AuthInteraction, AuthPrompt, Credential, CredentialInfo } from "../../../../ai/src/index.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -66,6 +66,13 @@ import {
 } from "../../core/cache-stats.ts";
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "../../core/defaults.ts";
 import { FooterDataProvider } from "../../core/footer-data-provider.ts";
+import {
+	CATALOG_PROVIDERS,
+	findCatalogProvider,
+	mergeCatalogProviderIntoStore,
+	refreshCatalogFromModelsDev,
+	toProviderConfigInput,
+} from "../../core/provider-catalog.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
@@ -754,6 +761,7 @@ export class InteractiveMode {
 		if (this.isInitialized) return;
 
 		this.registerSignalHandlers();
+		this.scheduleKnownProviderCatalogRefresh();
 
 		if (this.session.scopedModels.length > 0 && (this.options.verbose || !this.settingsManager.getQuietStartup())) {
 			const modelList = this.session.scopedModels
@@ -3947,6 +3955,15 @@ export class InteractiveMode {
 
 	private getLoginProviderOptions(): AuthSelectorProvider[] {
 		const options: AuthSelectorProvider[] = [];
+		// Catalog providers always appear: their model lists ship with the binary.
+		for (const entry of CATALOG_PROVIDERS) {
+			const authStatus = this.session.modelRuntime.getProviderAuthStatus(entry.id);
+			const status = authStatus.configured
+				? { type: "api_key" as const, source: authStatus.label ?? authStatus.source }
+				: undefined;
+			options.push({ id: entry.id, name: entry.name, authType: "api_key", status });
+		}
+		// Providers outside the catalog (models.json entries, e.g. self-hosted gateways)
 		for (const provider of this.session.modelRuntime.getProviders()) {
 			const authStatus = this.session.modelRuntime.getProviderAuthStatus(provider.id);
 			const status = authStatus.configured
@@ -3981,6 +3998,38 @@ export class InteractiveMode {
 		this.showLoginProviderSelector("api_key", providerRef);
 	}
 
+	private scheduleKnownProviderCatalogRefresh(): void {
+		if (process.env.PI_OFFLINE !== undefined) return;
+		setTimeout(() => {
+			void this.refreshKnownProviderCatalogs().catch(() => {});
+		}, 3_000);
+	}
+
+	private async refreshKnownProviderCatalogs(): Promise<void> {
+		const credentials = await this.session.modelRuntime
+			.listCredentials({ signal: AbortSignal.timeout(5_000) })
+			.catch(() => [] as CredentialInfo[]);
+		const targets: string[] = [];
+		for (const credential of credentials) {
+			if (credential.type !== "api_key") continue;
+			if (findCatalogProvider(credential.providerId) === undefined) continue;
+			targets.push(credential.providerId);
+		}
+		if (targets.length === 0) return;
+		const storePath = path.join(getAgentDir(), "models-store.json");
+		const updated = await refreshCatalogFromModelsDev(storePath, targets);
+		for (const providerId of updated) {
+			const catalogProvider = findCatalogProvider(providerId);
+			if (catalogProvider !== undefined) {
+				this.session.modelRuntime.registerProvider(providerId, toProviderConfigInput(catalogProvider));
+			}
+		}
+		if (updated.length > 0) {
+			this.updateAvailableProviderCount();
+			this.ui.requestRender();
+		}
+	}
+
 	private showLoginProviderSelector(authType: "api_key", initialSearchInput?: string): void {
 		const providerOptions = this.getLoginProviderOptions();
 		if (providerOptions.length === 0) {
@@ -4011,11 +4060,15 @@ export class InteractiveMode {
 	}
 
 	private async startProviderLogin(providerOption: AuthSelectorProvider): Promise<void> {
-		if (providerOption.method?.login) {
-			await this.showApiKeyLoginDialog(providerOption.id, providerOption.name);
-		} else {
-			this.showStatus(`Authentication for ${providerOption.name} is configured outside pi.`);
+		const catalogProvider = findCatalogProvider(providerOption.id);
+		if (catalogProvider !== undefined) {
+			this.session.modelRuntime.registerProvider(catalogProvider.id, toProviderConfigInput(catalogProvider));
 		}
+		if (providerOption.method?.login || catalogProvider !== undefined) {
+			await this.showApiKeyLoginDialog(providerOption.id, providerOption.name);
+			return;
+		}
+		this.showStatus(`Authentication for ${providerOption.name} is configured outside pi.`);
 	}
 
 	private showApiKeyLoginDialog(providerId: string, providerName: string): Promise<void> {
@@ -4042,6 +4095,10 @@ export class InteractiveMode {
 			.then(async (credential) => {
 				if (process.env.PI_TUI_DEBUG) {
 					fs.appendFileSync("/tmp/pi-tui-debug.log", `login done: provider=${providerId} cred=${JSON.stringify(credential).slice(0, 80)} providers=${String(this.session.modelRuntime.getProviders().length)} authJson=${fs.readFileSync("/tmp/pi-all/auth.json", "utf-8").slice(0, 120)}\n`);
+				}
+				const catalogProvider = findCatalogProvider(providerId);
+				if (catalogProvider !== undefined) {
+					mergeCatalogProviderIntoStore(path.join(getAgentDir(), "models-store.json"), catalogProvider);
 				}
 				restoreEditor();
 				await this.completeProviderAuthentication(providerId, providerName, previousModel);

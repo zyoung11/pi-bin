@@ -816,8 +816,11 @@ export class ModelRuntime implements Models {
 			this.snapshot.storedProviders.has(providerId) ||
 			configuredRequestAuthStatus(this.config.getProvider(providerId), effective)?.configured
 		) {
-			const configuredProviders = new Set(this.snapshot.configuredProviders).add(providerId);
-			const auth = new Map(this.snapshot.auth);
+			const configuredProviders = new Set<string>();
+			for (const providerId2 of this.snapshot.configuredProviders) configuredProviders.add(providerId2);
+			configuredProviders.add(providerId);
+			const auth = new Map<string, AuthCheck | undefined>();
+			for (const entry of this.snapshot.auth) auth.set(entry[0], entry[1]);
 			// Provisional entry until the async refresh lands; never clobber a real check result.
 			if (!auth.get(providerId)) {
 				auth.set(providerId, {
