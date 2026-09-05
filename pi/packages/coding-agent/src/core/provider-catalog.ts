@@ -30,7 +30,7 @@ export interface CatalogProvider {
 export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	{
 		id: "ant-ling",
-		name: "ant-ling",
+		name: "Ant Ling",
 		baseUrl: "https://api.ant-ling.com/v1",
 		models: [
 			{"id":"Ling-2.6-1T","name":"Ling 2.6 1T","api":"openai-completions","baseUrl":"https://api.ant-ling.com/v1","reasoning":false,"input":["text"],"cost":{"input":0.06,"output":0.25,"cacheRead":0,"cacheWrite":0},"contextWindow":262144,"maxTokens":65536,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","thinkingFormat":"ant-ling","supportsLongCacheRetention":false}},
@@ -40,7 +40,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "baseten",
-		name: "baseten",
+		name: "Baseten",
 		baseUrl: "https://inference.baseten.co/v1",
 		models: [
 			{"id":"deepseek-ai/DeepSeek-V4-Flash-0731","name":"DeepSeek V4 Flash 0731","api":"openai-completions","baseUrl":"https://inference.baseten.co/v1","reasoning":true,"input":["text"],"cost":{"input":0.13,"output":0.26,"cacheRead":0.028,"cacheWrite":0},"contextWindow":1048576,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":true,"supportsUsageInStreaming":true,"maxTokensField":"max_tokens","supportsStrictMode":true,"supportsLongCacheRetention":false,"thinkingFormat":"openai"},"thinkingLevelMap":{"off":"none","minimal":"minimal","low":"low","medium":"medium","high":"high","xhigh":"xhigh","max":"max"}},
@@ -67,7 +67,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "cerebras",
-		name: "cerebras",
+		name: "Cerebras",
 		baseUrl: "https://api.cerebras.ai/v1",
 		models: [
 			{"id":"gemma-4-31b","name":"Gemma 4 31B IT","api":"openai-completions","baseUrl":"https://api.cerebras.ai/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.99,"output":1.49,"cacheRead":0,"cacheWrite":0},"contextWindow":131072,"maxTokens":40960,"compat":{"supportsStore":false,"supportsDeveloperRole":false},"thinkingLevelMap":{"off":"none","minimal":null,"low":"low","medium":"medium","high":"high","xhigh":null,"max":null}},
@@ -76,7 +76,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "deepseek",
-		name: "deepseek",
+		name: "DeepSeek",
 		baseUrl: "https://api.deepseek.com",
 		models: [
 			{"id":"deepseek-v4-flash","name":"DeepSeek V4 Flash","api":"openai-completions","baseUrl":"https://api.deepseek.com","reasoning":true,"input":["text"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.0028,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},"thinkingLevelMap":{"minimal":null,"low":"low","medium":null,"high":"high","max":"max"}},
@@ -86,7 +86,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "fireworks",
-		name: "fireworks",
+		name: "Fireworks",
 		baseUrl: "https://api.fireworks.ai/inference/v1",
 		models: [
 			{"id":"accounts/fireworks/models/glm-5p2","name":"GLM 5.2","api":"openai-completions","baseUrl":"https://api.fireworks.ai/inference/v1","reasoning":true,"input":["text"],"cost":{"input":1.4,"output":4.4,"cacheRead":0.14,"cacheWrite":0},"contextWindow":1048575,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"sendSessionAffinityHeaders":true,"supportsLongCacheRetention":false},"thinkingLevelMap":{"off":"none","minimal":null,"low":"high","medium":"high","high":"high","xhigh":null,"max":"max"}},
@@ -99,7 +99,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "groq",
-		name: "groq",
+		name: "Groq",
 		baseUrl: "https://api.groq.com/openai/v1",
 		models: [
 			{"id":"llama-3.1-8b-instant","name":"Llama 3.1 8B","api":"openai-completions","baseUrl":"https://api.groq.com/openai/v1","reasoning":false,"input":["text"],"cost":{"input":0.05,"output":0.08,"cacheRead":0,"cacheWrite":0},"contextWindow":131072,"maxTokens":131072},
@@ -113,7 +113,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "huggingface",
-		name: "huggingface",
+		name: "Hugging Face",
 		baseUrl: "https://router.huggingface.co/v1",
 		models: [
 			{"id":"MiniMaxAI/MiniMax-M2","name":"MiniMax-M2","api":"openai-completions","baseUrl":"https://router.huggingface.co/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsDeveloperRole":false}},
@@ -191,7 +191,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "moonshotai",
-		name: "moonshotai",
+		name: "Moonshot AI",
 		baseUrl: "https://api.moonshot.ai/v1",
 		models: [
 			{"id":"kimi-k2-0711-preview","name":"Kimi K2 0711","api":"openai-completions","baseUrl":"https://api.moonshot.ai/v1","reasoning":false,"input":["text"],"cost":{"input":0.6,"output":2.5,"cacheRead":0.15,"cacheWrite":0},"contextWindow":131072,"maxTokens":16384,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"}},
@@ -208,7 +208,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "moonshotai-cn",
-		name: "moonshotai-cn",
+		name: "Moonshot AI CN",
 		baseUrl: "https://api.moonshot.cn/v1",
 		models: [
 			{"id":"kimi-k2-0711-preview","name":"Kimi K2 0711","api":"openai-completions","baseUrl":"https://api.moonshot.cn/v1","reasoning":false,"input":["text"],"cost":{"input":0.6,"output":2.5,"cacheRead":0.15,"cacheWrite":0},"contextWindow":131072,"maxTokens":16384,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"}},
@@ -225,7 +225,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "nvidia",
-		name: "nvidia",
+		name: "NVIDIA",
 		baseUrl: "https://integrate.api.nvidia.com/v1",
 		models: [
 			{"id":"deepseek-ai/deepseek-v4-flash-0731","name":"DeepSeek V4 Flash 0731","api":"openai-completions","baseUrl":"https://integrate.api.nvidia.com/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false,"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},"thinkingLevelMap":{"minimal":null,"low":null,"medium":null,"high":"high","max":"max"}},
@@ -251,32 +251,8 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 		],
 	},
 	{
-		id: "opencode",
-		name: "opencode",
-		baseUrl: "https://opencode.ai/zen/v1",
-		models: [
-			{"id":"big-pickle","name":"Big Pickle","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"deepseek-v4-flash","name":"DeepSeek V4 Flash","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.028,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false,"requiresReasoningContentOnAssistantMessages":true},"thinkingLevelMap":{"off":null,"minimal":null,"low":"low","medium":null,"high":"high","xhigh":null,"max":"max"}},
-			{"id":"deepseek-v4-pro","name":"DeepSeek V4 Pro","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.74,"output":3.84,"cacheRead":0.145,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false,"requiresReasoningContentOnAssistantMessages":true},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":"max"}},
-			{"id":"glm-5","name":"GLM-5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1,"output":3.2,"cacheRead":0.2,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"glm-5.1","name":"GLM-5.1","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.4,"output":4.4,"cacheRead":0.26,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"glm-5.2","name":"GLM-5.2","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.4,"output":4.4,"cacheRead":0.26,"cacheWrite":0},"contextWindow":1000000,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":"max"}},
-			{"id":"kimi-k2.5","name":"Kimi K2.5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.6,"output":3,"cacheRead":0.08,"cacheWrite":0},"contextWindow":262144,"maxTokens":65536,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
-			{"id":"kimi-k2.6","name":"Kimi K2.6","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.95,"output":4,"cacheRead":0.16,"cacheWrite":0},"contextWindow":262144,"maxTokens":65536,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"thinkingFormat":"deepseek","supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
-			{"id":"kimi-k2.7-code","name":"Kimi K2.7 Code","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.95,"output":4,"cacheRead":0.19,"cacheWrite":0},"contextWindow":262144,"maxTokens":262144,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"kimi-k3","name":"Kimi K3","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":3,"output":15,"cacheRead":0.3,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":null,"xhigh":null,"max":"max"}},
-			{"id":"ling-3.0-flash-fin-free","name":"Ling 3.0 Flash Fin Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":262144,"maxTokens":32768,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"mimo-v2.5-free","name":"MiMo V2.5 Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"minimax-m2.5","name":"MiniMax-M2.5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"minimax-m2.7","name":"MiniMax-M2.7","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
-			{"id":"minimax-m3","name":"MiniMax-M3","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":512000,"maxTokens":128000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"nemotron-3-ultra-free","name":"Nemotron 3 Ultra Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1000000,"maxTokens":128000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-			{"id":"nemotron-3.5-lightning-free","name":"Nemotron 3.5 Lightning Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":262144,"maxTokens":262144,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
-		],
-	},
-	{
 		id: "opencode-go",
-		name: "opencode-go",
+		name: "OpenCode Go",
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		models: [
 			{"id":"deepseek-v4-flash","name":"DeepSeek V4 Flash","api":"openai-completions","baseUrl":"https://opencode.ai/zen/go/v1","reasoning":true,"input":["text"],"cost":{"input":0.22,"output":0.66,"cacheRead":0.007,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},"thinkingLevelMap":{"minimal":null,"low":"low","medium":null,"high":"high","max":"max"}},
@@ -303,8 +279,32 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 		],
 	},
 	{
+		id: "opencode",
+		name: "OpenCode Zen",
+		baseUrl: "https://opencode.ai/zen/v1",
+		models: [
+			{"id":"big-pickle","name":"Big Pickle","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"deepseek-v4-flash","name":"DeepSeek V4 Flash","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.028,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false,"requiresReasoningContentOnAssistantMessages":true},"thinkingLevelMap":{"off":null,"minimal":null,"low":"low","medium":null,"high":"high","xhigh":null,"max":"max"}},
+			{"id":"deepseek-v4-pro","name":"DeepSeek V4 Pro","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.74,"output":3.84,"cacheRead":0.145,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false,"requiresReasoningContentOnAssistantMessages":true},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":"max"}},
+			{"id":"glm-5","name":"GLM-5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1,"output":3.2,"cacheRead":0.2,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"glm-5.1","name":"GLM-5.1","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.4,"output":4.4,"cacheRead":0.26,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"glm-5.2","name":"GLM-5.2","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":1.4,"output":4.4,"cacheRead":0.26,"cacheWrite":0},"contextWindow":1000000,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":"max"}},
+			{"id":"kimi-k2.5","name":"Kimi K2.5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.6,"output":3,"cacheRead":0.08,"cacheWrite":0},"contextWindow":262144,"maxTokens":65536,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
+			{"id":"kimi-k2.6","name":"Kimi K2.6","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.95,"output":4,"cacheRead":0.16,"cacheWrite":0},"contextWindow":262144,"maxTokens":65536,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"thinkingFormat":"deepseek","supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
+			{"id":"kimi-k2.7-code","name":"Kimi K2.7 Code","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.95,"output":4,"cacheRead":0.19,"cacheWrite":0},"contextWindow":262144,"maxTokens":262144,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"kimi-k3","name":"Kimi K3","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":3,"output":15,"cacheRead":0.3,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null,"high":null,"xhigh":null,"max":"max"}},
+			{"id":"ling-3.0-flash-fin-free","name":"Ling 3.0 Flash Fin Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":262144,"maxTokens":32768,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"mimo-v2.5-free","name":"MiMo V2.5 Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":200000,"maxTokens":32000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"minimax-m2.5","name":"MiniMax-M2.5","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"minimax-m2.7","name":"MiniMax-M2.7","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false}},
+			{"id":"minimax-m3","name":"MiniMax-M3","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":512000,"maxTokens":128000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"nemotron-3-ultra-free","name":"Nemotron 3 Ultra Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1000000,"maxTokens":128000,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+			{"id":"nemotron-3.5-lightning-free","name":"Nemotron 3.5 Lightning Free","api":"openai-completions","baseUrl":"https://opencode.ai/zen/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":262144,"maxTokens":262144,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"maxTokensField":"max_tokens"}},
+		],
+	},
+	{
 		id: "openrouter",
-		name: "openrouter",
+		name: "OpenRouter",
 		baseUrl: "https://openrouter.ai/api/v1",
 		models: [
 			{"id":"aion-labs/aion-2.0","name":"AionLabs: Aion-2.0","api":"openai-completions","baseUrl":"https://openrouter.ai/api/v1","reasoning":true,"input":["text"],"cost":{"input":0.8,"output":1.6,"cacheRead":0.2,"cacheWrite":0},"contextWindow":131072,"maxTokens":32768,"compat":{"supportsDeveloperRole":false,"thinkingFormat":"openrouter"},"thinkingLevelMap":{"off":null}},
@@ -672,7 +672,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "qwen-token-plan",
-		name: "qwen-token-plan",
+		name: "Qwen Token Plan",
 		baseUrl: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
 		models: [
 			{"id":"MiniMax-M2.5","name":"MiniMax-M2.5","api":"openai-completions","baseUrl":"https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":196608,"maxTokens":32768,"compat":{"thinkingFormat":"qwen","supportsDeveloperRole":false,"supportsStore":false,"supportsReasoningEffort":false}},
@@ -697,7 +697,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "qwen-token-plan-cn",
-		name: "qwen-token-plan-cn",
+		name: "Qwen Token Plan CN",
 		baseUrl: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
 		models: [
 			{"id":"MiniMax-M2.5","name":"MiniMax-M2.5","api":"openai-completions","baseUrl":"https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":196608,"maxTokens":32768,"compat":{"thinkingFormat":"qwen","supportsDeveloperRole":false,"supportsStore":false,"supportsReasoningEffort":false}},
@@ -722,7 +722,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "qwen-token-plan-individual",
-		name: "qwen-token-plan-individual",
+		name: "Qwen Token Plan Individual",
 		baseUrl: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
 		models: [
 			{"id":"deepseek-v4-flash-0731","name":"DeepSeek V4 Flash 0731","api":"openai-completions","baseUrl":"https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1","reasoning":true,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1000000,"maxTokens":384000,"compat":{"thinkingFormat":"qwen","supportsDeveloperRole":false,"supportsStore":false,"supportsReasoningEffort":true},"thinkingLevelMap":{"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":"max"}},
@@ -737,7 +737,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "together",
-		name: "together",
+		name: "Together",
 		baseUrl: "https://api.together.ai/v1",
 		models: [
 			{"id":"MiniMaxAI/MiniMax-M2.7","name":"MiniMax-M2.7","api":"openai-completions","baseUrl":"https://api.together.ai/v1","reasoning":true,"input":["text"],"cost":{"input":0.3,"output":1.2,"cacheRead":0.06,"cacheWrite":0},"contextWindow":202752,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false},"thinkingLevelMap":{"off":null,"minimal":null,"low":null,"medium":null}},
@@ -765,7 +765,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "xiaomi",
-		name: "xiaomi",
+		name: "Xiaomi",
 		baseUrl: "https://api.xiaomimimo.com/v1",
 		models: [
 			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.0028,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
@@ -775,7 +775,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "xiaomi-token-plan-ams",
-		name: "xiaomi-token-plan-ams",
+		name: "Xiaomi Token Plan AMS",
 		baseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
 		models: [
 			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://token-plan-ams.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
@@ -784,7 +784,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "xiaomi-token-plan-cn",
-		name: "xiaomi-token-plan-cn",
+		name: "Xiaomi Token Plan CN",
 		baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
 		models: [
 			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://token-plan-cn.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
@@ -793,7 +793,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "xiaomi-token-plan-sgp",
-		name: "xiaomi-token-plan-sgp",
+		name: "Xiaomi Token Plan SGP",
 		baseUrl: "https://token-plan-sgp.xiaomimimo.com/v1",
 		models: [
 			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://token-plan-sgp.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
@@ -802,7 +802,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "zai",
-		name: "zai",
+		name: "Z.AI",
 		baseUrl: "https://api.z.ai/api/coding/paas/v4",
 		models: [
 			{"id":"glm-4.7","name":"GLM-4.7","api":"openai-completions","baseUrl":"https://api.z.ai/api/coding/paas/v4","reasoning":true,"input":["text"],"cost":{"input":0.6,"output":2.2,"cacheRead":0.11,"cacheWrite":0},"contextWindow":204800,"maxTokens":131072,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","thinkingFormat":"zai","zaiToolStream":true}},
@@ -816,7 +816,7 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 	{
 		id: "zai-coding-cn",
-		name: "zai-coding-cn",
+		name: "Z.AI Coding CN",
 		baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
 		models: [
 			{"id":"glm-4.6v","name":"GLM-4.6V","api":"openai-completions","baseUrl":"https://open.bigmodel.cn/api/coding/paas/v4","reasoning":true,"input":["text","image"],"cost":{"input":0.3,"output":0.9,"cacheRead":0,"cacheWrite":0},"contextWindow":128000,"maxTokens":32768,"compat":{"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","thinkingFormat":"zai","zaiToolStream":true}},
@@ -833,7 +833,6 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 	},
 ];
 
-/** Provider inputs derived from the static catalog (ready for ModelRuntime.registerProvider). */
 export interface CatalogProviderInput {
 	baseUrl: string;
 	api: "openai-completions";

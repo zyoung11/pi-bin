@@ -3965,6 +3965,8 @@ export class InteractiveMode {
 		}
 		// Providers outside the catalog (models.json entries, e.g. self-hosted gateways)
 		for (const provider of this.session.modelRuntime.getProviders()) {
+			// Catalog providers are already listed above; skip dynamic duplicates.
+			if (findCatalogProvider(provider.id) !== undefined) continue;
 			const authStatus = this.session.modelRuntime.getProviderAuthStatus(provider.id);
 			const status = authStatus.configured
 				? { type: "api_key" as const, source: authStatus.label ?? authStatus.source }
@@ -4076,11 +4078,6 @@ export class InteractiveMode {
 		const dialog = new LoginDialogComponent(this.ui, providerId, () => {}, providerName);
 		this.editorContainer.clear();
 		this.editorContainer.addChild(dialog);
-		if (process.env.PI_TUI_DEBUG) {
-			process.on("unhandledRejection", (reason) => {
-				fs.appendFileSync("/tmp/pi-tui-debug.log", `UNHANDLED: ${String(reason)}\n`);
-			});
-		}
 		this.ui.setFocus(dialog);
 		this.ui.requestRender();
 
@@ -4093,18 +4090,12 @@ export class InteractiveMode {
 
 		return this.loginProvider(dialog, providerId)
 			.then(async (credential) => {
-				if (process.env.PI_TUI_DEBUG) {
-					fs.appendFileSync("/tmp/pi-tui-debug.log", `login done: provider=${providerId} cred=${JSON.stringify(credential).slice(0, 80)} providers=${String(this.session.modelRuntime.getProviders().length)} authJson=${fs.readFileSync("/tmp/pi-all/auth.json", "utf-8").slice(0, 120)}\n`);
-				}
 				const catalogProvider = findCatalogProvider(providerId);
 				if (catalogProvider !== undefined) {
 					mergeCatalogProviderIntoStore(path.join(getAgentDir(), "models-store.json"), catalogProvider);
 				}
 				restoreEditor();
 				await this.completeProviderAuthentication(providerId, providerName, previousModel);
-				if (process.env.PI_TUI_DEBUG) {
-					fs.appendFileSync("/tmp/pi-tui-debug.log", `complete done: providers=${String(this.session.modelRuntime.getProviders().length)}\n`);
-				}
 			})
 			.catch((error: unknown) => {
 				restoreEditor();
@@ -4116,22 +4107,11 @@ export class InteractiveMode {
 	}
 
 	private loginProvider(dialog: LoginDialogComponent, providerId: string): Promise<Credential> {
-		if (process.env.PI_TUI_DEBUG) {
-			fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider called: ${providerId}\n`);
-		}
 		const p = this.session.modelRuntime.login(providerId, "api_key", {
 			signal: dialog.signal,
 			prompt: (prompt) => this.showAuthPrompt(dialog, prompt),
 			notify: (event) => this.notifyAuthDialog(dialog, event),
 		});
-		if (process.env.PI_TUI_DEBUG) {
-			p.then((credential) => {
-				fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider RESOLVED cred=${JSON.stringify(credential).slice(0, 80)}\n`);
-			});
-			p.catch((e: unknown) => {
-				fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider REJECTED: ${String(e)}\n`);
-			});
-		}
 		return p;
 	}
 
@@ -4222,9 +4202,6 @@ export class InteractiveMode {
 				this.updateAvailableProviderCount();
 				this.footer.invalidate();
 				this.ui.requestRender();
-				if (process.env.PI_TUI_DEBUG) {
-					fs.appendFileSync("/tmp/pi-tui-debug.log", `post-refresh: providers=${String(this.session.modelRuntime.getProviders().length)} available=${String(this.session.modelRuntime.getAvailableSnapshot().length)}\n`);
-				}
 			})
 			.catch((error: unknown) => {
 				this.showWarning(
