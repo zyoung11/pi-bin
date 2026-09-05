@@ -2478,9 +2478,15 @@ export class InteractiveMode {
 		if (text === "/login" || text.startsWith("/login ")) {
 			const providerRef = text.startsWith("/login ") ? text.slice(7).trim() : undefined;
 			this.editor.setText("");
-			this.handleLoginCommand(providerRef || undefined).catch((error: unknown) => {
-				fs.appendFileSync("/tmp/pi-tui-debug.log", `handleLoginCommand REJECTED: ${String(error)}\n`);
+			void this.handleLoginCommand(providerRef || undefined).catch((error: unknown) => {
 				this.showError(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
+			});
+			return;
+		}
+		if (text === "/logout") {
+			this.editor.setText("");
+			void this.showLogoutSelector().catch((error: unknown) => {
+				this.showError(`Logout failed: ${error instanceof Error ? error.message : String(error)}`);
 			});
 			return;
 		}
@@ -4017,6 +4023,11 @@ export class InteractiveMode {
 		const dialog = new LoginDialogComponent(this.ui, providerId, () => {}, providerName);
 		this.editorContainer.clear();
 		this.editorContainer.addChild(dialog);
+		if (process.env.PI_TUI_DEBUG) {
+			process.on("unhandledRejection", (reason) => {
+				fs.appendFileSync("/tmp/pi-tui-debug.log", `UNHANDLED: ${String(reason)}\n`);
+			});
+		}
 		this.ui.setFocus(dialog);
 		this.ui.requestRender();
 
@@ -4028,9 +4039,15 @@ export class InteractiveMode {
 		};
 
 		return this.loginProvider(dialog, providerId)
-			.then(async () => {
+			.then(async (credential) => {
+				if (process.env.PI_TUI_DEBUG) {
+					fs.appendFileSync("/tmp/pi-tui-debug.log", `login done: provider=${providerId} cred=${JSON.stringify(credential).slice(0, 80)} providers=${String(this.session.modelRuntime.getProviders().length)} authJson=${fs.readFileSync("/tmp/pi-all/auth.json", "utf-8").slice(0, 120)}\n`);
+				}
 				restoreEditor();
 				await this.completeProviderAuthentication(providerId, providerName, previousModel);
+				if (process.env.PI_TUI_DEBUG) {
+					fs.appendFileSync("/tmp/pi-tui-debug.log", `complete done: providers=${String(this.session.modelRuntime.getProviders().length)}\n`);
+				}
 			})
 			.catch((error: unknown) => {
 				restoreEditor();
@@ -4042,11 +4059,23 @@ export class InteractiveMode {
 	}
 
 	private loginProvider(dialog: LoginDialogComponent, providerId: string): Promise<Credential> {
-		return this.session.modelRuntime.login(providerId, "api_key", {
+		if (process.env.PI_TUI_DEBUG) {
+			fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider called: ${providerId}\n`);
+		}
+		const p = this.session.modelRuntime.login(providerId, "api_key", {
 			signal: dialog.signal,
 			prompt: (prompt) => this.showAuthPrompt(dialog, prompt),
 			notify: (event) => this.notifyAuthDialog(dialog, event),
 		});
+		if (process.env.PI_TUI_DEBUG) {
+			p.then((credential) => {
+				fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider RESOLVED cred=${JSON.stringify(credential).slice(0, 80)}\n`);
+			});
+			p.catch((e: unknown) => {
+				fs.appendFileSync("/tmp/pi-tui-debug.log", `loginProvider REJECTED: ${String(e)}\n`);
+			});
+		}
+		return p;
 	}
 
 	private async showAuthPrompt(dialog: LoginDialogComponent, prompt: AuthPrompt): Promise<string> {
@@ -4136,6 +4165,9 @@ export class InteractiveMode {
 				this.updateAvailableProviderCount();
 				this.footer.invalidate();
 				this.ui.requestRender();
+				if (process.env.PI_TUI_DEBUG) {
+					fs.appendFileSync("/tmp/pi-tui-debug.log", `post-refresh: providers=${String(this.session.modelRuntime.getProviders().length)} available=${String(this.session.modelRuntime.getAvailableSnapshot().length)}\n`);
+				}
 			})
 			.catch((error: unknown) => {
 				this.showWarning(
@@ -4143,6 +4175,59 @@ export class InteractiveMode {
 				);
 			})
 			.finally(() => clearTimeout(timeout));
+	}
+
+	private async showLogoutSelector(): Promise<void> {
+		let providerOptions: AuthSelectorProvider[];
+		try {
+			const credentials = await this.session.modelRuntime.listCredentials({ signal: AbortSignal.timeout(15_000) });
+			providerOptions = credentials
+				.map(({ providerId, type }) => ({
+					id: providerId,
+					name: this.session.modelRuntime.getProvider(providerId)?.name ?? providerId,
+					authType: "api_key" as const,
+					status: { type: "api_key" as const, source: "stored" },
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name));
+		} catch (error) {
+			this.showError(`Could not read stored credentials: ${error instanceof Error ? error.message : String(error)}`);
+			return;
+		}
+		if (providerOptions.length === 0) {
+			this.showStatus(
+				"No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.",
+			);
+			return;
+		}
+
+		this.showSelector((done): SelectorHandle => {
+			const selector = new OAuthSelectorComponent(
+				"logout",
+				providerOptions,
+				async (providerId) => {
+					done();
+					const providerOption = providerOptions.find((provider) => provider.id === providerId);
+					if (!providerOption) {
+						return;
+					}
+					try {
+						await this.session.modelRuntime.logout(providerOption.id, { signal: AbortSignal.timeout(15_000) });
+						await this.updateAvailableProviderCount();
+						this.showStatus(
+							`Removed stored API key for ${providerOption.name}. Environment variables and models.json config are unchanged.`,
+						);
+					} catch (error: unknown) {
+						const message = error instanceof Error ? error.message : String(error);
+						this.showError(`Logout failed: ${message}`);
+					}
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: selector, focus: selector };
+		});
 	}
 
 	private showSettingsSelector(): void {

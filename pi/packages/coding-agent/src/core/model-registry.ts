@@ -2,10 +2,12 @@ import type {
 	Api,
 	AssistantMessage,
 	AuthInteraction,
+	AuthOperationOptions,
 	AuthResult,
 	AuthType,
 	Context,
 	Credential,
+	CredentialInfo,
 	Model,
 	ModelsApiStreamOptions,
 	ModelsRefreshOptions,
@@ -101,6 +103,14 @@ export class ModelRegistry {
 
 	login(providerId: string, type: AuthType, interaction: AuthInteraction): Promise<Credential> {
 		return this.runtime.login(providerId, type, interaction);
+	}
+
+	logout(providerId: string, options?: AuthOperationOptions): Promise<void> {
+		return this.runtime.logout(providerId, options);
+	}
+
+	listCredentials(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+		return this.runtime.listCredentials(options);
 	}
 
 	getProvider(provider: string): Provider | undefined {
