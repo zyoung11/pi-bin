@@ -14,11 +14,12 @@ Forked from [pi-mono](https://github.com/badlogic/pi-mono) (v0.84.3) and compile
 
 | | pi-bin | pi (Node.js) |
 |---|---|---|
-| Binary | 7.9 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
+| Binary | 8.6 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
 | Startup to `--version` | ~2 ms | ~380 ms |
 | Startup to `--list-models` | ~20 ms | ~420 ms |
-| TUI ready (no session) | ~60 ms | ~490 ms |
-| TUI ready (5 MB session) | ~170 ms | ~540 ms |
+| TUI ready (no session) | ~50 ms | ~490 ms |
+| TUI interactive (5 MB session) | ~0.4 s | ~540 ms (includes full transcript) |
+| History back-fill (5 MB session) | ~20 s in background | — |
 | Idle memory (TUI running) | ~10 MB | ~145 MB |
 | Memory (chat round-trip) | ~9 MB | ~152 MB |
 | Memory (5 MB session loaded) | ~104 MB | ~259 MB |
@@ -27,6 +28,10 @@ Forked from [pi-mono](https://github.com/badlogic/pi-mono) (v0.84.3) and compile
 
 Each number is the median of repeated runs on Linux x86-64 (same config, same
 terminal size, same local model endpoint).
+
+On multi-MB sessions the transcript loads progressively: the newest screens
+render first and the TUI is interactive immediately; older history back-fills
+in the background over the following ~20 s.
 
 ## Differences
 
