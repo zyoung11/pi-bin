@@ -92,7 +92,11 @@ function getMessageFromEntryForCompaction(entry: SessionEntry): AgentMessage | u
 	if (entry.type === "compaction") {
 		return undefined;
 	}
-	return sessionEntryToContextMessages(entry)[0];
+	const messages = sessionEntryToContextMessages(entry);
+	if (messages.length === 0) {
+		return undefined;
+	}
+	return messages[0];
 }
 
 /** Result from compact() - SessionManager adds uuid/parentUuid when saving */
