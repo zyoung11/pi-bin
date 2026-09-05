@@ -369,6 +369,57 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 const INITIAL_TAIL_TARGET_LINES = 120;
 const INITIAL_FILL_TICK_BUDGET_MS = 12;
 
+/**
+ * Container that memoizes its rendered line array. The memo is dropped on any
+ * child-list change, on width change, and on invalidate (theme switches bump
+ * the markdown epoch and global invalidates reach this via the tree cascade).
+ * Without the memo, every repaint walks the full transcript through the
+ * dynamic engine (~200ms per keystroke on a 2269-item session).
+ */
+class MemoContainer extends Container {
+	private memoWidth?: number;
+	private memoLines?: string[];
+
+	private dropMemo(): void {
+		this.memoLines = undefined;
+	}
+
+	/** Drop the memo without cascading into children. */
+	expire(): void {
+		this.dropMemo();
+	}
+
+	override addChild(component: Component): void {
+		super.addChild(component);
+		this.dropMemo();
+	}
+
+	override removeChild(component: Component): void {
+		super.removeChild(component);
+		this.dropMemo();
+	}
+
+	override clear(): void {
+		super.clear();
+		this.dropMemo();
+	}
+
+	override invalidate(): void {
+		this.dropMemo();
+		super.invalidate();
+	}
+
+	override render(width: number): string[] {
+		if (this.memoLines !== undefined && this.memoWidth === width) {
+			return this.memoLines;
+		}
+		const lines = super.render(width);
+		this.memoWidth = width;
+		this.memoLines = lines;
+		return lines;
+	}
+}
+
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiBase;
@@ -455,7 +506,7 @@ export class InteractiveMode {
 	// item per event-loop tick into historyContainer, which stays unmounted
 	// (invisible to the render walk) until the fill completes, then mounts once
 	// before chatContainer with a single full repaint.
-	private historyContainer: Container = new Container();
+	private historyContainer: MemoContainer = new MemoContainer();
 	private historyMounted = false;
 	private initialFillItems: RenderSessionItem[] = [];
 	private initialFillIndex = 0;
@@ -1597,11 +1648,14 @@ export class InteractiveMode {
 
 	private setHiddenThinkingLabel(label?: string): void {
 		this.hiddenThinkingLabel = label ?? this.defaultHiddenThinkingLabel;
-		for (const child of this.chatContainer.children) {
-			if (child instanceof AssistantMessageComponent) {
-				child.setHiddenThinkingLabel(this.hiddenThinkingLabel);
+		for (const container of [this.historyContainer, this.chatContainer]) {
+			for (const child of container.children) {
+				if (child instanceof AssistantMessageComponent) {
+					child.setHiddenThinkingLabel(this.hiddenThinkingLabel);
+				}
 			}
 		}
+		this.historyContainer.expire();
 		if (this.streamingComponent) {
 			this.streamingComponent.setHiddenThinkingLabel(this.hiddenThinkingLabel);
 		}
@@ -3514,21 +3568,25 @@ export class InteractiveMode {
 		if (activeHeader !== undefined) {
 			activeHeader.setExpanded(expanded);
 		}
-		for (const container of [this.loadedResourcesContainer, this.chatContainer]) {
+		for (const container of [this.loadedResourcesContainer, this.historyContainer, this.chatContainer]) {
 			for (const child of container.children) {
 				child.setExpanded(expanded);
 			}
 		}
+		this.historyContainer.expire();
 		this.showStatus(`Tool output: ${expanded ? "expanded" : "collapsed"}`);
 	}
 
 	/** Update rendered assistant messages without rebuilding live tool components. */
 	private updateThinkingBlockVisibility(): void {
-		for (const child of this.chatContainer.children) {
-			if (child instanceof AssistantMessageComponent) {
-				child.setHideThinkingBlock(this.hideThinkingBlock);
+		for (const container of [this.historyContainer, this.chatContainer]) {
+			for (const child of container.children) {
+				if (child instanceof AssistantMessageComponent) {
+					child.setHideThinkingBlock(this.hideThinkingBlock);
+				}
 			}
 		}
+		this.historyContainer.expire();
 		this.ui.requestRender();
 	}
 
@@ -4153,19 +4211,25 @@ export class InteractiveMode {
 					},
 					onShowImagesChange: (enabled) => {
 						this.settingsManager.setShowImages(enabled);
-						for (const child of this.chatContainer.children) {
-							if (child instanceof ToolExecutionComponent) {
-								child.setShowImages(enabled);
+						for (const container of [this.historyContainer, this.chatContainer]) {
+							for (const child of container.children) {
+								if (child instanceof ToolExecutionComponent) {
+									child.setShowImages(enabled);
+								}
 							}
 						}
+						this.historyContainer.expire();
 					},
 					onImageWidthCellsChange: (width) => {
 						this.settingsManager.setImageWidthCells(width);
-						for (const child of this.chatContainer.children) {
-							if (child instanceof ToolExecutionComponent) {
-								child.setImageWidthCells(width);
+						for (const container of [this.historyContainer, this.chatContainer]) {
+							for (const child of container.children) {
+								if (child instanceof ToolExecutionComponent) {
+									child.setImageWidthCells(width);
+								}
 							}
 						}
+						this.historyContainer.expire();
 					},
 					onBlockImagesChange: (blocked) => {
 						this.settingsManager.setBlockImages(blocked);
@@ -4247,15 +4311,18 @@ export class InteractiveMode {
 						this.settingsManager.setOutputPad(padding);
 						this.outputPad = padding;
 						if (this.streamingComponent || this.session.isStreaming) {
-							for (const child of this.chatContainer.children) {
-								if (child instanceof AssistantMessageComponent) {
-									child.setOutputPad(padding);
-								} else if (child instanceof CustomMessageComponent) {
-									child.setOutputPad(padding);
-								} else if (child instanceof UserMessageComponent) {
-									child.setOutputPad(padding);
+							for (const container of [this.historyContainer, this.chatContainer]) {
+								for (const child of container.children) {
+									if (child instanceof AssistantMessageComponent) {
+										child.setOutputPad(padding);
+									} else if (child instanceof CustomMessageComponent) {
+										child.setOutputPad(padding);
+									} else if (child instanceof UserMessageComponent) {
+										child.setOutputPad(padding);
+									}
 								}
 							}
+							this.historyContainer.expire();
 							if (this.streamingComponent) {
 								this.streamingComponent.setOutputPad(padding);
 							}
