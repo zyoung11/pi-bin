@@ -41,6 +41,7 @@ import type { AgentSessionRuntimeDiagnostic } from "../../core/agent-session-ser
 import {
 	CACHE_TTL_MS,
 	type CacheMiss,
+	type CacheMissEntry,
 	collectCacheMisses,
 	computeCacheWaste,
 	detectCacheMiss,
@@ -365,6 +366,9 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 	};
 }
 
+const INITIAL_TAIL_TARGET_LINES = 120;
+const INITIAL_FILL_TICK_BUDGET_MS = 12;
+
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
 	private renderer: TuiBase;
@@ -445,6 +449,21 @@ export class InteractiveMode {
 
 	// Messages queued while compaction is running
 	private compactionQueuedMessages: CompactionQueuedMessage[] = [];
+
+	// Progressive initial transcript load: the newest items render synchronously
+	// so the session is interactive immediately; older history is rebuilt one
+	// item per event-loop tick into historyContainer, which stays unmounted
+	// (invisible to the render walk) until the fill completes, then mounts once
+	// before chatContainer with a single full repaint.
+	private historyContainer: Container = new Container();
+	private historyMounted = false;
+	private initialFillItems: RenderSessionItem[] = [];
+	private initialFillIndex = 0;
+	private initialFillMisses: CacheMissEntry[] = [];
+	private initialFillPending: Map<string, ToolExecutionComponent> = new Map<string, ToolExecutionComponent>();
+	private initialFillPrimeWidth = 0;
+	private initialFillGeneration = 0;
+	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Shutdown state
 	private shutdownRequested = false;
@@ -2704,7 +2723,11 @@ export class InteractiveMode {
 
 	private addCustomEntryToChat(): void {}
 
-	private addMessageToChat(message: AgentMessage, options?: { populateHistory?: boolean }): void {
+	private addMessageToChat(
+		message: AgentMessage,
+		options?: { populateHistory?: boolean },
+		target: Container = this.chatContainer,
+	): void {
 		switch (message.role) {
 			case "bashExecution": {
 				const component = new BashExecutionComponent(message.command, this.ui, message.excludeFromContext);
@@ -2717,31 +2740,31 @@ export class InteractiveMode {
 					message.truncated ? { truncated: true } : undefined,
 					message.fullOutputPath,
 				);
-				this.chatContainer.addChild(component);
+				target.addChild(component);
 				break;
 			}
 			case "custom": {
 				break;
 			}
 			case "compactionSummary": {
-				this.chatContainer.addChild(new Spacer(1));
+				target.addChild(new Spacer(1));
 				const component = new CompactionSummaryMessageComponent(message, this.getMarkdownThemeWithSettings());
 				component.setExpanded(this.toolOutputExpanded);
-				this.chatContainer.addChild(component);
+				target.addChild(component);
 				break;
 			}
 			case "branchSummary": {
-				this.chatContainer.addChild(new Spacer(1));
+				target.addChild(new Spacer(1));
 				const component = new BranchSummaryMessageComponent(message, this.getMarkdownThemeWithSettings());
 				component.setExpanded(this.toolOutputExpanded);
-				this.chatContainer.addChild(component);
+				target.addChild(component);
 				break;
 			}
 			case "user": {
 				const textContent = this.getUserMessageText(message);
 				if (textContent) {
-					if (this.chatContainer.children.length > 0) {
-						this.chatContainer.addChild(new Spacer(1));
+					if (target.children.length > 0) {
+						target.addChild(new Spacer(1));
 					}
 					const skillBlock = parseSkillBlock(textContent);
 					if (skillBlock) {
@@ -2751,17 +2774,17 @@ export class InteractiveMode {
 							this.getMarkdownThemeWithSettings(),
 						);
 						component.setExpanded(this.toolOutputExpanded);
-						this.chatContainer.addChild(component);
+						target.addChild(component);
 						// Render user message separately if present
 						if (skillBlock.userMessage) {
-							this.chatContainer.addChild(new Spacer(1));
+							target.addChild(new Spacer(1));
 							const userComponent = new UserMessageComponent(
 								skillBlock.userMessage,
 								this.getMarkdownThemeWithSettings(),
 								this.outputPad,
 								this.getMarkdownTransformers(),
 							);
-							this.chatContainer.addChild(userComponent);
+							target.addChild(userComponent);
 						}
 					} else {
 						const userComponent = new UserMessageComponent(
@@ -2770,7 +2793,7 @@ export class InteractiveMode {
 							this.outputPad,
 							this.getMarkdownTransformers(),
 						);
-						this.chatContainer.addChild(userComponent);
+						target.addChild(userComponent);
 					}
 					if (options?.populateHistory) {
 						this.editor.addToHistory(textContent);
@@ -2787,7 +2810,7 @@ export class InteractiveMode {
 					this.outputPad,
 					this.getMarkdownTransformers(),
 				);
-				this.chatContainer.addChild(assistantComponent);
+				target.addChild(assistantComponent);
 				break;
 			}
 			case "toolResult": {
@@ -2802,109 +2825,126 @@ export class InteractiveMode {
 
 	private renderSessionItems(
 		items: readonly RenderSessionItem[],
-		options: { updateFooter?: boolean; populateHistory?: boolean } = {},
+		options: {
+			updateFooter?: boolean;
+			populateHistory?: boolean;
+			target?: Container;
+			misses?: CacheMissEntry[];
+		} = {},
 	): void {
+		const target = options.target !== undefined ? options.target : this.chatContainer;
+		const misses =
+			options.misses !== undefined
+				? options.misses
+				: this.settingsManager.getShowCacheMissNotices()
+					? collectCacheMisses(this.sessionManager.getEntries(), this.session.modelRuntime)
+					: [];
 		this.pendingTools.clear();
 		const renderedPendingTools = new Map<string, ToolExecutionComponent>();
-		// Cache-miss notices are not persisted; re-derive them from the full entry
-		// list and re-inject them after the assistant messages that paid for them.
-		const cacheMisses = this.settingsManager.getShowCacheMissNotices()
-			? collectCacheMisses(this.sessionManager.getEntries(), this.session.modelRuntime)
-			: [];
-
 		if (options.updateFooter) {
 			this.footer.invalidate();
 			this.updateEditorBorderColor();
 		}
-
 		for (const item of items) {
-			if (isCustomSessionEntry(item)) {
-				this.addCustomEntryToChat();
-				continue;
-			}
-			if (isCompactionCostNotice(item)) {
-				this.addCompactionCostNotice(item);
-				continue;
-			}
-
-			const message = item;
-			// Assistant messages need special handling for tool calls
-			if (message.role === "assistant") {
-				this.addMessageToChat(message);
-				// Render tool call components
-				for (const content of message.content) {
-					if (content.type === "toolCall") {
-						const component = new ToolExecutionComponent(
-							content.name,
-							content.id,
-							content.arguments,
-							{
-								showImages: this.settingsManager.getShowImages(),
-								imageWidthCells: this.settingsManager.getImageWidthCells(),
-							},
-							this.getRegisteredToolDefinition(content.name),
-							this.ui,
-							this.sessionManager.getCwd(),
-						);
-						component.setExpanded(this.toolOutputExpanded);
-						this.chatContainer.addChild(component);
-
-						if (message.stopReason === "aborted" || message.stopReason === "error") {
-							let errorMessage: string;
-							if (message.stopReason === "aborted") {
-								const retryAttempt = this.session.retryAttempt;
-								errorMessage =
-									retryAttempt > 0
-										? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
-										: "Operation aborted";
-							} else {
-								errorMessage = message.errorMessage || "Error";
-							}
-							component.updateResult({ content: [{ type: "text", text: errorMessage }], isError: true });
-						} else {
-							renderedPendingTools.set(content.id, component);
-						}
-					}
-				}
-				if (message.stopReason !== "aborted" && message.stopReason !== "error") {
-					let miss: CacheMiss | undefined;
-					for (const entry of cacheMisses) {
-						if (entry.message === message) {
-							miss = entry.miss;
-							break;
-						}
-					}
-					if (miss) this.addCacheMissNotice(miss);
-				}
-			} else if (message.role === "toolResult") {
-				// Match tool results to pending tool components
-				const component = renderedPendingTools.get(message.toolCallId);
-				if (component) {
-					const resultContent: (TextContent | ImageContent)[] = [];
-					for (const item of message.content) {
-						if (item.type === "text") {
-							resultContent.push({ type: "text", text: item.text });
-						} else {
-							resultContent.push({ type: "image", data: item.data, mimeType: item.mimeType });
-						}
-					}
-					component.updateResult({
-						content: resultContent,
-						details: message.details,
-						isError: message.isError,
-					});
-					renderedPendingTools.delete(message.toolCallId);
-				}
-			} else {
-				// All other messages use standard rendering
-				this.addMessageToChat(message, options);
-			}
+			this.renderSingleSessionItem(item, target, renderedPendingTools, misses, options.populateHistory === true);
 		}
-
 		for (const [toolCallId, component] of renderedPendingTools) {
 			this.pendingTools.set(toolCallId, component);
 		}
 		this.ui.requestRender();
+	}
+
+	/**
+	 * Render one session item into the given target container. Split out of
+	 * renderSessionItems so the progressive initial fill can rebuild older
+	 * history one item per event-loop tick.
+	 */
+	private renderSingleSessionItem(
+		item: RenderSessionItem,
+		target: Container,
+		pendingTools: Map<string, ToolExecutionComponent>,
+		misses: CacheMissEntry[],
+		populateHistory: boolean,
+	): ToolExecutionComponent | undefined {
+		if (isCustomSessionEntry(item)) {
+			this.addCustomEntryToChat();
+			return undefined;
+		}
+		if (isCompactionCostNotice(item)) {
+			this.addCompactionCostNotice(item, target);
+			return undefined;
+		}
+		const message = item;
+		if (message.role === "assistant") {
+			this.addMessageToChat(message, { populateHistory }, target);
+			for (const content of message.content) {
+				if (content.type === "toolCall") {
+					const component = new ToolExecutionComponent(
+						content.name,
+						content.id,
+						content.arguments,
+						{
+							showImages: this.settingsManager.getShowImages(),
+							imageWidthCells: this.settingsManager.getImageWidthCells(),
+						},
+						this.getRegisteredToolDefinition(content.name),
+						this.ui,
+						this.sessionManager.getCwd(),
+					);
+					component.setExpanded(this.toolOutputExpanded);
+					target.addChild(component);
+					if (message.stopReason === "aborted" || message.stopReason === "error") {
+						let errorMessage: string;
+						if (message.stopReason === "aborted") {
+							const retryAttempt = this.session.retryAttempt;
+							errorMessage =
+								retryAttempt > 0
+									? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
+									: "Operation aborted";
+						} else {
+							errorMessage = message.errorMessage || "Error";
+						}
+						component.updateResult({ content: [{ type: "text", text: errorMessage }], isError: true });
+					} else {
+						pendingTools.set(content.id, component);
+					}
+				}
+			}
+			if (message.stopReason !== "aborted" && message.stopReason !== "error") {
+				let miss: CacheMiss | undefined;
+				for (const entry of misses) {
+					if (entry.message === message) {
+						miss = entry.miss;
+						break;
+					}
+				}
+				if (miss) this.addCacheMissNotice(miss, target);
+			}
+			return;
+		}
+		if (message.role === "toolResult") {
+			const component = pendingTools.get(message.toolCallId);
+			if (component) {
+				const resultContent: (TextContent | ImageContent)[] = [];
+				for (const content of message.content) {
+					if (content.type === "text") {
+						resultContent.push({ type: "text", text: content.text });
+					} else {
+						resultContent.push({ type: "image", data: content.data, mimeType: content.mimeType });
+					}
+				}
+				component.updateResult({
+					content: resultContent,
+					details: message.details,
+					isError: message.isError,
+				});
+				pendingTools.delete(message.toolCallId);
+				return component;
+			}
+			return undefined;
+		}
+		this.addMessageToChat(message, { populateHistory }, target);
+		return undefined;
 	}
 
 	/**
@@ -2913,10 +2953,7 @@ export class InteractiveMode {
 	 * @param options.updateFooter Update footer state
 	 * @param options.populateHistory Add user messages to editor history
 	 */
-	private renderSessionEntries(
-		entries: SessionEntry[],
-		options: { updateFooter?: boolean; populateHistory?: boolean } = {},
-	): void {
+	private buildRenderItems(entries: SessionEntry[]): RenderSessionItem[] {
 		const items: RenderSessionItem[] = [];
 		for (const entry of entries) {
 			if (isCustomEntry(entry)) {
@@ -2945,6 +2982,15 @@ export class InteractiveMode {
 				items.push(message);
 			}
 		}
+		return items;
+	}
+
+	private renderSessionEntries(
+		entries: SessionEntry[],
+		options: { updateFooter?: boolean; populateHistory?: boolean } = {},
+	): void {
+		this.resetTranscriptContainers();
+		const items = this.buildRenderItems(entries);
 		this.renderSessionItems(items, options);
 	}
 
@@ -2952,17 +2998,15 @@ export class InteractiveMode {
 	 * Render billing usage for a compaction or branch summary. The notice is derived
 	 * from persisted summary usage and is not stored as a separate session entry.
 	 */
-	private addCompactionCostNotice(notice: CompactionCostNotice): void {
+	private addCompactionCostNotice(notice: CompactionCostNotice, target: Container = this.chatContainer): void {
 		if (!this.settingsManager.getShowCacheMissNotices()) return;
 
 		const { usage } = notice;
 		const tokens = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 		const cost = usage.cost.total >= 0.01 ? ` (~$${usage.cost.total.toFixed(2)})` : "";
 		const label = notice.kind === "compaction" ? "Compaction" : "Branch summary";
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(
-			new Text(theme.fg("warning", `${label}: ${formatTokens(tokens)} tokens billed${cost}`), 1, 0),
-		);
+		target.addChild(new Spacer(1));
+		target.addChild(new Text(theme.fg("warning", `${label}: ${formatTokens(tokens)} tokens billed${cost}`), 1, 0));
 	}
 
 	/**
@@ -2978,7 +3022,7 @@ export class InteractiveMode {
 		if (miss) this.addCacheMissNotice(miss);
 	}
 
-	private addCacheMissNotice(miss: CacheMiss): void {
+	private addCacheMissNotice(miss: CacheMiss, target: Container = this.chatContainer): void {
 		if (miss.missedTokens < 20_000 && miss.missedCost < 0.1) return;
 
 		const cost = miss.missedCost >= 0.01 ? ` (~$${miss.missedCost.toFixed(2)})` : "";
@@ -2990,16 +3034,225 @@ export class InteractiveMode {
 			label = `Cache miss after ${Math.round(miss.idleMs / 60_000)}m idle`;
 		}
 		const text = theme.fg("warning", `${label}: ${reBilled}`);
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(text, 1, 0));
+		target.addChild(new Spacer(1));
+		target.addChild(new Text(text, 1, 0));
+	}
+
+	/**
+	 * Cut index for the progressive initial load: the newest suffix of items
+	 * worth roughly one and a half screens is painted synchronously. Cuts are
+	 * only placed on user message items so a tool call and its result always
+	 * land in the same chunk.
+	 */
+	private findTailStart(items: readonly RenderSessionItem[]): number {
+		let estimated = 0;
+		for (let i = items.length - 1; i >= 0; i--) {
+			estimated += this.estimateItemLines(items[i]);
+			if (estimated >= INITIAL_TAIL_TARGET_LINES && this.isCuttableItem(items[i])) {
+				return i;
+			}
+		}
+		return 0;
+	}
+
+	private isCuttableItem(item: RenderSessionItem): boolean {
+		if (isCustomSessionEntry(item)) return false;
+		if (isCompactionCostNotice(item)) return false;
+		const message = item;
+		if (message.role === "user") return true;
+		return false;
+	}
+
+	/** Rough scrollback height estimate used to size the synchronous tail chunk. */
+	private estimateItemLines(item: RenderSessionItem): number {
+		if (isCustomSessionEntry(item)) return 2;
+		if (isCompactionCostNotice(item)) return 2;
+		const message = item;
+		let chars = 0;
+		if (message.role === "user") {
+			const contentField = message.content;
+			if (typeof contentField === "string") {
+				chars += contentField.length;
+			} else {
+				for (const content of contentField) {
+					if (content.type === "image") chars += 800;
+					else chars += content.text.length;
+				}
+			}
+		} else if (message.role === "assistant") {
+			for (const content of message.content) {
+				if (content.type === "text") chars += content.text.length;
+				else if (content.type === "thinking") chars += content.thinking.length;
+				else if (content.type === "toolCall") chars += 100;
+			}
+		} else if (message.role === "toolResult") {
+			for (const content of message.content) {
+				if (content.type === "text") chars += content.text.length;
+			}
+		} else if (message.role === "bashExecution") {
+			chars += message.command.length;
+			chars += message.output !== undefined ? message.output.length : 0;
+		} else if (message.role === "compactionSummary") {
+			chars += 2000;
+		} else if (message.role === "branchSummary") {
+			chars += 2000;
+		}
+		return Math.ceil(chars / 80) + 3;
+	}
+
+	private resetTranscriptContainers(): void {
+		this.cancelInitialFill();
+		this.historyContainer.clear();
+		this.detachHistoryContainer();
+	}
+
+	private cancelInitialFill(): void {
+		this.initialFillGeneration += 1;
+		if (this.initialFillTimer !== undefined) {
+			clearTimeout(this.initialFillTimer);
+			this.initialFillTimer = undefined;
+		}
+		this.initialFillPending.clear();
+	}
+
+	private mountHistoryContainer(): void {
+		if (this.historyMounted) return;
+		// documentContainer children are fixed at construction:
+		// [headerContainer, loadedResourcesContainer, chatContainer]. The history
+		// container goes between the resource list and the chat, so the rebuilt
+		// array inserts it at the chat slot. Avoids splice-insert and indexOf,
+		// which have no scriptc lowering for dynamic component values.
+		const children = this.documentContainer.children;
+		const next: Component[] = [];
+		for (let i = 0; i < children.length; i++) {
+			if (i === 2) next.push(this.historyContainer);
+			next.push(children[i]);
+		}
+		if (next.length === children.length) next.push(this.historyContainer);
+		this.documentContainer.children = next;
+		this.historyMounted = true;
+	}
+
+	private detachHistoryContainer(): void {
+		if (!this.historyMounted) return;
+		const children = this.documentContainer.children;
+		const next: Component[] = [];
+		for (let i = 0; i < children.length; i++) {
+			if (i !== 2) next.push(children[i]);
+		}
+		this.documentContainer.children = next;
+		this.historyMounted = false;
+	}
+
+	private startInitialFill(items: RenderSessionItem[], misses: CacheMissEntry[]): void {
+		this.initialFillItems = items;
+		this.initialFillMisses = misses;
+		this.initialFillIndex = 0;
+		this.initialFillPrimeWidth = this.ui.getTerminal().columns();
+		this.initialFillGeneration += 1;
+		if (process.env.PI_TIMING === "1") {
+			const chain = (): void => {
+				const scheduledAt = Date.now();
+				setTimeout(() => {
+					const lag = Date.now() - scheduledAt - 50;
+					if (lag > 300) console.error(`[perf-lag] ${lag}ms`);
+					if (this.initialFillTimer !== undefined) chain();
+				}, 50);
+			};
+			chain();
+		}
+		const generation = this.initialFillGeneration;
+		const tick = (): void => {
+			this.runInitialFillTick(generation, tick);
+		};
+		this.initialFillTimer = setTimeout(tick, 30);
+	}
+
+	private runInitialFillTick(generation: number, tick: () => void): void {
+		if (generation !== this.initialFillGeneration || this.shutdownRequested) return;
+		if (this.initialFillIndex >= this.initialFillItems.length) {
+			this.finishInitialFill();
+			return;
+		}
+		const budgetStart = Date.now();
+		while (
+			this.initialFillIndex < this.initialFillItems.length &&
+			Date.now() - budgetStart < INITIAL_FILL_TICK_BUDGET_MS
+		) {
+			const item = this.initialFillItems[this.initialFillIndex];
+			const itemStart = Date.now();
+			const before = this.historyContainer.children.length;
+			this.initialFillIndex += 1;
+			const updated = this.renderSingleSessionItem(
+				item,
+				this.historyContainer,
+				this.initialFillPending,
+				this.initialFillMisses,
+				false,
+			);
+			// Prime the freshly created components at the current terminal width so
+			// their markdown caches are warm before the fill-end mount; without this
+			// the first walk after mounting re-parses the whole transcript in one
+			// atomic block on the main thread.
+			const grown = this.historyContainer.children;
+			for (let i = before; i < grown.length; i++) grown[i].render(this.initialFillPrimeWidth);
+			if (updated !== undefined) updated.render(this.initialFillPrimeWidth);
+			const itemMs = Date.now() - itemStart;
+			if (process.env.PI_TIMING === "1" && itemMs > 200) {
+				let role = "custom";
+				if (!isCustomSessionEntry(item) && !isCompactionCostNotice(item)) {
+					const message = item;
+					role = message.role;
+				}
+				console.error(
+					`[perf-fill] idx=${this.initialFillIndex}/${this.initialFillItems.length} role=${role} ms=${itemMs}`,
+				);
+			}
+		}
+		if (process.env.PI_TIMING === "1" && this.initialFillIndex % 500 < 4) {
+			console.error(`[perf-fill] progress idx=${this.initialFillIndex}/${this.initialFillItems.length}`);
+		}
+		this.initialFillTimer = setTimeout(tick, 0);
+	}
+
+	private finishInitialFill(): void {
+		this.initialFillPending.clear();
+		if (this.historyContainer.children.length === 0) return;
+		if (process.env.PI_TIMING === "1") console.error(`[perf-fill] finish`);
+		this.mountHistoryContainer();
+		this.ui.invalidate();
+		this.ui.requestRender();
 	}
 
 	renderInitialMessages(): void {
+		this.resetTranscriptContainers();
+		this.chatContainer.clear();
 		const entries = this.sessionManager.buildContextEntries();
-		this.renderSessionEntries(entries, {
+		const items = this.buildRenderItems(entries);
+		// Editor history is populated upfront in chronological order; the
+		// back-filled history chunks below render with populateHistory disabled.
+		for (const item of items) {
+			if (isCustomSessionEntry(item)) continue;
+			if (isCompactionCostNotice(item)) continue;
+			const message = item;
+			if (message.role === "user") {
+				const textContent = this.getUserMessageText(message);
+				if (textContent) this.editor.addToHistory(textContent);
+			}
+		}
+		const misses = this.settingsManager.getShowCacheMissNotices()
+			? collectCacheMisses(this.sessionManager.getEntries(), this.session.modelRuntime)
+			: [];
+		const tailStart = this.findTailStart(items);
+		if (process.env.PI_TIMING === "1") console.error(`[perf-fill] tailStart=${tailStart} items=${items.length}`);
+		this.renderSessionItems(items.slice(tailStart), {
 			updateFooter: true,
-			populateHistory: true,
+			target: this.chatContainer,
+			misses,
 		});
+		if (tailStart > 0) {
+			this.startInitialFill(items.slice(0, tailStart), misses);
+		}
 		this.renderProjectTrustWarningIfNeeded();
 
 		// Show compaction info if session was compacted
@@ -5163,6 +5416,7 @@ export class InteractiveMode {
 	}
 
 	stop(): void {
+		this.cancelInitialFill();
 		this.disposeActiveSelector();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.getTerminal().setProgress(false);

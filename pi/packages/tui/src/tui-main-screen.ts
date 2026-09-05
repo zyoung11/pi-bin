@@ -260,7 +260,12 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		};
 
 		// Render all components to get new lines
+		const __t0 = process.env.PI_TIMING === "1" ? performance.now() : 0;
 		let newLines = this.render(width);
+		const __t1 = __t0 !== 0 ? performance.now() : 0;
+		if (__t0 !== 0 && performance.now() - __t0 > 300) {
+			console.error(`[perf-render] doRender: renderTree=${(__t1 - __t0).toFixed(0)}ms lines=${newLines.length}`);
+		}
 
 		// Composite overlays into the rendered lines (before differential compare)
 		if (this.hasOverlayEntries) {
