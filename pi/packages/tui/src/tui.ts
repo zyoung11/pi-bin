@@ -262,12 +262,13 @@ export class Container extends Component {
 	}
 
 	render(width: number): string[] {
-		const lines: string[] = [];
+		let lines: string[] = [];
 		for (const child of this.children) {
 			const childLines = child.render(width);
-			for (const line of childLines) {
-				lines.push(line);
-			}
+			// Native concat per child: a per-line push loop through the dynamic
+			// engine costs ~90µs per line, which made every frame O(transcript
+			// size) even when all child line caches were warm.
+			lines = lines.concat(childLines);
 		}
 		return lines;
 	}

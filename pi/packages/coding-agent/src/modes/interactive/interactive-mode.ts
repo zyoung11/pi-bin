@@ -368,6 +368,7 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 
 const INITIAL_TAIL_TARGET_LINES = 120;
 const INITIAL_FILL_TICK_BUDGET_MS = 12;
+const STREAM_RENDER_INTERVAL_MS = 150;
 
 /**
  * Container that memoizes its rendered line array. The memo is dropped on any
@@ -515,6 +516,10 @@ export class InteractiveMode {
 	private initialFillPrimeWidth = 0;
 	private initialFillGeneration = 0;
 	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
+	private streamProbeCount = 0;
+	private streamProbeTotalMs = 0;
+	private streamProbeMaxMs = 0;
+	private lastStreamFlushAt = 0;
 
 	// Shutdown state
 	private shutdownRequested = false;
@@ -2434,14 +2439,24 @@ export class InteractiveMode {
 					this.streamingMessage = event.message;
 					this.chatContainer.addChild(this.streamingComponent);
 					this.streamingComponent.updateContent(this.streamingMessage, true);
+					this.lastStreamFlushAt = Date.now();
 					this.ui.requestRender();
 				}
 				break;
 
 			case "message_update":
 				if (this.streamingComponent && event.message.role === "assistant") {
+					const __u0 = process.env.PI_TIMING === "1" ? Date.now() : 0;
 					this.streamingMessage = event.message;
-					this.streamingComponent.updateContent(this.streamingMessage, true);
+					// Re-rendering the streaming message re-parses its full accumulated
+					// markdown on the frame's render walk; throttled to keep frames cheap
+					// so keystroke echo stays responsive while streaming. The final
+					// message_end always flushes.
+					const now = Date.now();
+					if (now - this.lastStreamFlushAt >= STREAM_RENDER_INTERVAL_MS) {
+						this.lastStreamFlushAt = now;
+						this.streamingComponent.updateContent(this.streamingMessage, true);
+					}
 
 					for (const content of this.streamingMessage.content) {
 						if (content.type === "toolCall") {
@@ -2470,6 +2485,17 @@ export class InteractiveMode {
 						}
 					}
 					this.ui.requestRender();
+					if (__u0 !== 0) {
+						const ms = Date.now() - __u0;
+						this.streamProbeCount += 1;
+						this.streamProbeTotalMs += ms;
+						if (ms > this.streamProbeMaxMs) this.streamProbeMaxMs = ms;
+						if (this.streamProbeCount % 50 === 0) {
+							console.error(
+								`[perf-stream] n=${this.streamProbeCount} avg=${(this.streamProbeTotalMs / this.streamProbeCount).toFixed(1)}ms max=${this.streamProbeMaxMs}ms last=${ms}ms`,
+							);
+						}
+					}
 				}
 				break;
 

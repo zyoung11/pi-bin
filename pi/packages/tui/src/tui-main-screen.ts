@@ -263,7 +263,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		const __t0 = process.env.PI_TIMING === "1" ? performance.now() : 0;
 		let newLines = this.render(width);
 		const __t1 = __t0 !== 0 ? performance.now() : 0;
-		if (__t0 !== 0 && performance.now() - __t0 > 300) {
+		if (__t0 !== 0 && performance.now() - __t0 > 80) {
 			console.error(`[perf-render] doRender: renderTree=${(__t1 - __t0).toFixed(0)}ms lines=${newLines.length}`);
 		}
 
