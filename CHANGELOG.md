@@ -349,3 +349,25 @@ Other:
   configuration walkthrough; OAuth/subscription flows and Anthropic-wire
   providers documented as not supported yet.
 - Version 0.1.6 → 0.1.7 → 0.1.8 → 0.1.9.
+
+## Phase 11 — Startup and interaction latency (3.9MB session profiled)
+
+- `32edec9` — Guard empty message arrays in
+  `getMessageFromEntryForCompaction`: `sessionEntryToContextMessages` returns
+  zero entries for non-message entries, and the unguarded `[0]` aborted the
+  process (scriptc array-bounds trap) the moment auto-compaction fired on a
+  large session.
+- `eb5e66e` — Keep markdown render caches across tree invalidation. Profiled
+  with `PI_TIMING=1` on a 3.9MB / 2285-entry / 31422-line session: session
+  restore is 650ms; the cost was a single `ui.renderNow()` re-parsing every
+  transcript message (~17.6s) and, per keystroke, another full re-parse caused
+  by global invalidate() cascading into message components that destructively
+  rebuilt all Markdown children. `Markdown.invalidate` is now a no-op with
+  cache validity keyed on (text, width, markdownRenderEpoch); the seven message
+  component invalidate overrides no longer rebuild children;
+  InteractiveThemeController bumps the epoch on theme activation so switches
+  still re-render colors. Keystroke echo drops from 17.6s to 26-193ms; theme
+  switch re-renders correctly; streaming round-trip intact.
+- Open: first paint on an uncompacted multi-MB session still parses the whole
+  transcript synchronously (~24s before interactive). Progressive newest-first
+  transcript build or viewport virtualization is the follow-up.
