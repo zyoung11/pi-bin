@@ -371,3 +371,26 @@ Other:
 - Open: first paint on an uncompacted multi-MB session still parses the whole
   transcript synchronously (~24s before interactive). Progressive newest-first
   transcript build or viewport virtualization is the follow-up.
+
+## Phase 12 — Progressive transcript load (Plan A)
+
+- `599ab52` — Progressive initial transcript load: `renderInitialMessages`
+  paints only the newest ~1.5 screens synchronously (interactive in ~0.4s on a
+  3.9MB / 2285-entry / 30k-line session, was 24s) while older history rebuilds
+  one item per event-loop tick into an unmounted `historyContainer` that mounts
+  before `chatContainer` with a single full repaint at fill end. Components are
+  primed (rendered once at the current width) inside the fill tick — without
+  priming the fill-end walk re-parsed the whole transcript in one 17s atomic
+  block. Fill is generation-guarded, cancelled by `stop()`, and tail cuts land
+  only on user-message items so tool call/result pairs never split.
+- `d9463a8` — `MemoContainer` for the transcript history: memoizes rendered
+  lines keyed on width, dropped on child-list changes and invalidate. Post-fill
+  keystroke echo drops from ~200ms (full dynamic-engine walk per repaint) to
+  ~140ms including the 30k-line diff; small sessions unchanged (~26ms).
+  Settings sweeps cover history children and expire the memo.
+- PI_TIMING probes added: per-item fill times >200ms, fill progress, event-loop
+  lag monitor, doRender renderTree timing >300ms.
+- Open: the fill-end mount repaint costs ~10s once per session open
+  (renderTree 4.7s warm walk + ~5s per-line phases and 30k-line rewrite);
+  next levers are per-component line caches (walk degrades to concat) and
+  fast paths in the per-line post-processing.
