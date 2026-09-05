@@ -38,11 +38,30 @@ Removed:
 - Mermaid diagram rendering, syntax highlighting (code renders as plain
   theme-colored text)
 - Telemetry, update checks, first-run wizard
-- OAuth authentication (providers that require it, e.g. Anthropic Claude
-  subscription auth, are no longer usable. API-key providers work fine)
+- OAuth/subscription authentication (Claude Pro/Max, ChatGPT/Codex, GitHub
+  Copilot logins are not available; API-key providers work fine via `/login`)
 - Automatic light/dark theme switching (dark + custom themes only)
 - Image resizing (images pass through as-is. Over 4 MB is rejected)
-- `/changelog`, `/login` and the extension slash commands are gone
+- `/changelog` and the extension slash commands are gone
+
+Added:
+
+- `/login` and `/logout` for API-key providers: a static catalog of 23
+  supported providers (642 models) ships inside the binary, so the provider
+  list is always complete. Selecting a provider registers it immediately, the
+  key is stored in `auth.json`, and its model catalog persists into
+  `models-store.json`
+- Startup background refresh: providers with a stored key are updated against
+  models.dev, so new models appear without any action
+- Bash tool commands run with `LC_MESSAGES=C` (errors and prompts are English
+  regardless of the host locale)
+
+Changed:
+
+- `/login` is API-key only (upstream also offers OAuth/subscription flows,
+  which the static build does not implement)
+- Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) still work
+  through a hand-written `models.json`
 
 Everything else (the agent loop, tools, TUI, sessions, compaction, skills,
 prompt templates, and the bash/edit/read/write workflow) behaves the same.
@@ -78,13 +97,6 @@ npm run check                  # optional: biome + tsgo --noEmit
 The build reads `packages/coding-agent/src/cli.ts` and emits the static binary to `./pi`. 
 
 ## Models
-
-Log in through `/login`: pick a provider from the list, paste your API key,
-and pi stores the credential in `auth.json`. The model catalog for every
-provider ships inside the binary, so its models appear in `/model`
-immediately. On startup, providers with a stored key are refreshed in the
-background against models.dev (the same directory source upstream uses), so
-new models show up without any action. `/logout` removes a stored credential.
 
 Provider coverage (✓ works with `/login`, ✗ not supported yet):
 
