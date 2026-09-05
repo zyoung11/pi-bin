@@ -394,3 +394,4 @@ Other:
   (renderTree 4.7s warm walk + ~5s per-line phases and 30k-line rewrite);
   next levers are per-component line caches (walk degrades to concat) and
   fast paths in the per-line post-processing.
+- Version 0.1.9 → 0.2.0.
