@@ -7,7 +7,7 @@
 <span>╩    ╩                ╚═╝ ╩ ╝╚╝</span></pre>
 </div>
 
-A truly minimal pi-coding-agent compiled to an ~8 MB zero-dependency native
+A truly minimal pi-coding-agent compiled to an ~8.6 MB zero-dependency native
 executable.
 
 Forked from [pi-mono](https://github.com/badlogic/pi-mono) (v0.84.3) and compiled with [scriptc](https://scriptc.dev) (v0.0.35) into a single static Linux binary. No JS engine, no `node_modules` at runtime.
@@ -71,7 +71,7 @@ git clone https://github.com/zyoung11/pi-bin.git
 cd pi-bin
 
 npm install --ignore-scripts   # install npm dependencies
-npm run build:native           # compile → ./pi (8 MB ELF)
+npm run build:native           # compile → ./pi (8.6 MB ELF)
 npm run check                  # optional: biome + tsgo --noEmit
 ```
 
@@ -86,17 +86,46 @@ immediately. On startup, providers with a stored key are refreshed in the
 background against models.dev (the same directory source upstream uses), so
 new models show up without any action. `/logout` removes a stored credential.
 
-Supported providers (API key): Ant Ling, Baseten, Cerebras, DeepSeek,
-Fireworks, Groq, Hugging Face, Moonshot AI (and its CN endpoint), NVIDIA,
-OpenCode (and Go), OpenRouter, Qwen Token Plan (and CN / Individual variants),
-Together, Xiaomi (and Token Plan AMS / CN / SGP endpoints), and Z.AI (and its
-Coding CN endpoint).
+Provider coverage (✓ works with `/login`, ✗ not supported yet):
 
-Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) are configured
-through a `models.json` file in the agent config directory instead.
+| Provider | pi-bin |
+|---|---|
+| Ant Ling | ✓ |
+| Amazon Bedrock | ✗ |
+| Anthropic | ✗ |
+| Azure OpenAI | ✗ |
+| Baseten | ✓ |
+| Cerebras | ✓ |
+| Cloudflare AI Gateway | ✗ |
+| Cloudflare Workers AI | ✗ |
+| DeepSeek | ✓ |
+| Fireworks | ✓ |
+| GitHub Copilot | ✗ |
+| Google Gemini | ✗ |
+| Google Vertex | ✗ |
+| Groq | ✓ |
+| Hugging Face | ✓ |
+| Kimi For Coding | ✗ |
+| MiniMax (and CN) | ✗ |
+| Mistral | ✗ |
+| Moonshot AI (and CN) | ✓ |
+| NVIDIA | ✓ |
+| OpenAI | ✗ |
+| OpenCode (and Go) | ✓ |
+| OpenRouter | ✓ |
+| Qwen Token Plan (and CN / Individual) | ✓ |
+| Together | ✓ |
+| Vercel AI Gateway | ✗ |
+| xAI | ✗ |
+| Xiaomi (and Token Plan AMS / CN / SGP) | ✓ |
+| Z.AI (and Coding CN) | ✓ |
 
-Not supported yet: OAuth/subscription logins (Claude Pro/Max, ChatGPT/Codex,
-GitHub Copilot) and providers that only speak the Anthropic wire protocol
-(MiniMax, Kimi For Coding) — each needs an API adapter the static build does
-not implement. Select models with `--model`, the `/model` command, or
-`Ctrl+P`.
+- ✗ providers need API adapters the static build does not implement:
+  Anthropic-wire protocol (Anthropic, Kimi For Coding, MiniMax, Vercel AI
+  Gateway), OpenAI Responses protocol (OpenAI, xAI, Azure OpenAI),
+  Google/Bedrock/Mistral proprietary protocols, OAuth/subscription logins
+  (GitHub Copilot, OpenAI Codex), or special credential chains (Amazon
+  Bedrock, Cloudflare, RADIUS).
+- Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) work through
+  a `models.json` file in the agent config directory instead.
+- Select models with `--model`, the `/model` command, or `Ctrl+P`.
