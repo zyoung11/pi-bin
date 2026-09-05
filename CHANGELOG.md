@@ -268,7 +268,84 @@ folds to a marker in the editor and expands to the full 150-char payload on
 submit; short paste inserts verbatim; idle-timeout fires
 with a clear error and does not fire during active streaming.
 
-Known issue (new): a models.json provider without a `compat` field fails
-composition with "expected object | object | object | object at $, got
-undefined" — likely the same undeclared-field cast-copy behavior on the
-ProviderCompatSchema union. Workaround: declare `compat` explicitly.
+
+## Phase 10 — /login, /logout, provider catalog, and runtime hardening (0.1.7 → 0.1.9)
+
+Session and model-selection crashes:
+
+- `aa513df` — `pi -c` crashed with SIGABRT whenever the sessions dir had no
+  top-level .jsonl (the normal per-project layout): findMostRecentSession read
+  files[0] on an empty array, and scriptc traps before `?.` can guard. Same
+  guard added for empty session files opened via -c/-s. Node returned
+  undefined, so upstream never hit this.
+- `6e0325c` — picking a model without a modelThinkingLevels entry (first
+  pick of a new model via /model) crashed with the scriptc missing-key trap;
+  getModelThinkingLevel indexed the settings record directly. Reads over
+  external settings JSON now go through the dyn record view; same hardening
+  applied to the three modelThinkingLevels lookups in model-resolver.
+
+Bash tool abort and environment:
+
+- `0947d28` — Esc could not interrupt running commands, and orphaned children
+  kept stealing the TTY input (sudo password prompts leaked onto the TUI,
+  input felt frozen). Three stacked causes: spawnProcess silently dropped the
+  detached option; processGroupId parsed /proc/pid/stat with an off-by-one
+  (returned ppid, not pgrp) so the pid-reuse guard rejected every group kill;
+  and killProcessTree returned silently instead of falling back to a
+  single-pid kill. With detached fixed, sudo/password prompts fail fast with
+  a pipe-visible error instead of hanging the TUI.
+- `475bb7d` — bash tool commands run with LC_MESSAGES=C: command errors and
+  prompts are English regardless of the host locale (message language only;
+  file-name encoding and other locale categories unchanged).
+
+Streaming render:
+
+- `c3fd5b2` — every non-BMP character (emoji) rendered as two U+FFFD
+  replacement chars: the mini-markdown lexer fallback walked the text one
+  UTF-16 code unit at a time, splitting surrogate pairs into lone surrogates
+  that fail UTF-8 encoding on output. Surrogate pairs now walk as one
+  character. Upstream is unaffected (real marked package).
+- `695b8b9` — streaming render crashed when a latex command was cut mid-name
+  by a streaming chunk: renderLatex looked truncated commands up in typed
+  lookup tables (SYMBOLS, ACCENTS, NEGATED_SYMBOLS, ...) whose dynamic keys
+  scriptc materializes as fixed slots. All dynamic table reads now go through
+  the dyn record view with typeof-string narrowing.
+
+/login, /logout, and the provider catalog:
+
+- `755a022` `ee330db` `0f078d6` `41b9127` — /login for API-key providers,
+  styled and sequenced after the upstream oauth-selector flow: provider list
+  with fuzzy search and configured-status marks, secret API key prompt via the
+  upstream login dialog, credential persisted to auth.json through the
+  provider's own login method, then the upstream post-login flow (default
+  model auto-selection, status messages naming the auth.json path,
+  per-provider catalog refresh).
+- `0f078d6` — the provider list never depends on models-store.json contents:
+  a static catalog (23 API-key providers, 642 models, generated from the
+  upstream model directory) ships inside the binary. Selecting a provider
+  registers it into ModelRuntime on the spot, and its catalog block is
+  persisted into models-store.json after the key is saved, so /model lists it
+  immediately without a restart. Startup background refresh updates providers
+  with a stored key against models.dev, silently skipped offline or on
+  failure.
+- `c6fb4cc` — /logout: lists credentials stored by /login and removes the
+  selected provider's auth.json entry (upstream logout selector flow).
+- `234f85b` — deduplicated the provider list (catalog entries appeared twice:
+  static list plus dynamic getProviders) and switched to upstream display
+  names (Xiaomi, DeepSeek, Z.AI, ...).
+- provider-composer: modelFromJson no longer casts an undefined compat into
+  the 4-arm compat union (the Phase 9 "known issue" is fixed — catalog
+  definitions without compat compose fine); applyExtension guards the
+  empty-baseModels first-match fallback (scriptc traps on models[0] of an
+  empty array); registerProvider snapshot update avoids Set/Map(iterable)
+  construction.
+
+Other:
+
+- `475bb7d`-era follow-up — /login and /logout registered in
+  BUILTIN_SLASH_COMMANDS (the handlers existed but the commands were
+  undiscoverable from slash autocomplete).
+- README rewritten: provider login via /login replaces the models.json
+  configuration walkthrough; OAuth/subscription flows and Anthropic-wire
+  providers documented as not supported yet.
+- Version 0.1.6 → 0.1.7 → 0.1.8 → 0.1.9.

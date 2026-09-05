@@ -79,39 +79,24 @@ The build reads `packages/coding-agent/src/cli.ts` and emits the static binary t
 
 ## Models
 
-Providers are assembled at startup from two files in `~/.pi/agent/`:
+Log in through `/login`: pick a provider from the list, paste your API key,
+and pi stores the credential in `auth.json`. The model catalog for every
+provider ships inside the binary, so its models appear in `/model`
+immediately. On startup, providers with a stored key are refreshed in the
+background against models.dev (the same directory source upstream uses), so
+new models show up without any action. `/logout` removes a stored credential.
 
-- `models.json`: providers you write by hand (baseUrl + api + models)
-- `models-store.json`: the catalog cache from the original pi. Its providers
-  (deepseek, zai, xiaomi, ...) are synthesized in memory and merged in, so
-  models configured through the original pi work without any extra setup
+Supported providers (API key): Ant Ling, Baseten, Cerebras, DeepSeek,
+Fireworks, Groq, Hugging Face, Moonshot AI (and its CN endpoint), NVIDIA,
+OpenCode (and Go), OpenRouter, Qwen Token Plan (and CN / Individual variants),
+Together, Xiaomi (and Token Plan AMS / CN / SGP endpoints), and Z.AI (and its
+Coding CN endpoint).
 
-API keys resolve from `auth.json` by provider id, the same keys the original
-pi stored.
+Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) are configured
+through a `models.json` file in the agent config directory instead.
 
-To add your own provider, append a block to `models.json`:
-
-```json
-{
-  "providers": {
-    "my-provider": {
-      "baseUrl": "https://api.example.com/v1",
-      "api": "openai-completions",
-      "apiKey": "sk-...",
-      "models": [
-        {
-          "id": "my-model",
-          "name": "My Model",
-          "reasoning": true,
-          "input": ["text"],
-          "contextWindow": 128000
-        }
-      ]
-    }
-  }
-}
-```
-
-`api` must be `openai-completions` (any OpenAI-compatible endpoint works,
-including llama.cpp servers). Select models with `--model`, the `/model`
-command, or `Ctrl+P`.
+Not supported yet: OAuth/subscription logins (Claude Pro/Max, ChatGPT/Codex,
+GitHub Copilot) and providers that only speak the Anthropic wire protocol
+(MiniMax, Kimi For Coding) — each needs an API adapter the static build does
+not implement. Select models with `--model`, the `/model` command, or
+`Ctrl+P`.
