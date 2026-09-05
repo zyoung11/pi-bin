@@ -395,3 +395,19 @@ Other:
   next levers are per-component line caches (walk degrades to concat) and
   fast paths in the per-line post-processing.
 - Version 0.1.9 → 0.2.0.
+
+## Phase 13 — Streaming frame cost and the dynamic-engine concat wall
+
+- `356e211` — Root-caused the streaming stutter and input lag: the event-loop
+  probe showed streaming frames at ~140ms regardless of the streaming-update
+  throttle, pointing at `Container.render`, where every line of every child was
+  pushed one-by-one through the dynamic engine (~90µs/line — a 30k-line frame
+  cost 4.7s, a 1.6k-line streaming frame ~140ms). Replaced the per-line loop
+  with native `concat` (one call per child): streaming frames under 80ms
+  (mostly 10-20ms), fill-end mount repaint 4.8s → 254ms. Also throttled
+  streaming `updateContent` to one re-render per 150ms (handler cost is ~0ms;
+  the cost lands on the frame's cold markdown children), final `message_end`
+  flushes immediately.
+- Diagnostic takeaway: scriptc dynamic-engine per-element operations cost
+  ~90µs — per-line loops over large arrays must use native `concat`, never
+  per-line `push`, in any hot render path.
