@@ -24,7 +24,7 @@ const HOSTS: HostRule[] = [
 	{ type: "sourcehut", domain: "git.sr.ht" },
 ];
 
-function fromWebUrlParts(domain: string, path: string, type: string, gitDomain: string): HostedInfo | null {
+function fromWebUrlParts(_domain: string, path: string, type: string, gitDomain: string): HostedInfo | null {
 	const pathNoLeading = path.replace(/^\/+/, "");
 	const hashSplit = pathNoLeading.indexOf("#");
 	const cleanPath = hashSplit === -1 ? pathNoLeading : pathNoLeading.slice(0, hashSplit);

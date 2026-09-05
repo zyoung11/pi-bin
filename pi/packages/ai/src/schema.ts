@@ -95,7 +95,7 @@ export interface PiOptional<Sub extends PiSchema = PiSchema> {
 	"~optional": Sub;
 }
 
-export interface PiObject<Properties extends Record<string, PiSchema> = Record<string, PiSchema>> {
+export interface PiObject<_Properties extends Record<string, PiSchema> = Record<string, PiSchema>> {
 	type: "object";
 	properties: Record<string, PiSchema>;
 	required?: string[];
@@ -103,7 +103,7 @@ export interface PiObject<Properties extends Record<string, PiSchema> = Record<s
 	additionalProperties?: boolean | Record<string, unknown>;
 }
 
-export interface PiArray<Items extends PiSchema = PiSchema> {
+export interface PiArray<_Items extends PiSchema = PiSchema> {
 	type: "array";
 	items: PiSchema;
 	description?: string;
@@ -111,12 +111,12 @@ export interface PiArray<Items extends PiSchema = PiSchema> {
 	maxItems?: number;
 }
 
-export interface PiUnion<Types extends PiSchema[] = PiSchema[]> {
+export interface PiUnion<_Types extends PiSchema[] = PiSchema[]> {
 	anyOf: PiSchema[];
 	description?: string;
 }
 
-export interface PiRecord<Key extends PiSchema = PiSchema, Value extends PiSchema = PiSchema> {
+export interface PiRecord<_Key extends PiSchema = PiSchema, Value extends PiSchema = PiSchema> {
 	type: "object";
 	patternProperties: { "^.*$": Value };
 	description?: string;
@@ -129,7 +129,7 @@ export interface PiRef<Name extends string = string> {
 }
 
 export interface PiCyclic<
-	Defs extends Record<string, PiSchema> = Record<string, PiSchema>,
+	_Defs extends Record<string, PiSchema> = Record<string, PiSchema>,
 	Ref extends string = string,
 > {
 	$defs: Record<string, PiSchema>;
@@ -137,7 +137,7 @@ export interface PiCyclic<
 	description?: string;
 }
 
-export interface PiUnsafe<Type = unknown> {}
+export interface PiUnsafe<_Type = unknown> {}
 
 export type Static<S> = StaticOf<S, StaticDefs>;
 
@@ -302,18 +302,18 @@ class SchemaBuilders {
 		return { "~optional": type } as PiOptional<Sub>;
 	}
 
-	Record<Key extends PiSchema, Value extends PiSchema>(
-		key: Key,
+	Record<_Key extends PiSchema, Value extends PiSchema>(
+		_key: _Key,
 		value: Value,
 		options?: PiObjectOptions,
-	): PiRecord<Key, Value> {
+	): PiRecord<_Key, Value> {
 		const additional = options?.additionalProperties as boolean | Record<string, unknown> | undefined;
 		return {
 			type: "object",
 			patternProperties: { "^.*$": value },
 			description: options?.description,
 			additionalProperties: additional,
-		} as PiRecord<Key, Value>;
+		} as PiRecord<_Key, Value>;
 	}
 
 	Ref<Name extends string>(ref: Name, options?: PiSchemaOptions): PiRef<Name> {

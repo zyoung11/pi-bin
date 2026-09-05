@@ -19,14 +19,14 @@ export function loadAllHighlightLanguages(): Promise<void> {
 	return Promise.resolve();
 }
 
-export function renderHighlightedHtml(html: string, theme: HighlightTheme = {}): string {
+export function renderHighlightedHtml(html: string, _theme: HighlightTheme = {}): string {
 	return html;
 }
 
-export function highlight(code: string, options: HighlightOptions = {}): string {
+export function highlight(code: string, _options: HighlightOptions = {}): string {
 	return code;
 }
 
-export function supportsLanguage(name: string): boolean {
+export function supportsLanguage(_name: string): boolean {
 	return false;
 }

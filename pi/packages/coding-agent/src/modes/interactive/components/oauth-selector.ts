@@ -91,7 +91,11 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 	private filterProviders(query: string): void {
 		if (query) {
-			this.filteredProviders = fuzzyFilter(this.allProviders, query, (provider) => `${provider.name} ${provider.id}`);
+			this.filteredProviders = fuzzyFilter(
+				this.allProviders,
+				query,
+				(provider) => `${provider.name} ${provider.id}`,
+			);
 		} else {
 			this.filteredProviders = this.allProviders;
 		}

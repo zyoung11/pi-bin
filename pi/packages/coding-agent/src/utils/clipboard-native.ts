@@ -1,5 +1,3 @@
-import { dirname, join } from "path";
-
 export type ClipboardModule = {
 	getText: () => Promise<string>;
 	setText: (text: string) => Promise<void>;

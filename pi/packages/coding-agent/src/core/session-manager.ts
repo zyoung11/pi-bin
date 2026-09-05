@@ -13,7 +13,6 @@ import {
 } from "fs";
 import { readdir } from "fs/promises";
 import { join, resolve } from "path";
-import { createInterface } from "readline";
 import { StringDecoder } from "string_decoder";
 import type { AgentMessage } from "../../../agent/src/index.ts";
 import {
@@ -501,7 +500,6 @@ export function buildContextEntries(
 	leafId: string | null | undefined,
 	byId: Map<string, SessionEntry>,
 ): SessionEntry[] {
-	const entryIndex = byId;
 	const path = buildSessionPath(entries, leafId, byId);
 	let compaction: CompactionEntry | null = null;
 
@@ -547,7 +545,6 @@ export function buildSessionContext(
 	leafId: string | null | undefined,
 	byId: Map<string, SessionEntry>,
 ): SessionContext {
-	const entryIndex = byId;
 	const path = buildSessionPath(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
 	const { thinkingLevel, model } = getSessionContextSettings(path);
 	const contextPath = buildContextEntries(entries, leafId, byId ?? EMPTY_ENTRY_INDEX);
@@ -794,10 +791,6 @@ function reviveTextBlock(rec: Record<string, unknown>): TextContent {
 	const block: TextContent = { type: "text", text: reviveString(rec["text"]) };
 	if (typeof rec["textSignature"] === "string") block.textSignature = rec["textSignature"];
 	return block;
-}
-
-function reviveUserBlocks(value: unknown): (TextContent | ImageContent)[] {
-	return reviveTextImageBlocks(value);
 }
 
 function reviveAssistantBlocks(value: unknown): (TextContent | ThinkingContent | ToolCall)[] {
@@ -1260,8 +1253,6 @@ function buildSessionInfo(filePath: string): SessionInfo | null {
 }
 
 export type SessionListProgress = (loaded: number, total: number) => void;
-
-const MAX_CONCURRENT_SESSION_INFO_LOADS = 10;
 
 async function buildSessionInfosWithConcurrency(
 	files: string[],
@@ -2039,8 +2030,7 @@ export class SessionManager {
 				// The bounded scan is only a discovery optimization. A full load remains
 				// authoritative for legacy files with very large headers or prefixes.
 				preloadedFileEntries = loadEntriesFromFile(resolvedPath);
-				const firstEntry =
-					preloadedFileEntries.length > 0 ? preloadedFileEntries[0] : undefined;
+				const firstEntry = preloadedFileEntries.length > 0 ? preloadedFileEntries[0] : undefined;
 				const firstType = entryTypeOf(firstEntry);
 				header = firstType === "session" ? (firstEntry as unknown as SessionHeader) : null;
 			}

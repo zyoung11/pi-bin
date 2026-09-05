@@ -8,7 +8,6 @@ export interface EventStreamNextResult<T> {
 
 // Generic event stream class for async iteration
 export class EventStream<T, R = T> {
-	private queue: T[] = [];
 	private waiting: ((value: EventStreamNextResult<T>) => void)[] = [];
 	private resultWaiters: ((result: R) => void)[] = [];
 	private done = false;

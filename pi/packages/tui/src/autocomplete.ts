@@ -226,8 +226,6 @@ async function walkDirectoryWithFd(
 		let resolved = false;
 		let exitCode: number | null = null;
 		let stdoutEnded = false;
-		const decoder = new TextDecoder();
-
 		const finish = (results: Array<{ path: string; isDirectory: boolean }>) => {
 			if (resolved) return;
 			resolved = true;

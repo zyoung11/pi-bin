@@ -1,4 +1,4 @@
-import { constants, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
 import { type Static, Type } from "../../../../ai/src/schema.ts";
 import { Text } from "../../../../tui/src/components/text.ts";

@@ -1,16 +1,10 @@
-import { type ExecFileSyncOptionsWithStringEncoding, execFileSync, execSync, spawn } from "child_process";
+import { type ExecFileSyncOptionsWithStringEncoding, execFileSync, execSync } from "child_process";
 import { platform } from "os";
 import { clipboard } from "./clipboard-native.ts";
 
 function isWaylandSession(env: NodeJS.ProcessEnv = process.env): boolean {
 	return Boolean(env.WAYLAND_DISPLAY) || env.XDG_SESSION_TYPE === "wayland";
 }
-
-type NativeClipboardExecOptions = {
-	input: string;
-	timeout: number;
-	stdio: ["pipe", "ignore", "ignore"];
-};
 
 function copyToX11Clipboard(text: string): void {
 	try {

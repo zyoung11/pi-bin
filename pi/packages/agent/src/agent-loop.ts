@@ -615,10 +615,6 @@ function prepareToolCallArguments(tool: AgentTool, toolCall: AgentToolCall): Age
 		...toolCall,
 		arguments: preparedArguments as Record<string, unknown>,
 	};
-	return {
-		...toolCall,
-		arguments: preparedArguments as Record<string, unknown>,
-	};
 }
 
 async function prepareToolCall(

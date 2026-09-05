@@ -55,7 +55,7 @@ export function spawnProcess(command: string, args: string[], options: SpawnProc
 	});
 }
 
-export function spawnProcessSync(command: string, args: string[], options: SpawnSyncOptions): SpawnSyncResult {
+export function spawnProcessSync(command: string, args: string[], _options: SpawnSyncOptions): SpawnSyncResult {
 	const result = nodeSpawnSync(command, args, {
 		encoding: "utf8",
 	});

@@ -15,7 +15,6 @@ import type { Api } from "../../../ai/src/types.ts";
  */
 
 import { readFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
 import type {
 	Agent,
 	AgentEvent,
@@ -27,7 +26,6 @@ import type {
 } from "../../../agent/src/index.ts";
 import type {
 	AssistantMessage,
-	AuthResult,
 	ImageContent,
 	Model,
 	ProviderHeaders,
@@ -68,26 +66,18 @@ import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "./defaults.ts";
 import { exportSessionToHtml, type ToolHtmlRenderer } from "./export-html/index.ts";
 import { createToolHtmlRenderer } from "./export-html/tool-renderer.ts";
 import type { BashExecutionMessage, CustomMessage } from "./messages.ts";
-import { ModelRegistry } from "./model-registry.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
-import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
+import type { ResourceLoader } from "./resource-loader.ts";
 import { exportSessionToJsonl } from "./session-export.ts";
-import type {
-	BranchSummaryEntry,
-	CompactionEntry,
-	CustomData,
-	SessionEntry,
-	SessionManager,
-} from "./session-manager.ts";
+import type { BranchSummaryEntry, CustomData, SessionEntry, SessionManager } from "./session-manager.ts";
 import { entryTypeOf, getLatestCompactionEntry } from "./session-manager.ts";
 import type { SettingsManager } from "./settings-manager.ts";
-import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
-import { createToolDefinitionFromAgentTool, wrapToolDefinitions } from "./tools/tool-definition-wrapper.ts";
+import { wrapToolDefinitions } from "./tools/tool-definition-wrapper.ts";
 import type { ToolDefinition } from "./tools/tool-types.ts";
 import { addUsageToTotals, createUsageTotals } from "./usage-totals.ts";
 
@@ -280,18 +270,6 @@ export interface ToolInfo {
 	sourceInfo: SourceInfo;
 }
 
-/** Preparation data for tree navigation. */
-interface TreePreparation {
-	targetId: string;
-	oldLeafId: string | null;
-	commonAncestorId: string | null;
-	entriesToSummarize: SessionEntry[];
-	userWantsSummary: boolean;
-	customInstructions?: string;
-	replaceInstructions?: boolean;
-	label?: string;
-}
-
 function estimateMessagesTokens(messages: AgentMessage[]): number {
 	let tokens = 0;
 	for (const message of messages) {
@@ -400,43 +378,6 @@ export class AgentSession {
 
 	get modelRuntime(): ModelRuntime {
 		return this._modelRuntime;
-	}
-
-	private async _getRequiredRequestAuth(model: Model<Api>): Promise<{
-		model: Model<Api>;
-		apiKey?: string;
-		headers?: Record<string, string>;
-		env?: Record<string, string>;
-	}> {
-		let result: AuthResult | undefined;
-		try {
-			result = await this._modelRuntime.getAuth(model);
-		} catch (error) {
-			const cause = error instanceof Error ? error.cause : undefined;
-			if (cause instanceof Error && cause.message === "authHeader requires a resolved API key") {
-				throw new Error(formatNoApiKeyFoundMessage(model.provider));
-			}
-			throw error;
-		}
-		if (result && (result.auth.apiKey || result.auth.headers)) {
-			const requestModel = result.auth.baseUrl ? { ...model, baseUrl: result.auth.baseUrl } : model;
-			return {
-				model: requestModel,
-				apiKey: result.auth.apiKey,
-				headers: withoutDeletedHeaders(result.auth.headers),
-				env: result.env,
-			};
-		}
-
-		const isOAuth = this._modelRuntime.isUsingOAuth(model.provider);
-		if (isOAuth) {
-			throw new Error(
-				`Authentication failed for "${model.provider}". ` +
-					`Credentials may have expired or network is unavailable. ` +
-					`Check the API key for this provider in auth.json.`,
-			);
-		}
-		throw new Error(formatNoApiKeyFoundMessage(model.provider));
 	}
 
 	private async _getSummarizationRequestAuth(model: Model<Api>): Promise<{
@@ -1342,7 +1283,6 @@ export class AgentSession {
 			throw new Error(`No API key for ${model.provider}/${model.id}`);
 		}
 
-		const previousModel = this.model;
 		const thinkingLevel = this._getThinkingLevelForModelSwitch(model);
 		this.agent.state.model = model;
 		this.sessionManager.appendModelChange(model.provider, model.id);
@@ -1673,7 +1613,6 @@ export class AgentSession {
 				false,
 				usage,
 			);
-			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
 			const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
@@ -1923,7 +1862,6 @@ export class AgentSession {
 				false,
 				usage,
 			);
-			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
 			const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
@@ -1983,20 +1921,6 @@ export class AgentSession {
 	/** Whether auto-compaction is enabled */
 	get autoCompactionEnabled(): boolean {
 		return this.settingsManager.getCompactionEnabled();
-	}
-
-	private _refreshCurrentModelFromRegistry(): void {
-		const currentModel = this.model;
-		if (!currentModel) {
-			return;
-		}
-
-		const refreshedModel = this._modelRuntime.getModel(currentModel.provider, currentModel.id);
-		if (!refreshedModel || refreshedModel === currentModel) {
-			return;
-		}
-
-		this.agent.state.model = refreshedModel;
 	}
 
 	private _refreshToolRegistry(options?: { activeToolNames?: string[] }): void {
@@ -2413,26 +2337,11 @@ export class AgentSession {
 		}
 
 		// Collect entries to summarize (from old leaf to common ancestor)
-		const { entries: entriesToSummarize, commonAncestorId } = collectEntriesForBranchSummary(
-			this.sessionManager,
-			oldLeafId,
-			targetId,
-		);
+		const { entries: entriesToSummarize } = collectEntriesForBranchSummary(this.sessionManager, oldLeafId, targetId);
 
 		const customInstructions = options.customInstructions;
 		const replaceInstructions = options.replaceInstructions;
 		const label = options.label;
-
-		const preparation: TreePreparation = {
-			targetId,
-			oldLeafId,
-			commonAncestorId,
-			entriesToSummarize,
-			userWantsSummary: options.summarize ?? false,
-			customInstructions,
-			replaceInstructions,
-			label,
-		};
 
 		// Set up abort controller for summarization
 		const branchController = new AbortController();

@@ -14,7 +14,7 @@ import type {
 	Usage,
 	UserMessage,
 } from "../../ai/src/index.ts";
-import type { Static, PiSchema as TSchema } from "../../ai/src/schema.ts";
+import type { PiSchema as TSchema } from "../../ai/src/schema.ts";
 
 /**
  * Stream function used by the agent loop. `Models.streamSimple` satisfies

@@ -1,40 +1,14 @@
-import { existsSync } from "fs";
 import { setKeybindings } from "../../../tui/src/keybindings.ts";
 import { ProcessTerminal } from "../../../tui/src/terminal.ts";
 import type { TuiBase } from "../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
-import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir, getSettingsPath, PACKAGE_NAME } from "../config.ts";
-import { areExperimentalFeaturesEnabled } from "../core/experimental.ts";
+import { getAgentDir } from "../config.ts";
 import { KeybindingsManager } from "../core/keybindings.ts";
 import { DefaultPackageManager, type ResolvedResource } from "../core/package-manager.ts";
 import { SettingsManager } from "../core/settings-manager.ts";
 import { ExtensionInputComponent } from "../modes/interactive/components/extension-input.ts";
 import { ExtensionSelectorComponent } from "../modes/interactive/components/extension-selector.ts";
-import {
-	initTheme,
-	loadThemeFromPath,
-	setRegisteredThemes,
-	setTheme,
-	type Theme,
-} from "../modes/interactive/theme/theme.ts";
-
-const OFFICIAL_PACKAGE_NAME = "@earendil-works/pi-coding-agent";
-const OFFICIAL_APP_NAME = "pi";
-const OFFICIAL_CONFIG_DIR_NAME = ".pi";
-
-interface DistributionMetadata {
-	packageName: string;
-	appName: string;
-	configDirName: string;
-}
-
-function isOfficialDistribution({ packageName, appName, configDirName }: DistributionMetadata): boolean {
-	return (
-		packageName === OFFICIAL_PACKAGE_NAME &&
-		appName === OFFICIAL_APP_NAME &&
-		configDirName === OFFICIAL_CONFIG_DIR_NAME
-	);
-}
+import { initTheme, loadThemeFromPath, setRegisteredThemes, type Theme } from "../modes/interactive/theme/theme.ts";
 
 function loadThemes(resources: ResolvedResource[]): Theme[] {
 	const themes: Theme[] = [];
@@ -78,7 +52,7 @@ export async function createStartupTui(settingsManager: SettingsManager): Promis
 	return ui;
 }
 
-export function startStartupTui(ui: TuiBase, settingsManager: SettingsManager): void {
+export function startStartupTui(ui: TuiBase, _settingsManager: SettingsManager): void {
 	ui.start();
 }
 

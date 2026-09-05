@@ -5,9 +5,7 @@ import {
 	Tokenizer,
 	type TokenizerExtension,
 	type Tokens,
-	type TokensBlockquote,
 	type TokensGeneric,
-	type TokensText,
 } from "../mini-markdown.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import { Component } from "../tui.ts";
@@ -56,12 +54,6 @@ class StrictStrikethroughTokenizer extends Tokenizer {
 			tokens: this.lexer?.inlineTokens(text) ?? [],
 		};
 	}
-}
-
-interface LatexToken extends Tokens.Generic {
-	type: "latex" | "latexBlock";
-	text: string;
-	pending?: boolean;
 }
 
 function isEscaped(source: string, index: number): boolean {

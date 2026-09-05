@@ -1,5 +1,4 @@
 import * as os from "node:os";
-import { pathToFileURL } from "node:url";
 import type { ImageContent, TextContent } from "../../../../ai/src/index.ts";
 import { getCapabilities, getImageDimensions, hyperlink, imageFallback } from "../../../../tui/src/terminal-image.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";

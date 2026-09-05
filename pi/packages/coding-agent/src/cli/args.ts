@@ -52,7 +52,6 @@ export interface Args {
 	diagnostics: Array<{ type: "warning" | "error"; message: string }>;
 }
 
-const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const VALID_THINKING_LEVEL_LIST: string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export function isValidThinkingLevel(level: string): level is ThinkingLevel {

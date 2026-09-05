@@ -1,4 +1,4 @@
-import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../../ai/src/utils/mini-diff.ts";
+import { diffWords } from "../../../../../ai/src/utils/mini-diff.ts";
 import { theme } from "../theme/theme.ts";
 
 /**

@@ -4,7 +4,6 @@ import type {
 	CacheRetention,
 	ChatTemplateKwargValue,
 	Context,
-	ImageContent,
 	JsonValue,
 	Message,
 	Model,
@@ -21,12 +20,10 @@ import type {
 	ThinkingTokenBudgetField,
 	Tool,
 	ToolCall,
-	ToolResultMessage,
 } from "../types.ts";
 import { formatProviderError, normalizeProviderError } from "../utils/error-body.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { shortHash } from "../utils/hash.ts";
-import { headersToRecord } from "../utils/headers.ts";
 import { parseStreamingJson } from "../utils/json-parse.ts";
 import { getPiUserAgent } from "../utils/pi-user-agent.ts";
 import { getProviderEnvValue } from "../utils/provider-env.ts";
@@ -326,8 +323,6 @@ function appendOpenAIReasoningDetail(details: OpenAIReasoningDetail[], detail: O
 	}
 	details.push(structuredClone(detail));
 }
-
-type OpenAICompletionsReasoningField = "reasoning" | "reasoning_content" | "reasoning_text";
 
 function isOpenAICompletionsReasoningField(field: string): boolean {
 	return field === "reasoning" || field === "reasoning_content" || field === "reasoning_text";

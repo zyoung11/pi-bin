@@ -10,22 +10,13 @@
  * - Events: AgentSessionEvent objects streamed as they occur
  */
 
-import * as crypto from "node:crypto";
 import type { AgentSession } from "../../core/agent-session.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import { flushRawStdout, takeOverStdout, writeRawStdout } from "../../core/output-guard.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
-import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { toJsonEvent } from "../json-event.ts";
-import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
-import type {
-	RpcCommand,
-	RpcExtensionUIRequest,
-	RpcExtensionUIResponse,
-	RpcResponse,
-	RpcSessionState,
-	RpcSlashCommand,
-} from "./rpc-types.ts";
+import { serializeJsonLine } from "./jsonl.ts";
+import type { RpcCommand, RpcExtensionUIRequest, RpcResponse, RpcSessionState, RpcSlashCommand } from "./rpc-types.ts";
 
 // Re-export types for consumers
 export type {

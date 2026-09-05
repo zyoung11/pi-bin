@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { constants } from "fs";
 import { readFile as fsReadFile, writeFile as fsWriteFile } from "fs/promises";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
 import { type Static, Type } from "../../../../ai/src/schema.ts";

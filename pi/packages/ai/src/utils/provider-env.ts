@@ -1,7 +1,5 @@
 import type { ProviderEnv } from "../types.ts";
 
-const procEnvCache: Map<string, string> = new Map();
-
 /**
  * Fallback for https://github.com/oven-sh/bun/issues/27802.
  * Bun compiled binaries can expose an empty process.env inside Linux sandboxes

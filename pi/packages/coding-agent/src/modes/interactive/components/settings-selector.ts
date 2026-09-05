@@ -1,14 +1,10 @@
 import type { ThinkingLevel } from "../../../../../agent/src/index.ts";
-import { getSupportedThinkingLevels, type Model, type Transport } from "../../../../../ai/src/index.ts";
+import { getSupportedThinkingLevels, type Model } from "../../../../../ai/src/index.ts";
 import type { Api } from "../../../../../ai/src/types.ts";
-import type { ScrollViewScrollbar } from "../../../../../tui/src/components/scroll-view.ts";
 import type { SelectItem } from "../../../../../tui/src/components/select-list.ts";
 import { type SettingItem, SettingsList } from "../../../../../tui/src/components/settings-list.ts";
-import { Spacer } from "../../../../../tui/src/components/spacer.ts";
-import { Text } from "../../../../../tui/src/components/text.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container } from "../../../../../tui/src/tui.ts";
-import { formatHttpIdleTimeoutMs, HTTP_IDLE_TIMEOUT_CHOICES } from "../../../core/http-dispatcher.ts";
 import type { DefaultProjectTrust, MermaidRenderingMode } from "../../../core/settings-manager.ts";
 import { getSettingsListTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";

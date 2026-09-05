@@ -45,7 +45,6 @@ const markRegex = /^\p{M}$/u;
 const vs16 = "\uFE0F";
 const zwj = "\u200D";
 const cr = "\r";
-const lf = "\n";
 
 const regionalMin = 0x1f1e6;
 const regionalMax = 0x1f1ff;

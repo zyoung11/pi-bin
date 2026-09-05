@@ -3,14 +3,12 @@
  * Handles TUI rendering and user interaction, delegating business logic to AgentSession.
  */
 
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { spawn } from "child_process";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
-import type { Api, AuthEvent, AuthInteraction, AuthPrompt, Credential, CredentialInfo } from "../../../../ai/src/index.ts";
+import type { Api, AuthEvent, AuthPrompt, Credential, CredentialInfo } from "../../../../ai/src/index.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -19,29 +17,13 @@ import {
 } from "../../../../tui/src/autocomplete.ts";
 import type { Editor } from "../../../../tui/src/components/editor.ts";
 import { Markdown, type MarkdownTheme } from "../../../../tui/src/components/markdown.ts";
-import { ScrollView } from "../../../../tui/src/components/scroll-view.ts";
 import { Spacer } from "../../../../tui/src/components/spacer.ts";
-import type { StackEntry } from "../../../../tui/src/components/stack.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
-import { VStack } from "../../../../tui/src/components/v-stack.ts";
-import type { EditorComponent } from "../../../../tui/src/editor-component.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
-import { type KeyId, matchesKey } from "../../../../tui/src/keys.ts";
 import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
-import type { RgbColor, TerminalColorScheme } from "../../../../tui/src/terminal-colors.ts";
-import { getCapabilities, hyperlink } from "../../../../tui/src/terminal-image.ts";
-import {
-	type Component,
-	Container,
-	type OverlayHandle,
-	type OverlayOptions,
-	type TUI,
-	type TuiBase,
-	type TuiInputListener,
-	type TuiStopOptions,
-} from "../../../../tui/src/tui.ts";
+import { type Component, Container, type TUI, type TuiBase } from "../../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
 import { visibleWidth } from "../../../../tui/src/utils.ts";
 import {
@@ -51,7 +33,6 @@ import {
 	getAgentDir,
 	getAuthPath,
 	getDebugLogPath,
-	getDocsPath,
 	VERSION,
 } from "../../config.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
@@ -73,7 +54,7 @@ import {
 	refreshCatalogFromModelsDev,
 	toProviderConfigInput,
 } from "../../core/provider-catalog.ts";
-import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
+import { configureHttpDispatcher } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
 import {
@@ -101,9 +82,7 @@ import { readClipboardImage, writeClipboardImageToTemp } from "../../utils/clipb
 import { parseGitUrl } from "../../utils/git.ts";
 import { extractImageAttachments } from "../../utils/image-attachments.ts";
 import chalk from "../../utils/mini-chalk.ts";
-import { openBrowser } from "../../utils/open-browser.ts";
 import { getCwdRelativePath } from "../../utils/paths.ts";
-import { getPiUserAgent } from "../../utils/pi-user-agent.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
@@ -119,7 +98,7 @@ import { DaxnutsComponent } from "./components/daxnuts.ts";
 import { DynamicBorder } from "./components/dynamic-border.ts";
 import { EarendilAnnouncementComponent } from "./components/earendil-announcement.ts";
 import { ExtensionEditorComponent } from "./components/extension-editor.ts";
-import { ExtensionInputComponent } from "./components/extension-input.ts";
+import type { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
@@ -151,10 +130,8 @@ import { getModelSearchText } from "./model-search.ts";
 import { shareSession } from "./session-share.ts";
 import {
 	getAvailableThemes,
-	getAvailableThemesWithPaths,
 	getEditorTheme,
 	getMarkdownTheme,
-	getThemeByName,
 	onThemeChange,
 	setRegisteredThemes,
 	stopThemeWatcher,
@@ -246,17 +223,6 @@ function isCompactionCostNotice(item: RenderSessionItem): item is CompactionCost
 	return renderItemType(item) === "compaction_cost";
 }
 
-const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN"]);
-
-function isDeadTerminalError(error: unknown): boolean {
-	if (!error || typeof error !== "object") {
-		return false;
-	}
-	const record = error as unknown as Record<string, unknown>;
-	const code = record["code"];
-	return typeof code === "string" && DEAD_TERMINAL_ERROR_CODES.has(code);
-}
-
 function isUnknownModel(model: Model<Api> | undefined): boolean {
 	return !!model && model.provider === "unknown" && model.id === "unknown" && model.api === "unknown";
 }
@@ -298,12 +264,6 @@ function formatNumber(value: number): string {
 
 function hasDefaultModelProvider(providerId: string): boolean {
 	return defaultModelPerProvider[providerId] !== undefined;
-}
-
-function llamaCppPostLoginGuidance(actionLabel: string, loadedModelCount: number): string {
-	return loadedModelCount === 0
-		? `${actionLabel}. No llama.cpp models are loaded. Use /llama to load a model, then /model to select it.`
-		: `${actionLabel}. Use /model to select a loaded llama.cpp model, or /llama to manage models.`;
 }
 
 function createFuzzyAutocompleteItems<T>(
@@ -352,12 +312,6 @@ interface InteractiveTuiOptions {
 export function createInteractiveTui(options: InteractiveTuiOptions): TuiBase {
 	const terminal = options.terminal ?? new ProcessTerminal();
 	return new TuiMainScreen(terminal, options.showHardwareCursor, options.logDirectory);
-}
-
-type WidgetPlacement = "aboveEditor" | "belowEditor";
-
-interface ExtensionWidgetOptions {
-	placement?: WidgetPlacement;
 }
 
 interface ExtensionUIDialogOptions {
@@ -418,12 +372,10 @@ export class InteractiveMode {
 	private loadedResourcesContainer: Container;
 	private chatContainer: Container;
 	private documentContainer: Container;
-	private transcriptScrollView: ScrollView | undefined;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
 	private defaultEditor: CustomEditor;
 	private editor: Editor;
-	private editorComponentFactory: EditorFactory | undefined;
 	private autocompleteProvider: AutocompleteProvider | undefined;
 	private autocompleteProviderWrappers: AutocompleteProviderFactory[] = [];
 	private fdPath: string | undefined;
@@ -780,22 +732,6 @@ export class InteractiveMode {
 
 		// Keep one component tree and remount it when changing renderers.
 		this.renderWidgets(); // Initialize with default spacer
-		this.transcriptScrollView = new ScrollView(this.documentContainer, {
-			follow: "end",
-			primary: true,
-			overscroll: "chain",
-			scrollbar: "auto",
-			scrollbarStyle: (text) => theme.bg("scrollbarThumb", text),
-		});
-		const dockChildren: StackEntry[] = [
-			{ component: this.pendingMessagesContainer, shrink: 1, minSize: 0 },
-			{ component: this.statusContainer, shrink: 1, minSize: 0 },
-			{ component: this.widgetContainerAbove, shrink: 1, minSize: 0 },
-			{ component: this.editorContainer, shrink: 1, minSize: 3 },
-			{ component: this.widgetContainerBelow, shrink: 1, minSize: 0 },
-			{ component: this.footerContainer, shrink: 1, minSize: 1 },
-		];
-		const dock = new VStack(dockChildren);
 		this.mountInteractiveTui(this.renderer, [
 			this.documentContainer,
 			this.pendingMessagesContainer,
@@ -1091,12 +1027,6 @@ export class InteractiveMode {
 		return result;
 	}
 
-	private formatExtensionDisplayPath(path: string): string {
-		let result = this.formatDisplayPath(path);
-		result = result.replace(/\/index\.ts$/, "").replace(/\/index\.js$/, "");
-		return result;
-	}
-
 	private formatContextPath(p: string): string {
 		const cwd = path.resolve(this.sessionManager.getCwd());
 		const absolutePath = path.isAbsolute(p) ? path.resolve(p) : path.resolve(cwd, p);
@@ -1160,105 +1090,6 @@ export class InteractiveMode {
 			return segments[segments.length - 1]!;
 		}
 		return shortPath;
-	}
-
-	private getCompactPackageSourceLabel(sourceInfo?: SourceInfo): string {
-		const source = sourceInfo?.source ?? "";
-		if (source.startsWith("npm:")) {
-			return source.slice("npm:".length) || source;
-		}
-
-		const gitSource = parseGitUrl(source);
-		if (gitSource) {
-			return gitSource.path || source;
-		}
-
-		return source;
-	}
-
-	private getCompactExtensionLabel(resourcePath: string, sourceInfo?: SourceInfo): string {
-		if (!this.isPackageSource(sourceInfo)) {
-			return this.getCompactPathLabel(resourcePath, sourceInfo);
-		}
-
-		const sourceLabel = this.getCompactPackageSourceLabel(sourceInfo);
-		if (!sourceLabel) {
-			return this.getCompactPathLabel(resourcePath, sourceInfo);
-		}
-
-		const shortPath = this.getShortPath(resourcePath, sourceInfo).replace(/\\/g, "/");
-		const packagePath = shortPath.startsWith("extensions/") ? shortPath.slice("extensions/".length) : shortPath;
-		const parsedPath = path.posix.parse(packagePath);
-
-		if (parsedPath.name === "index") {
-			return !parsedPath.dir || parsedPath.dir === "." ? sourceLabel : `${sourceLabel}:${parsedPath.dir}`;
-		}
-
-		return `${sourceLabel}:${packagePath}`;
-	}
-
-	private getCompactDisplayPathSegments(resourcePath: string): string[] {
-		return this.formatDisplayPath(resourcePath)
-			.replace(/\\/g, "/")
-			.split("/")
-			.filter((segment) => segment.length > 0 && segment !== "~");
-	}
-
-	private getCompactNonPackageExtensionLabel(
-		resourcePath: string,
-		index: number,
-		allPaths: Array<{ path: string; segments: string[] }>,
-	): string {
-		const segments = allPaths[index]?.segments;
-		if (!segments || segments.length === 0) {
-			return this.getCompactPathLabel(resourcePath);
-		}
-
-		for (let segmentCount = 1; segmentCount <= segments.length; segmentCount += 1) {
-			const candidate = segments.slice(-segmentCount).join("/");
-			const isUnique = allPaths.every((item, itemIndex) => {
-				if (itemIndex === index) {
-					return true;
-				}
-				return item.segments.slice(-segmentCount).join("/") !== candidate;
-			});
-
-			if (isUnique) {
-				return candidate;
-			}
-		}
-
-		return segments.join("/");
-	}
-
-	private getCompactExtensionLabels(extensions: Array<{ path: string; sourceInfo?: SourceInfo }>): string[] {
-		const nonPackageExtensions = extensions
-			.map((extension) => {
-				const segments = this.getCompactDisplayPathSegments(extension.path);
-				const lastSegment = segments[segments.length - 1];
-				if (segments.length > 1 && (lastSegment === "index.ts" || lastSegment === "index.js")) {
-					segments.pop();
-				}
-				return {
-					path: extension.path,
-					sourceInfo: extension.sourceInfo,
-					segments,
-				};
-			})
-			.filter((extension) => !this.isPackageSource(extension.sourceInfo));
-
-		return extensions.map((extension) => {
-			if (this.isPackageSource(extension.sourceInfo)) {
-				return this.getCompactExtensionLabel(extension.path, extension.sourceInfo);
-			}
-
-			const nonPackageIndex = nonPackageExtensions.findIndex((item) => item.path === extension.path);
-			if (nonPackageIndex === -1) {
-				return this.getCompactPathLabel(extension.path, extension.sourceInfo);
-			}
-
-			return this.getCompactNonPackageExtensionLabel(extension.path, nonPackageIndex, nonPackageExtensions);
-		});
 	}
 
 	private getDisplaySourceInfo(sourceInfo?: SourceInfo): {
@@ -1737,25 +1568,6 @@ export class InteractiveMode {
 		}
 	}
 
-	private setWorkingVisible(visible: boolean): void {
-		this.workingVisible = visible;
-		if (!visible) {
-			this.clearStatusIndicator("working");
-			this.ui.requestRender();
-			return;
-		}
-		if (this.session.isStreaming && this.activeStatusIndicator?.kind !== "working") {
-			this.showStatusIndicator(
-				new WorkingStatusIndicator(
-					this.ui,
-					this.workingMessage ?? this.defaultWorkingMessage,
-					this.workingIndicatorOptions,
-				),
-			);
-		}
-		this.ui.requestRender();
-	}
-
 	private setWorkingIndicator(options?: WorkingIndicatorOptions): void {
 		this.workingIndicatorOptions = options;
 		if (this.activeStatusIndicator?.kind === "working") {
@@ -1775,51 +1587,6 @@ export class InteractiveMode {
 			this.streamingComponent.setHiddenThinkingLabel(this.hiddenThinkingLabel);
 		}
 		this.ui.requestRender();
-	}
-
-	/**
-	 * Set an extension widget (string array or custom component).
-	 */
-	private setExtensionWidget(
-		key: string,
-		content: string[] | ((tui: TUI, thm: Theme) => Component) | undefined,
-		options?: ExtensionWidgetOptions,
-	): void {
-		const placement = options?.placement ?? "aboveEditor";
-		const removeExisting = (map: Map<string, Component>) => {
-			const existing = map.get(key);
-			if (existing !== undefined) existing.dispose();
-			map.delete(key);
-		};
-
-		removeExisting(this.extensionWidgetsAbove);
-		removeExisting(this.extensionWidgetsBelow);
-
-		if (content === undefined) {
-			this.renderWidgets();
-			return;
-		}
-
-		let component: Component;
-
-		if (Array.isArray(content)) {
-			// Wrap string array in a Container with Text components
-			const container = new Container();
-			for (const line of content.slice(0, InteractiveMode.MAX_WIDGET_LINES)) {
-				container.addChild(new Text(line, 1, 0));
-			}
-			if (content.length > InteractiveMode.MAX_WIDGET_LINES) {
-				container.addChild(new Text(theme.fg("muted", "... (widget truncated)"), 1, 0));
-			}
-			component = container;
-		} else {
-			// Factory function - create component
-			component = content(this.ui, theme);
-		}
-
-		const targetMap = placement === "belowEditor" ? this.extensionWidgetsBelow : this.extensionWidgetsAbove;
-		targetMap.set(key, component);
-		this.renderWidgets();
 	}
 
 	private clearExtensionWidgets(): void {
@@ -1865,9 +1632,6 @@ export class InteractiveMode {
 		}
 		this.setHiddenThinkingLabel();
 	}
-
-	// Maximum total widget lines to prevent viewport overflow
-	private static readonly MAX_WIDGET_LINES = 10;
 
 	/**
 	 * Render all extension widgets to the widget container.
@@ -2056,51 +1820,6 @@ export class InteractiveMode {
 	}
 
 	/**
-	 * Show a text input for extensions.
-	 */
-	private showExtensionInput(
-		title: string,
-		placeholder?: string,
-		opts?: ExtensionUIDialogOptions,
-	): Promise<string | undefined> {
-		return new Promise((resolve) => {
-			if (opts?.signal?.aborted) {
-				resolve(undefined);
-				return;
-			}
-
-			const onAbort = () => {
-				this.hideExtensionInput();
-				resolve(undefined);
-			};
-			const signal = opts?.signal;
-			if (signal !== undefined) {
-				signal.addEventListener("abort", onAbort, { once: true });
-			}
-
-			this.extensionInput = new ExtensionInputComponent(
-				title,
-				placeholder,
-				(value) => {
-					this.hideExtensionInput();
-					resolve(value);
-				},
-				() => {
-					this.hideExtensionInput();
-					resolve(undefined);
-				},
-				{ timeout: opts?.timeout },
-			);
-
-			this.disposeActiveSelector();
-			this.editorContainer.clear();
-			this.editorContainer.addChild(this.extensionInput);
-			this.ui.setFocus(this.extensionInput);
-			this.ui.requestRender();
-		});
-	}
-
-	/**
 	 * Hide the extension input.
 	 */
 	private hideExtensionInput(): void {
@@ -2158,8 +1877,6 @@ export class InteractiveMode {
 	 * Pass undefined to restore the default editor.
 	 */
 	private setCustomEditorComponent(factory: EditorFactory | undefined): void {
-		this.editorComponentFactory = factory;
-
 		// Save text from current editor before switching
 		const currentText = this.editor.getText();
 
@@ -2230,120 +1947,7 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
-	/**
-	 * Show a notification for extensions.
-	 */
-	private showExtensionNotify(message: string, type?: "info" | "warning" | "error"): void {
-		if (type === "error") {
-			this.showError(message);
-		} else if (type === "warning") {
-			this.showWarning(message);
-		} else {
-			this.showStatus(message);
-		}
-	}
-
 	/** Show a custom component with keyboard focus. Overlay mode renders on top of existing content. */
-	private async showExtensionCustom<T>(
-		factory: (
-			tui: TUI,
-			theme: Theme,
-			keybindings: KeybindingsManager,
-			done: (result: T) => void,
-		) => Promise<Component & { dispose?(): void }>,
-		options?: {
-			overlay?: boolean;
-			overlayOptions?: OverlayOptions | (() => OverlayOptions);
-			onHandle?: (handle: OverlayHandle) => void;
-		},
-	): Promise<T> {
-		const savedText = this.editor.getText();
-		const isOverlay = options?.overlay ?? false;
-
-		const restoreEditor = () => {
-			this.editorContainer.clear();
-			this.editorContainer.addChild(this.editor);
-			this.editor.setText(savedText);
-			this.ui.setFocus(this.editor);
-			this.ui.requestRender();
-		};
-
-		return new Promise((resolve, reject) => {
-			let component: Component;
-			let closed = false;
-
-			const close = (result: T) => {
-				if (closed) return;
-				closed = true;
-				if (isOverlay) this.ui.hideOverlay();
-				else restoreEditor();
-				// Note: both branches above already call requestRender
-				resolve(result);
-				try {
-					if (component !== undefined) component.dispose();
-				} catch {
-					// ignore dispose errors
-				}
-			};
-
-			Promise.resolve(factory(this.ui, theme, this.keybindings, close))
-				.then((c) => {
-					if (closed) return;
-					component = c;
-					if (isOverlay) {
-						// Resolve overlay options - can be static or dynamic function
-						const resolveOptions = (): OverlayOptions | undefined => {
-							if (options?.overlayOptions) {
-								const opts =
-									typeof options.overlayOptions === "function"
-										? options.overlayOptions()
-										: options.overlayOptions;
-								return opts;
-							}
-							// Fallback: use component's width property if available
-							const w = (component as { width?: number }).width;
-							return w ? { width: w } : undefined;
-						};
-						const handle = this.ui.showOverlay(component, resolveOptions());
-						// Expose handle to caller for visibility control
-						options?.onHandle?.(handle);
-					} else {
-						this.disposeActiveSelector();
-						this.editorContainer.clear();
-						this.editorContainer.addChild(component);
-						this.ui.setFocus(component);
-						this.ui.requestRender();
-					}
-				})
-				.catch((err) => {
-					if (closed) return;
-					if (!isOverlay) restoreEditor();
-					reject(err);
-				});
-		});
-	}
-
-	/**
-	 * Show an extension error in the UI.
-	 */
-	private showExtensionError(extensionPath: string, error: string, stack?: string): void {
-		const errorMsg = `Extension "${extensionPath}" error: ${error}`;
-		const errorText = new Text(theme.fg("error", errorMsg), 1, 0);
-		this.chatContainer.addChild(errorText);
-		if (stack) {
-			// Show stack trace in dim color, indented
-			const stackLines = stack
-				.split("\n")
-				.slice(1) // Skip first line (duplicates error message)
-				.map((line) => theme.fg("dim", `  ${line.trim()}`))
-				.join("\n");
-			if (stackLines) {
-				this.chatContainer.addChild(new Text(stackLines, 1, 0));
-			}
-		}
-		this.ui.requestRender();
-	}
-
 	// =========================================================================
 	// Key Handlers
 	// =========================================================================
@@ -2393,7 +1997,7 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.tools.expand", () => this.toggleToolOutputExpansion());
 		this.defaultEditor.onAction("app.thinking.toggle", () => this.toggleThinkingBlockVisibility());
 		this.defaultEditor.onAction("app.editor.external", () => void this.handleOpenExternalEditor());
-		this.defaultEditor.onAction("app.message.copy", () => void this.handleCopyCommand({ flashConfirmation: true }));
+		this.defaultEditor.onAction("app.message.copy", () => void this.handleCopyCommand());
 		this.defaultEditor.onAction("app.message.followUp", () => this.handleFollowUp());
 		this.defaultEditor.onAction("app.message.dequeue", () => this.handleDequeue());
 		this.defaultEditor.onAction("app.session.new", () => this.handleClearCommand());
@@ -3485,7 +3089,6 @@ export class InteractiveMode {
 			// such as removing sockets does not write to the tty, so it must not be
 			// skipped if a later terminal-restore write fails on a dead or stalled
 			// terminal. If the terminal is gone, the restore writes below emit EIO,
-			// which the stdout/stderr error handler turns into emergencyTerminalExit;
 			// the render loop is already idle, so this cannot hot-spin (see #4144).
 			await this.runtimeHost.dispose();
 			await this.ui.getTerminal().drainInput(1000);
@@ -3509,15 +3112,6 @@ export class InteractiveMode {
 		}
 
 		process.exit(0);
-	}
-
-	private emergencyTerminalExit(): never {
-		this.isShuttingDown = true;
-		this.unregisterSignalHandlers();
-		killTrackedDetachedChildren();
-		// The terminal is gone. Do not run normal shutdown because TUI and
-		// extension cleanup can write restore sequences and re-trigger EIO.
-		process.exit(129);
 	}
 
 	/**
@@ -3815,7 +3409,7 @@ export class InteractiveMode {
 		this.showStatus("Queued message for after compaction");
 	}
 
-	private isExtensionCommand(text: string): boolean {
+	private isExtensionCommand(_text: string): boolean {
 		return false;
 	}
 
@@ -3983,9 +3577,8 @@ export class InteractiveMode {
 	}
 
 	private async handleLoginCommand(providerRef?: string): Promise<void> {
-
 		if (!providerRef) {
-			this.showLoginProviderSelector("api_key");
+			this.showLoginProviderSelector();
 			return;
 		}
 		const normalized = providerRef.trim().toLowerCase();
@@ -3997,7 +3590,7 @@ export class InteractiveMode {
 			await this.startProviderLogin(matches[0]!);
 			return;
 		}
-		this.showLoginProviderSelector("api_key", providerRef);
+		this.showLoginProviderSelector(providerRef);
 	}
 
 	private scheduleKnownProviderCatalogRefresh(): void {
@@ -4032,7 +3625,7 @@ export class InteractiveMode {
 		}
 	}
 
-	private showLoginProviderSelector(authType: "api_key", initialSearchInput?: string): void {
+	private showLoginProviderSelector(initialSearchInput?: string): void {
 		const providerOptions = this.getLoginProviderOptions();
 		if (providerOptions.length === 0) {
 			this.showStatus("No API key providers available.");
@@ -4089,7 +3682,7 @@ export class InteractiveMode {
 		};
 
 		return this.loginProvider(dialog, providerId)
-			.then(async (credential) => {
+			.then(async () => {
 				const catalogProvider = findCatalogProvider(providerId);
 				if (catalogProvider !== undefined) {
 					mergeCatalogProviderIntoStore(path.join(getAgentDir(), "models-store.json"), catalogProvider);
@@ -4216,7 +3809,7 @@ export class InteractiveMode {
 		try {
 			const credentials = await this.session.modelRuntime.listCredentials({ signal: AbortSignal.timeout(15_000) });
 			providerOptions = credentials
-				.map(({ providerId, type }) => ({
+				.map(({ providerId }) => ({
 					id: providerId,
 					name: this.session.modelRuntime.getProvider(providerId)?.name ?? providerId,
 					authType: "api_key" as const,
@@ -5227,7 +4820,7 @@ export class InteractiveMode {
 		});
 	}
 
-	private async handleCopyCommand(options: { flashConfirmation?: boolean } = {}): Promise<void> {
+	private async handleCopyCommand(): Promise<void> {
 		const text = this.session.getLastAssistantText();
 		if (!text) {
 			this.showError("No agent messages to copy yet.");
@@ -5385,7 +4978,6 @@ export class InteractiveMode {
 		const cycleModelBackward = this.getAppKeyDisplay("app.model.cycleBackward");
 		const copyMessage = this.getAppKeyDisplay("app.message.copy");
 		const followUp = this.getAppKeyDisplay("app.message.followUp");
-		const dequeue = this.getAppKeyDisplay("app.message.dequeue");
 		const pasteImage = this.getAppKeyDisplay("app.clipboard.pasteImage");
 		const hotkeys = `
 **Navigation**

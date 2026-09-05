@@ -228,7 +228,6 @@ export class DefaultResourceLoader extends ResourceLoader {
 	private resourceMetadataByPath: Map<string, PathMetadata>;
 	private lastPromptPaths: string[];
 	private lastThemePaths: string[];
-	private loaded: boolean;
 
 	constructor(options: DefaultResourceLoaderOptions) {
 		super();
@@ -272,7 +271,6 @@ export class DefaultResourceLoader extends ResourceLoader {
 		this.resourceMetadataByPath = new Map();
 		this.lastPromptPaths = [];
 		this.lastThemePaths = [];
-		this.loaded = false;
 	}
 
 	getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] } {
@@ -477,7 +475,6 @@ export class DefaultResourceLoader extends ResourceLoader {
 		this.appendSystemPromptSourcePaths = appendSources
 			.filter((source) => existsSync(source))
 			.map((source) => resolvePath(source));
-		this.loaded = true;
 	}
 
 	private mapSkillPath(resource: ResolvedResource, metadataByPath: Map<string, PathMetadata>): string {

@@ -778,7 +778,7 @@ export async function main(args: string[]) {
 				appendSystemPrompt: parsed.appendSystemPrompt,
 			},
 		});
-		const { settingsManager, modelRuntime, resourceLoader } = services;
+		const { settingsManager, modelRuntime } = services;
 		const diagnostics: AgentSessionRuntimeDiagnostic[] = [
 			...projectTrustDiagnostics,
 			...services.diagnostics,
@@ -844,7 +844,7 @@ export async function main(args: string[]) {
 	});
 	time("createAgentSessionRuntime");
 	const { services, session, modelFallbackMessage } = runtime;
-	const { settingsManager, modelRuntime, resourceLoader } = services;
+	const { settingsManager, modelRuntime } = services;
 	applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
 	configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
 

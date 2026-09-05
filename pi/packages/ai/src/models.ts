@@ -3,7 +3,6 @@ import { defaultProviderAuthContext as defaultAuthContext } from "./auth/context
 import { InMemoryCredentialStore } from "./auth/credential-store.ts";
 import { type AuthResolutionOverrides, ModelsError, resolveProviderAuth } from "./auth/resolve.ts";
 import type {
-	ApiKeyCredential,
 	AuthCheck,
 	AuthContext,
 	AuthInteraction,
@@ -40,7 +39,6 @@ import {
 	raceAuthCheckWithAbort,
 	raceCredentialWithAbort,
 	raceModelsWithAbort,
-	raceUnknownWithAbort,
 } from "./utils/abort.ts";
 
 export { ModelsError, type ModelsErrorCode } from "./auth/resolve.ts";

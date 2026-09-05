@@ -228,7 +228,7 @@ export class Tokenizer {
 		return [];
 	}
 
-	del(source: string): TokensDel | undefined {
+	del(_source: string): TokensDel | undefined {
 		return undefined;
 	}
 }
@@ -238,24 +238,15 @@ export interface MarkedOptions {
 	[key: string]: unknown;
 }
 
-interface BlockRule {
-	regex: RegExp;
-}
-
 const HEADING_PATTERN = /^(#{1,6})(?:\s+|$)([^\n]*?)(?:\n+|$)/;
 const HR_PATTERN =
 	/^(?: {0,3}(?:-[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:\*[ \t]*){3,}(?:\n+|$)|(?: {0,3}(?:_[ \t]*){3,}(?:\n+|$))))/;
 const FENCE_PATTERN = /^( {0,3})(`{3,}|~{3,})[ \t]*([^\n`]*)\n?/;
 const BLOCKQUOTE_PATTERN = /^ {0,3}>/;
 const LIST_PATTERN = /^( {0,3})([*+-]|\d{1,9}[.)])([ \t]+|$)/;
-const TABLE_ALIGN_PATTERN = /^ *-+ *:? *$/;
 const HTML_BLOCK_PATTERN = /^ {0,3}<(?:[a-zA-Z][a-zA-Z0-9-]*|!--|\/)/;
 const INDENTED_CODE_PATTERN = /^(?: {4}| {0,3}\t)/;
 const BLANK_PATTERN = /^[ \t]*$/;
-
-function stripTrailingNewline(text: string): string {
-	return text.endsWith("\n") ? text.slice(0, -1) : text;
-}
 
 function unescapeMarkdown(text: string): string {
 	return text.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, "$1");
@@ -289,12 +280,10 @@ function splitTableCells(line: string): string[] {
 class InlineLexer {
 	private extensions: TokenizerExtension[];
 	private customTokenizer: Tokenizer | undefined;
-	private lexerRef: Lexer;
 
-	constructor(extensions: TokenizerExtension[], customTokenizer: Tokenizer | undefined, lexerRef: Lexer) {
+	constructor(extensions: TokenizerExtension[], customTokenizer: Tokenizer | undefined) {
 		this.extensions = extensions.filter((extension) => extension.level === "inline");
 		this.customTokenizer = customTokenizer;
-		this.lexerRef = lexerRef;
 	}
 
 	lex(text: string): Token[] {
@@ -482,7 +471,7 @@ export class Lexer {
 		this.extensions = extensions.filter((extension) => extension.level === "block");
 		this.customTokenizer = customTokenizer;
 		if (this.customTokenizer) this.customTokenizer.lexer = this;
-		this.inline = new InlineLexer(extensions, customTokenizer, this);
+		this.inline = new InlineLexer(extensions, customTokenizer);
 	}
 
 	inlineTokens(text: string): Token[] {

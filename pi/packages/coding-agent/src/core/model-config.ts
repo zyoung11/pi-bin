@@ -238,20 +238,6 @@ function recordViewOf(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
-interface ModelsStoreEntry {
-	id?: unknown;
-	name?: unknown;
-	api?: unknown;
-	baseUrl?: unknown;
-	reasoning?: unknown;
-	input?: unknown;
-	contextWindow?: unknown;
-	maxTokens?: unknown;
-	cost?: unknown;
-	compat?: unknown;
-	thinkingLevelMap?: unknown;
-}
-
 /**
  * Rebuild provider definitions from the upstream models-store.json catalog cache
  * (written by the original pi for built-in API providers) merged in memory with

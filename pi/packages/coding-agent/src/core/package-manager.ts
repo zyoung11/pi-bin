@@ -818,7 +818,7 @@ const taskRunner = {
 	nextIndex: 0,
 	limit: 1,
 	inputs: [] as unknown[],
-	fn: async (input: unknown): Promise<unknown> => undefined,
+	fn: async (_input: unknown): Promise<unknown> => undefined,
 };
 
 async function runTasksWorker(): Promise<void> {

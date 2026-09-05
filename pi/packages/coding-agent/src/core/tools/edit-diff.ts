@@ -4,7 +4,7 @@
 
 import { accessSync, readFileSync } from "node:fs";
 import { constants } from "fs";
-import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
+import { createTwoFilesPatch, diffLines, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
 import { splitBom } from "../../utils/text.ts";
 import { resolveToCwd } from "./path-utils.ts";
 

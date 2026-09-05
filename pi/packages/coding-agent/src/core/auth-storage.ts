@@ -9,7 +9,7 @@ import type { AuthOperationOptions, Credential, CredentialInfo } from "../../../
 import { CredentialStore } from "../../../ai/src/index.ts";
 import { getAgentDir } from "../config.ts";
 import { abortReason, raceWithAbortSignal } from "../utils/abort.ts";
-import lockfile, { LockError } from "../utils/mini-lockfile.ts";
+import lockfile from "../utils/mini-lockfile.ts";
 import { getFileRevision, normalizePath } from "../utils/paths.ts";
 import { sleep } from "../utils/sleep.ts";
 import { stripBom } from "../utils/text.ts";

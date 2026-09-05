@@ -4,8 +4,6 @@ type NativeModifiersHelper = {
 	isModifierPressed: (name: ModifierKey) => boolean;
 };
 
-const nativeModifiersHelper: NativeModifiersHelper | null | undefined = null;
-
 function loadNativeModifiersHelper(): NativeModifiersHelper | undefined {
 	// Native accelerator helpers are unavailable in the static build (no module
 	// require); the standard input parsing path handles modifier keys.

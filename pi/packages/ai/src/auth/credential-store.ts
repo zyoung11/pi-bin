@@ -44,7 +44,7 @@ export class InMemoryCredentialStore extends CredentialStore {
 		return this.credentials.get(providerId);
 	}
 
-	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+	list(_options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
 		return Promise.resolve(this.listSync());
 	}
 

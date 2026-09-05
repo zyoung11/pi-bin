@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { existsSync, type FSWatcher, readFileSync, statSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { closeWatcher, FS_WATCH_RETRY_DELAY_MS, type FsPollWatcher, watchWithErrorHandler } from "../utils/fs-watch.ts";
 

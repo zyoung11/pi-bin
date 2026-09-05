@@ -45,7 +45,7 @@ function segmentToRegExpSource(segment: string): string {
 	return out;
 }
 
-function ruleToRegExpSource(pattern: string, anchored: boolean): string {
+function ruleToRegExpSource(pattern: string, _anchored: boolean): string {
 	let body = pattern;
 	let prefix = "";
 	if (body === "**") return "^.*$";

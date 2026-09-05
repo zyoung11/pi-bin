@@ -49,7 +49,7 @@ function normalizeInlineMimeType(mimeType: string): string | null {
 export async function processImage(
 	bytes: Uint8Array,
 	mimeType: string,
-	options?: ProcessImageOptions,
+	_options?: ProcessImageOptions,
 ): Promise<ProcessImageResult> {
 	const normalizedMime = normalizeInlineMimeType(mimeType);
 	if (!normalizedMime) {

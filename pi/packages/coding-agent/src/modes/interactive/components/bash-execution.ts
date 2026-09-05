@@ -172,14 +172,7 @@ export class BashExecutionComponent extends Container {
 				// Use shared visual truncation utility with width-aware caching
 				const styledOutput = previewLogicalLines.map((line) => theme.fg("muted", line)).join("\n");
 				const styledInput = `\n${styledOutput}`;
-				let cachedWidth: number | undefined;
-				let cachedLines: string[] | undefined;
-				this.contentContainer.addChild(
-					new InlinePreviewComponent(styledInput, () => {
-						cachedWidth = undefined;
-						cachedLines = undefined;
-					}),
-				);
+				this.contentContainer.addChild(new InlinePreviewComponent(styledInput, () => {}));
 			}
 		}
 

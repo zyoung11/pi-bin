@@ -5,7 +5,6 @@ import {
 	type ApiKeyCredential,
 	type AssistantMessageEventStream,
 	type AuthContext,
-	type AuthInteraction,
 	type AuthResult,
 	type Context,
 	type Credential,

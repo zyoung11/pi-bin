@@ -6,7 +6,6 @@ import type { EditorTheme } from "../../../../../tui/src/components/editor.ts";
 import type { MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
 import type { SelectListTheme } from "../../../../../tui/src/components/select-list.ts";
 import type { SettingsListTheme } from "../../../../../tui/src/components/settings-list.ts";
-import type { RgbColor } from "../../../../../tui/src/terminal-colors.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { getCustomThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
@@ -166,9 +165,6 @@ export type ThemeBg =
 	| "toolPendingBg"
 	| "toolSuccessBg"
 	| "toolErrorBg";
-
-type OptionalThemeColor = "thinkingMax" | "searchMatchText";
-type OptionalThemeBg = "scrollbarThumb" | "searchMatchBg";
 
 /** Explicit key lists: static-runtime keyed enumeration over typed records
  * traps or loses keys, so the theme color chain iterates known keys only. */
@@ -811,8 +807,6 @@ export function getThemeByName(name: string): Theme | undefined {
 // ============================================================================
 
 // Use globalThis to share theme across module loaders (tsx + jiti in dev mode)
-const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
-const THEME_KEY_OLD = Symbol.for("@mariozechner/pi-coding-agent:theme");
 
 // Export theme as a getter that reads from globalThis
 // This ensures all module instances (tsx, jiti) see the same theme

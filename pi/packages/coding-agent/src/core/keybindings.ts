@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import type { Keybindings } from "../../../tui/src/keybindings.ts";
 import {
 	type Keybinding,
 	type KeybindingDefinitions,

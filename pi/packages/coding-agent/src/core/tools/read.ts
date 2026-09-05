@@ -1,6 +1,4 @@
-import { existsSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
-import { constants } from "fs";
 import { readFile as fsReadFile } from "fs/promises";
 import type { AgentTool, AgentToolResult } from "../../../../agent/src/index.ts";
 import type { Api, ImageContent, Model, TextContent } from "../../../../ai/src/index.ts";

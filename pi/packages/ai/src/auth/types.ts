@@ -67,7 +67,7 @@ export class CredentialStore {
 	 * Read the stored credential, possibly expired. Display/status use;
 	 * resolved request auth comes from `Models.getAuth()`.
 	 */
-	read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+	read(_providerId: string, _options?: AuthOperationOptions): Promise<Credential | undefined> {
 		throw new Error("credential read not implemented");
 	}
 
@@ -75,7 +75,7 @@ export class CredentialStore {
 	 * List stored credential metadata without resolving or exposing secrets.
 	 * Implementations must not execute configured API-key commands while listing.
 	 */
-	list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
+	list(_options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
 		throw new Error("credential list not implemented");
 	}
 
@@ -88,15 +88,15 @@ export class CredentialStore {
 	 * credential. Rejections from `fn` propagate.
 	 */
 	modify(
-		providerId: string,
-		fn: (current: Credential | undefined) => Promise<Credential | undefined>,
-		options?: AuthOperationOptions,
+		_providerId: string,
+		_fn: (current: Credential | undefined) => Promise<Credential | undefined>,
+		_options?: AuthOperationOptions,
 	): Promise<Credential | undefined> {
 		throw new Error("credential modify not implemented");
 	}
 
 	/** Remove a credential (logout). Implementations serialize this against `modify`. */
-	delete(providerId: string, options?: AuthOperationOptions): Promise<void> {
+	delete(_providerId: string, _options?: AuthOperationOptions): Promise<void> {
 		throw new Error("credential delete not implemented");
 	}
 }

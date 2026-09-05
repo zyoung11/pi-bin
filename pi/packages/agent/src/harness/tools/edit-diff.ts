@@ -2,7 +2,7 @@
  * Shared diff computation utilities for the edit and similar tools.
  */
 
-import { createTwoFilesPatch, diffLines, diffWords, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
+import { createTwoFilesPatch, diffLines, FILE_HEADERS_ONLY } from "../../../../ai/src/utils/mini-diff.ts";
 
 export function detectLineEnding(content: string): "\r\n" | "\n" {
 	const crlfIdx = content.indexOf("\r\n");

@@ -1,5 +1,5 @@
 import { eastAsianWidth } from "./east-asian-width.ts";
-import { type SegmentData, TextSegmenter } from "./segmenter.ts";
+import { TextSegmenter } from "./segmenter.ts";
 
 const graphemeSegmenter = new TextSegmenter("grapheme");
 const wordSegmenter = new TextSegmenter("word");
@@ -475,7 +475,6 @@ export function getOsc8LinkAtColumn(line: string, column: number): string | unde
  * a logical line, while tabs inside terminal string sequences stay untouched.
  */
 const THAI_LAO_AM_REGEX = /[\u0e33\u0eb3]/;
-const THAI_LAO_AM_GLOBAL_REGEX = /[\u0e33\u0eb3]/g;
 
 export function normalizeTerminalOutput(str: string): string {
 	let normalized = str;

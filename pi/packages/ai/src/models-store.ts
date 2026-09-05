@@ -33,7 +33,7 @@ export abstract class ModelsStore {
 export class InMemoryModelsStore extends ModelsStore {
 	private readonly entries = new Map<string, ModelsStoreEntry>();
 
-	read(providerId: string, options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
+	read(providerId: string, _options?: ModelsStoreOperationOptions): Promise<ModelsStoreEntry | undefined> {
 		return Promise.resolve(this.readSync(providerId));
 	}
 

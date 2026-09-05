@@ -63,14 +63,6 @@ export function valid(version: string): string | null {
 	return parseVersion(version) !== null ? version.trim() : null;
 }
 
-function parseVersionOrXRange(text: string): { ver: SemVer | null; anyVersion: boolean } {
-	const trimmed = text.trim();
-	if (trimmed === "*" || trimmed === "" || trimmed === "x" || trimmed === "X") {
-		return { ver: null, anyVersion: true };
-	}
-	return { ver: parseVersion(trimmed), anyVersion: false };
-}
-
 function parseComparator(token: string): Comparator | null {
 	const match = /^(>=|<=|>|<|=|\^|~)?\s*v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?(?:-([0-9A-Za-z.-]+))?$/.exec(
 		token.trim(),
@@ -112,7 +104,7 @@ function parseComparator(token: string): Comparator | null {
 	return { op: opText === "" ? "=" : (opText as ">" | ">=" | "<" | "<=" | "="), ver: base };
 }
 
-function comparatorSatisfied(candidate: SemVer, comparator: Comparator, rangeHasPrerelease: boolean): boolean {
+function comparatorSatisfied(candidate: SemVer, comparator: Comparator, _rangeHasPrerelease: boolean): boolean {
 	if (comparator.op === "=") {
 		return compareParsed(candidate, comparator.ver) === 0;
 	}
