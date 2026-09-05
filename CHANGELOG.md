@@ -411,3 +411,12 @@ Other:
 - Diagnostic takeaway: scriptc dynamic-engine per-element operations cost
   ~90µs — per-line loops over large arrays must use native `concat`, never
   per-line `push`, in any hot render path.
+- `81dd061` — Known issue from Phase 12 resolved: the fill-end mount repaint
+  (~10s once per session open) eliminated. coverThrough folds components into
+  the history memo continuously during the fill (holding back only unresolved
+  tool calls as a trailing suffix), the items-exhausted phase folds held-back
+  components in bounded slices, and `finishInitialFill` no longer calls
+  `ui.invalidate()` (it dropped the warm memo right before the mount paint).
+  fullRender gained an image-free fast path writing one native join instead of
+  60k per-line dynamic appends. Worst main-thread block during startup+fill:
+  ~10s → 542ms.
