@@ -96,9 +96,13 @@ export class BashExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
+	/**
+	 * Content changes flow through explicit setters that call updateDisplay;
+	 * invalidation only needs to clear child caches, which the markdown render
+	 * epoch and per-component cache keys already handle.
+	 */
 	override invalidate(): void {
 		super.invalidate();
-		this.updateDisplay();
 	}
 
 	appendOutput(chunk: string): void {

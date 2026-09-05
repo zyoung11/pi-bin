@@ -290,6 +290,19 @@ interface InlineStyleContext {
 	stylePrefix: string;
 }
 
+/**
+ * Global markdown render epoch. Bumped when the active theme changes: cached
+ * lines bake ANSI colors from the theme closures current at render time, so a
+ * theme switch must invalidate every cache at once. Keyed globally instead of
+ * cascading invalidate() through the component tree, which would otherwise
+ * force a full markdown re-parse of the whole transcript on each switch.
+ */
+let markdownRenderEpoch = 0;
+
+export function bumpMarkdownRenderEpoch(): void {
+	markdownRenderEpoch += 1;
+}
+
 export class Markdown extends Component {
 	private text: string;
 	private paddingX: number; // Left/right padding
@@ -303,6 +316,7 @@ export class Markdown extends Component {
 	private cachedText?: string;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
+	private cachedEpoch?: number;
 
 	constructor(
 		text: string,
@@ -326,15 +340,20 @@ export class Markdown extends Component {
 		this.invalidate();
 	}
 
-	invalidate(): void {
-		this.cachedText = undefined;
-		this.cachedWidth = undefined;
-		this.cachedLines = undefined;
-	}
+	/**
+	 * No-op. Cache validity is keyed on text, width, and the markdown render
+	 * epoch, so stale caches self-invalidate without a tree-wide cascade.
+	 */
+	invalidate(): void {}
 
 	render(width: number): string[] {
 		// Check cache
-		if (this.cachedLines && this.cachedText === this.text && this.cachedWidth === width) {
+		if (
+			this.cachedLines &&
+			this.cachedText === this.text &&
+			this.cachedWidth === width &&
+			this.cachedEpoch === markdownRenderEpoch
+		) {
 			return this.cachedLines;
 		}
 
@@ -349,6 +368,7 @@ export class Markdown extends Component {
 			this.cachedText = this.text;
 			this.cachedWidth = width;
 			this.cachedLines = result;
+			this.cachedEpoch = markdownRenderEpoch;
 			return result;
 		}
 
@@ -430,6 +450,7 @@ export class Markdown extends Component {
 		this.cachedText = this.text;
 		this.cachedWidth = width;
 		this.cachedLines = result;
+		this.cachedEpoch = markdownRenderEpoch;
 
 		return result.length > 0 ? result : [""];
 	}

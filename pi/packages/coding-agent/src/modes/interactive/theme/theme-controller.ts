@@ -1,3 +1,4 @@
+import { bumpMarkdownRenderEpoch } from "../../../../../tui/src/components/markdown.ts";
 import type { TUI } from "../../../../../tui/src/tui.ts";
 import type { SettingsManager } from "../../../core/settings-manager.ts";
 import { initTheme, setTheme, setThemeInstance, type Theme } from "./theme.ts";
@@ -64,6 +65,7 @@ export class InteractiveThemeController {
 
 	preview(themeName: string): void {
 		if (setTheme(themeName, true).success) {
+			bumpMarkdownRenderEpoch();
 			this.ui.invalidate();
 			this.ui.requestRender();
 		}
@@ -80,6 +82,7 @@ export class InteractiveThemeController {
 	}
 
 	private notifyChanged(): void {
+		bumpMarkdownRenderEpoch();
 		this.ui.invalidate();
 		this.onChanged();
 	}

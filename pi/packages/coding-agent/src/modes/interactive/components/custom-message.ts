@@ -47,9 +47,13 @@ export class CustomMessageComponent extends Container {
 		}
 	}
 
+	/**
+	 * Content changes flow through explicit setters that call rebuild;
+	 * invalidation only needs to clear child caches, which the markdown render
+	 * epoch and per-component cache keys already handle.
+	 */
 	override invalidate(): void {
 		super.invalidate();
-		this.rebuild();
 	}
 
 	private rebuild(): void {

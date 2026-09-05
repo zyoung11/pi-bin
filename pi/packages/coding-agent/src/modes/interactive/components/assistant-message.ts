@@ -50,11 +50,13 @@ export class AssistantMessageComponent extends Container {
 		}
 	}
 
+	/**
+	 * Content changes flow through explicit setters that rebuild the display;
+	 * invalidation only needs to clear child caches, which the markdown render
+	 * epoch and per-component cache keys already handle.
+	 */
 	override invalidate(): void {
 		super.invalidate();
-		if (this.lastMessage) {
-			this.updateContent(this.lastMessage);
-		}
 	}
 
 	setHideThinkingBlock(hide: boolean): void {
