@@ -103,7 +103,10 @@ export class ExtensionSelectorComponent extends Container {
 			this.selectedIndex = Math.min(this.options.length - 1, this.selectedIndex + 1);
 			this.updateList();
 		} else if (kb.matches(keyData, "tui.select.confirm") || keyData === "\n") {
-			const selected = this.options[this.selectedIndex];
+			const selected =
+				this.selectedIndex >= 0 && this.selectedIndex < this.options.length
+					? this.options[this.selectedIndex]
+					: undefined;
 			if (selected) this.onSelectCallback(selected);
 		} else if (kb.matches(keyData, "tui.select.cancel")) {
 			this.onCancelCallback();

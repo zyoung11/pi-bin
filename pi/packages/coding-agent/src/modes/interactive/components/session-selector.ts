@@ -278,8 +278,14 @@ function flattenSessionTree(roots: SessionTreeNode[]): FlatSessionNode[] {
  */
 class SessionList extends Component implements Focusable {
 	public getSelectedSessionPath(): string | undefined {
-		const selected = this.filteredSessions[this.selectedIndex];
-		return selected?.session.path;
+		return this.selectedSession()?.session.path;
+	}
+
+	/** Bounds-checked selection: never indexes the (possibly empty) list directly. */
+	private selectedSession(): FlatSessionNode | undefined {
+		const index = this.selectedIndex;
+		if (index < 0 || index >= this.filteredSessions.length) return undefined;
+		return this.filteredSessions[index];
 	}
 	private allSessions: SessionInfo[] = [];
 	private filteredSessions: FlatSessionNode[] = [];
@@ -336,7 +342,7 @@ class SessionList extends Component implements Focusable {
 
 		// Handle Enter in search input - select current item
 		this.searchInput.onSubmit = (_value: string) => {
-			const selected = this.filteredSessions[this.selectedIndex];
+			const selected = this.selectedSession();
 			const onSelect = this.onSelect;
 			if (selected && onSelect) {
 				onSelect(selected.session.path);
@@ -388,7 +394,7 @@ class SessionList extends Component implements Focusable {
 	}
 
 	private startDeleteConfirmationForSelectedSession(): void {
-		const selected = this.filteredSessions[this.selectedIndex];
+		const selected = this.selectedSession();
 		if (!selected) return;
 
 		// Prevent deleting current session
@@ -577,7 +583,7 @@ class SessionList extends Component implements Focusable {
 
 		// Rename selected session
 		if (kb.matches(keyData, "app.session.rename")) {
-			const selected = this.filteredSessions[this.selectedIndex];
+			const selected = this.selectedSession();
 			if (selected) {
 				this.onRenameSession?.(selected.session.path);
 			}
@@ -603,7 +609,7 @@ class SessionList extends Component implements Focusable {
 		}
 		// Down arrow
 		else if (kb.matches(keyData, "tui.select.down")) {
-			this.selectedIndex = Math.min(this.filteredSessions.length - 1, this.selectedIndex + 1);
+			this.selectedIndex = Math.max(0, Math.min(this.filteredSessions.length - 1, this.selectedIndex + 1));
 		}
 		// Page up - jump up by maxVisible items
 		else if (kb.matches(keyData, "tui.select.pageUp")) {
@@ -611,11 +617,14 @@ class SessionList extends Component implements Focusable {
 		}
 		// Page down - jump down by maxVisible items
 		else if (kb.matches(keyData, "tui.select.pageDown")) {
-			this.selectedIndex = Math.min(this.filteredSessions.length - 1, this.selectedIndex + this.maxVisible);
+			this.selectedIndex = Math.max(
+				0,
+				Math.min(this.filteredSessions.length - 1, this.selectedIndex + this.maxVisible),
+			);
 		}
 		// Enter
 		else if (kb.matches(keyData, "tui.select.confirm")) {
-			const selected = this.filteredSessions[this.selectedIndex];
+			const selected = this.selectedSession();
 			const onSelect = this.onSelect;
 			if (selected && onSelect) {
 				onSelect(selected.session.path);

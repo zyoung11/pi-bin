@@ -54,6 +54,13 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private activeModels: ModelItem[] = [];
 	private filteredModels: ModelItem[] = [];
 	private selectedIndex: number = 0;
+
+	/** Bounds-checked selection: never indexes the (possibly empty) list directly. */
+	private selectedModel(): ModelItem | undefined {
+		const index = this.selectedIndex;
+		if (index < 0 || index >= this.filteredModels.length) return undefined;
+		return this.filteredModels[index];
+	}
 	private currentModel?: Model<Api>;
 	private modelRuntime: ModelRuntime;
 	private onSelectCallback: (model: Model<Api>) => void;
@@ -118,8 +125,9 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		}
 		this.searchInput.onSubmit = (_value: string) => {
 			// Enter on search input selects the first filtered item
-			if (this.filteredModels[this.selectedIndex]) {
-				this.handleSelect(this.filteredModels[this.selectedIndex].model);
+			const selected = this.selectedModel();
+			if (selected) {
+				this.handleSelect(selected.model);
 			}
 		};
 		this.addChild(this.searchInput);
@@ -352,9 +360,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		} else if (this.filteredModels.length === 0) {
 			this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
 		} else {
-			const selected = this.filteredModels[this.selectedIndex];
+			const selected = this.selectedModel();
 			this.listContainer.addChild(new Spacer(1));
-			this.listContainer.addChild(new Text(theme.fg("muted", `  Model Name: ${selected.model.name}`), 0, 0));
+			this.listContainer.addChild(
+				new Text(theme.fg("muted", `  Model Name: ${selected !== undefined ? selected.model.name : "-"}`), 0, 0),
+			);
 		}
 		if (this.refreshStatusMessage) {
 			this.listContainer.addChild(new Spacer(1));
@@ -390,7 +400,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 		}
 		// Enter
 		else if (kb.matches(keyData, "tui.select.confirm")) {
-			const selectedModel = this.filteredModels[this.selectedIndex];
+			const selectedModel = this.selectedModel();
 			if (selectedModel) {
 				this.handleSelect(selectedModel.model);
 			}

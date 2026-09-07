@@ -504,13 +504,15 @@ class ResourceList extends Component implements Focusable {
 			return;
 		}
 		if (data === " " || kb.matches(data, "tui.select.confirm")) {
-			const entry = this.filteredItems[this.selectedIndex];
-			const item = entry !== undefined && "item" in entry ? entry.item : undefined;
-			if (item !== undefined && (this.writeScope === "project" || this.getItemScope(item) === "user")) {
-				const newEnabled = this.toggleResource(item);
-				if (newEnabled !== undefined) {
-					this.updateItem(item, newEnabled);
-					this.onToggle?.(item, newEnabled);
+			if (this.selectedIndex >= 0 && this.selectedIndex < this.filteredItems.length) {
+				const entry = this.filteredItems[this.selectedIndex];
+				const item = "item" in entry ? entry.item : undefined;
+				if (item !== undefined && (this.writeScope === "project" || this.getItemScope(item) === "user")) {
+					const newEnabled = this.toggleResource(item);
+					if (newEnabled !== undefined) {
+						this.updateItem(item, newEnabled);
+						this.onToggle?.(item, newEnabled);
+					}
 				}
 			}
 			return;
