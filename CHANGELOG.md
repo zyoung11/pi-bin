@@ -420,3 +420,4 @@ Other:
   fullRender gained an image-free fast path writing one native join instead of
   60k per-line dynamic appends. Worst main-thread block during startup+fill:
   ~10s → 542ms.
+- Version 0.2.0 → 0.2.1.
