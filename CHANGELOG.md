@@ -421,3 +421,4 @@ Other:
   60k per-line dynamic appends. Worst main-thread block during startup+fill:
   ~10s → 542ms.
 - Version 0.2.0 → 0.2.1.
+- Version 0.2.1 → 0.2.2.
