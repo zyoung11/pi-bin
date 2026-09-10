@@ -277,6 +277,11 @@ function splitTableCells(line: string): string[] {
 	return cells;
 }
 
+function isAsciiAlnum(char: string): boolean {
+	const code = char.charCodeAt(0);
+	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57);
+}
+
 class InlineLexer {
 	private extensions: TokenizerExtension[];
 	private customTokenizer: Tokenizer | undefined;
@@ -315,6 +320,11 @@ class InlineLexer {
 				}
 			}
 			if (handled) continue;
+			// CommonMark intra-word rule for underscore delimiters: a `_` run that is
+			// both preceded and followed by an alphanumeric character can neither open
+			// nor close emphasis, so `alpha_beta` stays literal (asterisks have no
+			// such restriction).
+			const prevIsAlnum = position > 0 && isAsciiAlnum(text[position - 1]);
 			const escapeMatch = /^\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/.exec(rest);
 			if (escapeMatch) {
 				flushPlain();
@@ -350,7 +360,7 @@ class InlineLexer {
 				continue;
 			}
 			const strongEmMatch = /^(\*\*\*|___)(?=\S)([\s\S]*?\S)\1/.exec(rest);
-			if (strongEmMatch) {
+			if (strongEmMatch && (strongEmMatch[1] === "***" || !prevIsAlnum)) {
 				flushPlain();
 				tokens.push({
 					type: "strong",
@@ -361,23 +371,52 @@ class InlineLexer {
 				position += strongEmMatch[0].length;
 				continue;
 			}
-			const strongMatch = /^(\*\*|__)(?=\S)([\s\S]*?\S)\1(?!\1|[*_])/.exec(rest);
-			if (strongMatch) {
+			const strongStarMatch = /^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*\*|[*_])/.exec(rest);
+			if (strongStarMatch) {
 				flushPlain();
 				tokens.push({
 					type: "strong",
-					raw: strongMatch[0],
-					text: strongMatch[2],
-					tokens: this.inlineTokens(strongMatch[2]),
+					raw: strongStarMatch[0],
+					text: strongStarMatch[1],
+					tokens: this.inlineTokens(strongStarMatch[1]),
 				});
-				position += strongMatch[0].length;
+				position += strongStarMatch[0].length;
 				continue;
 			}
-			const emMatch = /^([*_])(?=\S)([\s\S]*?\S)\1/.exec(rest);
-			if (emMatch) {
+			const strongUnderscoreMatch = !prevIsAlnum ? /^__(?=\S)([\s\S]*?\S)__(?![a-zA-Z0-9_*])/.exec(rest) : undefined;
+			if (strongUnderscoreMatch) {
 				flushPlain();
-				tokens.push({ type: "em", raw: emMatch[0], text: emMatch[2], tokens: this.inlineTokens(emMatch[2]) });
-				position += emMatch[0].length;
+				tokens.push({
+					type: "strong",
+					raw: strongUnderscoreMatch[0],
+					text: strongUnderscoreMatch[1],
+					tokens: this.inlineTokens(strongUnderscoreMatch[1]),
+				});
+				position += strongUnderscoreMatch[0].length;
+				continue;
+			}
+			const emStarMatch = /^\*(?=\S)([\s\S]*?\S)\*/.exec(rest);
+			if (emStarMatch) {
+				flushPlain();
+				tokens.push({
+					type: "em",
+					raw: emStarMatch[0],
+					text: emStarMatch[1],
+					tokens: this.inlineTokens(emStarMatch[1]),
+				});
+				position += emStarMatch[0].length;
+				continue;
+			}
+			const emUnderscoreMatch = !prevIsAlnum ? /^_(?=\S)([\s\S]*?\S)_(?![a-zA-Z0-9])/.exec(rest) : undefined;
+			if (emUnderscoreMatch) {
+				flushPlain();
+				tokens.push({
+					type: "em",
+					raw: emUnderscoreMatch[0],
+					text: emUnderscoreMatch[1],
+					tokens: this.inlineTokens(emUnderscoreMatch[1]),
+				});
+				position += emUnderscoreMatch[0].length;
 				continue;
 			}
 			const imageMatch =
