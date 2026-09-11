@@ -2072,6 +2072,8 @@ export class InteractiveMode {
 		// Set up handlers on defaultEditor - they use this.editor for text access
 		// so they work correctly regardless of which editor is active
 		this.defaultEditor.onEscape = () => {
+			if (process.env.PI_DEBUG_URJ === "1")
+				console.error(`[abort-trace] ESC streaming=${this.session.isStreaming} bash=${this.session.isBashRunning}`);
 			if (this.session.isStreaming) {
 				this.restoreQueuedMessagesToEditor({ abort: true });
 			} else if (this.session.isBashRunning) {

@@ -348,6 +348,7 @@ export class Agent {
 
 	/** Abort the current run, if one is active. */
 	abort(): void {
+		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] agent.abort");
 		this.activeRun?.abortController.abort();
 	}
 
@@ -538,6 +539,10 @@ export class Agent {
 		try {
 			await executor(abortController.signal);
 		} catch (error) {
+			if (process.env.PI_DEBUG_URJ === "1")
+				console.error(
+					`[abort-trace] runFailure: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+				);
 			await this.handleRunFailure(error, abortController.signal.aborted);
 		} finally {
 			this.finishRun();

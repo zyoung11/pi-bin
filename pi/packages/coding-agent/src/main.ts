@@ -72,6 +72,33 @@ import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
 
+// Long-running interactive TUI: stray promise rejections from aborted
+// operations (an ESC interrupt races in-flight work, losing rejections of
+// losing promises) must not kill the whole session. Log them; the agent loop
+// already surfaces real failures as tool errors. Without this handler the
+// scriptc runtime aborts the process on the first unhandled rejection.
+process.on("unhandledRejection", (reason: unknown) => {
+	const message = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+	console.error(`[unhandled-rejection] ${message}`);
+});
+
+// PI_DEBUG_URJ=1: additionally trace the abort path (ESC handling, abort
+// controllers, race rejections) to locate where stray rejections originate.
+if (process.env.PI_DEBUG_URJ === "1") {
+	process.on("unhandledRejection", (reason: unknown) => {
+		let info = String(reason);
+		if (reason instanceof Error) {
+			try {
+				const stack = recordViewOf(reason as unknown)["stack"];
+				if (typeof stack === "string" && stack.length > 0) info = stack;
+			} catch {
+				// stack unavailable in this runtime; fall back to the message
+			}
+		}
+		console.error(`[urj] ${info}`);
+	});
+}
+
 /**
  * Read all content from piped stdin.
  * Returns undefined if stdin is a TTY (interactive terminal).

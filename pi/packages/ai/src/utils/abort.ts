@@ -2,6 +2,7 @@ import type { AuthCheck, AuthResult, Credential } from "../auth/types.ts";
 import type { Api, Model } from "../types.ts";
 
 function abortReason(signal: AbortSignal): unknown {
+	if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] abortReason race-reject");
 	if (signal.reason !== undefined) return signal.reason;
 	const error = new Error("The operation was aborted");
 	error.name = "AbortError";

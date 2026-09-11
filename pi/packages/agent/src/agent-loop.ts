@@ -729,6 +729,8 @@ async function executePreparedToolCall(
 		await Promise.all(updateEvents);
 		return { result, isError: false };
 	} catch (error) {
+		if (process.env.PI_DEBUG_URJ === "1")
+			console.error(`[abort-trace] tool caught: ${error instanceof Error ? error.message : String(error)}`);
 		acceptingUpdates = false;
 		await Promise.all(updateEvents);
 		return {

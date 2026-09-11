@@ -2249,6 +2249,7 @@ export class AgentSession {
 	 * Cancel running bash command.
 	 */
 	abortBash(): void {
+		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] abortBash n=${this._bashAbortFns.length}`);
 		for (const abortFn of this._bashAbortFns.slice()) {
 			abortFn("aborted");
 		}
