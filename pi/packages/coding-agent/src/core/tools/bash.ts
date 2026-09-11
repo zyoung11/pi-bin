@@ -139,6 +139,7 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 			let timedOut = false;
 			let timeoutHandle: NodeJS.Timeout | undefined;
 			const onAbort = () => {
+				if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] bash tool onAbort pid=${child.pid}`);
 				if (child.pid) killProcessTree(child.pid);
 			};
 
@@ -385,6 +386,7 @@ export function createShellToolDefinition(
 		constrainedSampling: getExperimentalToolSampling(),
 		async execute(_toolCallId, params: unknown, signal, onUpdate): Promise<AgentToolResult<unknown>> {
 			const { command, timeout } = params as { command: string; timeout?: number };
+			if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] bash execute signal=${signal !== undefined ? `defined aborted=${signal.aborted}` : "undefined"}`);
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
 			const spawnContext = resolveSpawnContext(
 				resolvedCommand,

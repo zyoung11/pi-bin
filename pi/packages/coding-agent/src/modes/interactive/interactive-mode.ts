@@ -1669,6 +1669,7 @@ export class InteractiveMode {
 	}
 
 	private clearStatusIndicator(kind?: StatusIndicator["kind"]): void {
+		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] clearStatusIndicator kind=${kind ?? "all"} had=${this.activeStatusIndicator !== undefined}`);
 		if (kind && this.activeStatusIndicator?.kind !== kind) {
 			return;
 		}
@@ -2643,6 +2644,7 @@ export class InteractiveMode {
 			}
 
 			case "agent_end":
+				if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] agent_end handler");
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.getTerminal().setProgress(false);
 				}

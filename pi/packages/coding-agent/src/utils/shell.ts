@@ -255,6 +255,7 @@ export function killProcessTree(pid: number): void {
 		// AND still leads its own process group (the detached spawn contract) —
 		// a blind group kill of a reused pid could take down the hosting terminal.
 		// Non-group-leaders get a single-pid kill so the command still aborts.
+		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] killProcessTree pid=${pid} pgrp=${processGroupId(pid)}`);
 		if (processGroupId(pid) === pid) {
 			try {
 				process.kill(-pid, "SIGKILL");
