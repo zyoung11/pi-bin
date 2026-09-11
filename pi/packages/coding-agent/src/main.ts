@@ -72,6 +72,28 @@ import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
 
+// PI_PROBE_UTF8=1: ground-truth probe of the runtime's string semantics.
+if (process.env.PI_PROBE_UTF8 === "1") {
+	const bytes = new Uint8Array(4);
+	bytes[0] = 0xf0;
+	bytes[1] = 0x9f;
+	bytes[2] = 0x98;
+	bytes[3] = 0x80;
+	const decoded = new TextDecoder().decode(bytes);
+	const hexCodes = (str: string): string => {
+		const digits = "0123456789abcdef";
+		let out = "";
+		for (let i = 0; i < str.length; i++) {
+			const code = str.charCodeAt(i);
+			out += `${digits[(code >> 12) & 15]}${digits[(code >> 8) & 15]}${digits[(code >> 4) & 15]}${digits[code & 15]} `;
+		}
+		return out;
+	};
+	const pair = String.fromCharCode(0xd83d, 0xde00);
+	console.error(`[probe] decoded len=${decoded.length} codes=${hexCodes(decoded)}`);
+	console.error(`[probe] fromCharCode-pair len=${pair.length} codes=${hexCodes(pair)}`);
+}
+
 // Long-running interactive TUI: stray promise rejections from aborted
 // operations (an ESC interrupt races in-flight work, losing rejections of
 // losing promises) must not kill the whole session. Log them; the agent loop
