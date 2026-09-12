@@ -35,6 +35,7 @@
 			"packages/coding-agent/examples/**/*.ts",
 			"!**/node_modules/**/*",
 			"!**/test-sessions.ts",
+			"!**/provider-catalog.ts",
 			"!**/models.generated.ts",
 			"!**/*.models.ts",
 			"!packages/mom/data/**/*",
