@@ -19,6 +19,7 @@ export function operationSignal(signal?: AbortSignal): AbortSignal {
 export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal): Promise<void> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceVoidWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -39,6 +40,7 @@ export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal)
 export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortSignal): Promise<boolean> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -59,6 +61,7 @@ export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortS
 export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal: AbortSignal): Promise<boolean[]> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanArrayWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -79,6 +82,7 @@ export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal:
 export function raceUnknownWithAbort(operation: Promise<unknown>, signal: AbortSignal): Promise<unknown> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceUnknownWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -102,6 +106,7 @@ export function raceAuthCheckWithAbort(
 ): Promise<AuthCheck | undefined> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthCheckWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -125,6 +130,7 @@ export function raceModelsWithAbort(
 ): Promise<readonly Model<Api>[]> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceModelsWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -145,6 +151,7 @@ export function raceModelsWithAbort(
 export function raceCredentialWithAbort(operation: Promise<Credential>, signal: AbortSignal): Promise<Credential> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceCredentialWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -168,6 +175,7 @@ export function raceAuthResultWithAbort(
 ): Promise<AuthResult | undefined> {
 	if (signal.aborted) {
 		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthResultWithAbort");
+		void operation.catch(() => {});
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([

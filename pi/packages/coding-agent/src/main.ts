@@ -5,6 +5,7 @@
  * createAgentSession() options. The SDK does the heavy lifting.
  */
 
+import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import type { CredentialStore } from "../../ai/src/auth/types.ts";
 import { type ImageContent, modelsAreEqual } from "../../ai/src/index.ts";
@@ -96,19 +97,15 @@ if (process.env.PI_PROBE_UTF8 === "1") {
 
 // Long-running interactive TUI: stray promise rejections from aborted
 // operations (an ESC interrupt races in-flight work, losing rejections of
-// losing promises) must not kill the whole session. Log them; the agent loop
-// already surfaces real failures as tool errors. Without this handler the
-// scriptc runtime aborts the process on the first unhandled rejection.
+// losing promises) must not kill the whole session. Log them to a file —
+// stderr shares the terminal with the TUI and would corrupt the frame. The
+// agent loop already surfaces real failures as tool errors. Without this
+// handler the scriptc runtime aborts the process on the first unhandled
+// rejection.
+const UNHANDLED_REJECTION_LOG = "/tmp/pi-unhandled-rejections.log";
 process.on("unhandledRejection", (reason: unknown) => {
-	const message = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
-	console.error(`[unhandled-rejection] ${message}`);
-});
-
-// PI_DEBUG_URJ=1: additionally trace the abort path (ESC handling, abort
-// controllers, race rejections) to locate where stray rejections originate.
-if (process.env.PI_DEBUG_URJ === "1") {
-	process.on("unhandledRejection", (reason: unknown) => {
-		let info = String(reason);
+	let info = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+	if (process.env.PI_DEBUG_URJ === "1") {
 		if (reason instanceof Error) {
 			try {
 				const stack = recordViewOf(reason as unknown)["stack"];
@@ -117,9 +114,13 @@ if (process.env.PI_DEBUG_URJ === "1") {
 				// stack unavailable in this runtime; fall back to the message
 			}
 		}
-		console.error(`[urj] ${info}`);
-	});
-}
+	}
+	try {
+		appendFileSync(UNHANDLED_REJECTION_LOG, `${new Date().toISOString()} [unhandled-rejection] ${info}\n`);
+	} catch {
+		// ignore file errors; the handler must never throw
+	}
+});
 
 /**
  * Read all content from piped stdin.

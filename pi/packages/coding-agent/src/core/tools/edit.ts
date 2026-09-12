@@ -54,8 +54,18 @@ function writeSettledError(state: Record<string, unknown>, isError: boolean): vo
 	state["settledError"] = isError;
 }
 
-function editDetailsOf(details: unknown): EditToolDetails | undefined {
-	return details as EditToolDetails | undefined;
+/** Flat-interface view of tool-result details: scriptc fails union-typed
+ * casts of record values crossing the dyn-record boundary, so the details
+ * object is rebuilt field-by-field instead of cast to `X | undefined`. */
+function editDetailsOf(details: unknown): EditToolDetails {
+	const view = details as Record<string, unknown>;
+	const diff = typeof view["diff"] === "string" ? view["diff"] : "";
+	const patch = typeof view["patch"] === "string" ? view["patch"] : "";
+	const firstChangedLine = view["firstChangedLine"];
+	if (typeof firstChangedLine === "number") {
+		return { diff, patch, firstChangedLine };
+	}
+	return { diff, patch };
 }
 
 function errorCodeOf(error: unknown): string | undefined {
@@ -505,7 +515,7 @@ export function createEditToolDefinition(cwd: string, options?: EditToolOptions)
 				? JSON.stringify({ path: previewInput.path, edits: previewInput.edits })
 				: undefined;
 			const typedDetails = editDetailsOf(result.details);
-			const resultDiff = !context.isError ? typedDetails?.diff : undefined;
+			const resultDiff = !context.isError ? typedDetails.diff : undefined;
 			const resultPreview: EditPreview | undefined =
 				typeof resultDiff === "string"
 					? { diff: resultDiff, firstChangedLine: typedDetails?.firstChangedLine }

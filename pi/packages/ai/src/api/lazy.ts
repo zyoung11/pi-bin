@@ -2,6 +2,7 @@ import type { Api, AssistantMessage, AssistantMessageEvent, Model, ProviderStrea
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 
 function createSetupErrorMessage(model: Model<Api>, error: unknown): AssistantMessage {
+	const isAbort = error instanceof Error && error.name === "AbortError";
 	return {
 		role: "assistant",
 		content: [],
@@ -16,7 +17,7 @@ function createSetupErrorMessage(model: Model<Api>, error: unknown): AssistantMe
 			totalTokens: 0,
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		},
-		stopReason: "error",
+		stopReason: isAbort ? "aborted" : "error",
 		errorMessage: error instanceof Error ? error.message : String(error),
 		timestamp: Date.now(),
 	};
@@ -35,6 +36,11 @@ async function forwardStream(target: AssistantMessageEventStream, source: Assist
  * Returns a stream synchronously while running async setup (auth resolution,
  * lazy module loading) behind it. Setup failures terminate the stream with an
  * error event.
+ *
+ * The catch must settle the stream for EVERY rejection value: in the scriptc
+ * runtime an abort-originated reason no longer passes `instanceof Error` when
+ * read directly on the catch binding, so a type guard here would silently
+ * swallow aborts and leave the stream pending forever.
  */
 export function lazyStream(
 	model: Model<Api>,
@@ -44,8 +50,7 @@ export function lazyStream(
 
 	setup()
 		.then((inner) => forwardStream(outer, inner))
-		.catch((caughtError) => {
-			if (!(caughtError instanceof Error)) return;
+		.catch((caughtError: unknown): void => {
 			const message = createSetupErrorMessage(model, caughtError);
 			outer.push({ type: "error", reason: "error", error: message });
 			outer.end(message);

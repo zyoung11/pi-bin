@@ -172,8 +172,16 @@ function formatCompactReadCall(
 	);
 }
 
-function readDetailsOf(details: unknown): ReadToolDetails | undefined {
-	return details as ReadToolDetails | undefined;
+/** Flat-interface view of tool-result details (union casts of record values
+ * crossing the dyn-record boundary throw in scriptc). */
+function readDetailsOf(details: unknown): ReadToolDetails {
+	const view = details as Record<string, unknown>;
+	const out: ReadToolDetails = {};
+	const truncation = view["truncation"];
+	if (truncation !== undefined && truncation !== null) {
+		out.truncation = truncation as TruncationResult;
+	}
+	return out;
 }
 
 function formatReadResult(
@@ -202,7 +210,7 @@ function formatReadResult(
 		text += `${theme.fg("muted", `\n... (${remaining} more lines,`)} ${keyHint("app.tools.expand", "to expand")}${theme.fg("muted", ")")}`;
 	}
 
-	const truncation = readDetailsOf(result.details)?.truncation;
+	const truncation = readDetailsOf(result.details).truncation;
 	if (truncation?.truncated) {
 		if (truncation.firstLineExceedsLimit) {
 			text += `\n${theme.fg("warning", `[First line exceeds ${formatSize(truncation.maxBytes ?? DEFAULT_MAX_BYTES)} limit]`)}`;

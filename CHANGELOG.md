@@ -422,3 +422,65 @@ Other:
   ~10s → 542ms.
 - Version 0.2.0 → 0.2.1.
 - Version 0.2.1 → 0.2.2.
+
+## Phase 14 — ESC-during-bash hang (scriptc rejection identity) and the stale pending-box row
+
+- ESC during a bash tool run no longer killed the session (global
+  unhandledRejection handler), but the run then hung forever: the bash tool
+  aborted correctly ("Command aborted", box turned red), the follow-up LLM call
+  raced the aborted signal in `resolveProviderAuth`, and `lazyStream`'s catch
+  guard `if (!(caughtError instanceof Error)) return` silently swallowed the
+  rejection — the outer `AssistantMessageEventStream` never ended, the agent
+  loop's `next()` awaited forever, the spinner stayed "Working..." and every
+  new message queued as steering. Ground truth probe compiled with scriptc:
+  an abort-originated rejection reason (Signal.reason) loses its
+  `instanceof Error` identity when read directly on a `.catch(onRejected)`
+  binding, while the same value forwarded through a function parameter keeps
+  it; plain `new Error` rejections keep it everywhere. Fix: `lazyStream`'s
+  catch now settles the stream for every rejection value (abort detections
+  read `error.name === "AbortError"` at parameter position, where identity
+  survives, and map to `stopReason: "aborted"` so the UI shows "Operation
+  aborted" instead of "Error: ..."), and the `agentLoop`/`agentLoopContinue`
+  EventStream wrappers gained a `.catch` that ends the stream with an
+  `agent_end` so a loop rejection can never leave consumers pending.
+- Stale row artifact fixed: after the abort the red error box kept one
+  pending-colored (black) row on screen. The frame diff content was correct
+  (verified with byte-level dumps of `doRender`), but the repaint moves the
+  cursor relative to a tracked row that had drifted from the terminal's real
+  cursor (persistent +1 screen offset established at startup, pending-wrap
+  after full-width box rows), so the abort frame's writes landed one row low
+  and the old pending row was never repainted; reproduced identically under
+  Node (upstream-derived logic, not scriptc-specific). Fix: interactive mode
+  forces a full redraw (`requestRenderForce(true)`) when a tool execution ends
+  with an error or when `message_end` carries an aborted/error stop reason —
+  rare events, so the full-frame cost is negligible.
+- Stray unhandled rejection eliminated (was printing
+  `[unhandled-rejection] AbortError: This operation was aborted` into the
+  TUI after every abort): the eight `race*WithAbort` fast paths in
+  `ai/src/utils/abort.ts` returned `Promise.reject(abortReason(signal))` while
+  discarding the already-invoked operation promise, whose later rejection
+  (the same abort propagating through its own awaits) then had no handler.
+  Each fast path now observes the abandoned operation via
+  `void operation.catch(() => {})` before rejecting — mirroring the existing
+  pattern in `coding-agent/src/utils/abort.ts`. The global
+  `unhandledRejection` handler in `main.ts` also stopped writing to stderr
+  (stderr shares the terminal with the TUI and garbled the frame); it now
+  appends to `/tmp/pi-unhandled-rejections.log` (with the stack when
+  `PI_DEBUG_URJ=1`). Verified: the rejection log stays empty across an ESC
+  abort and the TUI is untouched.
+- Edit-tool error results rendered their error message twice: the styled
+  in-box line (from the call preview's error) plus a plain gray duplicate.
+  Root cause: the edit tool's `renderResult` threw at runtime under scriptc
+  (`TypeError: expected object | undefined at $, got object` — a record value
+  cast to a `X | undefined` union across the dyn-record boundary fails the
+  union validation), and `ToolExecutionComponent.updateDisplay` silently fell
+  back to plain-text rendering of the result. Fix: `editDetailsOf` now
+  rebuilds the details object field-by-field behind a flat interface instead
+  of a union cast; `bashDetailsOf` and `readDetailsOf` had the same latent
+  `as X | undefined` pattern and got the same treatment (their success-with-
+  truncation-details path would hit it). Error text now renders once.
+- Verified end-to-end against the local llamacpp endpoint (MiniCPM5-2B): ESC
+  during bash kills the child, turns the box red with no stale row, shows
+  "Operation aborted", restores queued steering messages to the editor,
+  clears the spinner, and the session keeps accepting new prompts; read tool
+  results and failed edit results render their error exactly once.

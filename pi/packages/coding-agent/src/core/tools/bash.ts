@@ -268,8 +268,20 @@ function stopBashInterval(state: Record<string, unknown>): void {
 	state["interval"] = undefined;
 }
 
-function bashDetailsOf(details: unknown): BashToolDetails | undefined {
-	return details as BashToolDetails | undefined;
+/** Flat-interface view of tool-result details (union casts of record values
+ * crossing the dyn-record boundary throw in scriptc). */
+function bashDetailsOf(details: unknown): BashToolDetails {
+	const view = details as Record<string, unknown>;
+	const out: BashToolDetails = {};
+	const fullPath = view["fullOutputPath"];
+	if (typeof fullPath === "string") {
+		out.fullOutputPath = fullPath;
+	}
+	const truncation = view["truncation"];
+	if (truncation !== undefined && truncation !== null) {
+		out.truncation = truncation as TruncationResult;
+	}
+	return out;
 }
 
 type BashResultRenderState = {
@@ -296,8 +308,8 @@ class BashResultRenderComponent extends Container {
 
 		let output = getTextOutput(result, showImages).trim();
 		const details = bashDetailsOf(result.details);
-		const truncation = details?.truncation;
-		const fullOutputPath = details?.fullOutputPath;
+		const truncation = details.truncation;
+		const fullOutputPath = details.fullOutputPath;
 		if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {
 			const footerStart = output.lastIndexOf("\n\n[");
 			if (footerStart !== -1 && output.slice(footerStart).includes(fullOutputPath)) {

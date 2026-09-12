@@ -2570,6 +2570,7 @@ export class InteractiveMode {
 							});
 						}
 						this.pendingTools.clear();
+						this.ui.requestRenderForce(true);
 					} else {
 						// Args are now complete - trigger diff computation for edit tools
 						for (const [, component] of this.pendingTools.entries()) {
@@ -2642,7 +2643,17 @@ export class InteractiveMode {
 						isError: event.isError,
 					});
 					this.pendingTools.delete(event.toolCallId);
-					this.ui.requestRender();
+					if (event.isError) {
+						// The tool box transitions from the pending background to the error
+						// background while the row count changes. The differential repaint
+						// moves the cursor relative to a tracked row that can drift from the
+						// terminal's real cursor (pending-wrap state after full-width box
+						// rows), leaving the old pending-colored row painted on screen. A
+						// forced full redraw repaints the whole frame and clears it.
+						this.ui.requestRenderForce(true);
+					} else {
+						this.ui.requestRender();
+					}
 				}
 				break;
 			}

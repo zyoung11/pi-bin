@@ -64,9 +64,15 @@ export function agentLoop(
 		},
 		signal,
 		streamFn,
-	).then((messages) => {
-		stream.end(messages);
-	});
+	)
+		.then((messages) => {
+			stream.end(messages);
+		})
+		.catch((_error: unknown): void => {
+			const failureMessages: AgentMessage[] = [];
+			stream.push({ type: "agent_end", messages: failureMessages });
+			stream.end(failureMessages);
+		});
 
 	return stream;
 }
@@ -103,9 +109,15 @@ export function agentLoopContinue(
 		},
 		signal,
 		streamFn,
-	).then((messages) => {
-		stream.end(messages);
-	});
+	)
+		.then((messages) => {
+			stream.end(messages);
+		})
+		.catch((_error: unknown): void => {
+			const failureMessages: AgentMessage[] = [];
+			stream.push({ type: "agent_end", messages: failureMessages });
+			stream.end(failureMessages);
+		});
 
 	return stream;
 }
