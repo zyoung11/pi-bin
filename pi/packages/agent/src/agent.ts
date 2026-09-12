@@ -9,6 +9,7 @@ import type {
 	ThinkingBudgets,
 	Transport,
 } from "../../ai/src/index.ts";
+import { debugLog } from "../../ai/src/utils/debug-log.ts";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.ts";
 import { getDefaultStreamFn } from "./stream-fn.ts";
 import type {
@@ -348,7 +349,7 @@ export class Agent {
 
 	/** Abort the current run, if one is active. */
 	abort(): void {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] agent.abort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] agent.abort");
 		this.activeRun?.abortController.abort();
 	}
 
@@ -540,7 +541,7 @@ export class Agent {
 			await executor(abortController.signal);
 		} catch (error) {
 			if (process.env.PI_DEBUG_URJ === "1")
-				console.error(
+				debugLog(
 					`[abort-trace] runFailure: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
 				);
 			await this.handleRunFailure(error, abortController.signal.aborted);

@@ -9,6 +9,7 @@ import * as path from "node:path";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
 import type { Api, AuthEvent, AuthPrompt, Credential, CredentialInfo } from "../../../../ai/src/index.ts";
+import { debugLog } from "../../../../ai/src/utils/debug-log.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -48,13 +49,6 @@ import {
 } from "../../core/cache-stats.ts";
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "../../core/defaults.ts";
 import { FooterDataProvider } from "../../core/footer-data-provider.ts";
-import {
-	CATALOG_PROVIDERS,
-	findCatalogProvider,
-	mergeCatalogProviderIntoStore,
-	refreshCatalogFromModelsDev,
-	toProviderConfigInput,
-} from "../../core/provider-catalog.ts";
 import { configureHttpDispatcher } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
@@ -64,6 +58,13 @@ import {
 	resolveModelScopeFromModels,
 } from "../../core/model-resolver.ts";
 import type { ProjectTrustContext } from "../../core/project-trust.ts";
+import {
+	CATALOG_PROVIDERS,
+	findCatalogProvider,
+	mergeCatalogProviderIntoStore,
+	refreshCatalogFromModelsDev,
+	toProviderConfigInput,
+} from "../../core/provider-catalog.ts";
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
 import {
@@ -103,10 +104,10 @@ import type { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import { LoginDialogComponent } from "./components/login-dialog.ts";
 import type { MarkdownTransformer } from "./components/markdown-transform.ts";
 import { ModelSelectorComponent } from "./components/model-selector.ts";
-import { OAuthSelectorComponent, type AuthSelectorProvider } from "./components/oauth-selector.ts";
-import { LoginDialogComponent } from "./components/login-dialog.ts";
+import { type AuthSelectorProvider, OAuthSelectorComponent } from "./components/oauth-selector.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
 import { SettingsSelectorComponent } from "./components/settings-selector.ts";
@@ -1669,7 +1670,10 @@ export class InteractiveMode {
 	}
 
 	private clearStatusIndicator(kind?: StatusIndicator["kind"]): void {
-		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] clearStatusIndicator kind=${kind ?? "all"} had=${this.activeStatusIndicator !== undefined}`);
+		if (process.env.PI_DEBUG_URJ === "1")
+			console.error(
+				`[abort-trace] clearStatusIndicator kind=${kind ?? "all"} had=${this.activeStatusIndicator !== undefined}`,
+			);
 		if (kind && this.activeStatusIndicator?.kind !== kind) {
 			return;
 		}
@@ -2644,7 +2648,7 @@ export class InteractiveMode {
 			}
 
 			case "agent_end":
-				if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] agent_end handler");
+				if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] agent_end handler");
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.getTerminal().setProgress(false);
 				}

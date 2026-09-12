@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { spawn, spawnSync } from "child_process";
+import { debugLog } from "../../../ai/src/utils/debug-log.ts";
 import { getBinDir } from "../config.ts";
 
 export interface ShellConfig {
@@ -255,7 +256,8 @@ export function killProcessTree(pid: number): void {
 		// AND still leads its own process group (the detached spawn contract) —
 		// a blind group kill of a reused pid could take down the hosting terminal.
 		// Non-group-leaders get a single-pid kill so the command still aborts.
-		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] killProcessTree pid=${pid} pgrp=${processGroupId(pid)}`);
+		if (process.env.PI_DEBUG_URJ === "1")
+			debugLog(`[abort-trace] killProcessTree pid=${pid} pgrp=${processGroupId(pid)}`);
 		if (processGroupId(pid) === pid) {
 			try {
 				process.kill(-pid, "SIGKILL");

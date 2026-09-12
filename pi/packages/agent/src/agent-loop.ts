@@ -13,6 +13,7 @@ import {
 	type ToolResultMessage,
 	validateToolArguments,
 } from "../../ai/src/index.ts";
+import { debugLog } from "../../ai/src/utils/debug-log.ts";
 import { getDefaultStreamFn } from "./stream-fn.ts";
 import type {
 	AgentContext,
@@ -730,7 +731,7 @@ async function executePreparedToolCall(
 		return { result, isError: false };
 	} catch (error) {
 		if (process.env.PI_DEBUG_URJ === "1")
-			console.error(`[abort-trace] tool caught: ${error instanceof Error ? error.message : String(error)}`);
+			debugLog(`[abort-trace] tool caught: ${error instanceof Error ? error.message : String(error)}`);
 		acceptingUpdates = false;
 		await Promise.all(updateEvents);
 		return {

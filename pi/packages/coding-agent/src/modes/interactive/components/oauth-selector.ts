@@ -1,10 +1,10 @@
 import type { ApiKeyAuth } from "../../../../../ai/src/index.ts";
-import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
-import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
-import { Container, type Focusable } from "../../../../../tui/src/tui.ts";
 import { Input } from "../../../../../tui/src/components/input.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { TruncatedText } from "../../../../../tui/src/components/truncated-text.ts";
+import { fuzzyFilter } from "../../../../../tui/src/fuzzy.ts";
+import { getKeybindings } from "../../../../../tui/src/keybindings.ts";
+import { Container, type Focusable } from "../../../../../tui/src/tui.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 

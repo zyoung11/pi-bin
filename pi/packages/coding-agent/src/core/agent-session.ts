@@ -1,4 +1,5 @@
 import type { Api } from "../../../ai/src/types.ts";
+import { debugLog } from "../../../ai/src/utils/debug-log.ts";
 /**
  * AgentSession - Core abstraction for agent lifecycle and session management.
  *
@@ -2249,7 +2250,7 @@ export class AgentSession {
 	 * Cancel running bash command.
 	 */
 	abortBash(): void {
-		if (process.env.PI_DEBUG_URJ === "1") console.error(`[abort-trace] abortBash n=${this._bashAbortFns.length}`);
+		if (process.env.PI_DEBUG_URJ === "1") debugLog(`[abort-trace] abortBash n=${this._bashAbortFns.length}`);
 		for (const abortFn of this._bashAbortFns.slice()) {
 			abortFn("aborted");
 		}

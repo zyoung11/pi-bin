@@ -1,8 +1,9 @@
 import type { AuthCheck, AuthResult, Credential } from "../auth/types.ts";
 import type { Api, Model } from "../types.ts";
+import { debugLog } from "../utils/debug-log.ts";
 
 function abortReason(signal: AbortSignal): unknown {
-	if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] abortReason race-reject");
+	if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] abortReason race-reject");
 	if (signal.reason !== undefined) return signal.reason;
 	const error = new Error("The operation was aborted");
 	error.name = "AbortError";
@@ -17,7 +18,7 @@ export function operationSignal(signal?: AbortSignal): AbortSignal {
 /** Race a void operation against an abort signal (concrete-type variant). */
 export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal): Promise<void> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceVoidWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceVoidWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -26,7 +27,7 @@ export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal)
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceVoidWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceVoidWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -37,7 +38,7 @@ export function raceVoidWithAbort(operation: Promise<void>, signal: AbortSignal)
 /** Race a boolean operation against an abort signal (concrete-type variant). */
 export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortSignal): Promise<boolean> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceBooleanWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -46,7 +47,7 @@ export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortS
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceBooleanWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -57,7 +58,7 @@ export function raceBooleanWithAbort(operation: Promise<boolean>, signal: AbortS
 /** Race a boolean-array operation against an abort signal (concrete-type variant). */
 export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal: AbortSignal): Promise<boolean[]> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceBooleanArrayWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanArrayWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -66,7 +67,7 @@ export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal:
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceBooleanArrayWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceBooleanArrayWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -77,7 +78,7 @@ export function raceBooleanArrayWithAbort(operation: Promise<boolean[]>, signal:
 /** Race an unknown operation against an abort signal (concrete-type variant). */
 export function raceUnknownWithAbort(operation: Promise<unknown>, signal: AbortSignal): Promise<unknown> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceUnknownWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceUnknownWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -86,7 +87,7 @@ export function raceUnknownWithAbort(operation: Promise<unknown>, signal: AbortS
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceUnknownWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceUnknownWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -100,7 +101,7 @@ export function raceAuthCheckWithAbort(
 	signal: AbortSignal,
 ): Promise<AuthCheck | undefined> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceAuthCheckWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthCheckWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -109,7 +110,7 @@ export function raceAuthCheckWithAbort(
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceAuthCheckWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthCheckWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -123,7 +124,7 @@ export function raceModelsWithAbort(
 	signal: AbortSignal,
 ): Promise<readonly Model<Api>[]> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceModelsWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceModelsWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -132,7 +133,7 @@ export function raceModelsWithAbort(
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceModelsWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceModelsWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -143,7 +144,7 @@ export function raceModelsWithAbort(
 /** Race a credential operation against an abort signal (concrete-type variant). */
 export function raceCredentialWithAbort(operation: Promise<Credential>, signal: AbortSignal): Promise<Credential> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceCredentialWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceCredentialWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -152,7 +153,7 @@ export function raceCredentialWithAbort(operation: Promise<Credential>, signal: 
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceCredentialWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceCredentialWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
@@ -166,7 +167,7 @@ export function raceAuthResultWithAbort(
 	signal: AbortSignal,
 ): Promise<AuthResult | undefined> {
 	if (signal.aborted) {
-		if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceAuthResultWithAbort");
+		if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthResultWithAbort");
 		return Promise.reject(abortReason(signal));
 	}
 	return Promise.race([
@@ -175,7 +176,7 @@ export function raceAuthResultWithAbort(
 			signal.addEventListener(
 				"abort",
 				() => {
-					if (process.env.PI_DEBUG_URJ === "1") console.error("[abort-trace] race-reject: raceAuthResultWithAbort");
+					if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] race-reject: raceAuthResultWithAbort");
 					reject(abortReason(signal));
 				},
 				{ once: true },
