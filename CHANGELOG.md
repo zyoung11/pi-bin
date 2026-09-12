@@ -479,6 +479,19 @@ Other:
   of a union cast; `bashDetailsOf` and `readDetailsOf` had the same latent
   `as X | undefined` pattern and got the same treatment (their success-with-
   truncation-details path would hit it). Error text now renders once.
+- Styled edit-error rendering aligned with upstream (verified line-by-line
+  against the official renderer via a deterministic render harness covering
+  preview-error + execute-error and schema-validation scenarios):
+  (a) the edit/bash/read renderResult still threw when details was undefined
+  — the flat-interface rebuilds now guard the undefined/null case, so failed
+  edits render their message through the real result renderer (red fg) and
+  the gray toolOutput fallback duplicate is gone;
+  (b) ToolExecutionComponent no longer installs the pending/error background
+  on the self-render container (upstream's is a background-less Container):
+  the red background now comes only from the edit call header via
+  getEditHeaderBg, and renderCall derives settledError from the live result
+  state (context.isError) so the header turns red in the same frame instead
+  of one repaint later.
 - Verified end-to-end against the local llamacpp endpoint (MiniCPM5-2B): ESC
   during bash kills the child, turns the box red with no stale row, shows
   "Operation aborted", restores queued steering messages to the editor,

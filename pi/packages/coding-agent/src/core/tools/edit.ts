@@ -58,6 +58,9 @@ function writeSettledError(state: Record<string, unknown>, isError: boolean): vo
  * casts of record values crossing the dyn-record boundary, so the details
  * object is rebuilt field-by-field instead of cast to `X | undefined`. */
 function editDetailsOf(details: unknown): EditToolDetails {
+	if (details === undefined || details === null) {
+		return { diff: "", patch: "" };
+	}
 	const view = details as Record<string, unknown>;
 	const diff = typeof view["diff"] === "string" ? view["diff"] : "";
 	const patch = typeof view["patch"] === "string" ? view["patch"] : "";
@@ -500,7 +503,7 @@ export function createEditToolDefinition(cwd: string, options?: EditToolOptions)
 
 			const component = new EditCallRenderComponent();
 			component.preview = editStateOf(context.state)["preview"] as EditPreview | undefined;
-			component.settledError = stateView["settledError"] === true;
+			component.settledError = context.isError === true || stateView["settledError"] === true;
 			return buildEditCallComponent(
 				component,
 				args as RenderableEditArgs | undefined,

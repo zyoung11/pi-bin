@@ -271,8 +271,11 @@ function stopBashInterval(state: Record<string, unknown>): void {
 /** Flat-interface view of tool-result details (union casts of record values
  * crossing the dyn-record boundary throw in scriptc). */
 function bashDetailsOf(details: unknown): BashToolDetails {
-	const view = details as Record<string, unknown>;
 	const out: BashToolDetails = {};
+	if (details === undefined || details === null) {
+		return out;
+	}
+	const view = details as Record<string, unknown>;
 	const fullPath = view["fullOutputPath"];
 	if (typeof fullPath === "string") {
 		out.fullOutputPath = fullPath;

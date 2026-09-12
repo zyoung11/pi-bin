@@ -75,9 +75,11 @@ export class ToolExecutionComponent extends Container {
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
 		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		// selfRenderContainer is used when the tool renders its own framing.
-		// No padding here: self-rendering tools own their background/padding, so the
-		// background spans the full width and vertical rhythm matches default tools.
+		// Self-rendering tools own their backgrounds entirely (e.g. the edit call
+		// header switches pendingBg/errorBg via getEditHeaderBg). Unlike contentBox,
+		// no background is installed here from the outside: painting the whole box
+		// with pendingBg/errorBg deviates from upstream, whose selfRenderContainer
+		// is a plain background-less Container.
 		this.selfRenderContainer = new Box(0, 0);
 
 		if (this.hasRendererDefinition()) {
@@ -269,9 +271,13 @@ export class ToolExecutionComponent extends Container {
 			if (this.getRenderShell() === "self") {
 				renderContainer = this.selfRenderContainer;
 			} else {
+				// Default-shell tools get their whole box painted here. Self-rendering
+				// tools own their backgrounds (e.g. the edit call header switches
+				// pendingBg/errorBg via getEditHeaderBg), so the outer container must
+				// stay transparent to match the upstream layout.
+				this.contentBox.setBgFn(bgFn);
 				renderContainer = this.contentBox;
 			}
-			renderContainer.setBgFn(bgFn);
 			renderContainer.clear();
 
 			const callRenderer = this.getCallRenderer();

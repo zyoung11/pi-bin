@@ -175,8 +175,11 @@ function formatCompactReadCall(
 /** Flat-interface view of tool-result details (union casts of record values
  * crossing the dyn-record boundary throw in scriptc). */
 function readDetailsOf(details: unknown): ReadToolDetails {
-	const view = details as Record<string, unknown>;
 	const out: ReadToolDetails = {};
+	if (details === undefined || details === null) {
+		return out;
+	}
+	const view = details as Record<string, unknown>;
 	const truncation = view["truncation"];
 	if (truncation !== undefined && truncation !== null) {
 		out.truncation = truncation as TruncationResult;
