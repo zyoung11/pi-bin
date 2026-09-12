@@ -508,3 +508,4 @@ Other:
   "Operation aborted", restores queued steering messages to the editor,
   clears the spinner, and the session keeps accepting new prompts; read tool
   results and failed edit results render their error exactly once.
+- Version 0.2.2 → 0.2.3.
