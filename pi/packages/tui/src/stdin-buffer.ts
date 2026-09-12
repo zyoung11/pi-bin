@@ -247,9 +247,19 @@ function extractCompleteSequences(buffer: string): { sequences: string[]; remain
 				return { sequences, remainder: remaining };
 			}
 		} else {
-			// Not an escape sequence - take a single character
-			sequences.push(remaining[0]!);
-			pos++;
+			// Not an escape sequence - take one code point. String indexing
+			// (remaining[0]) splits surrogate pairs, and the scriptc runtime
+			// normalizes lone surrogates to U+FFFD, which mangles emoji input;
+			// Array.from iterates by code point and keeps pairs intact.
+			if (remaining.charCodeAt(0) < 0x80) {
+				sequences.push(remaining[0]!);
+				pos++;
+			} else {
+				const codePoints = Array.from(remaining);
+				const ch = codePoints[0]!;
+				sequences.push(ch);
+				pos += ch.length;
+			}
 		}
 	}
 

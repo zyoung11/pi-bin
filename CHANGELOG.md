@@ -492,6 +492,17 @@ Other:
   getEditHeaderBg, and renderCall derives settledError from the live result
   state (context.isError) so the header turns red in the same frame instead
   of one repaint later.
+- Emoji input in the editor rendered as `��`: two scriptc runtime string
+  semantics verified by probe — (a) single-code-unit indexing (`remaining[0]`)
+  normalizes lone surrogates to U+FFFD, so StdinBuffer's per-character split
+  of non-escape input broke every astral-plane character (Array.from iterates
+  by code point and has a lowering; non-ASCII input now splits by code
+  point); (b) TextDecoder.decode has no streaming mode, so a multi-byte
+  sequence split across stdin chunks decoded to U+FFFD per chunk —
+  ProcessTerminal now buffers trailing incomplete UTF-8 bytes and prepends
+  them to the next chunk before decoding. Verified in the binary: emoji type
+  into the editor, render correctly, survive backspace as whole code points,
+  and reach the model intact; split-chunk decode unit-tested for emoji/CJK.
 - Verified end-to-end against the local llamacpp endpoint (MiniCPM5-2B): ESC
   during bash kills the child, turns the box red with no stale row, shows
   "Operation aborted", restores queued steering messages to the editor,

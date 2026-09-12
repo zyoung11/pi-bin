@@ -133,6 +133,12 @@ export class ProcessTerminal implements Terminal {
 	private keyboardProtocolBufferFlushTimer?: ReturnType<typeof setTimeout>;
 	private stdinBuffer?: StdinBuffer;
 	private stdinDataHandler?: (data: Uint8Array) => void;
+	// Trailing bytes of a stdin chunk that ended mid multi-byte UTF-8 sequence.
+	// TextDecoder has no streaming mode in the scriptc runtime, and decoding a
+	// partial sequence emits U+FFFD, which would corrupt emoji/CJK input split
+	// across stdin chunks. The bytes are held back and prepended to the next
+	// chunk before decoding.
+	private pendingUtf8Tail: Uint8Array = new Uint8Array(0);
 	private progressInterval?: ReturnType<typeof setInterval>;
 	private writeLogPath = (() => {
 		const env = process.env.PI_TUI_WRITE_LOG || "";
@@ -238,7 +244,7 @@ export class ProcessTerminal implements Terminal {
 
 		// Handler that pipes stdin data through the buffer
 		this.stdinDataHandler = (chunk: Uint8Array) => {
-			this.stdinBuffer?.process(new TextDecoder().decode(chunk));
+			this.stdinBuffer?.process(this.decodeUtf8Chunk(chunk));
 		};
 	}
 
@@ -255,6 +261,36 @@ export class ProcessTerminal implements Terminal {
 	 * - 2 = report event types (press/repeat/release)
 	 * - 4 = report alternate keys (shifted key, base layout key)
 	 */
+	/**
+	 * Decode one stdin chunk to a string while holding back any trailing
+	 * incomplete multi-byte UTF-8 sequence until the next chunk completes it.
+	 */
+	private decodeUtf8Chunk(chunk: Uint8Array): string {
+		const bytes = new Uint8Array(this.pendingUtf8Tail.length + chunk.length);
+		bytes.set(this.pendingUtf8Tail, 0);
+		bytes.set(chunk, this.pendingUtf8Tail.length);
+		this.pendingUtf8Tail = new Uint8Array(0);
+
+		// Count trailing bytes that belong to an unfinished multi-byte sequence:
+		// scan back over continuation bytes (0b10xxxxxx) to the leading byte.
+		let tailLength = 0;
+		for (let back = 1; back <= 3 && back <= bytes.length; back++) {
+			const b = bytes[bytes.length - back]!;
+			if ((b & 0xc0) === 0x80) continue;
+			const expected = b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : b >= 0xc0 ? 2 : 1;
+			if (expected > back) {
+				tailLength = back;
+			}
+			break;
+		}
+
+		if (tailLength > 0) {
+			this.pendingUtf8Tail = bytes.slice(bytes.length - tailLength);
+			return new TextDecoder().decode(bytes.slice(0, bytes.length - tailLength));
+		}
+		return new TextDecoder().decode(bytes);
+	}
+
 	private queryAndEnableKittyProtocol(): void {
 		this.setupStdinBuffer();
 		process.stdin.on("data", (chunk: Uint8Array) => {
