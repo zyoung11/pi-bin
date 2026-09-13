@@ -86,7 +86,6 @@ import { extractImageAttachments } from "../../utils/image-attachments.ts";
 import chalk from "../../utils/mini-chalk.ts";
 import { getCwdRelativePath } from "../../utils/paths.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
-import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
@@ -960,13 +959,8 @@ export class InteractiveMode {
 		// Initialize available provider count for footer display
 		await this.updateAvailableProviderCount();
 
-		// Flush the completed startup state before loading the remaining syntax grammars.
+		// Syntax grammars are bundled statically; nothing to lazy-load.
 		this.ui.renderNow();
-		void loadAllHighlightLanguages().then(() => {
-			if (!this.isInitialized) return;
-			this.ui.invalidate();
-			this.ui.requestRender();
-		});
 	}
 
 	private updateTerminalTitle(): void {

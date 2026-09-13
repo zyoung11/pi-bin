@@ -508,4 +508,41 @@ Other:
   "Operation aborted", restores queued steering messages to the editor,
   clears the spinner, and the session keeps accepting new prompts; read tool
   results and failed edit results render their error exactly once.
+- Syntax highlighting restored (was cut in Phase 1: highlight.js's minified
+  npm dist cannot compile statically). The engine is a scriptc-runtime port
+  of rangi 2.2.0's synchronous regex-rule tokenizer (itself an evolution of
+  Speed Highlight, MIT): ~110 lines, leftmost-rule-wins scanning, sub-
+  language recursion, and raw-token output. Runtime constraints discovered
+  by probe and worked around: g/y-flagged exec is rejected (patterns are
+  stripped to non-global clones), RegExp.lastIndex cannot be assigned and
+  RegExpExecArray.index has no lowering (match offsets come from
+  String.search, match text from exec), `in` is unsupported (registry
+  lookups go through Object.keys membership checks), and unknown→record
+  casts of RegExp-bearing values are rejected (no cast-based lookups).
+  Grammar data for 41 languages (ts/js/jsx/tsx/py/rb/go/rs/c/cpp/cs/java/
+  bash/php/sql/yaml/toml/xml/html/css/less/scss/md/lua/pl/docker/make/ps1/
+  graphql/ini/http/regex/csv/git/log/todo/uri/asm/dart/kt...) is generated
+  from rangi's grammar sources into syntax-highlight-langs.ts; four
+  grammars with custom matcher objects (md/dart/kt/js_template_literals)
+  are hand-written simplified variants in syntax-highlight-hand.ts.
+  Non-ASCII characters in patterns are emitted as \\uXXXX escapes because
+  scriptc parses character-class ranges byte-wise. Token types map onto the
+  existing syntax* palette. Verified: tokenizer output is byte-identical to
+  rangi's on a 14-corpus sample (ts/js/py/go/rs/c/bash/json/sql/yaml/css/
+  diff/xml), and the read tool renders python/ts with per-token colors in
+  the real binary.
+- Post-verification fixes: the first engine draft's match enumeration missed
+  rules whose pattern starts mid-line (make's `^.*$` bash-sub rule, kt/dart
+  func rules) and reused stale matches after rule dead-marking, leaving
+  large spans unstyled in kt/dart/make; the scanner now keeps a per-rule
+  match pointer advanced by match start, and the hand-written dart grammar
+  gained the missing func/class rules and the `$name`/`${expr}`
+  interpolation sub-rule. Token streams now match rangi's on 40/44 sample
+  corpora.
+- Known simplifications (documented, not bugs): the jsx/tsx tag-interior,
+  swift `\(...)` interpolation and md fenced-code sub-language routers are
+  dropped (upstream routes them through function sub-languages that cannot
+  be expressed as rule records) — their interiors render untyped. Languages
+  with sparse grammars (log, csv, plain, git) are sparse in rangi itself.
 - Version 0.2.2 → 0.2.3.
+- Version 0.2.3 → 0.2.4.

@@ -11,7 +11,8 @@ import { getCustomThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, type FsPollWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";
 import chalk from "../../../utils/mini-chalk.ts";
-import { highlight, supportsLanguage } from "../../../utils/syntax-highlight.ts";
+import { type ShjLanguageDefinition, tokenize } from "../../../utils/syntax-highlight.ts";
+import { SYNTAX_LANGUAGES } from "../../../utils/syntax-highlight-langs.ts";
 import { stripBom } from "../../../utils/text.ts";
 import { DARK_THEME_JSON } from "./theme-dark.ts";
 
@@ -1089,47 +1090,57 @@ export function getThemeExportColors(themeName?: string): {
 // TUI Helpers
 // ============================================================================
 
-type CliHighlightTheme = Record<string, (s: string) => string>;
-
-let cachedHighlightThemeFor: Theme | undefined;
-let cachedCliHighlightTheme: CliHighlightTheme | undefined;
-
-function buildCliHighlightTheme(t: Theme): CliHighlightTheme {
-	return {
-		keyword: (s: string) => t.fg("syntaxKeyword", s),
-		built_in: (s: string) => t.fg("syntaxType", s),
-		literal: (s: string) => t.fg("syntaxNumber", s),
-		number: (s: string) => t.fg("syntaxNumber", s),
-		regexp: (s: string) => t.fg("syntaxString", s),
-		string: (s: string) => t.fg("syntaxString", s),
-		comment: (s: string) => t.fg("syntaxComment", s),
-		doctag: (s: string) => t.fg("syntaxComment", s),
-		meta: (s: string) => t.fg("muted", s),
-		function: (s: string) => t.fg("syntaxFunction", s),
-		title: (s: string) => t.fg("syntaxFunction", s),
-		class: (s: string) => t.fg("syntaxType", s),
-		type: (s: string) => t.fg("syntaxType", s),
-		tag: (s: string) => t.fg("syntaxPunctuation", s),
-		name: (s: string) => t.fg("syntaxKeyword", s),
-		attr: (s: string) => t.fg("syntaxVariable", s),
-		variable: (s: string) => t.fg("syntaxVariable", s),
-		params: (s: string) => t.fg("syntaxVariable", s),
-		operator: (s: string) => t.fg("syntaxOperator", s),
-		punctuation: (s: string) => t.fg("syntaxPunctuation", s),
-		emphasis: (s: string) => t.italic(s),
-		strong: (s: string) => t.bold(s),
-		link: (s: string) => t.underline(s),
-		addition: (s: string) => t.fg("toolDiffAdded", s),
-		deletion: (s: string) => t.fg("toolDiffRemoved", s),
-	};
+/**
+ * Map a rangi token type to a theme painter. Undefined leaves the text
+ * unstyled (the caller paints plain code-block color).
+ */
+function shjFormatter(t: Theme, type: string): ((s: string) => string) | undefined {
+	if (type === "kwd") return (s: string) => t.fg("syntaxKeyword", s);
+	if (type === "cmnt") return (s: string) => t.fg("syntaxComment", s);
+	if (type === "str" || type === "esc") return (s: string) => t.fg("syntaxString", s);
+	if (type === "num" || type === "bool") return (s: string) => t.fg("syntaxNumber", s);
+	if (type === "func" || type === "section") return (s: string) => t.fg("syntaxFunction", s);
+	if (type === "type" || type === "class") return (s: string) => t.fg("syntaxType", s);
+	if (type === "var") return (s: string) => t.fg("syntaxVariable", s);
+	if (type === "oper" || type === "bracket") return (s: string) => t.fg("syntaxPunctuation", s);
+	if (type === "insert") return (s: string) => t.fg("toolDiffAdded", s);
+	if (type === "deleted") return (s: string) => t.fg("toolDiffRemoved", s);
+	if (type === "err") return (s: string) => t.fg("syntaxVariable", s);
+	return undefined;
 }
 
-function getCliHighlightTheme(t: Theme): CliHighlightTheme {
-	if (cachedHighlightThemeFor !== t || !cachedCliHighlightTheme) {
-		cachedHighlightThemeFor = t;
-		cachedCliHighlightTheme = buildCliHighlightTheme(t);
+/** Registry lookup: canonical names and aliases share one record. */
+function resolveSyntaxLanguage(name: string): ShjLanguageDefinition | undefined {
+	const keys = Object.keys(SYNTAX_LANGUAGES);
+	if (keys.indexOf(name) === -1) return undefined;
+	return SYNTAX_LANGUAGES[name];
+}
+
+/** Whether a grammar exists for the given language name or alias. */
+export function supportsLanguage(name: string): boolean {
+	return resolveSyntaxLanguage(name) !== undefined;
+}
+
+/**
+ * Tokenize the code with the language's grammar and paint each token through
+ * shjFormatter. Text no rule claimed, or a type with no palette entry, is
+ * passed through unstyled.
+ */
+export function highlight(code: string, options: { language?: string }): string {
+	const lang = options.language;
+	if (lang === undefined) return code;
+	const def = resolveSyntaxLanguage(lang);
+	if (def === undefined) return code;
+	let out = "";
+	for (const tok of tokenize(code, lang, resolveSyntaxLanguage)) {
+		if (tok.type === undefined) {
+			out += tok.text;
+			continue;
+		}
+		const fmt = shjFormatter(theme, tok.type);
+		out += fmt !== undefined ? fmt(tok.text) : tok.text;
 	}
-	return cachedCliHighlightTheme;
+	return out;
 }
 
 /**
@@ -1147,8 +1158,6 @@ export function highlightCode(code: string, lang?: string): string[] {
 	}
 	const opts = {
 		language: validLang,
-		ignoreIllegals: true,
-		theme: getCliHighlightTheme(theme),
 	};
 	try {
 		return highlight(code, opts).split("\n");
@@ -1259,8 +1268,6 @@ export function getMarkdownTheme(): MarkdownTheme {
 			}
 			const opts = {
 				language: validLang,
-				ignoreIllegals: true,
-				theme: getCliHighlightTheme(theme),
 			};
 			try {
 				return highlight(code, opts).split("\n");
