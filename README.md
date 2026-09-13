@@ -7,14 +7,14 @@
 <span>╩    ╩                ╚═╝ ╩ ╝╚╝</span></pre>
 </div>
 
-A truly minimal pi-coding-agent compiled to an ~8.6 MB zero-dependency native
+A truly minimal pi-coding-agent compiled to an ~9 MB zero-dependency native
 executable.
 
 Forked from [pi-mono](https://github.com/badlogic/pi-mono) (v0.84.3) and compiled with [scriptc](https://scriptc.dev) (v0.0.35) into a single static Linux binary. No JS engine, no `node_modules` at runtime.
 
 | | pi-bin | pi (Node.js) |
 |---|---|---|
-| Binary | 8.6 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
+| Binary | 9 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
 | Startup to `--version` | ~2 ms | ~380 ms |
 | Startup to `--list-models` | ~20 ms | ~420 ms |
 | TUI ready (no session) | ~50 ms | ~490 ms |
