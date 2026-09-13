@@ -7,11 +7,7 @@
  * approximated.
  */
 
-import {
-	NO_SUB_RULES,
-	type ShjLanguageDefinition,
-	type ShjRule,
-} from "./syntax-highlight.ts";
+import { NO_SUB_RULES, type ShjLanguageDefinition, type ShjRule } from "./syntax-highlight.ts";
 
 // shared: doc-comment reference tags (kt/dart `///` and `/**` doc blocks)
 const docRules: ShjRule[] = [
@@ -54,7 +50,13 @@ const ktEscape: ShjRule = {
 
 export const LANG_MD: ShjLanguageDefinition = {
 	rules: [
-		{ re: /^ {0,3}(?:#{1,6}(?:[ \t]+.*)?|.+?\n {0,3}(?:=+|-+)[ \t]*)$/m, flags: "m", type: "section", sub: "", subRules: NO_SUB_RULES },
+		{
+			re: /^ {0,3}(?:#{1,6}(?:[ \t]+.*)?|.+?\n {0,3}(?:=+|-+)[ \t]*)$/m,
+			flags: "m",
+			type: "section",
+			sub: "",
+			subRules: NO_SUB_RULES,
+		},
 		{ re: /^>.*$/m, flags: "m", type: "cmnt", sub: "", subRules: NO_SUB_RULES },
 		{ re: /\*\*.*?\*\*/, flags: "", type: "class", sub: "", subRules: NO_SUB_RULES },
 		{ re: /^(`{3,})(.*)\n[^]*?^\1[ \t]*$/m, flags: "m", type: "", sub: "", subRules: NO_SUB_RULES },
@@ -80,9 +82,7 @@ export const LANG_JS_TEMPLATE_LITERALS: ShjLanguageDefinition = {
 			flags: "",
 			type: "kwd",
 			sub: "",
-			subRules: [
-				{ re: /(?!^\$|{)[^]+(?=}$)/, flags: "", type: "", sub: "js", subRules: NO_SUB_RULES },
-			],
+			subRules: [{ re: /(?!^\$|{)[^]+(?=}$)/, flags: "", type: "", sub: "js", subRules: NO_SUB_RULES }],
 		},
 	],
 	defaultType: "str",
@@ -134,7 +134,13 @@ export const LANG_DART: ShjLanguageDefinition = {
 		{ re: /\/\/.*\n?/, flags: "", type: "", sub: "todo", subRules: NO_SUB_RULES },
 		{ re: /\*\*(?:[^*]|\*[^/])*\*\//, flags: "", type: "cmnt", sub: "", subRules: docRules },
 		{ re: /\*[^]*?\*/, flags: "", type: "", sub: "todo", subRules: NO_SUB_RULES },
-		{ re: /\br("""|''')(?:((?!\1)[^])*)\1?|\br(["'])((?!\3)[^\r\n])*\3?/, flags: "", type: "str", sub: "", subRules: NO_SUB_RULES },
+		{
+			re: /\br("""|''')(?:((?!\1)[^])*)\1?|\br(["'])((?!\3)[^\r\n])*\3?/,
+			flags: "",
+			type: "str",
+			sub: "",
+			subRules: NO_SUB_RULES,
+		},
 		{ re: /("""|''')(?:\\[^]|(?!\1)[^])*\1?/, flags: "", type: "str", sub: "", subRules: [dartEsc, dartInterp] },
 		{
 			re: /(["'])(?:\\[^]|\$\{(?:[^{}'"\r\n]|'(?:\\[^]|[^'\r\n])*'|"(?:\\[^]|[^"\r\n])*"|\{[^{}]*\})*\}|\$\w+|(?!\1)[^\r\n\\])*\1?/,
@@ -143,7 +149,13 @@ export const LANG_DART: ShjLanguageDefinition = {
 			sub: "",
 			subRules: [dartEsc, dartInterp],
 		},
-		{ re: /\b0[xX][\da-fA-F_]+|(\b\d[\d_]*(\.\d[\d_]*)?|\.\d[\d_]*)([eE][+-]?\d+)?/, flags: "", type: "num", sub: "", subRules: NO_SUB_RULES },
+		{
+			re: /\b0[xX][\da-fA-F_]+|(\b\d[\d_]*(\.\d[\d_]*)?|\.\d[\d_]*)([eE][+-]?\d+)?/,
+			flags: "",
+			type: "num",
+			sub: "",
+			subRules: NO_SUB_RULES,
+		},
 		{ re: /\b(true|false|null)\b/, flags: "", type: "bool", sub: "", subRules: NO_SUB_RULES },
 		{ re: /\b(bool|double|int|num)\b/, flags: "", type: "type", sub: "", subRules: NO_SUB_RULES },
 		{

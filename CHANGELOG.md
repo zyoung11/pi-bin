@@ -544,5 +544,25 @@ Other:
   dropped (upstream routes them through function sub-languages that cannot
   be expressed as rule records) — their interiors render untyped. Languages
   with sparse grammars (log, csv, plain, git) are sparse in rangi itself.
+- Mermaid diagram rendering restored. The renderer is a scriptc-runtime port
+  of grok-mermaid 0.2.2 (Apache-2.0, xl0/grok-mermaid) — a zero-dependency,
+  terminal-first layout engine that parses flowchart/state/class/ER/sequence
+  sources into Unicode box-drawing diagrams with themed spans. Adaptations
+  for the scriptc runtime: Intl.Segmenter replaced with the TUI's local
+  TextSegmenter, generator functions rewritten as array passes, Map keys
+  restricted to numbers (null scope → -1), new Array/fill and compound
+  array-element assignments lowered to explicit loops, and switch dispatch
+  over unions converted to if-chains. The Markdown transformer intercepts
+  ```mermaid fences (skipping assistant-thinking and non-streaming states,
+  with a width guard and parse warnings); the settings-manager mermaid mode
+  (off/streaming/on) was already in place. Verified: render output (plain
+  rows, styled spans, widths, warnings) is byte-identical to upstream
+  grok-mermaid 0.2.2 on flowchart/state/class/ER/sequence samples, and a
+  real session renders a three-node flowchart with themed borders and
+  arrows in the binary. Follow-up crash fix: fenced blocks with indented
+  content (the common model style) hit uncatchable array-out-of-bounds
+  traps in the layout engine — the transformer now dedents fence content
+  by the opening fence's indentation per CommonMark, which is what the
+  upstream marked-lexer path provided.
 - Version 0.2.2 → 0.2.3.
 - Version 0.2.3 → 0.2.4.

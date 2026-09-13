@@ -69,6 +69,7 @@ import {
 	handleConfigCommand,
 	handlePackageCommand,
 } from "./package-manager-cli.ts";
+import { render } from "./utils/mermaid/index.ts";
 import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
@@ -93,6 +94,26 @@ if (process.env.PI_PROBE_UTF8 === "1") {
 	const pair = String.fromCharCode(0xd83d, 0xde00);
 	console.error(`[probe] decoded len=${decoded.length} codes=${hexCodes(decoded)}`);
 	console.error(`[probe] fromCharCode-pair len=${pair.length} codes=${hexCodes(pair)}`);
+}
+
+// PI_PROBE_MERMAID=1: render candidate diagrams to locate scriptc traps.
+if (process.env.PI_PROBE_MERMAID === "1") {
+	const candidates: Array<[string, string]> = [
+		["plain-cjk-nodes", "graph TD\n    A[开始] --> B[处理] --> C[结束]"],
+		["diamond-cjk", "graph TD\n    A[开始] --> B{条件判断}\n    B --> C"],
+		["edge-label-cjk", "graph TD\n    A -->|是| B"],
+		[
+			"diamond-cjk-edge-labels",
+			"graph TD\n    A[开始] --> B{条件判断}\n    B -->|是| C[执行A]\n    B -->|否| D[执行B]\n    C --> E",
+		],
+	];
+	for (const [name, src] of candidates) {
+		console.error(`[probe] rendering: ${name}`);
+		const art = render(src);
+		console.error(`[probe] rendered: ${art === null ? "null" : `${art.width} cols`}`);
+	}
+	console.error("[probe] all done");
+	process.exit(0);
 }
 
 // Long-running interactive TUI: stray promise rejections from aborted
