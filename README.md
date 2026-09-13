@@ -40,8 +40,7 @@ Removed:
 - Extension system (TypeScript extensions, extension marketplace)
 - grep / find / ls
 - Fullscreen TUI mode (regular mode only)
-- Mermaid diagram rendering, syntax highlighting (code renders as plain
-  theme-colored text)
+- Mermaid diagram rendering
 - Telemetry, update checks, first-run wizard
 - OAuth/subscription authentication (Claude Pro/Max, ChatGPT/Codex, GitHub
   Copilot logins are not available; API-key providers work fine via `/login`)
@@ -51,6 +50,12 @@ Removed:
 
 Everything else (the agent loop, tools, TUI, sessions, compaction, skills,
 prompt templates, and the bash/edit/read/write workflow) behaves the same.
+
+Session loading differs by design. Instead of rendering the whole transcript
+before the TUI becomes usable, which grows with history size, the newest
+screens render first and the TUI is interactive immediately. Older history
+back-fills in the background over the following ~20 s, so scrolling far up
+into old history may still be filling in during that window.
 
 The scriptc compiler (v0.0.35) is bundled in the repo at `scriptc/`, so no
 separate install is needed. It is included unmodified and pinned for reproducible builds and debugging. No compiler changes were made, and all fixes live in this repo's TypeScript source. 
