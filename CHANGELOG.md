@@ -566,3 +566,4 @@ Other:
   upstream marked-lexer path provided.
 - Version 0.2.2 → 0.2.3.
 - Version 0.2.3 → 0.2.4.
+- Version 0.2.4 → 0.2.5.

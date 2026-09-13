@@ -40,7 +40,6 @@ Removed:
 - Extension system (TypeScript extensions, extension marketplace)
 - grep / find / ls
 - Fullscreen TUI mode (regular mode only)
-- Mermaid diagram rendering
 - Telemetry, update checks, first-run wizard
 - OAuth/subscription authentication (Claude Pro/Max, ChatGPT/Codex, GitHub
   Copilot logins are not available; API-key providers work fine via `/login`)
