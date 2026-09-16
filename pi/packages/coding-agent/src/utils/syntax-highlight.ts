@@ -213,8 +213,7 @@ export function eachToken(
 			i = bestEnd;
 		}
 		onToken(src.slice(i, src.length), def.defaultType);
-	} catch (e) {
-		console.error(`[shj-engine] eachToken threw: ${e instanceof Error ? e.message : String(e)}`);
+	} catch {
 		onToken(src);
 	}
 }

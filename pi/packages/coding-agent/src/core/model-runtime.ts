@@ -34,7 +34,11 @@ import {
 	type ProviderHeaders,
 	type ProviderRequestOptions,
 	type SimpleStreamOptions,
+	type StreamOptionExtras,
 	type StreamOptions,
+	type ThinkingBudgets,
+	type ThinkingLevel,
+	type ToolChoice,
 } from "../../../ai/src/index.ts";
 import { getAgentDir } from "../config.ts";
 import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
@@ -586,11 +590,11 @@ export class ModelRuntime implements Models {
 
 	private async prepareRequest(
 		model: Model<Api>,
-		options: (ProviderRequestOptions & ModelsRequestTransforms) | undefined,
+		options: (ProviderRequestOptions & ModelsRequestTransforms & StreamOptionExtras) | undefined,
 	): Promise<{
 		provider: Provider;
 		model: Model<Api>;
-		options: ProviderRequestOptions;
+		options: ProviderRequestOptions & StreamOptionExtras;
 	}> {
 		const provider = this.models.getProvider(model.provider);
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
@@ -601,31 +605,35 @@ export class ModelRuntime implements Models {
 		});
 		if (!resolution) throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
 
-		const emptyOptions: ProviderRequestOptions = {};
-		let providerOptions: ProviderRequestOptions;
-		if (options !== undefined) {
-			providerOptions = options;
-		} else {
-			providerOptions = emptyOptions;
-		}
-		let headers = mergeHeaders(resolution.auth.headers, providerOptions.headers);
-		const transformHeaders = options?.transformHeaders;
+		const sourceOptions: ProviderRequestOptions & ModelsRequestTransforms & StreamOptionExtras = options ?? {};
+		let headers = mergeHeaders(resolution.auth.headers, sourceOptions.headers);
+		const transformHeaders = sourceOptions.transformHeaders;
 		if (transformHeaders !== undefined) {
 			headers = await transformHeaders(headers ?? {});
 		}
 		const env =
-			resolution.env || providerOptions.env
-				? { ...(resolution.env ?? {}), ...(providerOptions.env ?? {}) }
-				: undefined;
+			resolution.env || sourceOptions.env ? { ...(resolution.env ?? {}), ...(sourceOptions.env ?? {}) } : undefined;
+		const builtOptions: ProviderRequestOptions & StreamOptionExtras = {
+			signal: sourceOptions.signal,
+			telemetryContext: sourceOptions.telemetryContext,
+			apiKey: sourceOptions.apiKey ?? resolution.auth.apiKey,
+			fetch: sourceOptions.fetch,
+			env,
+			onPayload: sourceOptions.onPayload,
+			onResponse: sourceOptions.onResponse,
+			headers,
+			timeoutMs: sourceOptions.timeoutMs,
+			maxRetries: sourceOptions.maxRetries,
+			maxRetryDelayMs: sourceOptions.maxRetryDelayMs,
+			reasoning: sourceOptions.reasoning,
+			reasoningEffort: sourceOptions.reasoningEffort,
+			toolChoice: sourceOptions.toolChoice,
+			thinkingBudgets: sourceOptions.thinkingBudgets,
+		};
 		return {
 			provider,
 			model: resolution.auth.baseUrl ? { ...model, baseUrl: resolution.auth.baseUrl } : model,
-			options: {
-				...providerOptions,
-				apiKey: providerOptions.apiKey ?? resolution.auth.apiKey,
-				headers,
-				env,
-			},
+			options: builtOptions,
 		};
 	}
 
@@ -637,7 +645,7 @@ export class ModelRuntime implements Models {
 		return lazyStream(model, async () => {
 			const prepared = await this.prepareRequest(
 				model,
-				options as (StreamOptions & ModelsRequestTransforms) | undefined,
+				options as (StreamOptions & ModelsRequestTransforms & StreamOptionExtras) | undefined,
 			);
 			return prepared.provider.stream(
 				prepared.model as Model<TApi>,

@@ -567,3 +567,130 @@ Other:
 - Version 0.2.2 → 0.2.3.
 - Version 0.2.3 → 0.2.4.
 - Version 0.2.4 → 0.2.5.
+
+## Phase 15 — models.dev catalog refresh keeps protocol metadata
+
+- The startup background refresh (interactive mode, 3 s after launch, for
+  providers with a stored API key) replaced same-id catalog models with the
+  models.dev conversion wholesale. `modelsDevToCatalogModels` only emits
+  directory fields (name/cost/contextWindow/maxTokens/modalities), so every
+  refreshed provider's models lost their catalog `compat` and
+  `thinkingLevelMap` — both in the runtime registry and in the
+  models-store.json snapshot written after each refresh.
+- Consequence observed with deepseek/deepseek-v4-flash (catalog
+  `thinkingLevelMap` maps medium to null): with the map gone,
+  `getSupportedThinkingLevels` offered all levels, the settings default
+  "medium" stopped being clamped, the footer showed a level the model does
+  not support, and the inferred compat sent DeepSeek a `reasoning_effort`
+  parameter it does not document (the thinking toggle itself still worked:
+  V4 Flash thinks by default, verified against the live API).
+- `mergeCatalogModels` now merges instead of overwriting: for same-id models
+  the directory fields come from the refresh source while `compat` and
+  `thinkingLevelMap` stay catalog-authoritative (explicit field construction,
+  no spread-after-explicit — scriptc rejects it). New ids from the refresh
+  source are appended unchanged.
+- Verified in an isolated PI_CODING_AGENT_DIR smoke run: after the refresh
+  fires, models-store.json carries the updated costs alongside the intact
+  compat/thinkingLevelMap, deepseek-v4-flash clamps a "medium" request to
+  high, and new models.dev entries (deepseek-flash) still register.
+
+## Phase 16 — reasoning survives the request-options chain
+
+- The first fix exposed a second, deeper loss: with catalog metadata intact
+  the DeepSeek request still carried `thinking:{type:"disabled"}`. JSON
+  probes at each hop (JSON.stringify of a null-armed wrapper — cast-view
+  reads are shape-instantiated and lie about dynamically-added keys) traced
+  `reasoning:"medium"` surviving model-runtime → prepareRequest → the
+  provider composer, then vanishing before the openai-completions adapter.
+- Root cause: scriptc statically instantiates records across call boundaries
+  using the declared fields of the target shape; fields present at runtime
+  but missing from the declared parameter type are silently dropped. Three
+  shapes did not declare the SimpleStreamOptions extras:
+  - provider-composer `streamWith` (typed `StreamOptions`) — the main drop:
+    every simple request passes through it;
+  - model-runtime `prepareRequest` (typed `ProviderRequestOptions &
+    ModelsRequestTransforms`) for parameter and return;
+  - openai-completions `streamSimple`, whose `{...base, reasoningEffort}`
+    spread-after-explicit literal dropped the explicitly added fields.
+- Fixes: `StreamOptionExtras` declared in ai/src/types.ts (toolChoice,
+  reasoning, deferred, thinkingBudgets, reasoningEffort) and intersected into
+  `SimpleStreamOptions`; `streamWith` and `prepareRequest` parameter/return
+  shapes intersect it; both option constructions rewritten as fully explicit
+  literals (no spread-after-explicit).
+- Verified end-to-end in the compiled binary: deepseek-flash streams
+  `thinking:{type:"enabled"}` + `reasoning_effort:"medium"`, the reasoning
+  content renders as the italic thinking block in the TUI, and
+  `--thinking off` sends `thinking:{type:"disabled"}` which the live API
+  confirms turns reasoning off (reasoning_tokens 0).
+- Static-runtime field loss diagnosed with file-based probes (stderr is
+  swallowed by the running TUI, and cast-view reads lie about dynamically
+  added keys — JSON.stringify wrappers and appendFileSync traces are the
+  reliable instruments). Model-object fields (thinkingLevelMap and friends)
+  do not survive the applyModelsJson/applyExtension rebuild chain, so a
+  module-level override registry (setThinkingLevelMapOverride/
+  getThinkingLevelMapOverride in ai/src/models.ts, Map<string, string> with
+  the map serialized as JSON) now carries thinking-level data to
+  getSupportedThinkingLevels, clampThinkingLevel and the openai-completions
+  buildParams lookup. Write points: provider-composer modelFromJson (from
+  store-derived definitions) and the provider-catalog xiaomi refresh
+  post-processing (xiaomiMimoThinkingLevelMap). The official MiMo docs
+  (mimo.mi.com) confirm the request body has no reasoning_effort parameter at
+  all and thinking is only {type:"enabled"/"disabled"} (default enabled), so
+  xiaomi models set compat.supportsReasoningEffort=false at modelFromJson and
+  in detectCompat — the deepseek-format branch never sends reasoning_effort
+  and thinking:{type} is the only control. Verified effort table:
+  low/medium/high/xhigh return 200 (values ignored server-side),
+  minimal/max/ultra return 400; live curl probes for xhigh are unreliable
+  (passed once, failed in the real pi session), so xhigh is treated as
+  unsupported. User-facing levels: off/low/medium/high only. A per-model
+  "minimal" entry is mapped to low (the API's lightest effort).
+- Tool-box repaint: the differential-rendering cursor drift on
+  tool_execution_end (stale pending-colored row above the green box) applies
+  to the success transition too once thinking blocks render above the box;
+  requestRenderForce(true) is now issued for every tool completion instead of
+  errors only. The transient border-line flicker that remains is the forced
+  immediate frame itself; residual legacy probes ([tree-dbg], [tl-dbg],
+  [IDDBG], [abort-trace], [perf-*], [REQ], [PARSE-FAIL], [probe],
+  [shj-engine]) were removed along with the standalone probe files
+  (probe48.ts, probe-crash.ts, cat-verify-tmp.ts) and the structuredClone/
+  deepFreeze calls in ModelConfig.load whose static lowering dropped
+  thinkingLevelMap from synthesized providers.
+- Verified: deepseek-flash offers off/low/high/max with per-model max
+  persisted, requests carry `thinking:{type:"enabled"}` +
+  `reasoning_effort:"max"` per the official mapping, mimo-v2.5-pro clamps a
+  global medium to low, and /tree opens without debug leakage.
+- Thinking levels for refresh-added models: models.dev carries a
+  `reasoning_options` field (toggle + effort values) that the refresh
+  conversion ignored, so deepseek-flash had no thinkingLevelMap and offered
+  no max level. `modelsDevToCatalogModels` now translates reasoning_options
+  into a thinkingLevelMap (effort values map to same-named levels, missing
+  levels to null, no toggle entry means off cannot be disabled via
+  `off: null`, no effort entry means no map). Cross-checked against
+  pi-main's generate-models.ts: the same models.dev field feeds upstream's
+  getEffortThinkingLevelMap (for openai-format models), while upstream covers
+  deepseek-v4 via hand-verified constants (DEEPSEEK_V4_FLASH_THINKING_LEVEL_MAP)
+  matched by `id.includes("deepseek-v4")` — which does not cover the newer
+  deepseek-flash either; the generated map for deepseek-flash matches those
+  constants and the official DeepSeek effort table (low/high/max,
+  reasoning_effort max passes through). detectCompat in pi-main also has no
+  xiaomi entry, so the pi-bin detectCompat patch is an additive superset.
+- Verified: after the refresh fires, deepseek-flash reports levels
+  off/low/high/max, a per-model max setting clamps correctly and the request
+  carries `thinking:{type:"enabled"}` + `reasoning_effort:"max"`, matching
+  the official DeepSeek thinking-mode docs.
+- Xiaomi mimo 400 fix: the live API rejects `reasoning_effort:"minimal"`
+  and `"max"` with 400 Invalid request parameters (verified); only low/high
+  are accepted. models.dev lists only a toggle for xiaomi models, so neither
+  the builtin catalog nor the refresh produced a thinkingLevelMap — and the
+  models-store.json synthesis path (synthesizeProvidersFromModelsStore, which
+  materializes runtime providers for keyed catalog providers) served
+  map-less model instances, letting an unsupportable per-model "minimal"
+  level reach the API. A verified XIAOMI_MIMO_THINKING_LEVEL_MAP
+  (low/high, others null) is now applied in three places: the builtin catalog
+  entries, the models.dev refresh conversion, and the store synthesis path;
+  plus refreshCurrentModelMetadata() re-resolves the session model and
+  re-clamps the level after a refresh so new metadata applies without a
+  restart.
+- Verified: mimo-v2.5-pro with a per-model "minimal" setting clamps to low at
+  startup (footer • low), the bash-tool request carries
+  `thinking:{type:"enabled"}` + `reasoning_effort:"low"` and succeeds.

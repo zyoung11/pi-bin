@@ -118,8 +118,7 @@ by a confirmed crash:
    `PI_CODING_AGENT_DIR` (pointing at a temp dir seeded with `models.json`,
    `models-store.json`, `auth.json`) — plain `PI_AGENT_DIR` does nothing.
 
-Debugging tools: `PI_DEBUG_REQ=1` dumps the request body, `PI_DEBUG_SSE=1` prints
-dropped SSE payloads (PARSE-FAIL), scriptc traps print a native backtrace,
+Debugging tools: scriptc traps print a native backtrace,
 `--sanitize` builds an ASan binary for heap corruption, `journalctl -k` separates
 kernel OOM kills from scriptc aborts. See the guide in `../docs/` for the full
 debugging playbook.

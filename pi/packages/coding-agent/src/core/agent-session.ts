@@ -1444,6 +1444,20 @@ export class AgentSession {
 	}
 
 	/**
+	 * Re-resolve the current model from the runtime after a catalog refresh and re-clamp
+	 * the thinking level, so refreshed metadata (e.g. thinkingLevelMap) applies to the
+	 * running session without a restart.
+	 */
+	refreshCurrentModelMetadata(): void {
+		const current = this.agent.state.model;
+		if (!current) return;
+		const fresh = this._modelRuntime.getModel(current.provider, current.id);
+		if (!fresh || fresh === current) return;
+		this.agent.state.model = fresh;
+		this.setThinkingLevel(this.agent.state.thinkingLevel);
+	}
+
+	/**
 	 * Get available thinking levels for current model.
 	 * The provider will clamp to what the specific model supports internally.
 	 */
@@ -2250,7 +2264,6 @@ export class AgentSession {
 	 * Cancel running bash command.
 	 */
 	abortBash(): void {
-		if (process.env.PI_DEBUG_URJ === "1") debugLog(`[abort-trace] abortBash n=${this._bashAbortFns.length}`);
 		for (const abortFn of this._bashAbortFns.slice()) {
 			abortFn("aborted");
 		}

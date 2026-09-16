@@ -137,9 +137,6 @@ export async function streamOpenAIChatCompletions(
 	armIdleTimer();
 
 	try {
-		if (process.env.PI_DEBUG_REQ) {
-			console.error(`[REQ] ${JSON.stringify(options.body)}`);
-		}
 		let response: Response;
 		if (customFetch !== undefined) {
 			response = await customFetch(options.url, {
@@ -222,10 +219,7 @@ export async function streamOpenAIChatCompletions(
 					try {
 						const parsedChunk = JSON.parse(payload) as ChatCompletionChunk;
 						await onChunk(parsedChunk);
-					} catch (parseError) {
-						if (process.env.PI_DEBUG_SSE) {
-							console.error(`[PARSE-FAIL] ${String(parseError)} payload=${payload.slice(0, 200)}`);
-						}
+					} catch {
 						// skip malformed payloads
 					}
 				}

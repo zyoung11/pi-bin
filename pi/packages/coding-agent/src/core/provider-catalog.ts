@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { setThinkingLevelMapOverride } from "../../../ai/src/models.ts";
 
 /** Dyn view over external-data records (models.dev payloads, store files). */
 function recordViewOf(value: unknown): Record<string, unknown> {
@@ -768,8 +769,8 @@ export const CATALOG_PROVIDERS: CatalogProvider[] = [
 		name: "Xiaomi",
 		baseUrl: "https://api.xiaomimimo.com/v1",
 		models: [
-			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.0028,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
-			{"id":"mimo-v2.5-pro","name":"MiMo-V2.5-Pro","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text"],"cost":{"input":0.435,"output":0.87,"cacheRead":0.0036,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
+			{"id":"mimo-v2.5","name":"MiMo-V2.5","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text","image"],"cost":{"input":0.14,"output":0.28,"cacheRead":0.0028,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek","supportsReasoningEffort":false},"thinkingLevelMap":{"minimal":"low","low":"low","medium":"medium","high":"high","xhigh":null,"max":null}},
+			{"id":"mimo-v2.5-pro","name":"MiMo-V2.5-Pro","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text"],"cost":{"input":0.435,"output":0.87,"cacheRead":0.0036,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek","supportsReasoningEffort":false},"thinkingLevelMap":{"minimal":"low","low":"low","medium":"medium","high":"high","xhigh":null,"max":null}},
 			{"id":"mimo-v2.5-pro-ultraspeed","name":"MiMo-V2.5-Pro-UltraSpeed","api":"openai-completions","baseUrl":"https://api.xiaomimimo.com/v1","reasoning":true,"input":["text"],"cost":{"input":1.305,"output":2.61,"cacheRead":0.0108,"cacheWrite":0},"contextWindow":1048576,"maxTokens":131072,"compat":{"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"}},
 		],
 	},
@@ -900,7 +901,69 @@ export function mergeCatalogProviderIntoStore(storePath: string, provider: Catal
 
 const MODELS_DEV_URL = "https://models.dev/api.json";
 
+/** MiMo API control surface: thinking is a boolean toggle (thinking:{type:"enabled"/
+ * "disabled"}, default enabled); the request body has no reasoning_effort parameter at
+ * all, so reasoning_effort is never sent (compat.supportsReasoningEffort false) and all
+ * selectable pi levels are equivalent to "thinking on". xhigh/max/null are disabled:
+ * they clamp down to high. Returned fresh each call: spreading an imported
+ * module-level record across module boundaries throws under scriptc. */
+export function xiaomiMimoThinkingLevelMap(): Record<string, unknown> {
+	return {
+		minimal: "low",
+		low: "low",
+		medium: "medium",
+		high: "high",
+		xhigh: null,
+		max: null,
+	};
+}
+
 /** Convert one models.dev provider entry into catalog model definitions. */
+/**
+ * Translate models.dev reasoning_options into a thinkingLevelMap. An effort entry
+ * maps each pi level to itself when listed, null otherwise; a model without a
+ * toggle entry cannot turn reasoning off (off: null); models with no effort entry
+ * get no map (levels unrestricted), matching the catalog generation upstream.
+ */
+function reasoningOptionsToLevelMap(reasoningOptions: unknown): Record<string, unknown> | undefined {
+	if (!Array.isArray(reasoningOptions)) return undefined;
+	let hasToggle = false;
+	let hasEffort = false;
+	let hasLow = false;
+	let hasMedium = false;
+	let hasHigh = false;
+	let hasMax = false;
+	let hasMinimal = false;
+	for (const item of reasoningOptions) {
+		if (typeof item !== "object" || item === null) continue;
+		const record = recordViewOf(item);
+		const type = typeof record["type"] === "string" ? record["type"] : undefined;
+		if (type === "toggle") hasToggle = true;
+		if (type !== "effort") continue;
+		const values = record["values"];
+		if (!Array.isArray(values)) continue;
+		hasEffort = true;
+		for (const value of values) {
+			if (value === "minimal") hasMinimal = true;
+			else if (value === "low") hasLow = true;
+			else if (value === "medium") hasMedium = true;
+			else if (value === "high") hasHigh = true;
+			else if (value === "max") hasMax = true;
+		}
+	}
+	if (!hasEffort) return undefined;
+	if (!hasMinimal && !hasLow && !hasMedium && !hasHigh && !hasMax) return undefined;
+	const map: Record<string, unknown> = {};
+	if (!hasToggle) map["off"] = null;
+	map["minimal"] = hasMinimal ? "minimal" : null;
+	map["low"] = hasLow ? "low" : null;
+	map["medium"] = hasMedium ? "medium" : null;
+	map["high"] = hasHigh ? "high" : null;
+	map["xhigh"] = null;
+	map["max"] = hasMax ? "max" : null;
+	return map;
+}
+
 function modelsDevToCatalogModels(
 	baseUrl: string,
 	devProvider: Record<string, unknown>,
@@ -916,6 +979,7 @@ function modelsDevToCatalogModels(
 		const costRecord =
 			typeof entry["cost"] === "object" && entry["cost"] !== null ? recordViewOf(entry["cost"]) : {};
 		const contextWindow = typeof limit["context"] === "number" ? limit["context"] : 131072;
+		const thinkingLevelMap = reasoningOptionsToLevelMap(entry["reasoning_options"]);
 		const modalities =
 			typeof entry["modalities"] === "object" && entry["modalities"] !== null
 				? recordViewOf(entry["modalities"])
@@ -935,6 +999,7 @@ function modelsDevToCatalogModels(
 			},
 			contextWindow,
 			maxTokens: typeof limit["output"] === "number" ? limit["output"] : Math.min(16384, contextWindow),
+			thinkingLevelMap,
 		};
 		out.push(model);
 	}
@@ -970,6 +1035,14 @@ export async function refreshCatalogFromModelsDev(
 			const devRecord = recordViewOf(devProvider);
 			const models = modelsDevToCatalogModels(provider.baseUrl, devRecord);
 			if (models.length === 0) continue;
+			// Xiaomi mimo endpoints accept reasoning_effort low/high only; minimal/max are
+			// rejected with 400 (verified against the live API). models.dev only lists a
+			// toggle for these models, so the verified map is applied explicitly.
+			if (providerId === "xiaomi" || providerId === "xiaomi-token-plan-cn" || providerId === "xiaomi-token-plan-sgp") {
+				for (const model of models) {
+					if (model.reasoning) setThinkingLevelMapOverride(providerId, model.id, xiaomiMimoThinkingLevelMap());
+				}
+			}
 			mergeCatalogModels(provider, models);
 			store[providerId] = {
 				baseUrl: provider.baseUrl,
@@ -990,8 +1063,32 @@ export async function refreshCatalogFromModelsDev(
 function mergeCatalogModels(provider: CatalogProvider, models: CatalogModel[]): void {
 	const byId = new Map<string, CatalogModel>();
 	for (const model of provider.models) byId.set(model.id, model);
-	for (const model of models) byId.set(model.id, model);
+	for (const model of models) {
+		const existing = byId.get(model.id);
+		if (existing === undefined) {
+			byId.set(model.id, model);
+			continue;
+		}
+		byId.set(model.id, mergeCatalogModelData(existing, model));
+	}
 	const merged: CatalogModel[] = [];
 	for (const model of byId.values()) merged.push(model);
 	provider.models = merged;
+}
+
+/** Directory fields come from the refresh source; protocol metadata stays catalog-authoritative. */
+function mergeCatalogModelData(existing: CatalogModel, update: CatalogModel): CatalogModel {
+	return {
+		id: update.id,
+		name: update.name,
+		api: update.api,
+		baseUrl: update.baseUrl,
+		reasoning: update.reasoning,
+		input: update.input,
+		cost: update.cost,
+		contextWindow: update.contextWindow,
+		maxTokens: update.maxTokens,
+		compat: existing.compat,
+		thinkingLevelMap: existing.thinkingLevelMap,
+	};
 }

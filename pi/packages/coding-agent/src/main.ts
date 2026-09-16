@@ -74,48 +74,6 @@ import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
 
-// PI_PROBE_UTF8=1: ground-truth probe of the runtime's string semantics.
-if (process.env.PI_PROBE_UTF8 === "1") {
-	const bytes = new Uint8Array(4);
-	bytes[0] = 0xf0;
-	bytes[1] = 0x9f;
-	bytes[2] = 0x98;
-	bytes[3] = 0x80;
-	const decoded = new TextDecoder().decode(bytes);
-	const hexCodes = (str: string): string => {
-		const digits = "0123456789abcdef";
-		let out = "";
-		for (let i = 0; i < str.length; i++) {
-			const code = str.charCodeAt(i);
-			out += `${digits[(code >> 12) & 15]}${digits[(code >> 8) & 15]}${digits[(code >> 4) & 15]}${digits[code & 15]} `;
-		}
-		return out;
-	};
-	const pair = String.fromCharCode(0xd83d, 0xde00);
-	console.error(`[probe] decoded len=${decoded.length} codes=${hexCodes(decoded)}`);
-	console.error(`[probe] fromCharCode-pair len=${pair.length} codes=${hexCodes(pair)}`);
-}
-
-// PI_PROBE_MERMAID=1: render candidate diagrams to locate scriptc traps.
-if (process.env.PI_PROBE_MERMAID === "1") {
-	const candidates: Array<[string, string]> = [
-		["plain-cjk-nodes", "graph TD\n    A[开始] --> B[处理] --> C[结束]"],
-		["diamond-cjk", "graph TD\n    A[开始] --> B{条件判断}\n    B --> C"],
-		["edge-label-cjk", "graph TD\n    A -->|是| B"],
-		[
-			"diamond-cjk-edge-labels",
-			"graph TD\n    A[开始] --> B{条件判断}\n    B -->|是| C[执行A]\n    B -->|否| D[执行B]\n    C --> E",
-		],
-	];
-	for (const [name, src] of candidates) {
-		console.error(`[probe] rendering: ${name}`);
-		const art = render(src);
-		console.error(`[probe] rendered: ${art === null ? "null" : `${art.width} cols`}`);
-	}
-	console.error("[probe] all done");
-	process.exit(0);
-}
-
 // Long-running interactive TUI: stray promise rejections from aborted
 // operations (an ESC interrupt races in-flight work, losing rejections of
 // losing promises) must not kill the whole session. Log them to a file —

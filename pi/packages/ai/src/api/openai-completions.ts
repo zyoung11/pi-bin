@@ -1,4 +1,4 @@
-import { calculateCost, clampThinkingLevel } from "../models.ts";
+import { calculateCost, clampThinkingLevel, getThinkingLevelMapOverride } from "../models.ts";
 import type {
 	AssistantMessage,
 	CacheRetention,
@@ -845,18 +845,37 @@ export const streamSimple: StreamFunction<"openai-completions", SimpleStreamOpti
 	getClientApiKey(model.provider, options?.apiKey, options?.headers);
 
 	const baseOptions = buildBaseOptions(model, context, options, options?.apiKey);
-	const base = {
-		...baseOptions,
-		toolChoice: options?.toolChoice,
-	} satisfies OpenAICompletionsOptions;
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 	const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
 
-	return stream(model, context, {
-		...base,
+	// Fully explicit construction: a spread literal here ({...base, reasoningEffort}) is
+	// spread-after-explicit, whose static lowering drops the explicitly added fields.
+	const finalOptions: OpenAICompletionsOptions = {
+		signal: baseOptions.signal,
+		telemetryContext: baseOptions.telemetryContext,
+		apiKey: baseOptions.apiKey,
+		fetch: baseOptions.fetch,
+		env: baseOptions.env,
+		onPayload: baseOptions.onPayload,
+		onResponse: baseOptions.onResponse,
+		headers: baseOptions.headers,
+		timeoutMs: baseOptions.timeoutMs,
+		maxRetries: baseOptions.maxRetries,
+		maxRetryDelayMs: baseOptions.maxRetryDelayMs,
+		temperature: baseOptions.temperature,
+		samplingParams: baseOptions.samplingParams,
+		maxTokens: baseOptions.maxTokens,
+		transport: baseOptions.transport,
+		cacheRetention: baseOptions.cacheRetention,
+		sessionId: baseOptions.sessionId,
+		websocketConnectTimeoutMs: baseOptions.websocketConnectTimeoutMs,
+		metadata: baseOptions.metadata,
+		toolChoice: options?.toolChoice,
 		reasoningEffort,
 		thinkingBudgets: options?.thinkingBudgets,
-	} satisfies OpenAICompletionsOptions);
+	};
+
+	return stream(model, context, finalOptions);
 };
 
 interface HttpTransport {
@@ -924,7 +943,11 @@ function buildParams(
 	// through the typed record traps on missing/null-mapped keys under scriptc, so
 	// all lookups below go through the dyn channel.
 	const modelRecord = recordViewOf(model);
-	const thinkingLevelMapValue: unknown = modelRecord["thinkingLevelMap"];
+	// The runtime registry override (populated from models.dev reasoning_options and
+	// synthesized store entries) wins over the object field, whose value does not
+	// survive static-runtime call boundaries.
+	const overrideMap = getThinkingLevelMapOverride(model);
+	const thinkingLevelMapValue: unknown = overrideMap !== undefined ? overrideMap : modelRecord["thinkingLevelMap"];
 
 	const params: ChatCompletionCreateParams = {
 		model: model.id,
@@ -1765,6 +1788,11 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
 	const isNvidia = provider === "nvidia" || baseUrl.includes("integrate.api.nvidia.com");
 	const isAntLing = provider === "ant-ling" || baseUrl.includes("api.ant-ling.com");
 	const isDeepSeek = provider === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");
+	const isXiaomi =
+		provider === "xiaomi" ||
+		provider === "xiaomi-token-plan-cn" ||
+		provider === "xiaomi-token-plan-sgp" ||
+		baseUrl.toLowerCase().includes("xiaomimimo.com");
 
 	const isNonStandard =
 		isNvidia ||
@@ -1802,25 +1830,26 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
 		supportsStore: !isNonStandard,
 		supportsDeveloperRole: isOpenRouterDeveloperRoleModel || (!isNonStandard && !isOpenRouter),
 		supportsReasoningEffort:
-			!isGrok && !isZai && !isMoonshot && !isTogether && !isCloudflareAiGateway && !isNvidia && !isAntLing,
+			!isGrok && !isZai && !isMoonshot && !isTogether && !isCloudflareAiGateway && !isNvidia && !isAntLing && !isXiaomi,
 		supportsUsageInStreaming: true,
 		supportsFinishReason: true,
 		maxTokensField: useMaxTokens ? "max_tokens" : "max_completion_tokens",
 		requiresToolResultName: false,
 		requiresAssistantAfterToolResult: false,
 		requiresThinkingAsText: false,
-		requiresReasoningContentOnAssistantMessages: isDeepSeek,
-		thinkingFormat: isDeepSeek
-			? "deepseek"
-			: isZai
-				? "zai"
-				: isTogether
-					? "together"
-					: isAntLing
-						? "ant-ling"
-						: isOpenRouter
-							? "openrouter"
-							: "openai",
+		requiresReasoningContentOnAssistantMessages: isDeepSeek || isXiaomi,
+		thinkingFormat:
+			isDeepSeek || isXiaomi
+				? "deepseek"
+				: isZai
+					? "zai"
+					: isTogether
+						? "together"
+						: isAntLing
+							? "ant-ling"
+							: isOpenRouter
+								? "openrouter"
+								: "openai",
 		openRouterRouting: {},
 		vercelGatewayRouting: {},
 		chatTemplateKwargs: {},

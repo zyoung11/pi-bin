@@ -9,7 +9,6 @@ import * as path from "node:path";
 import type { AgentMessage, ThinkingLevel } from "../../../../agent/src/index.ts";
 import type { AssistantMessage, ImageContent, Message, Model, TextContent, Usage } from "../../../../ai/src/compat.ts";
 import type { Api, AuthEvent, AuthPrompt, Credential, CredentialInfo } from "../../../../ai/src/index.ts";
-import { debugLog } from "../../../../ai/src/utils/debug-log.ts";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
@@ -555,9 +554,6 @@ export class InteractiveMode {
 	private initialFillPrimeWidth = 0;
 	private initialFillGeneration = 0;
 	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
-	private streamProbeCount = 0;
-	private streamProbeTotalMs = 0;
-	private streamProbeMaxMs = 0;
 	private lastStreamFlushAt = 0;
 
 	// Shutdown state
@@ -1670,10 +1666,6 @@ export class InteractiveMode {
 	}
 
 	private clearStatusIndicator(kind?: StatusIndicator["kind"]): void {
-		if (process.env.PI_DEBUG_URJ === "1")
-			console.error(
-				`[abort-trace] clearStatusIndicator kind=${kind ?? "all"} had=${this.activeStatusIndicator !== undefined}`,
-			);
 		if (kind && this.activeStatusIndicator?.kind !== kind) {
 			return;
 		}
@@ -2077,8 +2069,6 @@ export class InteractiveMode {
 		// Set up handlers on defaultEditor - they use this.editor for text access
 		// so they work correctly regardless of which editor is active
 		this.defaultEditor.onEscape = () => {
-			if (process.env.PI_DEBUG_URJ === "1")
-				console.error(`[abort-trace] ESC streaming=${this.session.isStreaming} bash=${this.session.isBashRunning}`);
 			if (this.session.isStreaming) {
 				this.restoreQueuedMessagesToEditor({ abort: true });
 			} else if (this.session.isBashRunning) {
@@ -2491,7 +2481,6 @@ export class InteractiveMode {
 
 			case "message_update":
 				if (this.streamingComponent && event.message.role === "assistant") {
-					const __u0 = process.env.PI_TIMING === "1" ? Date.now() : 0;
 					this.streamingMessage = event.message;
 					// Re-rendering the streaming message re-parses its full accumulated
 					// markdown on the frame's render walk; throttled to keep frames cheap
@@ -2530,17 +2519,6 @@ export class InteractiveMode {
 						}
 					}
 					this.ui.requestRender();
-					if (__u0 !== 0) {
-						const ms = Date.now() - __u0;
-						this.streamProbeCount += 1;
-						this.streamProbeTotalMs += ms;
-						if (ms > this.streamProbeMaxMs) this.streamProbeMaxMs = ms;
-						if (this.streamProbeCount % 50 === 0) {
-							console.error(
-								`[perf-stream] n=${this.streamProbeCount} avg=${(this.streamProbeTotalMs / this.streamProbeCount).toFixed(1)}ms max=${this.streamProbeMaxMs}ms last=${ms}ms`,
-							);
-						}
-					}
 				}
 				break;
 
@@ -2590,9 +2568,6 @@ export class InteractiveMode {
 				break;
 
 			case "tool_execution_start": {
-				if (process.env.PI_DBG_TOOL) {
-					console.error(`[IDDBG] tool_execution_start id=${event.toolCallId} name=${event.toolName}`);
-				}
 				let component = this.pendingTools.get(event.toolCallId);
 				if (!component) {
 					component = new ToolExecutionComponent(
@@ -2643,23 +2618,19 @@ export class InteractiveMode {
 						isError: event.isError,
 					});
 					this.pendingTools.delete(event.toolCallId);
-					if (event.isError) {
-						// The tool box transitions from the pending background to the error
-						// background while the row count changes. The differential repaint
-						// moves the cursor relative to a tracked row that can drift from the
-						// terminal's real cursor (pending-wrap state after full-width box
-						// rows), leaving the old pending-colored row painted on screen. A
-						// forced full redraw repaints the whole frame and clears it.
-						this.ui.requestRenderForce(true);
-					} else {
-						this.ui.requestRender();
-					}
+					// The tool box transitions between backgrounds while its row count changes.
+					// The differential repaint moves the cursor relative to a tracked row that
+					// can drift from the terminal's real cursor (pending-wrap state after
+					// full-width box rows), leaving stale rows painted on screen. A forced
+					// full redraw repaints the whole viewport and clears them; applies to
+					// success as well — the thinking block above the box changes its row
+					// position the same way the error background does.
+					this.ui.requestRenderForce(true);
 				}
 				break;
 			}
 
 			case "agent_end":
-				if (process.env.PI_DEBUG_URJ === "1") debugLog("[abort-trace] agent_end handler");
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.getTerminal().setProgress(false);
 				}
@@ -3288,17 +3259,6 @@ export class InteractiveMode {
 		this.initialFillPrimeWidth = this.ui.getTerminal().columns();
 		this.historyContainer.beginBulkAppend(this.initialFillPrimeWidth);
 		this.initialFillGeneration += 1;
-		if (process.env.PI_TIMING === "1") {
-			const chain = (): void => {
-				const scheduledAt = Date.now();
-				setTimeout(() => {
-					const lag = Date.now() - scheduledAt - 50;
-					if (lag > 300) console.error(`[perf-lag] ${lag}ms`);
-					if (this.initialFillTimer !== undefined) chain();
-				}, 50);
-			};
-			chain();
-		}
 		const generation = this.initialFillGeneration;
 		const tick = (): void => {
 			this.runInitialFillTick(generation, tick);
@@ -3312,7 +3272,6 @@ export class InteractiveMode {
 		while (Date.now() - budgetStart < INITIAL_FILL_TICK_BUDGET_MS) {
 			if (this.initialFillIndex < this.initialFillItems.length) {
 				const item = this.initialFillItems[this.initialFillIndex];
-				const itemStart = Date.now();
 				this.initialFillIndex += 1;
 				this.renderSingleSessionItem(
 					item,
@@ -3331,17 +3290,6 @@ export class InteractiveMode {
 					this.historyContainer.children.length - this.initialFillPending.size,
 					this.initialFillPrimeWidth,
 				);
-				const itemMs = Date.now() - itemStart;
-				if (process.env.PI_TIMING === "1" && itemMs > 200) {
-					let role = "custom";
-					if (!isCustomSessionEntry(item) && !isCompactionCostNotice(item)) {
-						const message = item;
-						role = message.role;
-					}
-					console.error(
-						`[perf-fill] idx=${this.initialFillIndex}/${this.initialFillItems.length} role=${role} ms=${itemMs}`,
-					);
-				}
 			} else {
 				// Items exhausted: fold any held-back components (pending tool calls
 				// whose results never arrived) in bounded slices, then mount.
@@ -3360,7 +3308,6 @@ export class InteractiveMode {
 	private finishInitialFill(): void {
 		this.initialFillPending.clear();
 		if (this.historyContainer.children.length === 0) return;
-		if (process.env.PI_TIMING === "1") console.error(`[perf-fill] finish`);
 		this.historyContainer.coverThrough(this.historyContainer.children.length, this.initialFillPrimeWidth);
 		this.mountHistoryContainer();
 		// requestRender only: an invalidate here would cascade into
@@ -3390,7 +3337,6 @@ export class InteractiveMode {
 			? collectCacheMisses(this.sessionManager.getEntries(), this.session.modelRuntime)
 			: [];
 		const tailStart = this.findTailStart(items);
-		if (process.env.PI_TIMING === "1") console.error(`[perf-fill] tailStart=${tailStart} items=${items.length}`);
 		this.renderSessionItems(items.slice(tailStart), {
 			updateFooter: true,
 			target: this.chatContainer,
@@ -4020,6 +3966,9 @@ export class InteractiveMode {
 			const catalogProvider = findCatalogProvider(providerId);
 			if (catalogProvider !== undefined) {
 				this.session.modelRuntime.registerProvider(providerId, toProviderConfigInput(catalogProvider));
+				if (this.session.model?.provider === providerId) {
+					this.session.refreshCurrentModelMetadata();
+				}
 			}
 		}
 		if (updated.length > 0) {
@@ -4479,6 +4428,7 @@ export class InteractiveMode {
 	}
 
 	private showThinkingSelector(): void {
+		const availableLevels = this.session.getAvailableThinkingLevels();
 		this.showSelector((done): SelectorHandle => {
 			const selectLevel = (level: ThinkingLevel, persist: boolean) => {
 				this.selectThinkingLevel(level, persist);
@@ -4486,7 +4436,7 @@ export class InteractiveMode {
 			};
 			const selector = new ThinkingSelectorComponent(
 				this.session.thinkingLevel ?? DEFAULT_THINKING_LEVEL,
-				this.session.getAvailableThinkingLevels(),
+				availableLevels,
 				(level) => selectLevel(level, false),
 				() => {
 					done();
@@ -4838,7 +4788,6 @@ export class InteractiveMode {
 		const tree = this.sessionManager.getTree();
 		const realLeafId = this.sessionManager.getLeafId();
 		const initialFilterMode = this.settingsManager.getTreeFilterMode();
-		console.error("[tree-dbg] length =", tree.length, "isArray =", Array.isArray(tree));
 
 		if (tree.length === 0) {
 			this.showStatus("No entries in session");

@@ -19,8 +19,10 @@ import {
 	type ProviderAuthInteraction,
 	type ProviderHeaders,
 	type SimpleStreamOptions,
+	type StreamOptionExtras,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
+import { setThinkingLevelMapOverride } from "../../../ai/src/models.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
 import {
 	clearConfigValueCache,
@@ -179,6 +181,26 @@ function modelFromJson(
 		throw new Error(`Provider ${providerId}, model ${definition.id}: invalid maxTokens`);
 	}
 	const compatValue = mergeCompat(providerConfig.compat, definition.compat);
+	// Xiaomi mimo endpoints accept reasoning_effort low/medium/high/xhigh only and
+	// officially have no reasoning_effort parameter at all; force it off so the
+	// deepseek-format branch never sends it (thinking:{type} is the only control).
+	const isXiaomiFamily =
+		providerId === "xiaomi" ||
+		providerId === "xiaomi-token-plan-cn" ||
+		providerId === "xiaomi-token-plan-sgp";
+	let compatFinal = compatValue;
+	if (isXiaomiFamily) {
+		const base = compatValue === null || compatValue === undefined ? undefined : compatValue;
+		const merged: Record<string, unknown> = {
+			supportsReasoningEffort: false,
+		};
+		if (base !== undefined) {
+			for (const key of Object.keys(base)) {
+				merged[key] = (base as Record<string, unknown>)[key];
+			}
+		}
+		compatFinal = merged as NonNullable<Model<Api>["compat"]>;
+	}
 	const model: Model<Api> = {
 		id: definition.id,
 		name: definition.name ?? definition.id,
@@ -186,7 +208,9 @@ function modelFromJson(
 		provider: providerId,
 		baseUrl,
 		reasoning: definition.reasoning ?? false,
-		thinkingLevelMap: definition.thinkingLevelMap,
+		// Store-derived definitions lose thinkingLevelMap under the static runtime; the
+		// builtin catalog entry for the same model is the authoritative fallback.
+		thinkingLevelMap: definition.thinkingLevelMap ?? defaults?.thinkingLevelMap,
 		input: (definition.input ?? ["text"]) as ("text" | "image")[],
 		cost: definition.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: definition.contextWindow ?? 128000,
@@ -194,8 +218,8 @@ function modelFromJson(
 		samplingParams: definition.samplingParams,
 		headers: undefined,
 	};
-	if (compatValue !== undefined && compatValue !== null) {
-		model.compat = compatValue as Model<Api>["compat"];
+	if (compatFinal !== undefined && compatFinal !== null) {
+		model.compat = compatFinal as Model<Api>["compat"];
 	}
 	return model;
 }
@@ -234,6 +258,9 @@ function applyModelsJson(
 		const existingIndex = models.findIndex((model) => model.id === definition.id);
 		const defaults = existingIndex >= 0 ? models[existingIndex] : models.length > 0 ? models[0] : undefined;
 		const model = modelFromJson(providerId, definition, config, defaults);
+		if (definition.thinkingLevelMap !== undefined) {
+			setThinkingLevelMapOverride(providerId, definition.id, definition.thinkingLevelMap);
+		}
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);
 	}
@@ -580,7 +607,7 @@ export function composeModelProvider(
 	const streamWith = (
 		model: Model<Api>,
 		context: Context,
-		options: StreamOptions | undefined,
+		options: (StreamOptions & StreamOptionExtras) | undefined,
 		simple: boolean,
 	): AssistantMessageEventStream =>
 		lazyStream(model, async () => {

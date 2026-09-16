@@ -139,21 +139,14 @@ class TreeList extends Component {
 		this.maxVisibleLines = maxVisibleLines;
 		this.filterMode = initialFilterMode ?? "default";
 		this.multipleRoots = tree.length > 1;
-		console.error("[tl-dbg] flatten start, tree =", tree.length);
 		this.flatNodes = this.flattenTree(tree);
-		console.error("[tl-dbg] flattened =", this.flatNodes.length);
 		this.buildActivePath();
-		console.error("[tl-dbg] activePath built");
 		this.applyFilter();
-		console.error("[tl-dbg] filtered =", this.filteredNodes.length);
 
 		// Start with initialSelectedId if provided, otherwise current leaf
 		const targetId = initialSelectedId ?? currentLeafId;
-		console.error("[tl-dbg] findNearest start, target =", targetId);
 		this.selectedIndex = this.findNearestVisibleIndex(targetId);
-		console.error("[tl-dbg] selectedIndex =", this.selectedIndex);
 		this.lastSelectedId = this.filteredNodes.length > 0 ? (this.selectedFlatNode()?.node.entry.id ?? null) : null;
-		console.error("[tl-dbg] constructor done");
 	}
 
 	/** Selected node or undefined when the filtered list is empty (empty-array indexed reads trap). */

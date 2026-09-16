@@ -230,10 +230,6 @@ function formatValidationPath(error: PiValidationError): string {
 	return path || "root";
 }
 
-function deepFreeze<T>(value: T): T {
-	return value;
-}
-
 function recordViewOf(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
@@ -329,7 +325,9 @@ function synthesizeProvidersFromModelsStore(
 		const candidate: unknown = { providers: providerRecord };
 		if (!validateModelsConfig.Check(candidate)) continue;
 		const validated = candidate as ModelsJson;
-		providers.set(providerId, deepFreeze(structuredClone(validated.providers[providerId])));
+		// No structuredClone here: its static-runtime lowering drops non-schema fields
+		// such as thinkingLevelMap from the cloned tree.
+		providers.set(providerId, validated.providers[providerId]);
 	}
 	return { providers, error: undefined };
 }
@@ -380,7 +378,7 @@ export class ModelConfig {
 		const config = parsed as ModelsJson;
 		const providers = new Map<string, ModelsJsonProvider>();
 		for (const [providerId, provider] of Object.entries(config.providers)) {
-			providers.set(providerId, deepFreeze(structuredClone(provider)));
+			providers.set(providerId, provider);
 		}
 
 		// Merge providers from the upstream models-store.json catalog cache in memory

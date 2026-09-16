@@ -702,6 +702,43 @@ export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage
 
 const EXTENDED_THINKING_LEVELS: ModelThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+/**
+ * Runtime override registry for per-model thinkingLevelMap data, keyed by
+ * `provider:model-id` with the map serialized as JSON. Object fields on Model
+ * records do not survive the static runtime's call boundaries, so the map rides
+ * in this registry instead; consumers resolve it by model identity.
+ */
+const thinkingLevelMapOverrides = new Map<string, string>();
+
+function thinkingLevelMapKey(provider: string, modelId: string): string {
+	return `${provider}:${modelId}`;
+}
+
+export function setThinkingLevelMapOverride(
+	provider: string,
+	modelId: string,
+	map: Record<string, unknown> | undefined,
+): void {
+	const key = thinkingLevelMapKey(provider, modelId);
+	if (map === undefined) {
+		thinkingLevelMapOverrides.delete(key);
+		return;
+	}
+	thinkingLevelMapOverrides.set(key, JSON.stringify(map));
+}
+
+export function getThinkingLevelMapOverride(
+	model: Pick<Model<Api>, "provider" | "id">,
+): Record<string, unknown> | undefined {
+	const json = thinkingLevelMapOverrides.get(thinkingLevelMapKey(model.provider, model.id));
+	if (json === undefined) return undefined;
+	try {
+		return JSON.parse(json) as Record<string, unknown>;
+	} catch {
+		return undefined;
+	}
+}
+
 function lookupThinkingLevelMap(map: unknown, key: string): string | null | undefined {
 	if (map === null || typeof map !== "object") return undefined;
 	const value = (map as Record<string, unknown>)[key];
@@ -713,8 +750,12 @@ function lookupThinkingLevelMap(map: unknown, key: string): string | null | unde
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
+	const override = getThinkingLevelMapOverride(model);
 	return EXTENDED_THINKING_LEVELS.filter((level) => {
-		const mapped = lookupThinkingLevelMap(model.thinkingLevelMap, level);
+		const mapped =
+			override !== undefined
+				? lookupThinkingLevelMap(override, level)
+				: lookupThinkingLevelMap(model.thinkingLevelMap, level);
 		if (mapped === null) return false;
 		if (level === "xhigh" || level === "max") return mapped !== undefined;
 		return true;

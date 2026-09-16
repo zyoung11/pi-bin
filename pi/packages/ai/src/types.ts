@@ -293,8 +293,12 @@ export interface AnthropicAllowedFallbackModel {
 	cost: ModelCost;
 }
 
-// Unified options with reasoning passed to streamSimple() and completeSimple()
-export interface SimpleStreamOptions extends StreamOptions {
+/**
+ * Fields added by SimpleStreamOptions on top of StreamOptions. Declared separately so that
+ * request-option shapes which must preserve these fields across static record passing
+ * (width-coerced call boundaries) can intersect this interface.
+ */
+export interface StreamOptionExtras {
 	/** Provider-neutral tool selection for simple requests. When omitted, adapters use provider-specific behavior. */
 	toolChoice?: ToolChoice;
 	reasoning?: ThinkingLevel;
@@ -302,7 +306,12 @@ export interface SimpleStreamOptions extends StreamOptions {
 	deferred?: boolean | { window?: "15m" | "1h" | "24h" };
 	/** Custom token budgets for thinking levels (token-based providers only) */
 	thinkingBudgets?: ThinkingBudgets;
+	/** Provider-specific reasoning-effort field (e.g. OpenAI completions reasoning_effort). */
+	reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 }
+
+// Unified options with reasoning passed to streamSimple() and completeSimple()
+export interface SimpleStreamOptions extends StreamOptions, StreamOptionExtras {}
 
 // Generic StreamFunction with typed options.
 //

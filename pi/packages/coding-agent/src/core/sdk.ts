@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "../../../agent/src/index.ts";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "../../../ai/src/compat.ts";
@@ -232,7 +233,18 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	if (!model) {
 		thinkingLevel = "off";
 	} else {
-		thinkingLevel = clampThinkingLevel(model, thinkingLevel) as ThinkingLevel;
+		const clamped = clampThinkingLevel(model, thinkingLevel) as ThinkingLevel;
+		// A persisted per-model override naming a level the model does not support is
+		// corrected in place, so the unsupported value does not resurface on every start.
+		// Global defaults stay untouched: one model's capability must not rewrite the
+		// user's cross-model preference.
+		if (
+			clamped !== thinkingLevel &&
+			settingsManager.getModelThinkingLevel(model.provider, model.id) === thinkingLevel
+		) {
+			settingsManager.setModelThinkingLevel(model.provider, model.id, clamped);
+		}
+		thinkingLevel = clamped;
 	}
 
 	const defaultActiveToolNames: ToolName[] = ["read", "bash", "edit", "write"];
