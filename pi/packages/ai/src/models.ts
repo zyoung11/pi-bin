@@ -710,7 +710,8 @@ const EXTENDED_THINKING_LEVELS: ModelThinkingLevel[] = ["off", "minimal", "low",
  */
 const thinkingLevelMapOverrides = new Map<string, string>();
 
-function thinkingLevelMapKey(provider: string, modelId: string): string {
+/** Registry key for a model's thinkingLevelMap override: `provider:model-id`. */
+export function thinkingLevelMapKey(provider: string, modelId: string): string {
 	return `${provider}:${modelId}`;
 }
 
@@ -747,15 +748,23 @@ function lookupThinkingLevelMap(map: unknown, key: string): string | null | unde
 	return undefined;
 }
 
+/**
+ * Levels selectable for the model. A thinkingLevelMap (object field or registry override)
+ * is authoritative: levels mapped to null are hidden and xhigh/max appear only when mapped.
+ * Without any map the capability is unknowable in advance (local llama.cpp servers,
+ * models.dev models without reasoning_options), so the full ladder is offered and
+ * unsupported values fail with the server's own error message.
+ */
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
 	const override = getThinkingLevelMapOverride(model);
+	if (override === undefined && model.thinkingLevelMap === undefined) {
+		return EXTENDED_THINKING_LEVELS.slice();
+	}
+	const map = override !== undefined ? override : model.thinkingLevelMap;
 	return EXTENDED_THINKING_LEVELS.filter((level) => {
-		const mapped =
-			override !== undefined
-				? lookupThinkingLevelMap(override, level)
-				: lookupThinkingLevelMap(model.thinkingLevelMap, level);
+		const mapped = lookupThinkingLevelMap(map, level);
 		if (mapped === null) return false;
 		if (level === "xhigh" || level === "max") return mapped !== undefined;
 		return true;

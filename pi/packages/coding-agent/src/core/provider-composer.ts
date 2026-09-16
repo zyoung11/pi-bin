@@ -22,7 +22,7 @@ import {
 	type StreamOptionExtras,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
-import { setThinkingLevelMapOverride } from "../../../ai/src/models.ts";
+import { setThinkingLevelMapOverride, thinkingLevelMapKey } from "../../../ai/src/models.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
 import {
 	clearConfigValueCache,
@@ -185,9 +185,7 @@ function modelFromJson(
 	// officially have no reasoning_effort parameter at all; force it off so the
 	// deepseek-format branch never sends it (thinking:{type} is the only control).
 	const isXiaomiFamily =
-		providerId === "xiaomi" ||
-		providerId === "xiaomi-token-plan-cn" ||
-		providerId === "xiaomi-token-plan-sgp";
+		providerId === "xiaomi" || providerId === "xiaomi-token-plan-cn" || providerId === "xiaomi-token-plan-sgp";
 	let compatFinal = compatValue;
 	if (isXiaomiFamily) {
 		const base = compatValue === null || compatValue === undefined ? undefined : compatValue;
@@ -224,6 +222,9 @@ function modelFromJson(
 	return model;
 }
 
+/** Registry override keys written by applyModelsJson from models.json definitions. */
+const modelsJsonLevelMapKeys = new Set<string>();
+
 function applyModelsJson(
 	providerId: string,
 	baseModels: readonly Model<Api>[],
@@ -258,8 +259,16 @@ function applyModelsJson(
 		const existingIndex = models.findIndex((model) => model.id === definition.id);
 		const defaults = existingIndex >= 0 ? models[existingIndex] : models.length > 0 ? models[0] : undefined;
 		const model = modelFromJson(providerId, definition, config, defaults);
+		// Overrides written by this layer are tracked so a definition that drops its
+		// thinkingLevelMap mid-session clears its own registry entry; entries written
+		// elsewhere (catalog refresh) are never touched.
+		const levelMapKey = thinkingLevelMapKey(providerId, definition.id);
 		if (definition.thinkingLevelMap !== undefined) {
 			setThinkingLevelMapOverride(providerId, definition.id, definition.thinkingLevelMap);
+			modelsJsonLevelMapKeys.add(levelMapKey);
+		} else if (modelsJsonLevelMapKeys.has(levelMapKey)) {
+			setThinkingLevelMapOverride(providerId, definition.id, undefined);
+			modelsJsonLevelMapKeys.delete(levelMapKey);
 		}
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);

@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { spawn, spawnSync } from "child_process";
-import { debugLog } from "../../../ai/src/utils/debug-log.ts";
 import { getBinDir } from "../config.ts";
 
 export interface ShellConfig {

@@ -694,3 +694,56 @@ Other:
 - Verified: mimo-v2.5-pro with a per-model "minimal" setting clamps to low at
   startup (footer • low), the bash-tool request carries
   `thinking:{type:"enabled"}` + `reasoning_effort:"low"` and succeeds.
+
+## Phase 17 — full thinking ladder for models without level data
+
+- Custom/local models (user-defined models.json providers such as a llama.cpp
+  router) carry no thinkingLevelMap, and `getSupportedThinkingLevels` hid
+  xhigh/max for every map-less model: the selector stopped at high, so levels
+  the server actually supports (e.g. Qwen3.8's xhigh) were unreachable. Map-less
+  means unknowable: no OpenAI-compatible endpoint declares supported reasoning
+  efforts (the lmgo router exposes /v1/models with id/tags/status and a /props
+  with build info only; a bare llama-server's /props carries the raw Jinja
+  template, which would be brittle per-template source parsing), and models.dev
+  covers cloud ids only. Map-less reasoning models now offer the full ladder
+  (off/minimal/low/medium/high/xhigh/max) and let unsupported values fail with
+  the server's own error message, which typically enumerates the supported set
+  (trial-and-error by design). Models with a map — builtin catalog, models.dev
+  reasoning_options, user thinkingLevelMap — keep exact filtering.
+- Residual registry gaps from Phase 16 closed:
+  - refreshCatalogFromModelsDev now registers a setThinkingLevelMapOverride for
+    every model whose catalog-authoritative map survived mergeCatalogModels
+    (previously only xiaomi was special-cased). Refresh-added models (no store
+    entry yet, no startup registration) were map-less for the whole first
+    session because the post-refresh re-registration goes through
+    toProviderConfigInput, whose projection drops compat/thinkingLevelMap.
+  - applyModelsJson tracks the override keys it writes (modelsJsonLevelMapKeys)
+    and clears a key when its definition drops thinkingLevelMap, so a
+    mid-session models.json edit cannot leave a stale override; entries written
+    by other layers (catalog refresh) are never touched. thinkingLevelMapKey is
+    exported from ai/src/models.ts for this.
+- xiaomi comment unification: the refresh-path comment claimed "reasoning_effort
+  low/high only; minimal/max 400" while the Phase 16 live table says
+  low/medium/high/xhigh return 200 (values ignored server-side), minimal/max/
+  ultra 400, xhigh unstable in real sessions. Comments now match Phase 16; the
+  map keeps minimal→low with medium/high selectable since values never reach
+  the wire (supportsReasoningEffort false).
+- Registry consumers remain: getSupportedThinkingLevels/clampThinkingLevel and
+  the openai-completions buildParams lookup. anthropic/openai-responses/google
+  map levels through their own mechanisms and do not read thinkingLevelMap —
+  a models.json map on such a model silently has no wire effect (known
+  boundary, unchanged).
+- Verified with a Qwen3.8-27B-GSQ-RCO llama.cpp router (isolated
+  PI_CODING_AGENT_DIR, models.json without compat.supportsReasoningEffort):
+  the Shift+Tab selector lists all seven levels; xhigh completes a chat turn
+  with the reasoning block rendered; /thinking minimal reproduces the server's
+  `Unexpected reasoning effort minimal. Supported types are xhigh (default),
+  medium, and low` — proving reasoning_effort IS sent for compat-detected
+  providers (a provider-level supportsReasoningEffort:false survives the chain;
+  the earlier screenshot contradiction came from that flag being added to
+  models.json after the error, which also disables all level control); bash
+  tool call succeeds at medium. Biome note: repo gate `biome check` currently
+  reports 66 pre-existing diagnostics in files untouched by this change
+  (biome 2.3.5 in node_modules vs the version the earlier gates ran); the four
+  touched files are clean.
+- Version 0.2.5 → 0.2.6.

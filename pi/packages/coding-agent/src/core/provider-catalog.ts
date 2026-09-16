@@ -904,9 +904,12 @@ const MODELS_DEV_URL = "https://models.dev/api.json";
 /** MiMo API control surface: thinking is a boolean toggle (thinking:{type:"enabled"/
  * "disabled"}, default enabled); the request body has no reasoning_effort parameter at
  * all, so reasoning_effort is never sent (compat.supportsReasoningEffort false) and all
- * selectable pi levels are equivalent to "thinking on". xhigh/max/null are disabled:
- * they clamp down to high. Returned fresh each call: spreading an imported
- * module-level record across module boundaries throws under scriptc. */
+ * selectable pi levels are equivalent to "thinking on". Live-verified effort table:
+ * low/medium/high/xhigh return 200 with values ignored server-side, minimal/max/ultra
+ * return 400; xhigh passed once under curl but failed in real sessions, so it is treated
+ * as unsupported. The map therefore controls level visibility only. Returned fresh each
+ * call: spreading an imported module-level record across module boundaries throws under
+ * scriptc. */
 export function xiaomiMimoThinkingLevelMap(): Record<string, unknown> {
 	return {
 		minimal: "low",
@@ -1035,15 +1038,25 @@ export async function refreshCatalogFromModelsDev(
 			const devRecord = recordViewOf(devProvider);
 			const models = modelsDevToCatalogModels(provider.baseUrl, devRecord);
 			if (models.length === 0) continue;
-			// Xiaomi mimo endpoints accept reasoning_effort low/high only; minimal/max are
-			// rejected with 400 (verified against the live API). models.dev only lists a
-			// toggle for these models, so the verified map is applied explicitly.
+			// models.dev lists only a boolean toggle for the xiaomi mimo models, so the
+			// live-verified map (low/medium/high selectable, xhigh/max hidden) is applied
+			// explicitly. Level values never reach the wire: compat.supportsReasoningEffort is
+			// false, so thinking:{type} is the only control.
 			if (providerId === "xiaomi" || providerId === "xiaomi-token-plan-cn" || providerId === "xiaomi-token-plan-sgp") {
 				for (const model of models) {
 					if (model.reasoning) setThinkingLevelMapOverride(providerId, model.id, xiaomiMimoThinkingLevelMap());
 				}
 			}
 			mergeCatalogModels(provider, models);
+			// Re-registration after the refresh (toProviderConfigInput) rebuilds extension-layer
+			// models without object-carried metadata, so every model whose catalog-authoritative
+			// map survived the merge gets a registry override; this keeps refresh-added models
+			// (no store entry yet, no startup registration) fully leveled for the running session.
+			for (const model of provider.models) {
+				if (model.thinkingLevelMap !== undefined) {
+					setThinkingLevelMapOverride(providerId, model.id, model.thinkingLevelMap);
+				}
+			}
 			store[providerId] = {
 				baseUrl: provider.baseUrl,
 				api: "openai-completions",
