@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { deleteKittyImage, isImageLine, joinedLinePayloadHasImages } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
-import { visibleWidth } from "./utils.ts";
+import { truncateToWidth, visibleWidth } from "./utils.ts";
 
 const KITTY_SEQUENCE_PREFIX = "\x1b_G";
 const MAX_RENDER_WRITE_CHARS = 1024 * 1024;
@@ -524,10 +524,14 @@ export class TuiMainScreen extends TuiBase implements TUI {
 
 			output.append("\x1b[2K"); // Clear current line
 			if (!isImage && visibleWidth(line) > width) {
-				// Log all lines to crash file for debugging
+				// Log the over-wide line to the crash file for diagnostics, then clip
+				// it to the terminal width instead of aborting the session. A layout
+				// pass can mis-reserve columns for non-BMP characters (the static
+				// string decode splits surrogate pairs), and a one-column overflow
+				// must not kill the whole TUI.
 				const crashLogPath = path.join(this.logDirectory, "pi-crash.log");
 				const crashData = [
-					`Crash at ${new Date().toISOString()}`,
+					`Clipped at ${new Date().toISOString()}`,
 					`Terminal width: ${width}`,
 					`Line ${i} visible width: ${visibleWidth(line)}`,
 					"",
@@ -538,20 +542,10 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				fs.mkdirSync(path.dirname(crashLogPath), { recursive: true });
 				fs.writeFileSync(crashLogPath, crashData);
 
-				// Clean up terminal state before throwing
-				this.stop();
-
-				const errorMsg = [
-					`Rendered line ${i} exceeds terminal width (${visibleWidth(line)} > ${width}).`,
-					"",
-					"This is likely caused by a custom TUI component not truncating its output.",
-					"Use visibleWidth() to measure and truncateToWidth() to truncate lines.",
-					"",
-					`Debug log written to: ${crashLogPath}`,
-				].join("\n");
-				throw new Error(errorMsg);
+				output.append(truncateToWidth(line, width));
+			} else {
+				output.append(line);
 			}
-			output.append(line);
 		}
 
 		// Track where cursor ended up after rendering

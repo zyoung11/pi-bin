@@ -1266,9 +1266,12 @@ export class Editor extends Component implements Focusable {
 		// Clean the pasted text: normalize line endings, expand tabs
 		const cleanText = this.normalizeText(decodedText);
 
-		// Filter out non-printable characters except newlines
-		let filteredText = cleanText
-			.split("")
+		// Filter out non-printable characters except newlines.
+		// split("") iterates UTF-16 units and splits surrogate pairs; the runtime
+		// normalizes each lone surrogate to U+FFFD, destroying non-BMP characters
+		// (e.g. U+1F56D pasted as two replacement glyphs). Array.from iterates by
+		// code point, keeping astral characters intact.
+		let filteredText = Array.from(cleanText)
 			.filter((char) => char === "\n" || char.charCodeAt(0) >= 32)
 			.join("");
 

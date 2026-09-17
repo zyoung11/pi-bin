@@ -747,3 +747,45 @@ Other:
   (biome 2.3.5 in node_modules vs the version the earlier gates ran); the four
   touched files are clean.
 - Version 0.2.5 → 0.2.6.
+
+## Phase 18 — over-wide render lines clip instead of aborting the session
+
+- Recurring `Uncaught Error: Rendered line N exceeds terminal width` crashes
+  (observed repeatedly at 84 columns with model output containing non-BMP
+  characters such as U+1F56D RINGING BELL) traced end to end with a compiled
+  binary probe (PI_PROBE_WIDTH measuring the exact crash-log lines):
+  - the assertion measurement is terminal-accurate: the static runtime's
+    string decode presents a 4-byte UTF-8 character as two surrogate units,
+    and the render assertion counts 2 columns for it, matching what foot
+    actually renders;
+  - the overflow itself comes from the markdown/layout layer mis-reserving
+    columns for the same characters (indent + surrogate-split units), letting
+    a genuinely over-wide line reach the render loop;
+  - visibleWidth itself is consistent (same value at wrap, assertion and
+    crash dump; the npm-RGI vs approximation regex divergence is unobservable
+    in the compiled binary because U+1F56D is not Extended_Pictographic and
+    the binary agrees with node).
+- The render loop now writes the diagnostic dump to pi-crash.log and clips the
+  offending line with truncateToWidth(line, width) instead of throwing: a
+  one-column overflow must not kill the whole session. The dump header changes
+  from `Crash at` to `Clipped at`.
+- Editor garbling of non-BMP input traced to two per-unit copy sites, both
+  proven with a binary probe (units 120,65533,65533,120 after the corrupting
+  pass — the astral character became two U+FFFD glyphs):
+  - the ANSI strip loops in visibleWidth and stripTerminalSequences copied
+    strings per UTF-16 unit (clean[i]); both now detect high/low surrogate
+    pairs via charCodeAt and copy them as one slice;
+  - the editor's bracketed-paste filter (editor.ts) used split("") — the same
+    pair-splitting — before its printable-character filter; it now iterates
+    with Array.from (code points). This was the direct cause of the reported
+    editor garbling: a pasted U+1F56D reached the buffer as two replacement
+    glyphs.
+  Verified end-to-end with a bracketed-paste smoke run: the pasted U+1F56D
+  renders in the editor, the committed session file contains the clean 4-byte
+  sequence (0 FFFD bytes), and the model echoes it back intact.
+  The decode-side paths fixed in Phase 14 (StdinBuffer/ProcessTerminal) were
+  already code-point safe; this closes the paste/filter/measure side.
+- Verified: tsgo/build clean; isolated smoke with the U+1F56D character in a
+  submitted message and a forced 84-column history re-render survives (no
+  throw path reachable in that run); the pre-existing crash dump format is
+  preserved for diagnostics.

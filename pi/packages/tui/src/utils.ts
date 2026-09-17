@@ -359,6 +359,9 @@ export function visibleWidth(str: string): number {
 		// Strip supported ANSI/OSC/APC escape sequences in one pass.
 		// This covers CSI styling/cursor codes, OSC hyperlinks and prompt markers,
 		// and APC sequences like CURSOR_MARKER.
+		// Per-unit copying (clean[i]) splits surrogate pairs; the runtime
+		// normalizes each lone surrogate to U+FFFD, destroying non-BMP
+		// characters. Pairs are copied as one slice instead.
 		let stripped = "";
 		let i = 0;
 		while (i < clean.length) {
@@ -366,6 +369,15 @@ export function visibleWidth(str: string): number {
 			if (ansi) {
 				i += ansi.length;
 				continue;
+			}
+			const code = clean.charCodeAt(i);
+			if (code >= 0xd800 && code <= 0xdbff && i + 1 < clean.length) {
+				const nextCode = clean.charCodeAt(i + 1);
+				if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+					stripped += clean.slice(i, i + 2);
+					i += 2;
+					continue;
+				}
 			}
 			stripped += clean[i];
 			i++;
@@ -405,6 +417,15 @@ export function stripTerminalSequences(str: string): string {
 		if (ansi) {
 			i += ansi.length;
 			continue;
+		}
+		const code = str.charCodeAt(i);
+		if (code >= 0xd800 && code <= 0xdbff && i + 1 < str.length) {
+			const nextCode = str.charCodeAt(i + 1);
+			if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+				result += str.slice(i, i + 2);
+				i += 2;
+				continue;
+			}
 		}
 		result += str[i];
 		i++;
