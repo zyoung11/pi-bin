@@ -789,3 +789,4 @@ Other:
   submitted message and a forced 84-column history re-render survives (no
   throw path reachable in that run); the pre-existing crash dump format is
   preserved for diagnostics.
+- Version 0.2.6 → 0.2.7.
