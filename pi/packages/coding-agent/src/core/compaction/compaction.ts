@@ -454,13 +454,17 @@ export function findCutPoint(
 
 		// Check if we've exceeded the budget
 		if (accumulatedTokens >= keepRecentTokens) {
-			// Find the closest valid cut point at or after this entry
-			for (let c = 0; c < cutPoints.length; c++) {
-				if (cutPoints[c] >= i) {
-					cutIndex = cutPoints[c];
+			// Prefer the closest valid cut point at or after this entry. If trailing
+			// tool results exceed the budget by themselves, keep their preceding
+			// assistant tool call instead of falling back to the first message.
+			let preferredCutIndex = -1;
+			for (const candidate of cutPoints) {
+				if (candidate >= i) {
+					preferredCutIndex = candidate;
 					break;
 				}
 			}
+			cutIndex = preferredCutIndex !== -1 ? preferredCutIndex : cutPoints[cutPoints.length - 1];
 			break;
 		}
 	}

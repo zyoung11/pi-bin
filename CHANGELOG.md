@@ -905,3 +905,48 @@ touches the loop's abort/steering ordering and needs its own verification.
 Verified: tsgo/build clean; deepseek-flash and mimo-v2.5 read/bash round trips;
 session create, resume-by-exact-id and fork flows; compiled probes for the fork
 boundary. Version stays 0.2.7 until the round is committed.
+
+---
+
+## Phase 21 — upstream sync batch C: DeepSeek catalog, post-tool compaction, session picker, TUI fixes
+
+Ported from upstream (v0.85.0–v0.86.1):
+
+- DeepSeek catalog (`12f59336a`, `bb0f4aa60`): the static catalog and
+  `generate-models.ts` now advertise `deepseek-flash` (V4.1 Flash with image
+  input and refreshed pricing) plus updated `deepseek-v4-pro` pricing;
+  `applyThinkingLevelMetadata` no longer overwrites a models.dev-provided map,
+  and opencode-go `deepseek-v4.1-flash` takes its effort map from reasoning
+  options. Verified with a compiled catalog probe.
+- Post-tool threshold compaction (`56700d42e` #6879, `8bdcd4498` #9740): the
+  agent loop stores the completed turn and runs `prepareNextTurn` at the top of
+  the continuing iteration, after `shouldStopAfterTurn` and with a steering
+  re-poll; `AgentSession._compactBeforeNextAssistantResponse` compacts on the
+  threshold before the next provider request; `findCutPoint` falls back to the
+  last valid cut point instead of the first message when trailing tool results
+  exceed the recent budget. Verified end to end with a mock provider: the
+  request order is assistant tool call, summarization, post-compaction request
+  that contains both the summary and the kept tool result.
+- Progressive session picker (`dfbf793b7`): `SessionManager.list`/`listAll`
+  accept an abort signal and publish partial session lists (file names are
+  loaded newest first, partial publishes every 10 and 100 loads);
+  `SessionSelectorComponent` cancels outstanding loads on select/cancel/exit,
+  preserves the selection across progressive updates, and `resolveSessionPath`
+  tries the exact-id header lookup before listing. Verified in tmux with
+  `--resume`.
+- Clipboard (`3349e1db1`, `60e7e76bd`, `6dff740fa`): OSC 52 is emitted only for
+  remote sessions or display-less Linux, WSL falls back to the Windows
+  clipboard through PowerShell with a temp file, and failures report
+  platform-specific guidance instead of a false success. Verified compiled
+  against Node for the headless, remote, and fake-display failure paths.
+- TUI fixes: the SIGWINCH self-signal is wrapped so restricted seccomp policies
+  do not crash startup (`605a1b038`); CJK punctuation separates completions
+  while CJK letters stay part of words (`bfa686240`, regexes in `utils.ts`,
+  editor trigger patterns and quote decisions); skill slash-command completion
+  ranks by bare name (`d7951ec36`); LaTeX gains relational join symbols, dual
+  and nested scripts with stacked layout, font-switch commands and centered
+  cases rows (`f0592205f`, `fa0e1f48a`). LaTeX and CJK regex output verified
+  identical to Node through compiled probes.
+- Not ported: WSL image clipboard (image paste was removed from this fork) and
+  the native clipboard helper (the static build keeps the exec and OSC 52
+  fallbacks).

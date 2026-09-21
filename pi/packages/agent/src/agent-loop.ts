@@ -23,6 +23,7 @@ import type {
 	AgentTool,
 	AgentToolCall,
 	AgentToolResult,
+	PrepareNextTurnContext,
 	StreamFn,
 } from "./types.ts";
 
@@ -193,6 +194,7 @@ async function runLoop(
 	let currentContext = initialContext;
 	let config = initialConfig;
 	let firstTurn = true;
+	let lastCompletedTurn: PrepareNextTurnContext | undefined;
 	// Check for steering messages at start (user may have typed while waiting)
 	let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
 
@@ -203,6 +205,30 @@ async function runLoop(
 		// Inner loop: process tool calls and steering messages
 		while (hasMoreToolCalls || pendingMessages.length > 0) {
 			if (!firstTurn) {
+				const completedTurn = lastCompletedTurn;
+				if (completedTurn) {
+					const prepareNextTurn = config.prepareNextTurn;
+					const nextTurnSnapshot = prepareNextTurn ? await prepareNextTurn(completedTurn) : undefined;
+					if (nextTurnSnapshot) {
+						currentContext = nextTurnSnapshot.context ?? currentContext;
+						config = {
+							...config,
+							model: nextTurnSnapshot.model ?? config.model,
+							reasoning:
+								nextTurnSnapshot.thinkingLevel === undefined
+									? config.reasoning
+									: nextTurnSnapshot.thinkingLevel === "off"
+										? undefined
+										: nextTurnSnapshot.thinkingLevel,
+						};
+					}
+					// Preparation can be long-running (for example, compaction). Pick up steering
+					// queued while it ran. Only poll again if the earlier poll returned nothing;
+					// otherwise one-at-a-time mode would deliver two messages in this turn.
+					if (pendingMessages.length === 0) {
+						pendingMessages = (await config.getSteeringMessages?.()) || [];
+					}
+				}
 				await emit({ type: "turn_start" });
 			} else {
 				firstTurn = false;
@@ -253,36 +279,15 @@ async function runLoop(
 
 			await emit({ type: "turn_end", message, toolResults });
 
-			const nextTurnContext = {
+			const completedTurn = {
 				message,
 				toolResults,
 				context: currentContext,
 				newMessages,
 			};
-			const prepareNextTurn = config.prepareNextTurn;
-			const nextTurnSnapshot = prepareNextTurn ? await prepareNextTurn(nextTurnContext) : undefined;
-			if (nextTurnSnapshot) {
-				currentContext = nextTurnSnapshot.context ?? currentContext;
-				config = {
-					...config,
-					model: nextTurnSnapshot.model ?? config.model,
-					reasoning:
-						nextTurnSnapshot.thinkingLevel === undefined
-							? config.reasoning
-							: nextTurnSnapshot.thinkingLevel === "off"
-								? undefined
-								: nextTurnSnapshot.thinkingLevel,
-				};
-			}
+			lastCompletedTurn = completedTurn;
 
-			if (
-				await config.shouldStopAfterTurn?.({
-					message,
-					toolResults,
-					context: currentContext,
-					newMessages,
-				})
-			) {
+			if (await config.shouldStopAfterTurn?.(completedTurn)) {
 				await emit({ type: "agent_end", messages: newMessages });
 				return;
 			}

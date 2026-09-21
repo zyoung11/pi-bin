@@ -68,6 +68,13 @@ const SYMBOLS: Readonly<Record<string, string>> = {
 	uplus: "⊎",
 	sqcap: "⊓",
 	sqcup: "⊔",
+	bowtie: "⋈",
+	Join: "⋈",
+	ltimes: "⋉",
+	rtimes: "⋊",
+	leftouterjoin: "⟕",
+	rightouterjoin: "⟖",
+	fullouterjoin: "⟗",
 	triangleleft: "◁",
 	triangleright: "▷",
 	wr: "≀",
@@ -300,12 +307,15 @@ const RELATION_COMMANDS = new Set([
 	"Longleftrightarrow",
 	"Longrightarrow",
 	"Rightarrow",
+	"Join",
 	"Vdash",
 	"Vvdash",
 	"approx",
 	"asymp",
+	"bowtie",
 	"cong",
 	"dashv",
+	"fullouterjoin",
 	"doteq",
 	"downarrow",
 	"equiv",
@@ -326,6 +336,7 @@ const RELATION_COMMANDS = new Set([
 	"leftharpoonup",
 	"leftrightarrow",
 	"leftrightharpoons",
+	"leftouterjoin",
 	"leq",
 	"leqslant",
 	"ll",
@@ -333,6 +344,7 @@ const RELATION_COMMANDS = new Set([
 	"longleftrightarrow",
 	"longmapsto",
 	"longrightarrow",
+	"ltimes",
 	"mapsto",
 	"mid",
 	"models",
@@ -352,8 +364,10 @@ const RELATION_COMMANDS = new Set([
 	"rightharpoondown",
 	"rightharpoonup",
 	"rightleftharpoons",
+	"rightouterjoin",
 	"rightarrow",
 	"rightsquigarrow",
+	"rtimes",
 	"searrow",
 	"sim",
 	"simeq",
@@ -514,6 +528,7 @@ const SPACING_COMMANDS = new Set([
 ]);
 const NEGATIVE_SPACING_COMMANDS = new Set(["!", "negmedspace", "negthickspace", "negthinspace"]);
 const NEGATIVE_SPACE = "\u0000";
+const FONT_SWITCH_COMMANDS = new Set(["bf", "cal", "it", "rm", "sf", "sl", "tt"]);
 const IGNORED_COMMANDS = new Set([
 	"displaystyle",
 	"limits",
@@ -601,10 +616,17 @@ function replaceCharacters(value: string, replacements: Readonly<Record<string, 
 	return result;
 }
 
+function normalizeScriptValue(value: string): string {
+	return value.trim().replace(/\s*([=+-])\s*/g, "$1");
+}
+
+function formatUnicodeScript(value: string, kind: "sub" | "sup"): string | undefined {
+	return replaceCharacters(normalizeScriptValue(value), kind === "sub" ? SUBSCRIPTS : SUPERSCRIPTS);
+}
+
 function formatScript(value: string, kind: "sub" | "sup"): string {
-	value = value.trim();
-	const replacements = kind === "sub" ? SUBSCRIPTS : SUPERSCRIPTS;
-	const unicode = replaceCharacters(value.replace(/\s*([=+-])\s*/g, "$1"), replacements);
+	value = normalizeScriptValue(value);
+	const unicode = formatUnicodeScript(value, kind);
 	if (unicode !== undefined) {
 		return unicode;
 	}
@@ -614,6 +636,14 @@ function formatScript(value: string, kind: "sub" | "sup"): string {
 		return `${prefix}${value}`;
 	}
 	return `${prefix}(${value})`;
+}
+
+function scriptValueBlocksLayout(value: string | undefined): boolean {
+	if (value === undefined) return false;
+	if (value.includes("/")) return true;
+	if (value.includes(LAYOUT_MARKER_START)) return false;
+	if (Array.from(value).length <= 1) return false;
+	return !/[A-Z*∗]/.test(value);
 }
 
 function formatFraction(numerator: string, denominator: string): string {
@@ -662,13 +692,19 @@ interface OperatorNode {
 	upper?: string;
 }
 
+interface ScriptNode {
+	type: "script";
+	lower?: string;
+	upper?: string;
+}
+
 interface MatrixNode {
 	type: "matrix";
 	lines: string[];
 	baseline: number;
 }
 
-type LayoutNode = FractionNode | OperatorNode | MatrixNode;
+type LayoutNode = FractionNode | OperatorNode | ScriptNode | MatrixNode;
 
 interface Layout {
 	lines: string[];
@@ -779,6 +815,27 @@ function renderLayout(source: string, nodes: readonly LayoutNode[]): Layout {
 					width: contentWidth + 1,
 					baseline: upper === undefined ? 0 : 1,
 				});
+			} else if (nodeType === "script") {
+				const scriptUpperValue = node["upper"];
+				const scriptLowerValue = node["lower"];
+				const scriptUpper = typeof scriptUpperValue === "string" ? scriptUpperValue : undefined;
+				const scriptLower = typeof scriptLowerValue === "string" ? scriptLowerValue : undefined;
+				const upperLayout = scriptUpper === undefined ? undefined : renderLayout(scriptUpper, nodes);
+				const lowerLayout = scriptLower === undefined ? undefined : renderLayout(scriptLower, nodes);
+				const width = Math.max(
+					upperLayout === undefined ? 0 : upperLayout.width,
+					lowerLayout === undefined ? 0 : lowerLayout.width,
+				);
+				const scriptLines: string[] = [];
+				if (upperLayout !== undefined) {
+					for (const line of upperLayout.lines) scriptLines.push(padLayoutLine(line, width));
+				}
+				scriptLines.push(" ".repeat(width));
+				if (lowerLayout !== undefined) {
+					for (const line of lowerLayout.lines) scriptLines.push(padLayoutLine(line, width));
+				}
+				const upperLineCount = upperLayout === undefined ? 0 : upperLayout.lines.length;
+				layouts.push({ lines: scriptLines, width, baseline: upperLineCount });
 			} else {
 				const linesValue = node["lines"];
 				const matrixLines = Array.isArray(linesValue) ? (linesValue as string[]) : [];
@@ -829,6 +886,7 @@ class LatexParser {
 	private position = 0;
 	private supported = true;
 	private stackFractions = true;
+	private scriptDepth = 0;
 
 	constructor(source: string, layoutNodes: LayoutNode[], display: boolean) {
 		this.source = source;
@@ -880,7 +938,7 @@ class LatexParser {
 			if (character === "^" || character === "_") {
 				this.position++;
 				result = result.trimEnd();
-				const script = formatScript(this.parseRequiredArgument(false), character === "_" ? "sub" : "sup");
+				const script = this.parseScripts(character);
 				if (result.endsWith(NAMED_OPERATOR_END)) {
 					result = `${result.slice(0, -NAMED_OPERATOR_END.length)}${script}${NAMED_OPERATOR_END}`;
 				} else {
@@ -932,6 +990,62 @@ class LatexParser {
 		return result;
 	}
 
+	private parseScripts(initialMarker: "^" | "_"): string {
+		const scripts: Record<string, string | undefined> = {};
+		const order: string[] = [];
+		const parseMarker = (marker: "^" | "_"): void => {
+			const kind = marker === "_" ? "sub" : "sup";
+			this.scriptDepth++;
+			try {
+				scripts[kind] = this.parseRequiredArgument(false);
+			} finally {
+				this.scriptDepth--;
+			}
+			order.push(kind);
+		};
+
+		parseMarker(initialMarker);
+		let nextPosition = this.position;
+		while (nextPosition < this.source.length && /\s/.test(this.source[nextPosition] ?? "")) {
+			nextPosition++;
+		}
+		const nextMarker = this.source[nextPosition];
+		if ((nextMarker === "^" || nextMarker === "_") && nextMarker !== initialMarker) {
+			this.position = nextPosition + 1;
+			parseMarker(nextMarker);
+		}
+
+		const subValue = scripts["sub"];
+		const supValue = scripts["sup"];
+		const subUnicode = subValue === undefined ? undefined : formatUnicodeScript(subValue, "sub");
+		const supUnicode = supValue === undefined ? undefined : formatUnicodeScript(supValue, "sup");
+		const canUseLayout =
+			!scriptValueBlocksLayout(subValue) && !scriptValueBlocksLayout(supValue);
+		const needsLayout =
+			this.display &&
+			canUseLayout &&
+			(this.scriptDepth > 0 ||
+				(subValue !== undefined && subUnicode === undefined) ||
+				(supValue !== undefined && supUnicode === undefined));
+		if (!needsLayout) {
+			let rendered = "";
+			for (const kind of order) {
+				if (kind === "sub") {
+					rendered += subUnicode !== undefined ? subUnicode : formatScript(subValue ?? "", "sub");
+				} else {
+					rendered += supUnicode !== undefined ? supUnicode : formatScript(supValue ?? "", "sup");
+				}
+			}
+			return rendered;
+		}
+
+		const scriptNode: ScriptNode = { type: "script" };
+		if (subValue !== undefined) scriptNode.lower = normalizeOutput(subValue);
+		if (supValue !== undefined) scriptNode.upper = normalizeOutput(supValue);
+		const index = this.layoutNodes.push(scriptNode) - 1;
+		return `${LAYOUT_MARKER_START}${index}${LAYOUT_MARKER_END}`;
+	}
+
 	private parseWhitespace(): string {
 		while (this.position < this.source.length && /\s/.test(this.source[this.position] ?? "")) {
 			this.position++;
@@ -974,6 +1088,12 @@ class LatexParser {
 		}
 		if (NEGATIVE_SPACING_COMMANDS.has(command)) {
 			return NEGATIVE_SPACE;
+		}
+		if (FONT_SWITCH_COMMANDS.has(command)) {
+			while (this.position < this.source.length && /\s/.test(this.source[this.position] ?? "")) {
+				this.position++;
+			}
+			return "";
 		}
 		if (IGNORED_COMMANDS.has(command)) {
 			return "";
@@ -1301,18 +1421,7 @@ class LatexParser {
 		}
 
 		if (environment === "cases" || environment === "cases*") {
-			const rows = this.splitEnvironmentRows(body)
-				.map((row) => row.split("&").map((cell) => this.renderNested(cell, false).trim()))
-				.filter((row) => row.some(Boolean));
-			return rows
-				.map((row, index) => {
-					const value = (row[0] ?? "").replace(/,\s*$/, "");
-					const condition = row[1] ?? "";
-					const delimiter = index === 0 ? "⎧" : index === rows.length - 1 ? "⎩" : "⎨";
-					const conditionPrefix = /^(?:if|when|for|otherwise)\b/i.test(condition) ? " " : " if ";
-					return `${delimiter} ${value}${condition ? `${conditionPrefix}${condition}` : ""}`;
-				})
-				.join("\n");
+			return this.renderCases(body);
 		}
 
 		if (
@@ -1324,6 +1433,53 @@ class LatexParser {
 
 		this.supported = false;
 		return body;
+	}
+
+	private renderCases(body: string): string {
+		const rows = this.splitEnvironmentRows(body)
+			.map((row) => row.split("&").map((cell) => this.renderNested(cell, false).trim()))
+			.filter((row) => row.some(Boolean));
+		let valueWidth = 0;
+		for (const row of rows) {
+			const value = (row[0] ?? "").replace(/,\s*$/, "");
+			const width = visibleWidth(value);
+			if (width > valueWidth) valueWidth = width;
+		}
+		const contents: string[] = [];
+		for (const row of rows) {
+			const value = (row[0] ?? "").replace(/,\s*$/, "");
+			const condition = row[1] ?? "";
+			if (!condition) {
+				contents.push(value);
+				continue;
+			}
+			const conditionPrefix = /^(?:if|when|for|otherwise)\b/i.test(condition) ? " " : " if ";
+			contents.push(
+				`${value}${PROTECTED_SPACE.repeat(valueWidth - visibleWidth(value))}${conditionPrefix}${condition}`,
+			);
+		}
+		if (contents.length <= 1) {
+			return contents.length === 0 ? "" : `⎧ ${contents[0]}`;
+		}
+
+		const middle = Math.floor(contents.length / 2);
+		const visualRows: Array<string | undefined> = [];
+		if (contents.length % 2 === 0) {
+			for (let index = 0; index < contents.length; index++) {
+				if (index === middle) visualRows.push(undefined);
+				visualRows.push(contents[index]);
+			}
+		} else {
+			for (const content of contents) visualRows.push(content);
+		}
+		const lines: string[] = [];
+		for (let index = 0; index < visualRows.length; index++) {
+			const content = visualRows[index];
+			const delimiter = index === 0 ? "⎧" : index === visualRows.length - 1 ? "⎩" : "⎨";
+			lines.push(content === undefined ? delimiter : `${delimiter} ${content}`);
+		}
+		const index = this.layoutNodes.push({ type: "matrix", lines, baseline: middle }) - 1;
+		return `${LAYOUT_MARKER_START}${index}${LAYOUT_MARKER_END}`;
 	}
 
 	private renderMatrix(environment: string, body: string): string {

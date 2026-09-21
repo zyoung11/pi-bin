@@ -193,9 +193,13 @@ export class ProcessTerminal implements Terminal {
 		}, 250);
 
 		// Refresh terminal dimensions - they may be stale after suspend/resume
-		// (SIGWINCH is lost while process is stopped). Unix only.
+		// (SIGWINCH is lost while process is stopped). Unix only, best-effort.
 		if (process.platform !== "win32") {
-			process.kill(process.pid, "SIGWINCH");
+			try {
+				process.kill(process.pid, "SIGWINCH");
+			} catch {
+				// Signal delivery not permitted in this environment; ignore.
+			}
 		}
 
 		// On Windows, enable ENABLE_VIRTUAL_TERMINAL_INPUT so the console sends
