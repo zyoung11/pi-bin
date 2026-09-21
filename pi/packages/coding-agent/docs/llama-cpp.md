@@ -45,23 +45,25 @@ Restart the router after manually adding files. For per-model context sizes and 
 
 ## Configure Pi
 
-Start Pi and configure the provider:
+This build has no built-in llama.cpp provider. Declare the router in `models.json` in the agent config directory, pointing `baseUrl` at its OpenAI-compatible endpoint:
 
-```text
-/login llama.cpp
+```json
+{
+  "providers": {
+    "llamacpp": {
+      "baseUrl": "http://127.0.0.1:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "optional-secret",
+      "detectChatTemplateThinking": true,
+      "models": [
+        { "id": "Qwen3.8-27B", "input": ["text"], "contextWindow": 131072, "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 } }
+      ]
+    }
+  }
+}
 ```
 
-Enter the router URL and optional API key. The default URL is `http://127.0.0.1:8080`.
-
-If you start the router with `--no-models-autoload`, `/login llama.cpp` only stores the connection. Run `/llama` to load a model, then `/model` to select the loaded model for the current session.
-
-Environment variables can configure the same values without `/login`:
-
-```bash
-export LLAMA_BASE_URL=http://127.0.0.1:8080
-export LLAMA_API_KEY=optional-secret
-pi
-```
+`apiKey` is sent as a bearer token to the router when set. `detectChatTemplateThinking` is optional and classifies thinking support through `/props`; see [models.md](models.md#llamacpp-chat-template-thinking).
 
 If the server uses an API key, start `llama-server` with the matching `--api-key` value. Keep `--host 127.0.0.1` for local-only access.
 
@@ -73,18 +75,15 @@ Run:
 /llama
 ```
 
-- Select an unloaded model to load it.
-- Select a loaded model to unload it.
-- Select **Download model…**, search Hugging Face, then choose a repository and quantization. Exact `owner/repository[:quant]` values also work.
-- Press Escape during a load or download to confirm cancellation.
+The command finds routers among the non-catalog providers in `models.json` and asks which one to manage when several answer. `/llama http://host:port` manages a server that is not configured in `models.json`.
 
-Hugging Face search uses `HF_TOKEN` when set, then checks `$HF_TOKEN_PATH`, `$HF_HOME/token`, `$XDG_CACHE_HOME/huggingface/token`, and `~/.cache/huggingface/token`. Search also works without authentication, subject to lower rate limits. Pi warns before downloading gated repositories and links to their access page. The llama.cpp server performs the download, so its process must also have `HF_TOKEN` when the selected repository requires access.
+- Select an unloaded model to load it. The router loads what its model directory already holds; this build has no model download flow.
+- Select a loaded or sleeping model to confirm and unload it. Pi never deletes model files.
+- Press Escape during a load to cancel it; the router drops the interrupted load.
 
-If other models are loaded, Pi asks whether to unload them first or keep them loaded. Pi does not silently unload models and never deletes model files. The router may be shared with other clients, so `/llama` always displays the router's current state.
+The list shows the router's live state, including models only the router knows about, and always re-reads it after every action. Models that other clients load or unload appear on the next refresh.
 
 Only loaded models appear in `/model`. After loading a model, run `/model` to select it for the current Pi session.
-
-If the router disconnects, `/llama` shows **Retry** and **Close**. Retry reconnects and refreshes model state without replaying the interrupted operation.
 
 ## Troubleshooting
 
@@ -96,6 +95,7 @@ curl http://127.0.0.1:8080/models
 ```
 
 - **No models in `/llama`:** Check `--models-dir`, the directory layout, and restart the router.
+- **`/llama` says no router answered:** The provider `baseUrl` in `models.json` must point at a llama.cpp server in router mode, and the command reaches `<root>/models`; `https://example.com/v1` becomes `https://example.com/models`.
 - **Model missing from `/model`:** Load it with `/llama` first.
 - **Load fails or uses too much memory:** Lower `-c` or unload another model.
 - **Server is not in router mode:** Start it without `--model`, `-m`, or `-hf`.

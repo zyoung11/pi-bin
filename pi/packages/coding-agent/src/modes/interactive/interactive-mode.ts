@@ -17,13 +17,14 @@ import {
 } from "../../../../tui/src/autocomplete.ts";
 import type { Editor } from "../../../../tui/src/components/editor.ts";
 import { Markdown, type MarkdownTheme } from "../../../../tui/src/components/markdown.ts";
+import type { SelectItem } from "../../../../tui/src/components/select-list.ts";
 import { Spacer } from "../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
-import { setCapabilityOverrides } from "../../../../tui/src/terminal-image.ts";
 import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
+import { setCapabilityOverrides } from "../../../../tui/src/terminal-image.ts";
 import { type Component, Container, type TUI, type TuiBase } from "../../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
 import { visibleWidth } from "../../../../tui/src/utils.ts";
@@ -52,6 +53,18 @@ import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "../../core/defau
 import { FooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
+import {
+	cancelLlamaModelLoad,
+	findLlamaModel,
+	type LlamaRouterModel,
+	type LlamaRouterServer,
+	listLlamaModels,
+	llamaModelIsResident,
+	llamaRouterRoot,
+	loadLlamaModel,
+	probeLlamaRouter,
+	unloadLlamaModel,
+} from "../../core/llama-router.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
 import {
 	defaultModelPerProvider,
@@ -92,6 +105,7 @@ import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
 import { BashExecutionComponent } from "./components/bash-execution.ts";
+import { BorderedLoader } from "./components/bordered-loader.ts";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.ts";
 import { CompactionSummaryMessageComponent } from "./components/compaction-summary-message.ts";
 import { CustomEditor } from "./components/custom-editor.ts";
@@ -105,6 +119,7 @@ import type { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import { LlamaSelectorComponent } from "./components/llama-selector.ts";
 import { LoginDialogComponent } from "./components/login-dialog.ts";
 import type { MarkdownTransformer } from "./components/markdown-transform.ts";
 import { createMermaidMarkdownTransformer } from "./components/mermaid.ts";
@@ -2254,6 +2269,14 @@ export class InteractiveMode {
 			this.handleThinkingCommand(searchTerm);
 			return;
 		}
+		if (text === "/llama" || text.startsWith("/llama ")) {
+			const urlArg = text.startsWith("/llama ") ? text.slice(7).trim() : "";
+			this.editor.setText("");
+			void this.handleLlamaCommand(urlArg.length > 0 ? urlArg : undefined).catch((error: unknown) => {
+				this.showError(`llama.cpp router error: ${error instanceof Error ? error.message : String(error)}`);
+			});
+			return;
+		}
 		if (text === "/export" || text.startsWith("/export ")) {
 			await this.handleExportCommand(text);
 			this.editor.setText("");
@@ -2427,7 +2450,7 @@ export class InteractiveMode {
 
 		this.footer.invalidate();
 
-			switch (event.type) {
+		switch (event.type) {
 			case "agent_start":
 				this.pendingTools.clear();
 				// Restore main escape handler if retry handler is still active
@@ -4493,6 +4516,200 @@ export class InteractiveMode {
 			);
 			return { component: selector as Component, focus: selector as Component };
 		});
+	}
+
+	/**
+	 * /llama manages models on a self-hosted llama.cpp router. Candidates come
+	 * from models.json providers outside the built-in catalog; an explicit URL
+	 * argument targets another server. Model downloads are not part of this
+	 * command, the router loads what its model directory already holds.
+	 */
+	private async handleLlamaCommand(urlArg?: string): Promise<void> {
+		const candidates: LlamaRouterServer[] = [];
+		if (urlArg !== undefined && urlArg.length > 0) {
+			candidates.push({ id: "llama-url", name: urlArg, baseUrl: urlArg, apiKey: undefined });
+		} else {
+			for (const provider of this.session.modelRuntime.getProviders()) {
+				if (findCatalogProvider(provider.id) !== undefined) continue;
+				const baseUrl = provider.baseUrl;
+				if (baseUrl === undefined || baseUrl.length === 0) continue;
+				candidates.push({ id: provider.id, name: provider.name, baseUrl, apiKey: undefined });
+			}
+		}
+		if (candidates.length === 0) {
+			this.showError(
+				"No self-hosted provider with a baseUrl found in models.json. Add one there or pass a server URL with /llama <url>.",
+			);
+			return;
+		}
+		const usable: LlamaRouterServer[] = [];
+		let index = 0;
+		while (index < candidates.length) {
+			const server = await this.resolveLlamaServer(candidates[index]);
+			index++;
+			if (await probeLlamaRouter(server, AbortSignal.timeout(5_000))) usable.push(server);
+		}
+		if (usable.length === 0) {
+			const names: string[] = [];
+			for (const candidate of candidates) names.push(candidate.name);
+			this.showError(`No llama.cpp router answered on ${names.join(", ")}. Start the router or check the baseUrl.`);
+			return;
+		}
+		let chosen = usable[0];
+		if (usable.length > 1) {
+			const items: SelectItem[] = [];
+			for (const server of usable) {
+				items.push({ value: server.id, label: server.name, description: llamaRouterRoot(server.baseUrl) });
+			}
+			const picked = await this.showLlamaList(
+				"llama.cpp router",
+				"Choose the server to manage",
+				items,
+				"Enter to select · Esc to cancel",
+			);
+			if (picked === undefined) return;
+			const match = usable.find((server) => server.id === picked);
+			if (match !== undefined) chosen = match;
+		}
+		await this.runLlamaManager(chosen);
+	}
+
+	/** Resolve the bearer token the router needs from the provider credentials. */
+	private async resolveLlamaServer(candidate: LlamaRouterServer): Promise<LlamaRouterServer> {
+		if (candidate.apiKey !== undefined && candidate.apiKey.length > 0) return candidate;
+		try {
+			const auth = await this.session.modelRuntime.getAuth(candidate.id, { signal: AbortSignal.timeout(5_000) });
+			const apiKey = auth?.auth.apiKey;
+			if (apiKey !== undefined && apiKey.length > 0) return { ...candidate, apiKey };
+		} catch {
+			return candidate;
+		}
+		return candidate;
+	}
+
+	private mountLlamaLoader(message: string): BorderedLoader {
+		const loader = new BorderedLoader(this.ui, theme, message);
+		this.editorContainer.clear();
+		this.editorContainer.addChild(loader);
+		this.ui.setFocus(loader);
+		this.ui.requestRender();
+		return loader;
+	}
+
+	private unmountLlamaLoader(loader: BorderedLoader): void {
+		loader.dispose();
+		this.editorContainer.clear();
+		this.editorContainer.addChild(this.editor);
+		this.ui.setFocus(this.editor);
+		this.ui.requestRender();
+	}
+
+	private showLlamaList(
+		title: string,
+		subtitle: string,
+		items: SelectItem[],
+		hints: string,
+	): Promise<string | undefined> {
+		return new Promise((resolve) => {
+			this.showSelector((done): SelectorHandle => {
+				const selector = new LlamaSelectorComponent(
+					title,
+					subtitle,
+					items,
+					hints,
+					(value) => {
+						done();
+						resolve(value);
+					},
+					() => {
+						done();
+						resolve(undefined);
+					},
+				);
+				return { component: selector, focus: selector };
+			});
+		});
+	}
+
+	private async loadLlamaModelFlow(server: LlamaRouterServer, model: LlamaRouterModel): Promise<void> {
+		const loader = this.mountLlamaLoader(`Loading ${model.id}…`);
+		const result = await loadLlamaModel(server, model.id, (message) => loader.setMessage(message), loader.signal);
+		const aborted = loader.signal.aborted;
+		this.unmountLlamaLoader(loader);
+		if (aborted || result.cancelled) {
+			await cancelLlamaModelLoad(server, model.id);
+			this.showStatus(`Cancelled loading ${model.id}`);
+			return;
+		}
+		if (!result.ok) {
+			this.showError(result.error ?? `Could not load ${model.id}`);
+			return;
+		}
+		this.showStatus(`Loaded ${model.id}`);
+	}
+
+	private async unloadLlamaModelFlow(server: LlamaRouterServer, model: LlamaRouterModel): Promise<void> {
+		const loader = this.mountLlamaLoader(`Unloading ${model.id}…`);
+		const result = await unloadLlamaModel(server, model.id, loader.signal);
+		const aborted = loader.signal.aborted;
+		this.unmountLlamaLoader(loader);
+		if (aborted || result.cancelled) {
+			this.showStatus(`Stopped waiting for ${model.id} to unload`);
+			return;
+		}
+		if (!result.ok) {
+			this.showError(result.error ?? `Could not unload ${model.id}`);
+			return;
+		}
+		this.showStatus(`Unloaded ${model.id}`);
+	}
+
+	private async runLlamaManager(server: LlamaRouterServer): Promise<void> {
+		const root = llamaRouterRoot(server.baseUrl);
+		const label = server.name === root ? root : `${server.name} · ${root}`;
+		while (true) {
+			let models: LlamaRouterModel[] = [];
+			try {
+				models = await listLlamaModels(server, AbortSignal.timeout(10_000));
+			} catch (error) {
+				this.showError(`Could not read the model list: ${error instanceof Error ? error.message : String(error)}`);
+				return;
+			}
+			if (models.length === 0) {
+				this.showStatus(`No models found on ${label}`);
+				return;
+			}
+			const items: SelectItem[] = [];
+			for (const model of models) items.push({ value: model.id, label: model.id, description: model.detail });
+			const picked = await this.showLlamaList(
+				"llama.cpp models",
+				label,
+				items,
+				"Enter to load or unload · Esc to close",
+			);
+			if (picked === undefined) return;
+			const model = findLlamaModel(models, picked);
+			if (model === undefined) continue;
+			if (llamaModelIsResident(model)) {
+				const confirmed = await this.showLlamaList(
+					"Unload model",
+					`${model.id} · ${model.detail}`,
+					[
+						{ value: "unload", label: "Unload", description: "Free the memory this model holds" },
+						{ value: "keep", label: "Keep loaded", description: "Close without unloading" },
+					],
+					"Enter to select · Esc to cancel",
+				);
+				if (confirmed !== "unload") continue;
+				await this.unloadLlamaModelFlow(server, model);
+				continue;
+			}
+			if (model.status === "unloaded" || model.failed) {
+				await this.loadLlamaModelFlow(server, model);
+				continue;
+			}
+			this.showStatus(`${model.id} is ${model.status}`);
+		}
 	}
 
 	private async handleModelCommand(searchTerm?: string): Promise<void> {

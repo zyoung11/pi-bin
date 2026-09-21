@@ -1141,3 +1141,49 @@ unclassified): with a captured request log, `--thinking low|medium|high` sends
 `reasoning_effort: low|medium|xhigh` from the model's `thinkingLevelMap`, and
 `--thinking off` sends `enable_thinking: false` with no effort. Response side: a
 non-off level produces a thinking block, `off` produces none.
+
+---
+
+## Phase 25 — /llama router model management
+
+Ported the interactive part of upstream's llama.cpp extension (`71026970a` era
+UI, `ui.ts`/`index.ts`) without the extension system, the built-in provider, the
+alternate-screen panel, and without Hugging Face downloads.
+
+- New `core/llama-router.ts`: a scriptc-safe router client over plain `fetch`
+  with dynamic JSON reads. It exposes the model catalog (`GET /models`, status,
+  size, quantization, context, vision flag, load/download progress), `POST
+  /models/load` with polling until loaded or failed, `POST /models/unload` with
+  polling until unloaded, a one-second router-shape probe, and a cancel path
+  that unloads an interrupted load and waits for the router to report it. The
+  provider `baseUrl` is reduced to the router root by dropping trailing slashes
+  and a `/v1` suffix, and a configured `apiKey` is sent as a bearer token. Every
+  operation reports failure through a flat result record instead of throwing
+  into the UI.
+- `/llama` slash command and a `LlamaSelectorComponent` list overlay reusing the
+  thinking-selector layout. The command picks candidates from `models.json`
+  providers outside the built-in catalog, probes each one, and asks which server
+  to manage when several answer; `/llama <url>` manages an unconfigured server.
+  The model list sorts resident models first and shows the router's live state;
+  selecting an unloaded model loads it behind a cancellable `BorderedLoader`
+  with progress messages, selecting a resident model confirms and unloads it,
+  and every action re-reads the catalog. Models that other clients load or
+  unload show up on the next refresh.
+- `BorderedLoader` gained `setMessage` so long operations update the spinner
+  text in place.
+- Deliberately not ported: Hugging Face search, quantization picking and
+  `POST /models` downloads, the SSE progress stream (polling covers it), the
+  auto-unload prompt for other loaded models, the `/login llama.cpp` credential
+  flow (the router is a `models.json` provider), and mouse interaction.
+
+Verified against the real router at `192.168.100.3:19966` in a tmux session:
+the list showed all seven router models with `Qwen3.8-27B-MTP` resident and
+`IQ4_XS - 4.25 bpw · 13.3 GiB · 128k ctx` in its row; unloading it through the
+confirmation emptied the list entry and re-sorted the list; loading it again
+showed the spinner with `Loading Qwen3.8-27B-MTP · loading` and ended with the
+model resident and the status line `Loaded Qwen3.8-27B-MTP`; Escape during a
+load cancelled it and the reopened list showed the router's post-cancel state
+instead of a stale `loading` row. Error paths were exercised with a dead port
+and with an empty `providers` block, and `/llama http://192.168.100.3:19966`
+worked without any models.json entry. `biome`, `tsgo` and the scriptc build are
+clean apart from two pre-existing biome findings in `interactive-mode.ts`.

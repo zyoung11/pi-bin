@@ -65,6 +65,10 @@ export class BorderedLoader extends Container {
 		}
 	}
 
+	setMessage(message: string): void {
+		this.loader.setMessage(message);
+	}
+
 	dispose(): void {
 		if (this.cancellableLoader !== undefined) {
 			this.cancellableLoader.dispose();

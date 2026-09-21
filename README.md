@@ -131,5 +131,6 @@ Provider coverage (✓ works with `/login`, ✗ not supported yet):
 - Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) work through
   a `models.json` file in the agent config directory instead. llama.cpp router
   providers can set `detectChatTemplateThinking: true` to pick up the
-  `enable_thinking` chat-template control automatically.
+  `enable_thinking` chat-template control automatically, and `/llama` loads and
+  unloads the models the router holds (no model downloads).
 - Select models with `--model`, the `/model` command, or `Ctrl+P`.
