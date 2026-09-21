@@ -22,7 +22,17 @@ import {
 	type StreamOptionExtras,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
-import { setThinkingLevelMapOverride, setVllmPriorityOverride, thinkingLevelMapKey, vllmPriorityKey } from "../../../ai/src/models.ts";
+import {
+	isChatTemplateThinkingModel,
+	setThinkingFormatOverride,
+	setThinkingLevelMapOverride,
+	setVllmPriorityOverride,
+	type ThinkingFormatName,
+	thinkingFormatKey,
+	thinkingLevelMapKey,
+	vllmPriorityKey,
+} from "../../../ai/src/models.ts";
+import type { ThinkingLevelMap } from "../../../ai/src/types.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
 import {
 	clearConfigValueCache,
@@ -235,10 +245,32 @@ const modelsJsonLevelMapKeys = new Set<string>();
 /** vllmPriority override keys written by applyModelsJson from models.json definitions. */
 const modelsJsonVllmPriorityKeys = new Set<string>();
 
+/** thinkingFormat override keys written by applyModelsJson from models.json definitions. */
+const modelsJsonThinkingFormatKeys = new Set<string>();
+
+/** Level map override keys written by applyModelsJson from chat-template detection. */
+const chatTemplateThinkingLevelMapKeys = new Set<string>();
+
+/** Level map for a chat template that only toggles thinking on and off. */
+const CHAT_TEMPLATE_THINKING_LEVEL_MAP: ThinkingLevelMap = {
+	off: "off",
+	minimal: null,
+	low: null,
+	medium: "medium",
+	high: null,
+	xhigh: null,
+};
+
 function lookupNumberField(value: unknown, key: string): number | undefined {
 	if (value === null || typeof value !== "object") return undefined;
 	const found = (value as Record<string, unknown>)[key];
 	return typeof found === "number" ? found : undefined;
+}
+
+function lookupStringField(value: unknown, key: string): string | undefined {
+	if (value === null || typeof value !== "object") return undefined;
+	const found = (value as Record<string, unknown>)[key];
+	return typeof found === "string" ? found : undefined;
 }
 
 function applyModelsJson(
@@ -291,7 +323,8 @@ function applyModelsJson(
 		// request path.
 		const providerCompat = recordViewOf(config)["compat"];
 		const definitionCompat = recordViewOf(definition)["compat"];
-		const priority = lookupNumberField(definitionCompat, "vllmPriority") ?? lookupNumberField(providerCompat, "vllmPriority");
+		const priority =
+			lookupNumberField(definitionCompat, "vllmPriority") ?? lookupNumberField(providerCompat, "vllmPriority");
 		const priorityKey = vllmPriorityKey(providerId, definition.id);
 		if (priority !== undefined) {
 			setVllmPriorityOverride(providerId, definition.id, priority);
@@ -299,6 +332,37 @@ function applyModelsJson(
 		} else if (modelsJsonVllmPriorityKeys.has(priorityKey)) {
 			setVllmPriorityOverride(providerId, definition.id, undefined);
 			modelsJsonVllmPriorityKeys.delete(priorityKey);
+		}
+		const thinkingFormat =
+			lookupStringField(definitionCompat, "thinkingFormat") ?? lookupStringField(providerCompat, "thinkingFormat");
+		const thinkingFormatOverrideKey = thinkingFormatKey(providerId, definition.id);
+		if (thinkingFormat !== undefined) {
+			setThinkingFormatOverride(providerId, definition.id, thinkingFormat as ThinkingFormatName);
+			modelsJsonThinkingFormatKeys.add(thinkingFormatOverrideKey);
+		} else if (modelsJsonThinkingFormatKeys.has(thinkingFormatOverrideKey)) {
+			setThinkingFormatOverride(providerId, definition.id, undefined);
+			modelsJsonThinkingFormatKeys.delete(thinkingFormatOverrideKey);
+		}
+		// Detection from the llama.cpp /props probe arrives through the runtime
+		// registry. Explicit settings win: reasoning false opts out, and a definition
+		// thinkingLevelMap or compat.thinkingFormat keeps its own values. The wire
+		// format is mirrored into the thinkingFormat registry because the compat
+		// record's literal union re-tags a value that does not come from the registry.
+		const chatTemplateLevelMapKey = thinkingLevelMapKey(providerId, definition.id);
+		const detectedThinking = definition.reasoning !== false && isChatTemplateThinkingModel(providerId, definition.id);
+		if (detectedThinking) {
+			model.reasoning = true;
+			if (definition.thinkingLevelMap === undefined) {
+				setThinkingLevelMapOverride(providerId, definition.id, CHAT_TEMPLATE_THINKING_LEVEL_MAP);
+				model.thinkingLevelMap = CHAT_TEMPLATE_THINKING_LEVEL_MAP;
+				chatTemplateThinkingLevelMapKeys.add(chatTemplateLevelMapKey);
+			}
+		} else if (
+			definition.thinkingLevelMap === undefined &&
+			chatTemplateThinkingLevelMapKeys.has(chatTemplateLevelMapKey)
+		) {
+			setThinkingLevelMapOverride(providerId, definition.id, undefined);
+			chatTemplateThinkingLevelMapKeys.delete(chatTemplateLevelMapKey);
 		}
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);

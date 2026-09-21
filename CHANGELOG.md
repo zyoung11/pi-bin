@@ -1031,3 +1031,113 @@ mode is selectable in `/settings`. Session resume with usage entries, a real
 DeepSeek tool call, and the post-tool compaction mock all pass. The README
 image-resizing removal is unchanged; upstream image input limits
 (`f5c946480`) are not ported.
+
+---
+
+## Phase 24 — llama.cpp chat-template thinking detection
+
+Ported from upstream (`1e39862f6`) without the extension system: pi-bin has no
+llama.cpp provider, so detection is a `models.json` opt-in that feeds the
+existing `qwen-chat-template` wire format.
+
+- New provider flag `detectChatTemplateThinking` in `models.json`. For an
+  openai-completions provider that sets it, `core/chat-template-thinking.ts`
+  queries `GET /props?model=<id>&autoload=false` for every configured model and
+  reports the models whose `chat_template` contains `enable_thinking`. The props
+  URL drops a trailing `/v1` from `baseUrl` (the endpoint sits at the server
+  root), the provider `apiKey` is sent as a bearer token when it is a literal or
+  environment template, probes run concurrently with one 1-second budget per
+  provider, and every failure is silent so unloaded router presets, sleeping
+  instances and unreachable hosts stay unclassified.
+- `ModelRuntime.refresh()` probes opted-in providers and recomposes them when
+  metadata arrives, so the interactive startup refresh classifies models before
+  the session resolves its model. A per-provider 10-second interval makes the
+  second startup composition reuse the first result instead of waiting on the
+  timeout twice. `PI_OFFLINE` disables probing.
+- Detection rides in `ai/src/models.ts` runtime registries, matching the
+  `thinkingLevelMap`/`vllmPriority` precedent: `chatTemplateThinkingModels`
+  marks the classified models and the new `thinkingFormat` registry carries the
+  wire-visible format. `provider-composer.applyModelsJson` applies it while
+  composing the provider: `reasoning` becomes true, a classified model without
+  a `thinkingLevelMap` gets upstream's boolean ladder (`off` and `medium`
+  selectable), and `getCompat` resolves `thinkingFormat: "qwen-chat-template"`
+  from the registry, which makes requests carry
+  `chat_template_kwargs: { enable_thinking, preserve_thinking: true }`.
+  Explicit settings win: `reasoning: false` opts out, a model `thinkingLevelMap`
+  keeps its own ladder, and a `compat.thinkingFormat` on the model or provider
+  keeps its own request format.
+
+Latent bug found and fixed for this path: model-level `compat` fields from
+`models.json` never reached the request path in the compiled binary. A
+definition carrying `supportsDeveloperRole`, `maxTokensField` and
+`thinkingFormat` kept only `supportsDeveloperRole` at request time (`thinking`
+still went out as `reasoning_effort: medium`), while the Node source sent
+`chat_template_kwargs`. The compat record is a union that the static runtime
+materializes into a narrower arm, so single-arm fields are dropped. Following
+the `vllmPriority` fix, `applyModelsJson` now mirrors the definition's
+`compat.thinkingFormat` into a registry and `getCompat` prefers it, which also
+makes hand-written `compat.thinkingFormat` work in the binary for the first
+time. Other single-arm compat fields (`maxTokensField`, `chatTemplateKwargs`,
+`sendSessionAffinityHeaders`, ...) remain affected; only `thinkingFormat` is
+mirrored for now.
+
+Design finding: enriching `ModelConfig` definitions by rebuilding provider
+records is not viable under scriptc. The rebuilt candidate failed
+`validateModelsConfig.Check` with `must be string`/`must be boolean` errors for
+every absent optional key (absent-key reads on rebuilt records do not behave
+like absent keys on JSON.parse results), so the detection is a runtime overlay
+read at composition time instead of a config rewrite.
+
+Verified with a mock llama.cpp server whose `qwen-thinking` template contains
+`enable_thinking` and whose `plain` template does not: print mode sends
+`enable_thinking: false` for `--thinking off`, `true` for `medium`, and clamps
+`high` to `medium`; the plain model sends no thinking field at all; a manual
+`thinkingLevelMap` keeps its ladder while detection supplies the wire format; a
+model with `reasoning: false` or a manual `compat.thinkingFormat` ignores the
+detection; a provider without the flag issues no `/props` requests. In the TUI
+the footer shows the classified model with its level, `/thinking` offers
+exactly `off` and `medium`, and a bash tool round trip carries
+`chat_template_kwargs` with `enable_thinking: true`. With `/props` delayed by
+ten seconds, startup costs one second and the second composition skips the
+probe; with `PI_OFFLINE=1` no probe is sent at all. `tsgo`, the scriptc build
+and `biome` are clean.
+
+Not ported with this feature: upstream's `/llama` command, router model
+discovery/load/unload UI, and click-to-toggle summaries (which need the mouse
+subsystem). Documentation: `docs/models.md` documents the new provider flag and
+the precedence rules, and the README's self-hosted endpoint note mentions it.
+
+### Extension after the first live test (fork-only)
+
+Upstream decides llama.cpp thinking support from the template alone and sends
+only `chat_template_kwargs`, which flattens every non-off level into whatever
+effort the template defaults to (the Qwen3.8 template defaults to `xhigh`).
+llama.cpp's `/props` response also carries `chat_template_caps`, so the probe now
+reads `supports_reasoning_effort` next to `chat_template` and records the subset
+of classified models whose template accepts `reasoning_effort`. For those models
+the `qwen-chat-template` branch sends the mapped `reasoning_effort` in addition
+to `chat_template_kwargs`, so `low`/`medium`/`high` keep their depth while `off`
+still disables thinking. A template without effort support keeps the upstream
+behavior (boolean toggle only), verified with a mock whose caps report
+`supports_reasoning_effort: false`.
+
+Two latent problems surfaced while verifying against a real llama.cpp router:
+
+- `getCompat` returned early when a model had no `compat` record of its own
+  (`if (!overrides) return detected;`), so detection never applied to models that
+  declared no compat fields. Every earlier test config happened to carry a
+  provider-level `compat`, which masked it. The early return now honors the
+  detection registry too.
+- A literal from a string-literal union must not be produced inside a helper: the
+  value re-tagged to the union's first arm (`openai`) on the way out, which is
+  why an early attempt that wrote the detected format into the `thinkingFormat`
+  registry from a constant silently sent `reasoning_effort`. The format stays
+  resolved by the `??` chain in `getCompat`, which is the path that works.
+
+Live verification against the user's llama.cpp router (`Qwen3.8-27B-MTP`, loaded
+on demand; unloaded models answer `400 model is not loaded` and stay
+unclassified): with a captured request log, `--thinking low|medium|high` sends
+`chat_template_kwargs: { enable_thinking: true, preserve_thinking: true }` plus
+`reasoning_effort: low|medium|xhigh` from the model's `thinkingLevelMap`, and
+`--thinking off` sends `enable_thinking: false` with no effort. Response side: a
+non-off level produces a thinking block, `off` produces none.

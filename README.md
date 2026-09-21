@@ -129,5 +129,7 @@ Provider coverage (✓ works with `/login`, ✗ not supported yet):
   (GitHub Copilot, OpenAI Codex), or special credential chains (Amazon
   Bedrock, Cloudflare, RADIUS).
 - Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) work through
-  a `models.json` file in the agent config directory instead.
+  a `models.json` file in the agent config directory instead. llama.cpp router
+  providers can set `detectChatTemplateThinking: true` to pick up the
+  `enable_thinking` chat-template control automatically.
 - Select models with `--model`, the `/model` command, or `Ctrl+P`.

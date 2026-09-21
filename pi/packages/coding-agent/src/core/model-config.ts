@@ -7,6 +7,8 @@ import { Compile, type PiValidationError, type Static, Type } from "../../../ai/
 import { stripJsonComments } from "../utils/json.ts";
 import { normalizePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
+import type { ChatTemplateThinkingTarget } from "./chat-template-thinking.ts";
+import { isCommandConfigValue, resolveConfigValue } from "./resolve-config-value.ts";
 
 const PercentileCutoffsSchema = Type.Object({
 	p50: Type.Optional(Type.Number()),
@@ -205,6 +207,7 @@ const ProviderConfigSchema = Type.Object({
 	baseUrl: Type.Optional(Type.String({ minLength: 1 })),
 	apiKey: Type.Optional(Type.String({ minLength: 1 })),
 	api: Type.Optional(Type.String({ minLength: 1 })),
+	detectChatTemplateThinking: Type.Optional(Type.Boolean()),
 	oauth: Type.Optional(Type.Literal("radius")),
 	headers: Type.Optional(Type.Record(Type.String(), Type.String())),
 	compat: Type.Optional(ProviderCompatSchema),
@@ -405,6 +408,40 @@ export class ModelConfig {
 
 	getProvider(providerId: string): ModelsJsonProvider | undefined {
 		return this.providers.get(providerId);
+	}
+
+	/**
+	 * Providers that opt into llama.cpp chat-template thinking detection through
+	 * the `detectChatTemplateThinking` flag. Only openai-completions providers
+	 * with a base URL and at least one model are probed.
+	 */
+	getChatTemplateThinkingTargets(): ChatTemplateThinkingTarget[] {
+		const targets: ChatTemplateThinkingTarget[] = [];
+		for (const [providerId, provider] of this.providers) {
+			const record = recordViewOf(provider);
+			if (record["detectChatTemplateThinking"] !== true) continue;
+			if (record["api"] !== "openai-completions") continue;
+			const baseUrl = record["baseUrl"];
+			if (typeof baseUrl !== "string" || baseUrl.length === 0) continue;
+			const rawModels = record["models"];
+			if (!Array.isArray(rawModels)) continue;
+			const modelIds: string[] = [];
+			for (const rawModel of rawModels as Record<string, unknown>[]) {
+				const id = rawModel["id"];
+				if (typeof id !== "string" || id.length === 0) continue;
+				const api = rawModel["api"];
+				if (typeof api === "string" && api !== "openai-completions") continue;
+				modelIds.push(id);
+			}
+			if (modelIds.length === 0) continue;
+			const apiKeyValue = record["apiKey"];
+			const apiKey =
+				typeof apiKeyValue === "string" && !isCommandConfigValue(apiKeyValue)
+					? resolveConfigValue(apiKeyValue)
+					: undefined;
+			targets.push({ providerId, baseUrl, apiKey, modelIds });
+		}
+		return targets;
 	}
 
 	getProviderIds(): readonly string[] {

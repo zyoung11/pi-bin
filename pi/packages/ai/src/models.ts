@@ -27,6 +27,7 @@ import type {
 	Model,
 	ModelCostRates,
 	ModelThinkingLevel,
+	OpenAICompletionsCompat,
 	ProviderHeaders,
 	ProviderRequestOptions,
 	ProviderStreams,
@@ -758,6 +759,83 @@ export function setVllmPriorityOverride(provider: string, modelId: string, value
 
 export function getVllmPriorityOverride(model: Pick<Model<Api>, "provider" | "id">): number | undefined {
 	return vllmPriorityOverrides.get(vllmPriorityKey(model.provider, model.id));
+}
+
+/**
+ * Runtime override registry for the openai-completions thinkingFormat of a
+ * model definition. The compat record is a union whose materialization drops
+ * single-arm fields under the static runtime, so the wire-visible format is
+ * mirrored here instead of riding on `model.compat`.
+ */
+const thinkingFormatOverrides = new Map<string, string>();
+
+/** Wire-visible thinking format name accepted by the openai-completions compat record. */
+export type ThinkingFormatName = NonNullable<OpenAICompletionsCompat["thinkingFormat"]>;
+
+/** Registry key for a model's thinkingFormat override: `provider:model-id`. */
+export function thinkingFormatKey(provider: string, modelId: string): string {
+	return `${provider}:${modelId}`;
+}
+
+export function setThinkingFormatOverride(provider: string, modelId: string, value: string | undefined): void {
+	const key = thinkingFormatKey(provider, modelId);
+	if (value === undefined) {
+		thinkingFormatOverrides.delete(key);
+		return;
+	}
+	thinkingFormatOverrides.set(key, value);
+}
+
+export function getThinkingFormatOverride(model: Pick<Model<Api>, "provider" | "id">): ThinkingFormatName | undefined {
+	const value = thinkingFormatOverrides.get(thinkingFormatKey(model.provider, model.id));
+	if (value === undefined) return undefined;
+	return value as ThinkingFormatName;
+}
+
+/**
+ * Runtime registry of models whose llama.cpp chat template toggles thinking
+ * through chat_template_kwargs.enable_thinking. The detection owns model
+ * metadata (reasoning and the thinking level ladder) that does not survive the
+ * static runtime's record boundaries, so consumers resolve it here. A separate
+ * entry records the templates that also accept reasoning_effort, so the
+ * per-level depth survives next to the boolean toggle.
+ */
+const chatTemplateThinkingModels = new Map<string, string[]>();
+const chatTemplateEffortModels = new Map<string, string[]>();
+
+/** Record which models of a provider toggle thinking through the chat template. */
+export function setChatTemplateThinkingModels(providerId: string, modelIds: readonly string[]): void {
+	chatTemplateThinkingModels.set(providerId, copyModelIds(modelIds));
+}
+
+/** Record which of those models also accept reasoning_effort in their template. */
+export function setChatTemplateEffortModels(providerId: string, modelIds: readonly string[]): void {
+	chatTemplateEffortModels.set(providerId, copyModelIds(modelIds));
+}
+
+/** Drop a provider's detection so a re-probe cannot leave stale entries behind. */
+export function clearChatTemplateModels(providerId: string): void {
+	chatTemplateThinkingModels.delete(providerId);
+	chatTemplateEffortModels.delete(providerId);
+}
+
+export function isChatTemplateThinkingModel(providerId: string, modelId: string): boolean {
+	return modelIdsInclude(chatTemplateThinkingModels.get(providerId), modelId);
+}
+
+export function isChatTemplateEffortModel(providerId: string, modelId: string): boolean {
+	return modelIdsInclude(chatTemplateEffortModels.get(providerId), modelId);
+}
+
+function copyModelIds(modelIds: readonly string[]): string[] {
+	const copy: string[] = [];
+	for (const modelId of modelIds) copy.push(modelId);
+	return copy;
+}
+
+function modelIdsInclude(modelIds: string[] | undefined, modelId: string): boolean {
+	if (modelIds === undefined) return false;
+	return modelIds.indexOf(modelId) !== -1;
 }
 
 function lookupThinkingLevelMap(map: unknown, key: string): string | null | undefined {

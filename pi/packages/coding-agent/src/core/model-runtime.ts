@@ -32,17 +32,17 @@ import {
 	type ModelsStore,
 	type Provider,
 	type ProviderHeaders,
-	type ProviderRequestOptions,
 	type SimpleStreamOptions,
-	type StreamOptionExtras,
-	type StreamOptions,
-	type ThinkingBudgets,
-	type ThinkingLevel,
-	type ToolChoice,
 } from "../../../ai/src/index.ts";
+import {
+	clearChatTemplateModels,
+	setChatTemplateEffortModels,
+	setChatTemplateThinkingModels,
+} from "../../../ai/src/models.ts";
 import { getAgentDir } from "../config.ts";
 import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
 import { AuthStorage as DefaultAuthStorage } from "./auth-storage.ts";
+import { type ChatTemplateThinkingTarget, detectChatTemplateThinking } from "./chat-template-thinking.ts";
 import { ModelConfig } from "./model-config.ts";
 import { FileModelsStore, InMemoryCodingAgentModelsStore } from "./models-store.ts";
 import {
@@ -56,6 +56,13 @@ import {
 	validateExtensionProvider,
 } from "./provider-composer.ts";
 import { RuntimeCredentials } from "./runtime-credentials.ts";
+
+/**
+ * Minimum time between two /props probes of the same provider. Startup composes
+ * the runtime twice within milliseconds; the second pass reuses the first
+ * result instead of waiting on the probe timeout again.
+ */
+const CHAT_TEMPLATE_PROBE_INTERVAL_MS = 10_000;
 
 interface ModelRuntimeSnapshot {
 	all: readonly Model<Api>[];
@@ -200,6 +207,7 @@ export class ModelRuntime implements Models {
 	private readonly providerAvailabilitySeq = new Map<string, number>();
 	private availabilityError: string | undefined;
 	private readonly credentialOperations = new Map<string, Promise<void>>();
+	private readonly chatTemplateProbedAt = new Map<string, number>();
 
 	private constructor(
 		credentials: RuntimeCredentials,
@@ -271,6 +279,37 @@ export class ModelRuntime implements Models {
 			...this.config.getProviderIds(),
 			...this.extensionProviders.keys(),
 		]);
+	}
+
+	/**
+	 * Probe opted-in providers for llama.cpp chat templates that toggle thinking
+	 * and recompose them when new metadata arrives. Requests are bounded per
+	 * provider and failures stay silent: a model the server cannot describe keeps
+	 * its configured metadata until a later refresh classifies it.
+	 */
+	private async refreshChatTemplateThinking(signal: AbortSignal): Promise<void> {
+		if (!this.modelNetworkEnabled) return;
+		const now = Date.now();
+		const due: ChatTemplateThinkingTarget[] = [];
+		for (const target of this.config.getChatTemplateThinkingTargets()) {
+			const probedAt = this.chatTemplateProbedAt.get(target.providerId);
+			if (probedAt !== undefined && now - probedAt < CHAT_TEMPLATE_PROBE_INTERVAL_MS) continue;
+			due.push(target);
+		}
+		if (due.length === 0) return;
+		const detections = await detectChatTemplateThinking(due, signal);
+		if (signal.aborted) return;
+		for (const target of due) {
+			this.chatTemplateProbedAt.set(target.providerId, Date.now());
+			clearChatTemplateModels(target.providerId);
+			for (const detection of detections) {
+				if (detection.providerId !== target.providerId) continue;
+				setChatTemplateThinkingModels(target.providerId, detection.modelIds);
+				setChatTemplateEffortModels(target.providerId, detection.effortModelIds);
+			}
+			this.recomposeProvider(target.providerId);
+		}
+		this.updateModelSnapshot();
 	}
 
 	private recomposeProvider(providerId: string): void {
@@ -737,6 +776,7 @@ export class ModelRuntime implements Models {
 		} else {
 			this.rebuildProviders();
 		}
+		await this.refreshChatTemplateThinking(operationSignal(options.signal));
 		const refreshOptions = {
 			...options,
 			allowNetwork: options.allowNetwork ?? this.modelNetworkEnabled,

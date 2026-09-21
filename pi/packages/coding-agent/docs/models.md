@@ -141,6 +141,7 @@ Set `api` at provider level (default for all models) or model level (override pe
 | `authHeader` | Set `true` to add `Authorization: Bearer <apiKey>` automatically |
 | `models` | Array of model configurations |
 | `modelOverrides` | Per-model overrides for built-in or extension-registered models on this provider |
+| `detectChatTemplateThinking` | Set `true` on a llama.cpp router provider to classify its models from the server chat template (see below) |
 
 For providers with `models`, non-built-in provider configs need `baseUrl` and an `api` value at either provider or model level. `apiKey` is not required to load the file: models become available when auth is configured through `/login`/`auth.json`, CLI `--api-key`, or provider `apiKey`. If no auth is configured, the models load but stay unavailable in `/model` and `--list-models`.
 
@@ -298,6 +299,31 @@ Example for a model where thinking cannot be disabled:
 ```
 
 Migration: older configs that used `compat.reasoningEffortMap` should move that mapping to model-level `thinkingLevelMap`. Use `null` for levels that should not appear in the UI.
+
+### llama.cpp Chat-Template Thinking
+
+llama.cpp router servers expose each model's chat template through `/props`. A template that reads `enable_thinking` (Qwen and friends) toggles reasoning through `chat_template_kwargs.enable_thinking`, which pi can only send when it knows the template supports it. Set `detectChatTemplateThinking` on the provider to have pi query `/props?model=<id>&autoload=false` for every configured model and classify the ones whose template contains `enable_thinking`:
+
+```json
+{
+  "providers": {
+    "llamacpp": {
+      "baseUrl": "http://127.0.0.1:8080/v1",
+      "api": "openai-completions",
+      "detectChatTemplateThinking": true,
+      "models": [{ "id": "Qwen3.8-27B", "contextWindow": 131072 }]
+    }
+  }
+}
+```
+
+A classified model becomes a reasoning model with `off` and `medium` selectable, and requests carry `chat_template_kwargs: { "enable_thinking": <level != off>, "preserve_thinking": true }`. llama.cpp also reports the template's capabilities, so when the server answers `chat_template_caps.supports_reasoning_effort: true` pi adds the mapped `reasoning_effort` next to the boolean toggle and the per-level depth survives: with a model `thinkingLevelMap` of `{ low: "low", medium: "medium", high: "xhigh" }`, `--thinking high` sends `enable_thinking: true` plus `reasoning_effort: "xhigh"` instead of letting the template fall back to its own default. Upstream always sends the boolean toggle alone. Explicit model settings win over the detection:
+
+- `reasoning: false` opts the model out entirely.
+- A model `thinkingLevelMap` keeps its own ladder (and supplies the effort values when the template supports them).
+- A model or provider `compat.thinkingFormat` keeps its own request format.
+
+The probe runs on every model refresh, is bounded to one second per provider, and skips servers that just answered. Models the server cannot describe (unloaded router presets, sleeping instances, unreachable hosts) keep their configured metadata until a later refresh classifies them. `PI_OFFLINE` disables probing, and an `apiKey` configured on the provider is sent as a bearer token so protected servers work.
 
 ## Overriding Built-in Providers
 

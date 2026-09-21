@@ -1,4 +1,12 @@
-import { calculateCost, clampThinkingLevel, getThinkingLevelMapOverride, getVllmPriorityOverride } from "../models.ts";
+import {
+	calculateCost,
+	clampThinkingLevel,
+	getThinkingFormatOverride,
+	getThinkingLevelMapOverride,
+	getVllmPriorityOverride,
+	isChatTemplateEffortModel,
+	isChatTemplateThinkingModel,
+} from "../models.ts";
 import type {
 	AssistantMessage,
 	CacheRetention,
@@ -1036,6 +1044,20 @@ function buildParams(
 			enable_thinking: !!options?.reasoningEffort,
 			preserve_thinking: true,
 		};
+		// llama.cpp reports templates that accept reasoning_effort next to
+		// enable_thinking; keep the mapped depth so level choices are not flattened
+		// into the template's default effort.
+		if (
+			options?.reasoningEffort &&
+			compat.supportsReasoningEffort &&
+			isChatTemplateEffortModel(model.provider, model.id)
+		) {
+			const effort =
+				lookupThinkingLevelMap(thinkingLevelMapValue, options.reasoningEffort) ?? options.reasoningEffort;
+			if (typeof effort === "string") {
+				params["reasoning_effort"] = effort;
+			}
+		}
 	} else if (compat.thinkingFormat === "chat-template" && model.reasoning) {
 		const chatTemplateKwargs = buildChatTemplateValues(model, options, compat.chatTemplateKwargs, thinkingBudget);
 		if (chatTemplateKwargs) {
@@ -1918,12 +1940,16 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
  */
 function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletionsCompat {
 	const detected = detectCompat(model);
+
 	const overridesValue = recordViewOf(model)["compat"];
 	const overrides =
 		overridesValue === null || typeof overridesValue !== "object"
 			? undefined
 			: (overridesValue as OpenAICompletionsCompat);
-	if (!overrides) return detected;
+	if (!overrides) {
+		if (!isChatTemplateThinkingModel(model.provider, model.id)) return detected;
+		return { ...detected, thinkingFormat: "qwen-chat-template" };
+	}
 
 	return {
 		supportsStore: overrides.supportsStore ?? detected.supportsStore,
@@ -1938,7 +1964,11 @@ function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletion
 		requiresThinkingAsText: overrides.requiresThinkingAsText ?? detected.requiresThinkingAsText,
 		requiresReasoningContentOnAssistantMessages:
 			overrides.requiresReasoningContentOnAssistantMessages ?? detected.requiresReasoningContentOnAssistantMessages,
-		thinkingFormat: overrides.thinkingFormat ?? detected.thinkingFormat,
+		thinkingFormat:
+			getThinkingFormatOverride(model) ??
+			(isChatTemplateThinkingModel(model.provider, model.id) ? "qwen-chat-template" : undefined) ??
+			overrides.thinkingFormat ??
+			detected.thinkingFormat,
 		openRouterRouting: overrides.openRouterRouting ?? {},
 		vercelGatewayRouting: overrides.vercelGatewayRouting ?? detected.vercelGatewayRouting,
 		chatTemplateKwargs: overrides.chatTemplateKwargs ?? detected.chatTemplateKwargs,
