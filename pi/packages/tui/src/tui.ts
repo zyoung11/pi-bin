@@ -18,6 +18,36 @@ import { getCapabilities, isImageLine, setCellDimensions } from "./terminal-imag
 import { extractSegments, normalizeTerminalOutput, sliceByColumn, sliceWithWidth, visibleWidth } from "./utils.ts";
 
 /**
+ * Global content revision. Components bump it whenever the lines they would
+ * render can have changed. Container measure and version caches key on it, so
+ * one mutation invalidates exactly the caches that are affected, and an
+ * unchanged revision lets a frame skip every above-window consistency check.
+ */
+let contentRevisionCounter = 0;
+
+export function bumpContentRevision(): void {
+	contentRevisionCounter += 1;
+}
+
+export function contentRevision(): number {
+	return contentRevisionCounter;
+}
+
+/** Window of lines returned by a container render, indexed from the bottom. */
+export interface TuiWindowRender {
+	/** Lines of the window, in order. Absolute index of the first is `linesAbove`. */
+	lines: string[];
+	/** Number of measured lines above the window that were not rendered. */
+	linesAbove: number;
+	/**
+	 * Absolute line index of the first block above the window whose content
+	 * changed since it was last written, or -1 when everything above matches
+	 * what the terminal already holds.
+	 */
+	repaintFromLine: number;
+}
+
+/**
  * Component base class - all components must extend this
  */
 export abstract class Component {
@@ -41,12 +71,58 @@ export abstract class Component {
 	 */
 	wantsKeyRelease: boolean = false;
 
+	/** Content generation, bumped whenever rendered output may differ. */
+	private contentVersionCounter = 0;
+
 	/**
 	 * Render the component to lines for the given viewport width
 	 * @param width - Current viewport width
 	 * @returns Array of strings, each representing a line
 	 */
 	abstract render(width: number): string[];
+
+	/**
+	 * Number of lines this component renders at the given width. Components with
+	 * cached lines override this with an O(1) answer instead of rendering.
+	 */
+	measure(width: number): number {
+		return this.render(width).length;
+	}
+
+	/**
+	 * Drop cached rendered lines while keeping the measured height valid. Called
+	 * for components that scrolled above the window; components whose render is
+	 * cheap or that keep no cache can leave this as a no-op.
+	 */
+	releaseLines(): void {}
+
+	/**
+	 * Visit the lines of this component and every descendant, in render order,
+	 * without materializing the whole tree. Used by the streaming repaint.
+	 */
+	streamLines(width: number, visit: (component: Component, lines: string[]) => void): void {
+		visit(this, this.render(width));
+	}
+
+	contentVersion(): number {
+		return this.contentVersionCounter;
+	}
+
+	/**
+	 * Window of the last lines of this component up to a line budget. Leaves
+	 * cannot split themselves, so they return everything they render.
+	 * @param width - Current viewport width
+	 * @param budget - Minimum number of lines the window should cover
+	 */
+	renderWindow(width: number, _budget: number): TuiWindowRender {
+		return { lines: this.render(width), linesAbove: 0, repaintFromLine: -1 };
+	}
+
+	/** Mark rendered output as possibly changed and invalidate dependent caches. */
+	markContentChanged(): void {
+		this.contentVersionCounter += 1;
+		bumpContentRevision();
+	}
 
 	/**
 	 * Invalidate any cached rendering state.
@@ -240,24 +316,94 @@ type OverlayFocusRestorePolicy = "clear" | "preserve";
 export class Container extends Component {
 	children: Component[] = [];
 
+	// Window bookkeeping: measured lines skipped above the last window, the
+	// content version of every skipped child at the time it was written, and the
+	// content revision those numbers are valid for.
+	private skippedLines = 0;
+	private skippedCount = 0;
+	private skippedVersions: number[] = [];
+	private skippedRevision = -1;
+	private measureWidth = -1;
+	private measureRevision = -1;
+	private measureValue = 0;
+	private structureVersion = 0;
+	private versionCacheRevision = -1;
+	private versionCacheValue = 0;
+
 	addChild(component: Component): void {
 		this.children.push(component);
+		this.markStructureChanged();
 	}
 
 	removeChild(component: Component): void {
 		const index = this.children.indexOf(component);
 		if (index !== -1) {
 			this.children.splice(index, 1);
+			this.markStructureChanged();
 		}
 	}
 
 	clear(): void {
 		this.children = [];
+		this.markStructureChanged();
+	}
+
+	private markStructureChanged(): void {
+		this.structureVersion += 1;
+		this.skippedLines = 0;
+		this.skippedCount = 0;
+		this.skippedVersions = [];
+		this.skippedRevision = -1;
+		this.measureWidth = -1;
+		this.measureRevision = -1;
+		this.markContentChanged();
 	}
 
 	invalidate(): void {
+		this.skippedRevision = -1;
 		for (const child of this.children) {
 			child.invalidate();
+		}
+		this.markContentChanged();
+	}
+
+	contentVersion(): number {
+		const revision = contentRevision();
+		if (this.versionCacheRevision !== revision) {
+			let sum = this.structureVersion;
+			for (let i = 0; i < this.children.length; i++) {
+				sum += this.children[i].contentVersion();
+			}
+			this.versionCacheValue = sum;
+			this.versionCacheRevision = revision;
+		}
+		return this.versionCacheValue;
+	}
+
+	measure(width: number): number {
+		const revision = contentRevision();
+		if (this.measureWidth === width && this.measureRevision === revision) {
+			return this.measureValue;
+		}
+		let total = 0;
+		for (let i = 0; i < this.children.length; i++) {
+			total += this.children[i].measure(width);
+		}
+		this.measureWidth = width;
+		this.measureRevision = revision;
+		this.measureValue = total;
+		return total;
+	}
+
+	releaseLines(): void {
+		for (let i = 0; i < this.children.length; i++) {
+			this.children[i].releaseLines();
+		}
+	}
+
+	streamLines(width: number, visit: (component: Component, lines: string[]) => void): void {
+		for (let i = 0; i < this.children.length; i++) {
+			this.children[i].streamLines(width, visit);
 		}
 	}
 
@@ -271,6 +417,91 @@ export class Container extends Component {
 			lines = lines.concat(childLines);
 		}
 		return lines;
+	}
+
+	/**
+	 * Render the bottom of this container up to a line budget, releasing the
+	 * cached lines of every child above the window. Children are skipped whole
+	 * and the one child that straddles the budget returns only its own window,
+	 * so the result covers the budget without rendering anything above it.
+	 * @param width - Current viewport width
+	 * @param budget - Minimum number of lines the window should cover
+	 * @returns Window lines, the measured line count above them, and the first
+	 * absolute line above the window whose content changed since last written
+	 */
+	renderWindow(width: number, budget: number): TuiWindowRender {
+		const children = this.children;
+		let straddler = -1;
+		let firstFull = children.length;
+		let remaining = budget;
+		while (firstFull > 0) {
+			const height = children[firstFull - 1].measure(width);
+			if (height >= remaining) {
+				straddler = firstFull - 1;
+				break;
+			}
+			remaining -= height;
+			firstFull -= 1;
+		}
+
+		let lines: string[] = [];
+		let straddlerLinesAbove = 0;
+		let straddlerRepaint = -1;
+		if (straddler >= 0) {
+			const childWindow = children[straddler].renderWindow(width, remaining);
+			lines = lines.concat(childWindow.lines);
+			straddlerLinesAbove = childWindow.linesAbove;
+			straddlerRepaint = childWindow.repaintFromLine;
+		}
+		for (let i = straddler + 1; i < children.length; i++) {
+			lines = lines.concat(children[i].render(width));
+		}
+
+		const skippedCount = straddler >= 0 ? straddler : 0;
+		const versionChanged = this.skippedRevision !== contentRevision();
+		const grew = skippedCount >= this.skippedCount;
+		let skippedChildLines = this.skippedLines;
+		let repaintFromLine = -1;
+
+		if (!versionChanged && grew) {
+			for (let i = this.skippedCount; i < skippedCount; i++) {
+				const child = children[i];
+				skippedChildLines += child.measure(width);
+				this.skippedVersions[i] = child.contentVersion();
+				child.releaseLines();
+			}
+		} else {
+			skippedChildLines = 0;
+			for (let i = 0; i < skippedCount; i++) {
+				const child = children[i];
+				const height = child.measure(width);
+				if (i < this.skippedCount && child.contentVersion() !== this.skippedVersions[i] && repaintFromLine === -1) {
+					repaintFromLine = skippedChildLines;
+				}
+				skippedChildLines += height;
+			}
+			for (let i = 0; i < skippedCount; i++) {
+				const child = children[i];
+				this.skippedVersions[i] = child.contentVersion();
+				child.releaseLines();
+			}
+		}
+
+		let linesAbove = skippedChildLines;
+		if (straddler >= 0) {
+			if (straddlerRepaint >= 0) {
+				if (repaintFromLine === -1 || skippedChildLines + straddlerRepaint < repaintFromLine) {
+					repaintFromLine = skippedChildLines + straddlerRepaint;
+				}
+			}
+			linesAbove += straddlerLinesAbove;
+		}
+
+		this.skippedCount = skippedCount;
+		this.skippedLines = skippedChildLines;
+		this.skippedRevision = contentRevision();
+
+		return { lines: lines, linesAbove: linesAbove, repaintFromLine: repaintFromLine };
 	}
 }
 
@@ -343,6 +574,11 @@ export interface TUI {
 	renderNowForce(force: boolean): void;
 	requestRender(): void;
 	requestRenderForce(force: boolean): void;
+	requestTranscriptRepaint(): void;
+	beginTranscriptPaint(frozenRows: number, linesAbove: number, frozenTailLines: string[]): void;
+	paintTranscriptLines(lines: string[]): void;
+	endTranscriptPaint(): void;
+	cancelTranscriptPaint(): void;
 	addInputListener(listener: TuiInputListener): () => void;
 	removeInputListener(listener: TuiInputListener): void;
 	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void;
@@ -407,6 +643,34 @@ export abstract class TuiBase extends Container implements TUI {
 	protected abstract doRender(): void;
 
 	protected resetRenderState(): void {}
+
+	/**
+	 * Request a full repaint of the transcript into the scrollback. Used when
+	 * rendered content above the viewport changed in a way no component cache
+	 * can describe, such as a visibility toggle applied to old messages.
+	 */
+	requestTranscriptRepaint(): void {
+		this.transcriptRepaintRequested = true;
+		this.requestRender();
+	}
+
+	protected transcriptRepaintRequested = false;
+
+	/**
+	 * Open a streaming paint of transcript lines into the scrollback above a
+	 * frozen tail. The main screen implementation sets up a terminal scroll
+	 * region; other renderers may ignore the paint entirely.
+	 */
+	beginTranscriptPaint(_frozenRows: number, _linesAbove: number, _frozenTailLines: string[]): void {}
+
+	/** Append rendered lines to an open transcript paint. */
+	paintTranscriptLines(_lines: string[]): void {}
+
+	/** Close the paint and adopt the written lines as the render baseline. */
+	endTranscriptPaint(): void {}
+
+	/** Abort an open paint. */
+	cancelTranscriptPaint(): void {}
 
 	protected beforeTerminalStart(): void {}
 
@@ -751,6 +1015,7 @@ export abstract class TuiBase extends Container implements TUI {
 			this.terminal.write("\x1b[?2031h");
 		}
 		this.queryCellSize();
+		this.queryWindowSize();
 		this.requestRender();
 	}
 
@@ -793,6 +1058,26 @@ export abstract class TuiBase extends Container implements TUI {
 		// Query terminal for cell size in pixels: CSI 16 t
 		// Response format: CSI 6 ; height ; width t
 		this.terminal.write("\x1b[16t");
+	}
+
+	/**
+	 * Ask the terminal for its window size in character cells (CSI 18 t). The
+	 * static runtime cannot read stdout.rows, and the row count decides the
+	 * viewport geometry, the overlay placement and the window budget.
+	 */
+	private queryWindowSize(): void {
+		this.terminal.write("\x1b[18t");
+	}
+
+	private consumeWindowSizeResponse(data: string): boolean {
+		// Response format: ESC [ 8 ; rows ; columns t
+		const match = data.match(/^\x1b\[8;(\d+);(\d+)t$/);
+		if (!match) {
+			return false;
+		}
+		this.terminal.applyReportedWindowSize(parseInt(match[1], 10), parseInt(match[2], 10));
+		this.requestRender();
+		return true;
 	}
 
 	stop(): void {
@@ -908,6 +1193,10 @@ export abstract class TuiBase extends Container implements TUI {
 
 		// Consume terminal cell size responses without blocking unrelated input.
 		if (this.consumeCellSizeResponse(data)) {
+			return;
+		}
+
+		if (this.consumeWindowSizeResponse(data)) {
 			return;
 		}
 
@@ -1242,7 +1531,11 @@ export abstract class TuiBase extends Container implements TUI {
 	 * @param height - Terminal height (visible viewport size)
 	 * @returns Cursor position { row, col } or null if no marker found
 	 */
-	protected extractCursorPosition(lines: string[], height: number): { row: number; col: number } | null {
+	protected extractCursorPosition(
+		lines: string[],
+		height: number,
+		lineOffset = 0,
+	): { row: number; col: number } | null {
 		// Only scan the bottom `height` lines (visible viewport)
 		const viewportTop = Math.max(0, lines.length - height);
 		for (let row = lines.length - 1; row >= viewportTop; row--) {
@@ -1256,7 +1549,7 @@ export abstract class TuiBase extends Container implements TUI {
 				// Strip marker from the line
 				lines[row] = line.slice(0, markerIndex) + line.slice(markerIndex + CURSOR_MARKER.length);
 
-				return { row, col };
+				return { row: lineOffset + row, col: col };
 			}
 		}
 		return null;

@@ -57,6 +57,9 @@ export class FooterComponent extends Component {
 	private autoCompactEnabled = true;
 	private session: AgentSession;
 	private footerData: FooterDataProvider;
+	private usageRevision = -1;
+	private usageTotalsCache = createUsageTotals();
+	private cacheHitRateCache: number | undefined = undefined;
 
 	constructor(session: AgentSession, footerData: FooterDataProvider) {
 		super();
@@ -70,6 +73,45 @@ export class FooterComponent extends Component {
 
 	setAutoCompactEnabled(enabled: boolean): void {
 		this.autoCompactEnabled = enabled;
+	}
+
+	/**
+	 * Fold cumulative usage over all session entries once per entry revision.
+	 * The status row repaints on every keystroke, and re-reading every entry per
+	 * frame cost about 3.5ms on a 793 message session.
+	 */
+	private refreshUsageTotals(): void {
+		const manager = this.session.sessionManager;
+		const revision = manager.getEntryRevision();
+		if (revision === this.usageRevision) return;
+
+		const usageTotals = createUsageTotals();
+		let latestCacheHitRate: number | undefined;
+
+		for (const entry of manager.getEntries()) {
+			if (entry.type === "usage") {
+				addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "message" && entry.message.role === "assistant") {
+				addUsageToTotals(usageTotals, entry.message.usage);
+
+				const latestPromptTokens =
+					entry.message.usage.input + entry.message.usage.cacheRead + entry.message.usage.cacheWrite;
+				latestCacheHitRate =
+					latestPromptTokens > 0 ? (entry.message.usage.cacheRead / latestPromptTokens) * 100 : undefined;
+			} else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage) {
+				addUsageToTotals(usageTotals, entry.message.usage);
+			} else if (entry.type === "compaction") {
+				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "branch_summary") {
+				const summaryUsage = recordViewOf(entry)["usage"] as Usage | undefined;
+				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
+			}
+		}
+
+		this.usageTotalsCache = usageTotals;
+		this.cacheHitRateCache = latestCacheHitRate;
+		this.usageRevision = revision;
+		this.markContentChanged();
 	}
 
 	/**
@@ -90,30 +132,9 @@ export class FooterComponent extends Component {
 
 	render(width: number): string[] {
 		const state = this.session.state;
-
-		// Calculate cumulative usage from ALL session entries (not just post-compaction messages)
-		const usageTotals = createUsageTotals();
-		let latestCacheHitRate: number | undefined;
-
-		for (const entry of this.session.sessionManager.getEntries()) {
-			if (entry.type === "usage") {
-				addUsageToTotals(usageTotals, entry.usage);
-			} else if (entry.type === "message" && entry.message.role === "assistant") {
-				addUsageToTotals(usageTotals, entry.message.usage);
-
-				const latestPromptTokens =
-					entry.message.usage.input + entry.message.usage.cacheRead + entry.message.usage.cacheWrite;
-				latestCacheHitRate =
-					latestPromptTokens > 0 ? (entry.message.usage.cacheRead / latestPromptTokens) * 100 : undefined;
-			} else if (entry.type === "message" && entry.message.role === "toolResult" && entry.message.usage) {
-				addUsageToTotals(usageTotals, entry.message.usage);
-			} else if (entry.type === "compaction") {
-				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
-			} else if (entry.type === "branch_summary") {
-				const summaryUsage = recordViewOf(entry)["usage"] as Usage | undefined;
-				if (summaryUsage) addUsageToTotals(usageTotals, summaryUsage);
-			}
-		}
+		this.refreshUsageTotals();
+		const usageTotals = this.usageTotalsCache;
+		const latestCacheHitRate = this.cacheHitRateCache;
 
 		// Calculate context usage from session (handles compaction correctly).
 		// After compaction, tokens are unknown until the next LLM response.

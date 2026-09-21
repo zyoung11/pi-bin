@@ -383,6 +383,12 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 		renderNowForce: (force) => self.getTui().renderNowForce(force),
 		requestRender: () => self.getTui().requestRender(),
 		requestRenderForce: (force) => self.getTui().requestRenderForce(force),
+		requestTranscriptRepaint: () => self.getTui().requestTranscriptRepaint(),
+		beginTranscriptPaint: (frozenRows, linesAbove, frozenTailLines) =>
+			self.getTui().beginTranscriptPaint(frozenRows, linesAbove, frozenTailLines),
+		paintTranscriptLines: (lines) => self.getTui().paintTranscriptLines(lines),
+		endTranscriptPaint: () => self.getTui().endTranscriptPaint(),
+		cancelTranscriptPaint: () => self.getTui().cancelTranscriptPaint(),
 		addInputListener: (listener) => self.getTui().addInputListener(listener),
 		removeInputListener: (listener) => self.getTui().removeInputListener(listener),
 		onTerminalColorSchemeChange: (listener) => self.getTui().onTerminalColorSchemeChange(listener),
@@ -395,95 +401,6 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 const INITIAL_TAIL_TARGET_LINES = 120;
 const INITIAL_FILL_TICK_BUDGET_MS = 12;
 const STREAM_RENDER_INTERVAL_MS = 150;
-
-/**
- * Container that memoizes its rendered line array. The memo is dropped on any
- * child-list change, on width change, and on invalidate (theme switches bump
- * the markdown epoch and global invalidates reach this via the tree cascade).
- * Without the memo, every repaint walks the full transcript through the
- * dynamic engine (~200ms per keystroke on a 2269-item session).
- */
-class MemoContainer extends Container {
-	private memoWidth?: number;
-	private memoLines?: string[];
-	private memoCovered = 0;
-	private memoBulk = false;
-
-	private dropMemo(): void {
-		this.memoLines = undefined;
-		this.memoCovered = 0;
-		this.memoBulk = false;
-	}
-
-	/** Drop the memo without cascading into children. */
-	expire(): void {
-		this.dropMemo();
-	}
-
-	/**
-	 * Enter append-only mode with an empty warm memo: addChild keeps the memo
-	 * valid (new children stay uncovered until coverThrough folds them in), so
-	 * the fill-end mount walk hits the memo instead of re-rendering every
-	 * child through the dynamic engine.
-	 */
-	beginBulkAppend(width: number): void {
-		this.memoLines = [];
-		this.memoWidth = width;
-		this.memoCovered = 0;
-		this.memoBulk = true;
-	}
-
-	/**
-	 * Render children [memoCovered, children.length) at the given width and
-	 * append their lines to the memo. Also primes those components (their
-	 * markdown caches fill on this render). No-op while the memo is cold or
-	 * the width changed; the next full render rebuilds everything.
-	 */
-	coverThrough(count: number, width: number): void {
-		if (this.memoLines === undefined || this.memoWidth !== width || !this.memoBulk) return;
-		if (count > this.children.length) count = this.children.length;
-		for (let i = this.memoCovered; i < count; i++) {
-			const childLines = this.children[i].render(width);
-			this.memoLines = this.memoLines.concat(childLines);
-		}
-		if (this.memoCovered < count) this.memoCovered = count;
-	}
-
-	coveredCount(): number {
-		return this.memoCovered;
-	}
-
-	isWarm(width: number): boolean {
-		return this.memoLines !== undefined && this.memoWidth === width;
-	}
-
-	override addChild(component: Component): void {
-		super.addChild(component);
-		if (!this.memoBulk) this.dropMemo();
-	}
-
-	override clear(): void {
-		this.dropMemo();
-		super.clear();
-	}
-
-	override invalidate(): void {
-		this.dropMemo();
-		super.invalidate();
-	}
-
-	override render(width: number): string[] {
-		if (this.memoLines !== undefined && this.memoWidth === width && this.memoCovered === this.children.length) {
-			return this.memoLines;
-		}
-		const lines = super.render(width);
-		this.memoWidth = width;
-		this.memoLines = lines;
-		this.memoCovered = this.children.length;
-		this.memoBulk = false;
-		return lines;
-	}
-}
 
 export class InteractiveMode {
 	private runtimeHost: AgentSessionRuntime;
@@ -571,13 +488,17 @@ export class InteractiveMode {
 	// item per event-loop tick into historyContainer, which stays unmounted
 	// (invisible to the render walk) until the fill completes, then mounts once
 	// before chatContainer with a single full repaint.
-	private historyContainer: MemoContainer = new MemoContainer();
+	private historyContainer: Container = new Container();
 	private historyMounted = false;
 	private initialFillItems: RenderSessionItem[] = [];
 	private initialFillIndex = 0;
 	private initialFillMisses: CacheMissEntry[] = [];
 	private initialFillPending: Map<string, ToolExecutionComponent> = new Map<string, ToolExecutionComponent>();
-	private initialFillPrimeWidth = 0;
+	private initialFillContainer: Container = new Container();
+	private initialFillPaintWidth = 0;
+	private initialFillPaintedChildren = 0;
+	private initialFillPaintActive = false;
+	private initialFillDeferred = 0;
 	private initialFillGeneration = 0;
 	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
 	private lastStreamFlushAt = 0;
@@ -1732,7 +1653,7 @@ export class InteractiveMode {
 				}
 			}
 		}
-		this.historyContainer.expire();
+		this.ui.requestTranscriptRepaint();
 		if (this.streamingComponent) {
 			this.streamingComponent.setHiddenThinkingLabel(this.hiddenThinkingLabel);
 		}
@@ -3209,15 +3130,18 @@ export class InteractiveMode {
 
 	/**
 	 * Cut index for the progressive initial load: the newest suffix of items
-	 * worth roughly one and a half screens is painted synchronously. Cuts are
-	 * only placed on user message items so a tool call and its result always
+	 * worth at most one screen is painted synchronously. The tail has to fit on
+	 * screen because history is inserted above it while it stays frozen; cuts
+	 * are only placed on user message items so a tool call and its result always
 	 * land in the same chunk.
 	 */
 	private findTailStart(items: readonly RenderSessionItem[]): number {
+		const terminalHeight = this.ui.getTerminal().rows();
+		const target = Math.max(24, Math.min(INITIAL_TAIL_TARGET_LINES, terminalHeight - 10));
 		let estimated = 0;
 		for (let i = items.length - 1; i >= 0; i--) {
 			estimated += this.estimateItemLines(items[i]);
-			if (estimated >= INITIAL_TAIL_TARGET_LINES && this.isCuttableItem(items[i])) {
+			if (estimated >= target && this.isCuttableItem(items[i])) {
 				return i;
 			}
 		}
@@ -3273,6 +3197,7 @@ export class InteractiveMode {
 
 	private resetTranscriptContainers(): void {
 		this.cancelInitialFill();
+		this.ui.cancelTranscriptPaint();
 		this.historyContainer.clear();
 		this.detachHistoryContainer();
 	}
@@ -3319,8 +3244,33 @@ export class InteractiveMode {
 		this.initialFillItems = items;
 		this.initialFillMisses = misses;
 		this.initialFillIndex = 0;
-		this.initialFillPrimeWidth = this.ui.getTerminal().columns();
-		this.historyContainer.beginBulkAppend(this.initialFillPrimeWidth);
+		this.initialFillDeferred = 0;
+		this.beginInitialFill();
+	}
+
+	private beginInitialFill(): void {
+		// The paint has to keep the visible tail frozen, so the fill waits for
+		// the terminal's window size report (CSI 18 t) before it picks the split.
+		if (!this.ui.getTerminal().hasReportedWindowSize() && this.initialFillDeferred < 10) {
+			this.initialFillDeferred += 1;
+			this.initialFillTimer = setTimeout(() => this.beginInitialFill(), 40);
+			return;
+		}
+		this.initialFillContainer.clear();
+		const width = this.ui.getTerminal().columns();
+		const height = this.ui.getTerminal().rows();
+		const linesAbove = this.headerContainer.measure(width) + this.loadedResourcesContainer.measure(width);
+		const frozenLines = this.collectFrozenTailLines(width);
+		this.initialFillPaintWidth = width;
+		this.initialFillPaintedChildren = 0;
+		this.initialFillPaintActive = frozenLines.length < height - 2;
+		if (this.initialFillPaintActive) {
+			this.ui.beginTranscriptPaint(frozenLines.length, linesAbove, frozenLines);
+		} else {
+			// The visible tail already fills the screen: the history cannot be
+			// inserted above it without rewriting the scrollback.
+			this.ui.cancelTranscriptPaint();
+		}
 		this.initialFillGeneration += 1;
 		const generation = this.initialFillGeneration;
 		const tick = (): void => {
@@ -3329,54 +3279,113 @@ export class InteractiveMode {
 		this.initialFillTimer = setTimeout(tick, 30);
 	}
 
+	private measureFixedTail(width: number): number {
+		return (
+			this.pendingMessagesContainer.measure(width) +
+			this.statusContainer.measure(width) +
+			this.widgetContainerAbove.measure(width) +
+			this.editorContainer.measure(width) +
+			this.widgetContainerBelow.measure(width) +
+			this.footerContainer.measure(width)
+		);
+	}
+
+	/**
+	 * Keep the newest tail small enough to stay on screen. History is inserted
+	 * above the frozen tail, which only works when the whole tail is visible;
+	 * the excess oldest chat blocks move to the history container, where they
+	 * keep their order (they are newer than the filled history that is prepended
+	 * to them at fill end).
+	 */
+	private fitInitialTailToScreen(): void {
+		const width = this.ui.getTerminal().columns();
+		const height = this.ui.getTerminal().rows();
+		const budget = Math.max(6, height - this.measureFixedTail(width) - 2);
+		while (this.chatContainer.children.length > 1) {
+			if (this.chatContainer.measure(width) <= budget) return;
+			const oldest = this.chatContainer.children[0];
+			this.chatContainer.removeChild(oldest);
+			this.historyContainer.addChild(oldest);
+		}
+	}
+
+	/**
+	 * Lines of everything below the history container: the chat plus the fixed
+	 * components under it. These stay on screen untouched while history is
+	 * painted above them, and they become the render baseline afterwards.
+	 */
+	private collectFrozenTailLines(width: number): string[] {
+		let lines: string[] = [];
+		lines = lines.concat(this.chatContainer.render(width));
+		lines = lines.concat(this.pendingMessagesContainer.render(width));
+		lines = lines.concat(this.statusContainer.render(width));
+		lines = lines.concat(this.widgetContainerAbove.render(width));
+		lines = lines.concat(this.editorContainer.render(width));
+		lines = lines.concat(this.widgetContainerBelow.render(width));
+		lines = lines.concat(this.footerContainer.render(width));
+		return lines;
+	}
+
 	private runInitialFillTick(generation: number, tick: () => void): void {
 		if (generation !== this.initialFillGeneration || this.shutdownRequested) return;
 		const budgetStart = Date.now();
 		while (Date.now() - budgetStart < INITIAL_FILL_TICK_BUDGET_MS) {
-			if (this.initialFillIndex < this.initialFillItems.length) {
-				const item = this.initialFillItems[this.initialFillIndex];
-				this.initialFillIndex += 1;
-				this.renderSingleSessionItem(
-					item,
-					this.historyContainer,
-					this.initialFillPending,
-					this.initialFillMisses,
-					false,
-				);
-				// Fold freshly created components into the history memo; the render
-				// call primes their markdown caches so the fill-end mount walk hits
-				// the memo instead of re-parsing the whole transcript in one atomic
-				// block. Unresolved tool calls stay uncovered as a trailing suffix
-				// (their pending display would go stale once updateResult fires) and
-				// are folded in when their results pair up.
-				this.historyContainer.coverThrough(
-					this.historyContainer.children.length - this.initialFillPending.size,
-					this.initialFillPrimeWidth,
-				);
-			} else {
-				// Items exhausted: fold any held-back components (pending tool calls
-				// whose results never arrived) in bounded slices, then mount.
-				const children = this.historyContainer.children.length;
-				const covered = this.historyContainer.coveredCount();
-				if (covered >= children || !this.historyContainer.isWarm(this.initialFillPrimeWidth)) {
-					this.finishInitialFill();
-					return;
-				}
-				this.historyContainer.coverThrough(Math.min(children, covered + 300), this.initialFillPrimeWidth);
+			if (this.initialFillIndex >= this.initialFillItems.length) {
+				this.finishInitialFill();
+				return;
 			}
+			const item = this.initialFillItems[this.initialFillIndex];
+			this.initialFillIndex += 1;
+			this.renderSingleSessionItem(
+				item,
+				this.initialFillContainer,
+				this.initialFillPending,
+				this.initialFillMisses,
+				false,
+			);
+			this.paintNewHistoryChildren();
 		}
 		this.initialFillTimer = setTimeout(tick, 0);
 	}
 
+	/**
+	 * Render the components added by the last fill step, write them into the
+	 * open transcript paint, and release them. Releasing keeps the fill's peak
+	 * memory at one item instead of the whole transcript; the window re-renders
+	 * the handful of blocks it still needs.
+	 */
+	private paintNewHistoryChildren(): void {
+		if (!this.initialFillPaintActive) return;
+		const children = this.initialFillContainer.children;
+		for (let i = this.initialFillPaintedChildren; i < children.length; i++) {
+			const component = children[i];
+			const painted = component.render(this.initialFillPaintWidth);
+			this.ui.paintTranscriptLines(painted);
+			component.releaseLines();
+		}
+		this.initialFillPaintedChildren = children.length;
+	}
+
 	private finishInitialFill(): void {
 		this.initialFillPending.clear();
-		if (this.historyContainer.children.length === 0) return;
-		this.historyContainer.coverThrough(this.historyContainer.children.length, this.initialFillPrimeWidth);
-		this.mountHistoryContainer();
-		// requestRender only: an invalidate here would cascade into
-		// historyContainer and drop the warm memo built during the fill, turning
-		// the mount repaint into a full cold re-render (~5s on a 30k-line
-		// transcript).
+		const filled = this.initialFillContainer.children;
+		if (filled.length > 0) {
+			// Filled history is older than anything already in the container
+			// (excess tail items that did not fit on screen), so it goes first.
+			this.historyContainer.children = filled.concat(this.historyContainer.children);
+			this.initialFillContainer.children = [];
+		}
+		if (this.historyContainer.children.length > 0) {
+			this.mountHistoryContainer();
+		}
+		if (this.initialFillPaintActive) {
+			this.ui.endTranscriptPaint();
+		} else {
+			this.ui.requestTranscriptRepaint();
+		}
+		this.initialFillPaintActive = false;
+		// requestRender only: an invalidate here would release the caches the
+		// first window still needs and turn the mount repaint into a cold render.
 		this.ui.requestRender();
 	}
 
@@ -3406,6 +3415,7 @@ export class InteractiveMode {
 			target: this.chatContainer,
 			misses,
 		});
+		this.fitInitialTailToScreen();
 		if (tailStart > 0) {
 			this.startInitialFill(items.slice(0, tailStart), misses);
 		}
@@ -3675,7 +3685,7 @@ export class InteractiveMode {
 				child.setExpanded(expanded);
 			}
 		}
-		this.historyContainer.expire();
+		this.ui.requestTranscriptRepaint();
 		this.showStatus(`Tool output: ${expanded ? "expanded" : "collapsed"}`);
 	}
 
@@ -3688,7 +3698,7 @@ export class InteractiveMode {
 				}
 			}
 		}
-		this.historyContainer.expire();
+		this.ui.requestTranscriptRepaint();
 		this.ui.requestRender();
 	}
 
@@ -4324,7 +4334,7 @@ export class InteractiveMode {
 								}
 							}
 						}
-						this.historyContainer.expire();
+						this.ui.requestTranscriptRepaint();
 					},
 					onImageWidthCellsChange: (width) => {
 						this.settingsManager.setImageWidthCells(width);
@@ -4335,7 +4345,7 @@ export class InteractiveMode {
 								}
 							}
 						}
-						this.historyContainer.expire();
+						this.ui.requestTranscriptRepaint();
 					},
 					onBlockImagesChange: (blocked) => {
 						this.settingsManager.setBlockImages(blocked);
@@ -4432,7 +4442,7 @@ export class InteractiveMode {
 									}
 								}
 							}
-							this.historyContainer.expire();
+							this.ui.requestTranscriptRepaint();
 							if (this.streamingComponent) {
 								this.streamingComponent.setOutputPad(padding);
 							}

@@ -1229,3 +1229,43 @@ main screen.
   per-message rendered line caches (about 95MB for the 2.5MB session), and the
   root render is still O(transcript) per frame; both need the memo and component
   caches limited to the viewport, which is the next round.
+
+---
+
+## Phase 27 — viewport window rendering and a scroll-region history paint
+
+Round C of the rendering work: the transcript is no longer materialized for the
+whole session. The analysis stays in `PERF-REPORT.md`.
+
+- The TUI renders a window instead of the whole tree. Containers measure their
+  children, skip every child above the window without rendering it, release the
+  cached lines of skipped blocks, and return the window together with the count
+  of lines above it. Content changes bump a global revision, and a container
+  reports the first skipped line whose content changed since it was written;
+  the main screen turns that into a full transcript repaint.
+- The main screen tracks the window's absolute first line and the buffer total
+  and diffs by absolute line index, so lines above the window are never compared
+  or rewritten. A forced redraw (tool execution end, suspend resume) rewrites
+  only the visible viewport and keeps the scrollback, instead of clearing it.
+- Session history is painted into the terminal scrollback through a scroll
+  region while the visible tail stays frozen below it. The fill renders one item
+  at a time, writes it, releases it, and no longer builds the memo, so the fill
+  peak is one item and the editor stays usable while history streams in above
+  it. When the tail does not fit on screen the code falls back to a clearing
+  repaint, and the excess oldest tail blocks move into history to keep the tail
+  on screen.
+- The terminal row count now comes from the CSI 18 t window size report and is
+  re-read by the resize poll. The static runtime only exposes `stdout.columns`
+  and `rows()` returned it, so the layout used the terminal width as its height.
+- The footer folds session usage once per entry revision instead of folding
+  every entry on every frame (3.5ms per frame over 793 messages).
+
+Measured on the 2.5MB session (19,601 rendered lines, 180x45): keystrokes went
+from 12ms to 4ms of CPU each and the frame render from 8 to 11ms to 1.4 to
+2.6ms. Resident memory did not move (95MB before and after): the peak is set by
+two other terms, a fixed 47MB the provider and model catalog path adds before
+any session loads (59.6MB with the llama.cpp configuration against 12.2MB with
+a minimal one, both with `--no-session`) and the allocation churn of rendering
+the transcript once, which the runtime never returns to the kernel. Both are
+next round material, together with the per-frame walk over every history block
+that still costs about half of the 4ms keystroke time.

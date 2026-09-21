@@ -1,4 +1,4 @@
-import { Component } from "../tui.ts";
+import { Component, contentRevision } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth } from "../utils.ts";
 
 type RenderCache = {
@@ -6,6 +6,7 @@ type RenderCache = {
 	width: number;
 	bgSample: string | undefined;
 	lines: string[];
+	revision: number;
 };
 
 /**
@@ -19,6 +20,9 @@ export class Box extends Component {
 
 	// Cache for rendered output
 	private cache?: RenderCache;
+	private releasedHeight = -1;
+	private releasedWidth = -1;
+	private releasedRevision = -1;
 
 	constructor(paddingX = 1, paddingY = 1, bgFn?: (text: string) => string) {
 		super();
@@ -52,6 +56,30 @@ export class Box extends Component {
 
 	private invalidateCache(): void {
 		this.cache = undefined;
+		this.releasedHeight = -1;
+		this.markContentChanged();
+	}
+
+	measure(width: number): number {
+		const cache = this.cache;
+		if (cache && cache.width === width && cache.revision === contentRevision()) return cache.lines.length;
+		if (this.releasedHeight >= 0 && this.releasedWidth === width && this.releasedRevision === contentRevision()) {
+			return this.releasedHeight;
+		}
+		return this.render(width).length;
+	}
+
+	releaseLines(): void {
+		const cache = this.cache;
+		if (cache) {
+			this.releasedHeight = cache.lines.length;
+			this.releasedWidth = cache.width;
+			this.releasedRevision = cache.revision;
+			this.cache = undefined;
+		}
+		for (const child of this.children) {
+			child.releaseLines();
+		}
 	}
 
 	private matchCache(width: number, childLines: string[], bgSample: string | undefined): boolean {
@@ -120,7 +148,7 @@ export class Box extends Component {
 		}
 
 		// Update cache
-		this.cache = { childLines, width, bgSample, lines: result };
+		this.cache = { childLines, width, bgSample, lines: result, revision: contentRevision() };
 
 		return result;
 	}

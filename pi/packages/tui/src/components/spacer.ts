@@ -12,11 +12,17 @@ export class Spacer extends Component {
 	}
 
 	setLines(lines: number): void {
+		if (this.lines === lines) return;
 		this.lines = lines;
+		this.markContentChanged();
 	}
 
 	invalidate(): void {
 		// No cached state to invalidate currently
+	}
+
+	measure(_width: number): number {
+		return this.lines;
 	}
 
 	render(_width: number): string[] {

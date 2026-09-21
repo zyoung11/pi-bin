@@ -14,6 +14,7 @@ export class Text extends Component {
 	private cachedText?: string;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
+	private cachedHeight = -1;
 
 	constructor(text: string = "", paddingX: number = 1, paddingY: number = 1, customBgFn?: (text: string) => string) {
 		super();
@@ -28,6 +29,8 @@ export class Text extends Component {
 		this.cachedText = undefined;
 		this.cachedWidth = undefined;
 		this.cachedLines = undefined;
+		this.cachedHeight = -1;
+		this.markContentChanged();
 	}
 
 	setCustomBgFn(customBgFn?: (text: string) => string): void {
@@ -35,11 +38,29 @@ export class Text extends Component {
 		this.cachedText = undefined;
 		this.cachedWidth = undefined;
 		this.cachedLines = undefined;
+		this.cachedHeight = -1;
+		this.markContentChanged();
 	}
 
 	invalidate(): void {
 		this.cachedText = undefined;
 		this.cachedWidth = undefined;
+		this.cachedLines = undefined;
+		this.cachedHeight = -1;
+		this.markContentChanged();
+	}
+
+	measure(width: number): number {
+		if (this.cachedText === this.text && this.cachedWidth === width) {
+			if (this.cachedLines) return this.cachedLines.length;
+			if (this.cachedHeight >= 0) return this.cachedHeight;
+		}
+		return this.render(width).length;
+	}
+
+	releaseLines(): void {
+		if (!this.cachedLines) return;
+		this.cachedHeight = this.cachedLines.length;
 		this.cachedLines = undefined;
 	}
 

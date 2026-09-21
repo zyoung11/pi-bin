@@ -124,6 +124,8 @@ export class ProcessTerminal implements Terminal {
 	private resizePollTimer: ReturnType<typeof setInterval> | undefined;
 	private lastColumns = 80;
 	private lastRows = 24;
+	private queriedRows = 0;
+	private queriedColumns = 0;
 	private inputHandler?: (data: string) => void;
 	private resizeHandler?: () => void;
 	private _kittyProtocolActive = false;
@@ -182,6 +184,10 @@ export class ProcessTerminal implements Terminal {
 		this.lastColumns = this.columns();
 		this.lastRows = this.rows();
 		this.resizePollTimer = setInterval(() => {
+			// The row count comes from the terminal's own size report, so ask for
+			// a fresh report before comparing; the reply arrives as input and is
+			// consumed by the TUI. Without it a height-only resize is invisible.
+			process.stdout.write("\x1b[18t");
 			const cols = this.columns();
 			const rws = this.rows();
 			if (cols !== this.lastColumns || rws !== this.lastRows) {
@@ -523,6 +529,7 @@ export class ProcessTerminal implements Terminal {
 	columns(): number {
 		const declared = (process.stdout as { columns?: number | undefined }).columns;
 		if (declared !== undefined && declared > 0) return declared;
+		if (this.queriedColumns > 0) return this.queriedColumns;
 		const envCols = process.env.COLUMNS;
 		if (envCols !== undefined) {
 			const parsed = Number(envCols);
@@ -532,14 +539,27 @@ export class ProcessTerminal implements Terminal {
 	}
 
 	rows(): number {
-		const declared = (process.stdout as { columns?: number | undefined }).columns;
-		if (declared !== undefined) return declared;
+		// The static runtime only exposes stdout.columns, so the row count comes
+		// from the terminal's own window size report (CSI 18 t, recorded through
+		// applyReportedWindowSize) or from the environment.
+		if (this.queriedRows > 0) return this.queriedRows;
 		const envRows = process.env.LINES;
 		if (envRows !== undefined) {
 			const parsed = Number(envRows);
 			if (parsed > 0) return parsed;
 		}
 		return 24;
+	}
+
+	/** Whether the terminal has answered the window size query (CSI 18 t). */
+	hasReportedWindowSize(): boolean {
+		return this.queriedRows > 0;
+	}
+
+	/** Record the window size reported by the terminal (CSI 18 t reply). */
+	applyReportedWindowSize(rows: number, columns: number): void {
+		if (rows > 0) this.queriedRows = rows;
+		if (columns > 0) this.queriedColumns = columns;
 	}
 
 	moveBy(lines: number): void {

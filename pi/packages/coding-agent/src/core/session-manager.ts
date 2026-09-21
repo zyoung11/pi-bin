@@ -1290,11 +1290,7 @@ function buildSessionInfo(filePath: string): SessionInfo | null {
 	}
 }
 
-export type SessionListProgress = (
-	loaded: number,
-	total: number,
-	partialSessions?: SessionInfo[],
-) => void;
+export type SessionListProgress = (loaded: number, total: number, partialSessions?: SessionInfo[]) => void;
 
 const CURRENT_SESSION_LIST_PUBLISH_INTERVAL = 10;
 const ALL_SESSION_LIST_PUBLISH_INTERVAL = 100;
@@ -1395,6 +1391,15 @@ export class SessionManager {
 	private persist: boolean;
 	private flushed: boolean = false;
 	private fileEntries: FileEntry[] = [];
+	private entryRevision = 0;
+
+	/**
+	 * Monotonic revision of the entry list. Consumers that fold every entry
+	 * (the footer usage row) memoize on it instead of rebuilding per frame.
+	 */
+	getEntryRevision(): number {
+		return this.entryRevision;
+	}
 	private byId: Map<string, SessionEntry> = new Map();
 	private idClaims: Map<string, boolean> = new Map();
 	private labelsById: Map<string, string> = new Map();
@@ -1432,6 +1437,7 @@ export class SessionManager {
 		this.sessionFile = resolvePath(sessionFile);
 		if (existsSync(this.sessionFile)) {
 			this.fileEntries = preloadedFileEntries ?? loadEntriesFromFile(this.sessionFile);
+			this.entryRevision += 1;
 
 			// If file was empty, initialize it with a valid session header. If it was
 			// non-empty but did not parse as a pi session, fail without modifying it.
@@ -1484,6 +1490,7 @@ export class SessionManager {
 			parentSession: options?.parentSession,
 		};
 		this.fileEntries = [header];
+		this.entryRevision += 1;
 		this.byId.clear();
 		this.labelsById.clear();
 		this.labelTimestampsById.clear();
@@ -1582,6 +1589,7 @@ export class SessionManager {
 
 	private _appendEntry(entry: SessionEntry): void {
 		this.fileEntries.push(entry);
+		this.entryRevision += 1;
 		this.byId.set(entry.id, entry);
 		this.idClaims.set(entry.id, true);
 		this.leafId = entry.id;
@@ -2059,6 +2067,7 @@ export class SessionManager {
 			}
 
 			this.fileEntries = [header, ...pathWithoutLabels, ...labelEntries];
+			this.entryRevision += 1;
 			this.sessionId = newSessionId;
 			this.sessionFile = newSessionFile;
 			this._buildIndex();
@@ -2099,6 +2108,7 @@ export class SessionManager {
 			parentId = labelEntry.id;
 		}
 		this.fileEntries = [header, ...pathWithoutLabels, ...labelEntries];
+		this.entryRevision += 1;
 		this.sessionId = newSessionId;
 		this._buildIndex();
 		return undefined;

@@ -317,6 +317,7 @@ export class Markdown extends Component {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 	private cachedEpoch?: number;
+	private cachedHeight = -1;
 
 	constructor(
 		text: string,
@@ -337,7 +338,8 @@ export class Markdown extends Component {
 
 	setText(text: string): void {
 		this.text = text;
-		this.invalidate();
+		this.cachedHeight = -1;
+		this.markContentChanged();
 	}
 
 	/**
@@ -345,6 +347,20 @@ export class Markdown extends Component {
 	 * epoch, so stale caches self-invalidate without a tree-wide cascade.
 	 */
 	invalidate(): void {}
+
+	measure(width: number): number {
+		if (this.cachedText === this.text && this.cachedWidth === width && this.cachedEpoch === markdownRenderEpoch) {
+			if (this.cachedLines) return this.cachedLines.length;
+			if (this.cachedHeight >= 0) return this.cachedHeight;
+		}
+		return this.render(width).length;
+	}
+
+	releaseLines(): void {
+		if (!this.cachedLines) return;
+		this.cachedHeight = this.cachedLines.length;
+		this.cachedLines = undefined;
+	}
 
 	render(width: number): string[] {
 		// Check cache
