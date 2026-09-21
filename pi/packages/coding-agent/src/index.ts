@@ -135,8 +135,10 @@ export {
 	sessionEntryToContextMessages,
 	type ThinkingLevelChangeEntry,
 } from "./core/session-manager.ts";
+export type { CacheWarmingDecision, CacheWarmingStatus } from "./core/cache-warmer.ts";
 export {
 	type CompactionSettings,
+	type CacheWarmingMode,
 	type DefaultProjectTrust,
 	type ImageSettings,
 	type PackageSource,

@@ -590,11 +590,11 @@ export class ModelRuntime implements Models {
 
 	private async prepareRequest(
 		model: Model<Api>,
-		options: (ProviderRequestOptions & ModelsRequestTransforms & StreamOptionExtras) | undefined,
+		options: (SimpleStreamOptions & ModelsRequestTransforms) | undefined,
 	): Promise<{
 		provider: Provider;
 		model: Model<Api>;
-		options: ProviderRequestOptions & StreamOptionExtras;
+		options: SimpleStreamOptions;
 	}> {
 		const provider = this.models.getProvider(model.provider);
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
@@ -605,7 +605,7 @@ export class ModelRuntime implements Models {
 		});
 		if (!resolution) throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
 
-		const sourceOptions: ProviderRequestOptions & ModelsRequestTransforms & StreamOptionExtras = options ?? {};
+		const sourceOptions: SimpleStreamOptions & ModelsRequestTransforms = options ?? {};
 		let headers = mergeHeaders(resolution.auth.headers, sourceOptions.headers);
 		const transformHeaders = sourceOptions.transformHeaders;
 		if (transformHeaders !== undefined) {
@@ -613,22 +613,11 @@ export class ModelRuntime implements Models {
 		}
 		const env =
 			resolution.env || sourceOptions.env ? { ...(resolution.env ?? {}), ...(sourceOptions.env ?? {}) } : undefined;
-		const builtOptions: ProviderRequestOptions & StreamOptionExtras = {
-			signal: sourceOptions.signal,
-			telemetryContext: sourceOptions.telemetryContext,
+		const builtOptions: SimpleStreamOptions = {
+			...sourceOptions,
 			apiKey: sourceOptions.apiKey ?? resolution.auth.apiKey,
-			fetch: sourceOptions.fetch,
-			env,
-			onPayload: sourceOptions.onPayload,
-			onResponse: sourceOptions.onResponse,
 			headers,
-			timeoutMs: sourceOptions.timeoutMs,
-			maxRetries: sourceOptions.maxRetries,
-			maxRetryDelayMs: sourceOptions.maxRetryDelayMs,
-			reasoning: sourceOptions.reasoning,
-			reasoningEffort: sourceOptions.reasoningEffort,
-			toolChoice: sourceOptions.toolChoice,
-			thinkingBudgets: sourceOptions.thinkingBudgets,
+			env,
 		};
 		return {
 			provider,
@@ -643,10 +632,7 @@ export class ModelRuntime implements Models {
 		options?: ModelsApiStreamOptions<TApi>,
 	): AssistantMessageEventStream {
 		return lazyStream(model, async () => {
-			const prepared = await this.prepareRequest(
-				model,
-				options as (StreamOptions & ModelsRequestTransforms & StreamOptionExtras) | undefined,
-			);
+			const prepared = await this.prepareRequest(model, options as unknown as SimpleStreamOptions);
 			return prepared.provider.stream(
 				prepared.model as Model<TApi>,
 				context,

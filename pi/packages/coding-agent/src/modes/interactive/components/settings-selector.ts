@@ -5,7 +5,11 @@ import type { SelectItem } from "../../../../../tui/src/components/select-list.t
 import { type SettingItem, SettingsList } from "../../../../../tui/src/components/settings-list.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container } from "../../../../../tui/src/tui.ts";
-import type { DefaultProjectTrust, MermaidRenderingMode } from "../../../core/settings-manager.ts";
+import {
+	type CacheWarmingMode,
+	type DefaultProjectTrust,
+	type MermaidRenderingMode,
+} from "../../../core/settings-manager.ts";
 import { getSettingsListTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";
@@ -72,6 +76,7 @@ export interface SettingsConfig {
 	defaultProjectTrust: DefaultProjectTrust;
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
+	cacheWarmingMode: CacheWarmingMode;
 }
 
 export interface SettingsCallbacks {
@@ -89,6 +94,7 @@ export interface SettingsCallbacks {
 	onHideThinkingBlockChange: (hidden: boolean) => void;
 	onMermaidRenderingModeChange: (mode: MermaidRenderingMode) => void;
 	onShowCacheMissNoticesChange: (shown: boolean) => void;
+	onCacheWarmingModeChange: (mode: CacheWarmingMode) => void;
 	onDoubleEscapeActionChange: (action: "fork" | "tree" | "none") => void;
 	onTreeFilterModeChange: (mode: "default" | "no-tools" | "user-only" | "labeled-only" | "all") => void;
 	onShowHardwareCursorChange: (enabled: boolean) => void;
@@ -217,6 +223,14 @@ export class SettingsSelectorComponent extends Container {
 				description: "Automatically compact context when it gets too large",
 				currentValue: config.autoCompact ? "true" : "false",
 				values: ["true", "false"],
+			},
+			{
+				id: "cache-warming-mode",
+				label: "Cache warming",
+				description:
+					"off; streaming while the agent runs; idle also between runs while continuation stays profitable",
+				currentValue: config.cacheWarmingMode,
+				values: ["off", "streaming", "idle"],
 			},
 			{
 				id: "steering-mode",
@@ -522,6 +536,9 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "cache-miss-notices":
 						callbacks.onShowCacheMissNoticesChange(newValue === "true");
+						break;
+					case "cache-warming-mode":
+						callbacks.onCacheWarmingModeChange(newValue as CacheWarmingMode);
 						break;
 					case "quiet-startup":
 						callbacks.onQuietStartupChange(newValue === "true");

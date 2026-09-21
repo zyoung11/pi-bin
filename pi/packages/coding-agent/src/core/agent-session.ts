@@ -71,9 +71,10 @@ import type { ModelRuntime } from "./model-runtime.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { exportSessionToJsonl } from "./session-export.ts";
+import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
 import type { BranchSummaryEntry, CustomData, SessionEntry, SessionManager } from "./session-manager.ts";
 import { entryTypeOf, getLatestCompactionEntry } from "./session-manager.ts";
-import type { SettingsManager } from "./settings-manager.ts";
+import type { CacheWarmingMode, SettingsManager } from "./settings-manager.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
@@ -188,6 +189,8 @@ export interface AgentSessionConfig {
 	customTools?: ToolDefinition[];
 	/** Canonical model/auth runtime used by coding-agent internals. */
 	modelRuntime: ModelRuntime;
+	/** Keeps the prompt cache entry of the last session request warm. */
+	cacheWarmer?: CacheWarmer;
 	/** Initial active built-in tool names. Default: [read, bash, edit, write] */
 	initialActiveToolNames?: string[];
 	/** Optional allowlist of tool names. When provided, only these tool names are exposed. */
@@ -341,6 +344,7 @@ export class AgentSession {
 	private _excludedToolNames?: string[];
 
 	private _modelRuntime: ModelRuntime;
+	private _cacheWarmer?: CacheWarmer;
 
 	// Tool registry for built-in and caller-provided tools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
@@ -362,6 +366,10 @@ export class AgentSession {
 		this._customTools = config.customTools ?? [];
 		this._cwd = config.cwd;
 		this._modelRuntime = config.modelRuntime;
+		this._cacheWarmer = config.cacheWarmer;
+		if (this._cacheWarmer) {
+			this._cacheWarmer.onWarmed = (entry) => this._emit({ type: "entry_appended", entry });
+		}
 		this._initialActiveToolNames = config.initialActiveToolNames;
 		this._allowedToolNames = config.allowedToolNames ? [...config.allowedToolNames] : undefined;
 		this._excludedToolNames = config.excludedToolNames ? [...config.excludedToolNames] : undefined;
@@ -515,6 +523,7 @@ export class AgentSession {
 	}
 
 	private _emitAgentSettled(): void {
+		this._cacheWarmer?.onAgentSettled();
 		this._isAgentRunActive = false;
 		try {
 			this._emit({ type: "agent_settled" });
@@ -676,6 +685,10 @@ export class AgentSession {
 
 		this._disconnectFromAgent();
 		this._eventListeners = [];
+		if (this._cacheWarmer) {
+			this._cacheWarmer.onWarmed = undefined;
+			this._cacheWarmer.cancel();
+		}
 		cleanupSessionResources(this.sessionId);
 	}
 
@@ -684,6 +697,17 @@ export class AgentSession {
 	// =========================================================================
 
 	/** Full agent state */
+	/** Current cache-warming state and the policy inputs that produced it. */
+	get cacheWarmingStatus(): CacheWarmingStatus | undefined {
+		return this._cacheWarmer?.getStatus();
+	}
+
+	/** Persist the cache-warming mode and immediately reconcile active warming. */
+	setCacheWarmingMode(mode: CacheWarmingMode): void {
+		this.settingsManager.setCacheWarmingMode(mode);
+		this._cacheWarmer?.onModeChanged();
+	}
+
 	get state(): AgentState {
 		return this.agent.state;
 	}
@@ -2523,7 +2547,9 @@ export class AgentSession {
 		const usageTotals = createUsageTotals();
 
 		for (const entry of this.sessionManager.getEntries()) {
-			if (entry.type === "compaction") {
+			if (entry.type === "usage") {
+				addUsageToTotals(usageTotals, entry.usage);
+			} else if (entry.type === "compaction") {
 				if (entry.usage) addUsageToTotals(usageTotals, entry.usage);
 			} else if (entry.type === "branch_summary") {
 				const summaryUsage = recordViewOf(entry)["usage"] as Usage | undefined;

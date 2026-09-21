@@ -106,6 +106,17 @@ export interface ModelChangeEntry extends SessionEntryBase {
 	modelId: string;
 }
 
+export interface UsageEntry extends SessionEntryBase {
+	type: "usage";
+	/** Arbitrary usage category, such as "cache_warm". */
+	kind: string;
+	provider: string;
+	model: string;
+	usage: Usage;
+	/** Optional human-readable qualifier for usage notices. */
+	note?: string;
+}
+
 export type CustomData = Record<string, unknown> | string | number | boolean | null;
 
 export interface CompactionEntry<T = CustomData> extends SessionEntryBase {
@@ -189,6 +200,7 @@ export type SessionEntry =
 	| SessionMessageEntry
 	| ThinkingLevelChangeEntry
 	| ModelChangeEntry
+	| UsageEntry
 	| CompactionEntry
 	| BranchSummaryEntry
 	| CustomEntry
@@ -279,7 +291,9 @@ function cloneEntryWithParent(entry: SessionEntry, parentId: string | null, firs
 	if (entry.type === "custom") return { ...entry, parentId };
 	if (entry.type === "custom_message") return { ...entry, parentId };
 	if (entry.type === "label") return { ...entry, parentId };
-	return { ...entry, parentId };
+	if (entry.type === "usage") return { ...entry, parentId };
+	if (entry.type === "session_info") return { ...entry, parentId };
+	return entry as SessionEntry;
 }
 
 function generateId(existingIds: Map<string, boolean>): string {
@@ -646,6 +660,28 @@ function reviveFileEntry(raw: unknown): FileEntry | null {
 			parentId: reviveParentId(rec["parentId"]),
 			timestamp: reviveString(rec["timestamp"]),
 		};
+		return entry;
+	}
+
+	if (type === "usage") {
+		const entry: UsageEntry = {
+			type: "usage",
+			kind: reviveString(rec["kind"]),
+			provider: reviveString(rec["provider"]),
+			model: reviveString(rec["model"]),
+			usage: reviveUsage(rec["usage"]) ?? {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			id: reviveString(rec["id"]),
+			parentId: reviveParentId(rec["parentId"]),
+			timestamp: reviveString(rec["timestamp"]),
+		};
+		if (typeof rec["note"] === "string") entry.note = rec["note"];
 		return entry;
 	}
 
@@ -1581,6 +1617,23 @@ export class SessionManager {
 		};
 		this._appendEntry(entry);
 		return entry.id;
+	}
+
+	/** Append model-attributed usage that does not participate in LLM context. Returns the appended entry. */
+	appendUsage(kind: string, provider: string, model: string, usage: Usage, note?: string): UsageEntry {
+		const entry: UsageEntry = {
+			type: "usage",
+			id: generateId(this.idClaims),
+			parentId: this.leafId,
+			timestamp: new Date().toISOString(),
+			kind,
+			provider,
+			model,
+			usage,
+		};
+		if (note !== undefined) entry.note = note;
+		this._appendEntry(entry);
+		return entry;
 	}
 
 	/** Append a model change as child of current leaf, then advance leaf. Returns entry id. */

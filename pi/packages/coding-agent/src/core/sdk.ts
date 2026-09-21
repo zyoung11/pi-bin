@@ -2,11 +2,13 @@ import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "../../../agent/src/index.ts";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "../../../ai/src/compat.ts";
+import type { ModelsSimpleStreamOptions } from "../../../ai/src/models.ts";
 import type { Api, ImageContent, TextContent } from "../../../ai/src/types.ts";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { AgentSession } from "./agent-session.ts";
 import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
+import { CacheWarmer } from "./cache-warmer.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import { convertToLlm } from "./messages.ts";
 import { findInitialModel } from "./model-resolver.ts";
@@ -322,6 +324,43 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		});
 	};
 
+	const cacheWarmer = new CacheWarmer(modelRuntime, sessionManager, () => settingsManager.getCacheWarmingMode());
+	const buildRequestOptions = (
+		requestModel: Model<Api>,
+		options: ModelsSimpleStreamOptions = {},
+	): ModelsSimpleStreamOptions => {
+		const providerRetrySettings = settingsManager.getProviderRetrySettings();
+		const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
+		const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
+		return {
+			...options,
+			signal: options.signal,
+			timeoutMs: options.timeoutMs ?? providerRetrySettings.timeoutMs ?? effectiveTimeoutMs,
+			websocketConnectTimeoutMs:
+				options.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs(),
+			maxRetries: options.maxRetries ?? providerRetrySettings.maxRetries,
+			maxRetryDelayMs: options.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
+			transformHeaders: async (requestHeaders) => {
+				const headers = mergeProviderAttributionHeaders(requestModel, options.sessionId, requestHeaders);
+				return headers ?? {};
+			},
+		};
+	};
+	const cacheContextIsCurrent = (requestModel: Model<Api>) => {
+		const messages = agent.state.messages;
+		return () => {
+			const currentModel = agent.state.model;
+			if (currentModel === undefined) return false;
+			if (currentModel.provider !== requestModel.provider || currentModel.id !== requestModel.id) return false;
+			const currentMessages = agent.state.messages;
+			if (messages.length > currentMessages.length) return false;
+			for (let index = 0; index < messages.length; index++) {
+				if (currentMessages[index] !== messages[index]) return false;
+			}
+			return true;
+		};
+	};
+
 	agent = new Agent({
 		initialState: {
 			systemPrompt: "",
@@ -331,26 +370,14 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		},
 		convertToLlm: convertToLlmWithBlockImages,
 		streamFn: async (model, context, options) => {
-			const providerRetrySettings = settingsManager.getProviderRetrySettings();
-			const httpIdleTimeoutMs = settingsManager.getHttpIdleTimeoutMs();
-			// SDKs treat timeout=0 as 0ms (immediate timeout), not "no timeout".
-			// Use max int32 to effectively disable the timeout.
-			const effectiveTimeoutMs = httpIdleTimeoutMs === 0 ? 2147483647 : httpIdleTimeoutMs;
-			const timeoutMs = options?.timeoutMs ?? providerRetrySettings.timeoutMs ?? effectiveTimeoutMs;
-			const websocketConnectTimeoutMs =
-				options?.websocketConnectTimeoutMs ?? settingsManager.getWebSocketConnectTimeoutMs();
-			return modelRuntime.streamSimple(model, context, {
-				...options,
-				signal: options?.signal,
-				timeoutMs,
-				websocketConnectTimeoutMs,
-				maxRetries: options?.maxRetries ?? providerRetrySettings.maxRetries,
-				maxRetryDelayMs: options?.maxRetryDelayMs ?? providerRetrySettings.maxRetryDelayMs,
-				transformHeaders: async (requestHeaders) => {
-					const headers = mergeProviderAttributionHeaders(model, options?.sessionId, requestHeaders);
-					return headers ?? {};
-				},
-			});
+			const requestOptions = buildRequestOptions(model, options);
+			// Compaction and summaries use their own routing ids; only session requests
+			// replace the cache entry, so warming restarts from them. Keep warming while
+			// the current transcript still extends the request's prefix.
+			if (options?.sessionId === sessionManager.getSessionId()) {
+				cacheWarmer.start({ model, context, options: requestOptions }, cacheContextIsCurrent(model));
+			}
+			return modelRuntime.streamSimple(model, context, requestOptions);
 		},
 		sessionId: sessionManager.getSessionId(),
 		steeringMode: settingsManager.getSteeringMode(),
@@ -382,6 +409,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		resourceLoader,
 		customTools: options.customTools,
 		modelRuntime,
+		cacheWarmer,
 		initialActiveToolNames,
 		allowedToolNames,
 		excludedToolNames,

@@ -47,6 +47,7 @@ import {
 	computeCacheWaste,
 	detectCacheMiss,
 } from "../../core/cache-stats.ts";
+import { formatCacheWarmingStatus, formatCacheWarmingUsage } from "../../core/cache-warmer.ts";
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVEL_OPTIONS } from "../../core/defaults.ts";
 import { FooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher } from "../../core/http-dispatcher.ts";
@@ -73,6 +74,7 @@ import {
 	type SessionEntry,
 	SessionManager,
 	sessionEntryToContextMessages,
+	type UsageEntry,
 } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
@@ -191,7 +193,11 @@ type CompactionCostNotice = {
 	usage: Usage;
 };
 
-type RenderSessionItem = AgentMessage | Extract<SessionEntry, { type: "custom" }> | CompactionCostNotice;
+type RenderSessionItem =
+	| AgentMessage
+	| Extract<SessionEntry, { type: "custom" }>
+	| Extract<SessionEntry, { type: "usage" }>
+	| CompactionCostNotice;
 
 type SelectorHandle = {
 	component: Component;
@@ -223,6 +229,10 @@ function isCustomEntry(entry: SessionEntry): entry is CustomEntry {
 
 function isCompactionCostNotice(item: RenderSessionItem): item is CompactionCostNotice {
 	return renderItemType(item) === "compaction_cost";
+}
+
+function isUsageSessionEntry(item: RenderSessionItem): item is Extract<SessionEntry, { type: "usage" }> {
+	return renderItemType(item) === "usage";
 }
 
 function isUnknownModel(model: Model<Api> | undefined): boolean {
@@ -2451,6 +2461,9 @@ export class InteractiveMode {
 				if (event.entry.type === "custom") {
 					this.addCustomEntryToChat();
 					this.ui.requestRender();
+				} else if (event.entry.type === "usage" && event.entry.kind === "cache_warm") {
+					this.addCacheWarmingUsage(event.entry);
+					this.ui.requestRender();
 				}
 				break;
 
@@ -2989,6 +3002,10 @@ export class InteractiveMode {
 			this.addCustomEntryToChat();
 			return undefined;
 		}
+		if (isUsageSessionEntry(item)) {
+			this.addCacheWarmingUsage(item, target);
+			return undefined;
+		}
 		if (isCompactionCostNotice(item)) {
 			this.addCompactionCostNotice(item, target);
 			return undefined;
@@ -3079,6 +3096,10 @@ export class InteractiveMode {
 				items.push(entry);
 				continue;
 			}
+			if (entry.type === "usage") {
+				items.push(entry);
+				continue;
+			}
 			const messages = sessionEntryToContextMessages(entry);
 			const entryType = renderItemType(entry);
 			const entryUsage = entryUsageOf(entry);
@@ -3117,6 +3138,12 @@ export class InteractiveMode {
 	 * Render billing usage for a compaction or branch summary. The notice is derived
 	 * from persisted summary usage and is not stored as a separate session entry.
 	 */
+	private addCacheWarmingUsage(entry: UsageEntry, target: Container = this.chatContainer): void {
+		if (!this.settingsManager.getShowCacheMissNotices()) return;
+		target.addChild(new Spacer(1));
+		target.addChild(new Text(theme.fg("dim", formatCacheWarmingUsage(entry)), 1, 0));
+	}
+
 	private addCompactionCostNotice(notice: CompactionCostNotice, target: Container = this.chatContainer): void {
 		if (!this.settingsManager.getShowCacheMissNotices()) return;
 
@@ -3176,6 +3203,7 @@ export class InteractiveMode {
 
 	private isCuttableItem(item: RenderSessionItem): boolean {
 		if (isCustomSessionEntry(item)) return false;
+		if (isUsageSessionEntry(item)) return false;
 		if (isCompactionCostNotice(item)) return false;
 		const message = item;
 		if (message.role === "user") return true;
@@ -3185,6 +3213,7 @@ export class InteractiveMode {
 	/** Rough scrollback height estimate used to size the synchronous tail chunk. */
 	private estimateItemLines(item: RenderSessionItem): number {
 		if (isCustomSessionEntry(item)) return 2;
+		if (isUsageSessionEntry(item)) return 2;
 		if (isCompactionCostNotice(item)) return 2;
 		const message = item;
 		let chars = 0;
@@ -3337,6 +3366,7 @@ export class InteractiveMode {
 		// back-filled history chunks below render with populateHistory disabled.
 		for (const item of items) {
 			if (isCustomSessionEntry(item)) continue;
+			if (isUsageSessionEntry(item)) continue;
 			if (isCompactionCostNotice(item)) continue;
 			const message = item;
 			if (message.role === "user") {
@@ -4255,6 +4285,7 @@ export class InteractiveMode {
 					quietStartup: this.settingsManager.getQuietStartup(),
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
+					cacheWarmingMode: this.settingsManager.getCacheWarmingMode(),
 				},
 				{
 					onAutoCompactChange: (enabled) => {
@@ -4335,6 +4366,10 @@ export class InteractiveMode {
 					onShowCacheMissNoticesChange: (shown) => {
 						this.settingsManager.setShowCacheMissNotices(shown);
 						this.rebuildChatFromMessages();
+					},
+					onCacheWarmingModeChange: (mode) => {
+						this.session.setCacheWarmingMode(mode);
+						this.showStatus(`Cache warming: ${mode}`);
 					},
 					onQuietStartupChange: (enabled) => {
 						this.settingsManager.setQuietStartup(enabled);
@@ -5276,6 +5311,16 @@ export class InteractiveMode {
 		}
 		info += `${theme.fg("dim", "Output:")} ${formatNumber(stats.tokens.output)}\n`;
 		info += `${theme.fg("dim", "Total:")} ${formatNumber(stats.tokens.total)}\n`;
+
+		const cacheWarmingStatus = this.session.cacheWarmingStatus;
+		info += `\n${theme.bold("Cache Warming")}\n`;
+		info += `${theme.fg("dim", "Mode:")} ${this.settingsManager.getCacheWarmingMode()}\n`;
+		info += `${theme.fg("dim", "Status:")} ${cacheWarmingStatus ? formatCacheWarmingStatus(cacheWarmingStatus) : "Inactive (cache warming unavailable)"}\n`;
+		const warmingDecision = cacheWarmingStatus?.decision;
+		if (warmingDecision?.economicsAvailable) {
+			info += `${theme.fg("dim", "Cache miss penalty:")} $${warmingDecision.missCost.toFixed(3)}\n`;
+			info += `${theme.fg("dim", "Refresh cost:")} $${warmingDecision.warmCost.toFixed(3)}\n`;
+		}
 
 		if (stats.cost > 0 || cacheWaste.missedTokens > 0) {
 			info += `\n${theme.bold("Cost")}\n`;

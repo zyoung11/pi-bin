@@ -989,3 +989,45 @@ Ported from upstream (v0.86.0 and earlier post-baseline commits):
   have), and llama.cpp `enable_thinking` detection (upstream implements it in
   the removed llama extension; models.json users configure the thinking map
   directly).
+
+---
+
+## Phase 23 — prompt cache warming
+
+Ported from upstream (`c596d09d9` #9668), adapted to this fork (no extension
+decision hook, dyn-safe metadata reads):
+
+- `ModelPromptCache` metadata (`short`/`long` lifetimes in seconds) on the model
+  plus `models.json` `promptCache` in model definitions and overrides, so any
+  provider can opt in by declaring its cache lifetime.
+- New `core/cache-warmer.ts`: keeps the prompt cache entry of the last session
+  request alive by re-sending it with a one-token output cap before the entry
+  expires, with a cost model (cache read vs cache miss vs one output token), a
+  0.05 dollar minimum expected saving, streaming and 30-minute idle safety
+  windows, and cancellation on mode changes, disposal, or transcript changes.
+- Settings: global `cacheWarming` mode (`off`, `streaming`, `idle`) with a new
+  Settings selector row and an AgentSession setter.
+- Session format: new `usage` entries (`appendUsage`, revive on load) for
+  cache-warm refreshes, included in cache-miss stats, cost breakdowns, and the
+  footer totals; the TUI renders `Cache warmed: $x` notices behind the existing
+  cache-notice toggle; `/session` shows mode, status, refresh cost and cache
+  miss penalty.
+- SDK wiring starts warming from session requests only (the request's sessionId
+  must match), and stops when the transcript no longer extends the request's
+  message prefix.
+
+Latent bug found while verifying: `ModelRuntime.prepareRequest` rebuilt the
+provider options from a field whitelist that dropped `maxTokens`,
+`cacheRetention`, `sessionId`, `temperature`, `samplingParams`, and other stream
+options before dispatch. The warm refresh therefore generated a full response
+instead of one token, and prompt-cache retention and session-affinity options
+never reached the API. `prepareRequest` now passes the full
+`SimpleStreamOptions` through with auth headers and env merged in.
+
+Verified with a mock provider that declares `promptCache: { short: 20 }` and a
+15-second tool run: the refresh request carries `max_completion_tokens: 1`, a
+`usage` entry is persisted, `/session` shows the Cache Warming block, and the
+mode is selectable in `/settings`. Session resume with usage entries, a real
+DeepSeek tool call, and the post-tool compaction mock all pass. The README
+image-resizing removal is unchanged; upstream image input limits
+(`f5c946480`) are not ported.
