@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn as nodeSpawn, spawnSync as nodeSpawnSync } from "node:child_process";
+import { signalExitCode } from "../../../agent/src/index.ts";
 
 const EXIT_STDIO_GRACE_MS = 100;
 
@@ -77,30 +78,43 @@ export function spawnProcessSync(command: string, args: string[], _options: Spaw
  * every chunk, so an actively writing descendant keeps us reading, while a quiet
  * inherited handle still releases us after the grace elapses.
  */
-export function waitForChildProcess(child: ChildProcessHandle): Promise<number | null> {
+/** Resolves a wait result to an exit code: real code, else 128 + signal number, else 1. */
+export function processExitCode(code: number | null, signal: NodeJS.Signals | null): number | null {
+	if (code !== null) return code;
+	const signalCode = signalExitCode(signal);
+	return signalCode !== undefined ? signalCode : 1;
+}
+
+export interface ProcessWaitResult {
+	code: number | null;
+	signal: NodeJS.Signals | null;
+}
+
+export function waitForProcessResult(child: ChildProcessHandle): Promise<ProcessWaitResult> {
 	return new Promise((resolve, reject) => {
 		let settled = false;
 		let exited = false;
 		let exitCode: number | null = null;
+		let exitSignal: NodeJS.Signals | null = null;
 		let idleTimer: NodeJS.Timeout | undefined;
 		let stdoutEnded = child.stdout === null;
 		let stderrEnded = child.stderr === null;
 
-		const finalize = (code: number | null) => {
+		const finalize = () => {
 			if (settled) return;
 			settled = true;
 			if (idleTimer) clearTimeout(idleTimer);
-			resolve(code);
+			resolve({ code: exitCode, signal: exitSignal });
 		};
 
 		const maybeFinalizeAfterExit = () => {
 			if (!exited || settled) return;
-			if (stdoutEnded && stderrEnded) finalize(exitCode);
+			if (stdoutEnded && stderrEnded) finalize();
 		};
 
 		const armIdleTimer = () => {
 			if (idleTimer) clearTimeout(idleTimer);
-			idleTimer = setTimeout(() => finalize(exitCode), EXIT_STDIO_GRACE_MS);
+			idleTimer = setTimeout(() => finalize(), EXIT_STDIO_GRACE_MS);
 		};
 
 		const onData = () => {
@@ -124,9 +138,10 @@ export function waitForChildProcess(child: ChildProcessHandle): Promise<number |
 			reject(err);
 		};
 
-		const onExit = (code: number | null) => {
+		const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
 			exited = true;
 			exitCode = code;
+			exitSignal = signal;
 			maybeFinalizeAfterExit();
 			if (!settled) armIdleTimer();
 		};
@@ -144,4 +159,9 @@ export function waitForChildProcess(child: ChildProcessHandle): Promise<number |
 		child.on("error", onError);
 		child.on("exit", onExit);
 	});
+}
+
+/** Waits for a child process and resolves with its exit code (null when signal-terminated). */
+export function waitForChildProcess(child: ChildProcessHandle): Promise<number | null> {
+	return waitForProcessResult(child).then((result) => result.code);
 }

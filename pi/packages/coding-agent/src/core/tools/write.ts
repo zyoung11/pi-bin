@@ -8,7 +8,6 @@ import type { Component } from "../../../../tui/src/tui.ts";
 import { Container } from "../../../../tui/src/tui.ts";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";
-import { getExperimentalToolSampling } from "../experimental.ts";
 import { withFileMutationQueue } from "./file-mutation-queue.ts";
 import { resolveToCwd } from "./path-utils.ts";
 import { normalizeDisplayText, renderToolPath, replaceTabs, str } from "./render-utils.ts";
@@ -218,7 +217,7 @@ export function createWriteToolDefinition(cwd: string, options?: WriteToolOption
 		promptSnippet: writeToolSystemPromptContribution.snippet,
 		promptGuidelines: writeToolSystemPromptContribution.guidelines.slice(),
 		parameters: writeSchema,
-		constrainedSampling: getExperimentalToolSampling(),
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
 		async execute(_toolCallId, params: unknown, signal, _onUpdate): Promise<AgentToolResult<unknown>> {
 			const { path, content } = params as { path: string; content: string };
 			const absolutePath = resolveToCwd(path, cwd);
@@ -242,7 +241,7 @@ export function createWriteToolDefinition(cwd: string, options?: WriteToolOption
 				throwIfAborted();
 
 				const result: AgentToolResult<unknown> = {
-					content: [{ type: "text", text: `Successfully wrote ${content.length} bytes to ${path}` }],
+					content: [{ type: "text", text: `Successfully wrote to ${path}` }],
 					details: undefined,
 				};
 				return result;

@@ -98,7 +98,7 @@ function schemaAllowsNull(schemaValue: unknown): boolean {
 	return anyOfList !== undefined && anyOfList.some((variant) => schemaAllowsNull(variant));
 }
 
-function makeJsonSchemaNodeStrict(schemaValue: unknown): void {
+function makeJsonSchemaNodeStrict(schemaValue: unknown): Record<string, unknown> {
 	const schema = asSchemaRecord(schemaValue);
 	if (schema === undefined) {
 		throw new UnsupportedStrictJsonSchemaError("boolean schemas are unsupported");
@@ -109,18 +109,25 @@ function makeJsonSchemaNodeStrict(schemaValue: unknown): void {
 		}
 	}
 
+	const strict: Record<string, unknown> = {};
+	for (const key of Object.keys(schema)) {
+		strict[key] = schema[key];
+	}
+
 	const anyOfValue = schema["anyOf"];
 	if (anyOfValue !== undefined) {
 		const anyOfList = arrayUnknown(anyOfValue);
 		if (anyOfList === undefined || anyOfList.length === 0) {
 			throw new UnsupportedStrictJsonSchemaError("anyOf must contain at least one schema");
 		}
+		const strictVariants: unknown[] = [];
 		for (const variant of anyOfList) {
 			if (isStructuredSchema(variant)) {
 				throw new UnsupportedStrictJsonSchemaError("object and array unions are unsupported");
 			}
-			makeJsonSchemaNodeStrict(variant);
+			strictVariants.push(makeJsonSchemaNodeStrict(variant));
 		}
+		strict["anyOf"] = strictVariants;
 	}
 
 	const itemsValue = schema["items"];
@@ -128,7 +135,7 @@ function makeJsonSchemaNodeStrict(schemaValue: unknown): void {
 		if (Array.isArray(itemsValue)) {
 			throw new UnsupportedStrictJsonSchemaError("tuple schemas are unsupported");
 		}
-		makeJsonSchemaNodeStrict(itemsValue);
+		strict["items"] = makeJsonSchemaNodeStrict(itemsValue);
 	}
 
 	const isObjectSchema = schema["type"] === "object";
@@ -136,7 +143,7 @@ function makeJsonSchemaNodeStrict(schemaValue: unknown): void {
 	if (propertiesValue !== undefined && !isObjectSchema) {
 		throw new UnsupportedStrictJsonSchemaError("properties require type object");
 	}
-	if (!isObjectSchema) return;
+	if (!isObjectSchema) return strict;
 	const additionalPropertiesValue = schema["additionalProperties"];
 	if (additionalPropertiesValue !== undefined && additionalPropertiesValue !== false) {
 		throw new UnsupportedStrictJsonSchemaError("schema-valued or true additionalProperties is unsupported");
@@ -151,46 +158,41 @@ function makeJsonSchemaNodeStrict(schemaValue: unknown): void {
 		throw new UnsupportedStrictJsonSchemaError("object required must be a string array");
 	}
 
+	const required = new Set<string>();
+	if (requiredList !== undefined) {
+		for (const key of requiredList) required.add(key);
+	}
+	const propertyNames: string[] = [];
 	const properties: Record<string, unknown> = {};
 	if (propertiesSource !== undefined) {
 		for (const name of Object.keys(propertiesSource)) {
 			const entry = propertiesSource[name];
-			if (entry !== undefined) properties[name] = entry;
+			if (entry === undefined) continue;
+			propertyNames.push(name);
+			if (!required.has(name) && !schemaAllowsNull(entry)) {
+				properties[name] = { anyOf: [makeJsonSchemaNodeStrict(entry), { type: "null" }] };
+			} else {
+				properties[name] = makeJsonSchemaNodeStrict(entry);
+			}
 		}
-	}
-	const propertyNames = Object.keys(properties);
-	const required = new Set<string>();
-	if (requiredList !== undefined) {
-		for (const key of requiredList) required.add(key);
 	}
 	for (const key of required) {
 		if (!propertyNames.includes(key)) {
 			throw new UnsupportedStrictJsonSchemaError("required contains an unknown property");
 		}
 	}
-	for (const key of propertyNames) {
-		const property = properties[key];
-		if (property === undefined) continue;
-		makeJsonSchemaNodeStrict(property);
-		if (!required.has(key) && !schemaAllowsNull(property)) {
-			properties[key] = { anyOf: [property, { type: "null" }] };
-		}
-	}
-	schema["required"] = propertyNames;
-	schema["additionalProperties"] = false;
+	strict["properties"] = properties;
+	strict["required"] = propertyNames;
+	strict["additionalProperties"] = false;
+	return strict;
 }
 
 export function makeStrictJsonSchema(schema: Tool["parameters"]): Record<string, unknown> {
-	const cloned: unknown = structuredClone(schema);
-	const record = asSchemaRecord(cloned);
-	if (record === undefined) {
+	const record = asSchemaRecord(schema);
+	if (record === undefined || record["type"] !== "object") {
 		throw new UnsupportedStrictJsonSchemaError("root schema must have type object");
 	}
-	makeJsonSchemaNodeStrict(record);
-	if (record["type"] !== "object") {
-		throw new UnsupportedStrictJsonSchemaError("root schema must have type object");
-	}
-	return record;
+	return makeJsonSchemaNodeStrict(record);
 }
 
 export function getJsonSchemaToolParameters(tool: Tool, strict: boolean | undefined): Tool["parameters"] {

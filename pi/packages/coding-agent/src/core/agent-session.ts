@@ -43,7 +43,7 @@ import {
 	type RetryCallbacks,
 	resetApiProviders,
 } from "../../../ai/src/compat.ts";
-import { contentText } from "../../../ai/src/index.ts";
+import { contentText, retryDelayMs } from "../../../ai/src/index.ts";
 import { getThemeByName, theme } from "../modes/interactive/theme/theme.ts";
 import { stripFrontmatter } from "../utils/frontmatter.ts";
 import { sleep } from "../utils/sleep.ts";
@@ -484,7 +484,7 @@ export class AgentSession {
 	}
 
 	private _resolveIdleWaitIfIdle(): void {
-		if (this._isAgentRunActive || !this._resolveIdleWait) {
+		if (!this.isIdle || !this._resolveIdleWait) {
 			return;
 		}
 		const resolve = this._resolveIdleWait;
@@ -682,9 +682,9 @@ export class AgentSession {
 		return this._isAgentRunActive;
 	}
 
-	/** Whether the session has no active agent run, retry, auto-compaction, or queued continuation. */
+	/** Whether the session has no active agent run, compaction, branch summary, retry, or queued continuation. */
 	get isIdle(): boolean {
-		return !this._isAgentRunActive;
+		return !this._isAgentRunActive && !this.isCompacting;
 	}
 
 	/** Current effective system prompt (includes any per-turn extension modifications) */
@@ -1257,6 +1257,8 @@ export class AgentSession {
 	 */
 	async abort(): Promise<void> {
 		this.abortRetry();
+		this.abortCompaction();
+		this.abortBranchSummary();
 		this.agent.abort();
 		await this.waitForIdle();
 	}
@@ -1548,6 +1550,11 @@ export class AgentSession {
 		);
 	}
 
+	private _clearManualCompactionState(): void {
+		this._compactionAbortController = null;
+		this._resolveIdleWaitIfIdle();
+	}
+
 	/**
 	 * Manually compact the session context.
 	 *
@@ -1640,7 +1647,7 @@ export class AgentSession {
 				details,
 			};
 			// compaction_end listeners may submit queued prompts, so expose idle state before notifying them.
-			this._compactionAbortController = null;
+			this._clearManualCompactionState();
 			const manualEndEvent: AgentSessionEvent = {
 				type: "compaction_end",
 				reason: "manual",
@@ -1654,7 +1661,7 @@ export class AgentSession {
 			const message = error instanceof Error ? error.message : String(error);
 			const aborted = message === "Compaction cancelled" || (error instanceof Error && error.name === "AbortError");
 			const errorMessage = aborted ? undefined : `Compaction failed: ${message}`;
-			this._compactionAbortController = null;
+			this._clearManualCompactionState();
 			const manualEndEvent: AgentSessionEvent = {
 				type: "compaction_end",
 				reason: "manual",
@@ -1666,7 +1673,7 @@ export class AgentSession {
 			this._emit(manualEndEvent);
 			throw error;
 		} finally {
-			this._compactionAbortController = null;
+			this._clearManualCompactionState();
 		}
 	}
 
@@ -1922,6 +1929,7 @@ export class AgentSession {
 			return false;
 		} finally {
 			this._autoCompactionAbortController = null;
+			this._resolveIdleWaitIfIdle();
 		}
 	}
 
@@ -2115,7 +2123,7 @@ export class AgentSession {
 			return false;
 		}
 
-		const delayMs = settings.baseDelayMs * 2 ** (this._retryAttempt - 1);
+		const delayMs = retryDelayMs(settings, this._retryAttempt);
 
 		this._emit({
 			type: "auto_retry_start",
@@ -2331,6 +2339,11 @@ export class AgentSession {
 	): Promise<{ editorText?: string; cancelled: boolean; aborted?: boolean; summaryEntry?: BranchSummaryEntry }> {
 		if (this.isStreaming) {
 			throw new Error("Wait for the current response to finish before navigating the session tree.");
+		}
+		if (this.isCompacting) {
+			throw new Error(
+				"Wait for the current compaction or tree navigation to finish before navigating the session tree.",
+			);
 		}
 
 		const oldLeafId = this.sessionManager.getLeafId();

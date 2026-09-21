@@ -7,7 +7,7 @@ import { truncateToWidth } from "../../../../tui/src/utils.ts";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { truncateToVisualLines } from "../../modes/interactive/components/visual-truncate.ts";
 import { theme } from "../../modes/interactive/theme/theme.ts";
-import { spawnProcess, waitForChildProcess } from "../../utils/child-process.ts";
+import { processExitCode, spawnProcess, waitForProcessResult } from "../../utils/child-process.ts";
 import {
 	getShellConfig,
 	getShellEnv,
@@ -16,7 +16,6 @@ import {
 	trackDetachedChildPid,
 	untrackDetachedChildPid,
 } from "../../utils/shell.ts";
-import { getExperimentalToolSampling } from "../experimental.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -66,7 +65,8 @@ export interface BashOperations {
 	 * @param command The command to execute
 	 * @param cwd Working directory
 	 * @param options Execution options
-	 * @returns Promise resolving to exit code (null if killed)
+	 * @returns Promise resolving to the exit code. Signal terminations are reported as
+	 * 128 + signal number; a null exit code is treated as a failed command.
 	 */
 	exec: (
 		command: string,
@@ -160,14 +160,14 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 				}
 				// Handle shell spawn errors and wait for the process to terminate without hanging
 				// on inherited stdio handles held by detached descendants.
-				const exitCode = await waitForChildProcess(child);
+				const { code, signal: exitSignal } = await waitForProcessResult(child);
 				if (signal?.aborted) {
 					throw new Error("aborted");
 				}
 				if (timedOut) {
 					throw new Error(`timeout:${timeout}`);
 				}
-				return { exitCode };
+				return { exitCode: processExitCode(code, exitSignal) };
 			} finally {
 				if (child.pid) untrackDetachedChildPid(child.pid);
 				if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -397,7 +397,7 @@ export function createShellToolDefinition(
 		promptGuidelines:
 			exposeSessionEnvironment && config.promptGuidelines ? config.promptGuidelines.slice() : undefined,
 		parameters: bashSchema,
-		constrainedSampling: getExperimentalToolSampling(),
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
 		async execute(_toolCallId, params: unknown, signal, onUpdate): Promise<AgentToolResult<unknown>> {
 			const { command, timeout } = params as { command: string; timeout?: number };
 			const resolvedCommand = commandPrefix ? `${commandPrefix}\n${command}` : command;
@@ -517,7 +517,10 @@ export function createShellToolDefinition(
 
 				const snapshot = await finishOutput();
 				const { text: outputText, details } = formatOutput(snapshot);
-				if (exitCode !== 0 && exitCode !== null) {
+				if (exitCode === null) {
+					throw new Error(appendStatus(outputText, "Command terminated without an exit code"));
+				}
+				if (exitCode !== 0) {
 					throw new Error(appendStatus(outputText, `Command exited with code ${exitCode}`));
 				}
 				const result: AgentToolResult<unknown> = { content: [{ type: "text", text: outputText }], details };

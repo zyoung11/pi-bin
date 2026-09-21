@@ -10,7 +10,6 @@ import { type Component, Container } from "../../../../tui/src/tui.ts";
 import { renderDiff } from "../../modes/interactive/components/diff.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { splitBom } from "../../utils/text.ts";
-import { getExperimentalToolSampling } from "../experimental.ts";
 import {
 	applyEditsToNormalizedContent,
 	computeEditsDiff,
@@ -411,7 +410,7 @@ export function createEditToolDefinition(cwd: string, options?: EditToolOptions)
 		promptSnippet: editToolSystemPromptContribution.snippet,
 		promptGuidelines: editToolSystemPromptContribution.guidelines.slice(),
 		parameters: editSchema,
-		constrainedSampling: getExperimentalToolSampling(),
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
 		renderShell: "self",
 		prepareArguments: prepareEditArguments,
 		async execute(_toolCallId, input: unknown, signal, _onUpdate): Promise<AgentToolResult<unknown>> {

@@ -12,10 +12,6 @@ interface JsonSchemaObject {
 	oneOf?: JsonSchemaObject[];
 }
 
-function recordViewOf(value: unknown): Record<string, unknown> {
-	return value as Record<string, unknown>;
-}
-
 function refValueOf(schema: unknown): unknown {
 	return (schema as { $ref?: unknown })["$ref"];
 }
@@ -240,35 +236,44 @@ function coerceWithJsonSchema(value: unknown, schema: JsonSchemaObject): unknown
 	return nextValue;
 }
 
-function normalizeOptionalNulls(value: unknown, schema: JsonSchemaObject): void {
+function normalizeOptionalNulls(value: unknown, schema: JsonSchemaObject): unknown {
 	if (Array.isArray(value)) {
+		const items: unknown[] = [];
 		if (Array.isArray(schema.items)) {
 			for (let index = 0; index < value.length; index++) {
 				const itemSchema = schema.items[index];
-				if (itemSchema) normalizeOptionalNulls(value[index], itemSchema);
+				items.push(itemSchema ? normalizeOptionalNulls(value[index], itemSchema) : value[index]);
 			}
 		} else if (schema.items) {
-			for (const item of value) normalizeOptionalNulls(item, schema.items);
+			for (const item of value) items.push(normalizeOptionalNulls(item, schema.items));
+		} else {
+			for (const item of value) items.push(item);
 		}
-		return;
+		return items;
 	}
-	if (typeof value !== "object" || value === null || !schema.properties) return;
-
-	const object = recordViewOf(value);
+	const properties = schema.properties;
+	if (typeof value !== "object" || value === null || properties === undefined) return value;
+	const source = value as Record<string, unknown>;
+	const out: Record<string, unknown> = {};
+	const sourceKeys = Object.keys(source);
+	for (const key of sourceKeys) out[key] = source[key];
 	const required = new Set(schema.required ?? []);
-	for (const [key, propertySchema] of Object.entries(schema.properties)) {
-		if (!(key in object)) continue;
+	for (const key of Object.keys(properties)) {
+		if (sourceKeys.indexOf(key) === -1) continue;
+		const propertySchema = properties[key];
+		const next = normalizeOptionalNulls(out[key], propertySchema);
 		if (
-			object[key] === null &&
+			next === null &&
 			!required.has(key) &&
 			typeof refValueOf(propertySchema) !== "string" &&
 			getSubSchemaValidator(propertySchema)?.Check(null) === false
 		) {
-			delete object[key];
+			delete out[key];
 		} else {
-			normalizeOptionalNulls(object[key], propertySchema);
+			out[key] = next;
 		}
 	}
+	return out;
 }
 
 function getValidator(schema: Tool["parameters"]): ReturnType<typeof Compile> {
@@ -311,9 +316,10 @@ export function validateToolCall(tools: Tool[], toolCall: ToolCall): any {
  * @throws Error with formatted message if validation fails
  */
 export function validateToolArguments(tool: Tool, toolCall: ToolCall): unknown {
-	const args = structuredClone(toolCall.arguments) as { [key: string]: unknown };
-	normalizeOptionalNulls(args, tool.parameters as JsonSchemaObject);
-	Value.Convert(tool.parameters, args);
+	const cloned: unknown = structuredClone(toolCall.arguments);
+	const normalized: unknown = normalizeOptionalNulls(cloned, tool.parameters as JsonSchemaObject);
+	const converted: unknown = Value.Convert(tool.parameters, normalized);
+	const args = converted as { [key: string]: unknown };
 
 	const validator = getValidator(tool.parameters);
 	const coercedArgs = coerceWithJsonSchema(args, tool.parameters as JsonSchemaObject);

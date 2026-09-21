@@ -822,11 +822,11 @@ export const Value = {
 		return Compile(schema).Check(value);
 	},
 
-	Convert(schema: PiSchema, value: unknown): void {
+	Convert(schema: PiSchema, value: unknown): unknown {
 		const root = schema as SchemaObject;
 		const defs: Record<string, SchemaObject> = {};
 		collectDefs(root, defs);
-		convertNodeWithContext(root, defs, value);
+		return convertNodeWithContext(root, defs, value);
 	},
 };
 

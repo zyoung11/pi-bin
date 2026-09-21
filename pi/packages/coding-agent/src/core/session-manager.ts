@@ -268,11 +268,13 @@ function idSetFromKeys(keys: string[]): Map<string, boolean> {
 	return idSet;
 }
 
-function cloneEntryWithParent(entry: SessionEntry, parentId: string | null): SessionEntry {
+function cloneEntryWithParent(entry: SessionEntry, parentId: string | null, firstKeptEntryId?: string): SessionEntry {
 	if (entry.type === "message") return { ...entry, parentId };
 	if (entry.type === "thinking_level_change") return { ...entry, parentId };
 	if (entry.type === "model_change") return { ...entry, parentId };
-	if (entry.type === "compaction") return { ...entry, parentId };
+	if (entry.type === "compaction") {
+		return firstKeptEntryId !== undefined ? { ...entry, parentId, firstKeptEntryId } : { ...entry, parentId };
+	}
 	if (entry.type === "branch_summary") return { ...entry, parentId };
 	if (entry.type === "custom") return { ...entry, parentId };
 	if (entry.type === "custom_message") return { ...entry, parentId };
@@ -1903,10 +1905,24 @@ export class SessionManager {
 		// Because labels are real tree entries, later entries can be children of labels;
 		// removing labels requires re-chaining the retained path to avoid orphaned subtrees.
 		const pathWithoutLabels: SessionEntry[] = [];
+		const replacementByLabelId = new Map<string, string>();
+		let pendingLabelIds: string[] = [];
 		let pathParentId: string | null = null;
 		for (const entry of path) {
-			if (entry.type === "label") continue;
-			pathWithoutLabels.push(cloneEntryWithParent(entry, pathParentId));
+			if (entry.type === "label") {
+				pendingLabelIds.push(entry.id);
+				continue;
+			}
+			for (const labelId of pendingLabelIds) {
+				replacementByLabelId.set(labelId, entry.id);
+			}
+			pendingLabelIds = [];
+			if (entry.type === "compaction") {
+				const replacement = replacementByLabelId.get(entry.firstKeptEntryId);
+				pathWithoutLabels.push(cloneEntryWithParent(entry, pathParentId, replacement));
+			} else {
+				pathWithoutLabels.push(cloneEntryWithParent(entry, pathParentId));
+			}
 			pathParentId = entry.id;
 		}
 
@@ -2128,6 +2144,32 @@ export class SessionManager {
 		}
 
 		return new SessionManager(resolvedTargetCwd, dir, newSessionFile, true);
+	}
+
+	/**
+	 * Find an exact session ID without loading transcript bodies.
+	 * @param cwd Working directory (used to compute default session directory)
+	 * @param id Exact session ID
+	 * @param sessionDir Optional session directory. If omitted, uses default (~/.pi/agent/sessions/<encoded-cwd>/).
+	 */
+	static findById(cwd: string, id: string, sessionDir?: string): string | undefined {
+		const dir = sessionDir ? normalizePath(sessionDir) : getDefaultSessionDir(cwd);
+		const filterCwd = sessionDir !== undefined && dir !== getDefaultSessionDirPath(cwd);
+		const resolvedCwd = resolvePath(cwd);
+
+		try {
+			for (const file of readdirSync(dir)) {
+				if (!file.endsWith(".jsonl")) continue;
+				const path = join(dir, file);
+				const header = readSessionHeaderForDiscovery(path);
+				if (header?.id !== id) continue;
+				if (filterCwd && !sessionCwdMatches(getSessionHeaderCwd(header), resolvedCwd)) continue;
+				return path;
+			}
+		} catch {
+			return undefined;
+		}
+		return undefined;
 	}
 
 	/**

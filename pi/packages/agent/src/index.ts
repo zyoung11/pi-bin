@@ -135,6 +135,7 @@ export {
 	toError,
 } from "./harness/types.ts";
 export * from "./harness/utils/shell-output.ts";
+export * from "./harness/utils/signal-exit.ts";
 export * from "./harness/utils/truncate.ts";
 // Proxy utilities
 export * from "./proxy.ts";

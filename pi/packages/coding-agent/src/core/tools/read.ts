@@ -11,7 +11,6 @@ import { getLanguageFromPath, highlightCode, type Theme } from "../../modes/inte
 import { processImage } from "../../utils/image-process.ts";
 import { detectSupportedImageMimeTypeFromFile } from "../../utils/mime.ts";
 import { formatPathRelativeToCwdOrAbsolute } from "../../utils/paths.ts";
-import { getExperimentalToolSampling } from "../experimental.ts";
 import { resolveReadPathAsync, resolveToCwd } from "./path-utils.ts";
 import { getTextOutput, renderToolPath, replaceTabs, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -237,7 +236,7 @@ export function createReadToolDefinition(cwd: string, options?: ReadToolOptions)
 		promptSnippet: readToolSystemPromptContribution.snippet,
 		promptGuidelines: readToolSystemPromptContribution.guidelines.slice(),
 		parameters: readSchema,
-		constrainedSampling: getExperimentalToolSampling(),
+		constrainedSampling: { type: "json_schema", strict: "prefer" },
 		async execute(_toolCallId, params: unknown, signal: AbortSignal | undefined, _onUpdate) {
 			const { path, offset, limit } = params as { path: string; offset?: number; limit?: number };
 			return new Promise<AgentToolResult<unknown>>((resolve, reject) => {

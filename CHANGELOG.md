@@ -790,3 +790,118 @@ Other:
   throw path reachable in that run); the pre-existing crash dump format is
   preserved for diagnostics.
 - Version 0.2.6 → 0.2.7.
+
+---
+
+## Phase 19 — upstream sync batch A: strict tool sampling, error classification, retry cap
+
+Baseline check: the initial import matches upstream main at `7aab6c26`
+(2026-08-26, "serialize thinking signature once"), not the v0.84.3 tag, so the
+v0.84.4 fixes merged before that commit are already in.
+
+Ported from upstream (v0.86.0–v0.86.1 plus the #9816 HEAD fix):
+
+- Strict tool sampling, three parts:
+  - `detectCompat` no longer defaults `supportsStrictMode` to true for every
+    OpenAI-compatible endpoint. The capable set is an explicit allowlist
+    (z.ai, DeepSeek, OpenRouter, Ant Ling, Xiaomi, Baseten, Fireworks, Groq,
+    Hugging Face, OpenCode, Qwen Token Plan); Cerebras joins the exclusions
+    (`af7359b90`), and self-hosted endpoints configured through models.json
+    keep the conservative default, so the `strict` field is omitted entirely
+    instead of sent as `false` (#9816).
+  - Built-in read/bash/edit/read/write and the server harness tools now carry
+    `constrainedSampling: { type: "json_schema", strict: "prefer" }`
+    unconditionally; the `PI_EXPERIMENTAL` gate (`getExperimentalToolSampling`)
+    is gone (`fcff255b0`). `experimental.ts` keeps
+    `areExperimentalFeaturesEnabled` for other callers.
+- z.ai `Prompt too long` matches the overflow patterns (`0e283203c`).
+- Bodyless 400/413 errors are context overflow only for Cerebras
+  (`message.provider` check, `661619e87`).
+- Cloudflare 520 responses are classified as retryable (`e5d18382a`).
+- Agent-level retry backoff is capped: `RetryPolicy.maxAgentDelayMs`,
+  `DEFAULT_MAX_AGENT_RETRY_DELAY_MS` (60 s) and `retryDelayMs()` in pi-ai,
+  `settings.retry.maxAgentDelayMs` (default 60000) in the settings manager, and
+  `agent-session._prepareRetry` now computes its delay through `retryDelayMs`
+  (`c37b0e03b`).
+
+Scriptc runtime bugs found while verifying strict end to end (all latent,
+because strict sampling was experimental and off by default):
+
+- `makeStrictJsonSchema` mutated records reached through cast views, so the
+  strict conversion was silently dropped in the compiled binary: requests went
+  out with `strict: true` and the original non-strict schema. Rewritten as a
+  pure rebuild over fresh records and arrays (no `structuredClone`, no writes
+  through cast views); probe output is now identical to Node for nested
+  objects, arrays, unions and optional-null wrapping.
+- `partial-json.ts` looked up tail completions in an object literal, so a
+  trailing `null` token trapped ("record has no key") the moment a strict
+  schema made a model emit `offset: null`. Replaced with an explicit
+  if-chain; compiled output is byte-identical to Node across the probe set.
+- `Value.Convert` lost every root-level conversion because a
+  `Record<string, unknown>` argument passed into its `unknown` parameter is
+  copied under scriptc. It now returns the converted value and
+  `validateToolArguments` captures it, so `"5"` → `5` coercion works in the
+  binary.
+- `normalizeOptionalNulls` deleted nulls through a cast view, so optional
+  `null`s from strict models failed validation. Rewritten as a pure rebuild.
+
+Verified: wire-level mock tests (strict present with strictified parameters,
+absent for unknown endpoints, null optionals stripped, string→number coercion),
+real deepseek-flash and xiaomi mimo-v2.5 read and bash tool calls, and an
+isolated tmux smoke with the new `retry.maxAgentDelayMs` setting loaded.
+tsgo/build clean; version stays 0.2.7 until this round is committed.
+
+---
+
+## Phase 20 — upstream sync batch B: tools, sessions, compaction, skills
+
+Ported from upstream (v0.84.4–v0.86.0):
+
+- Bash signal termination (`a8b3dd199`, `c2d3dc55b`): a process killed by a
+  signal no longer counts as a successful command. `signalExitCode()` in
+  `agent/harness/utils/signal-exit.ts` maps Linux signal names to 128 + number
+  (`os.constants.signals` has no scriptc lowering, SC2020), the CLI wait wrapper
+  now reports the termination signal captured from the exit event
+  (`child.signalCode` is unsupported) through `waitForProcessResult` /
+  `processExitCode`, and the harness env maps its exit result the same way.
+  Callers treat a null exit code as a failure. Verified against the compiled
+  binary: `sh -c 'kill -9 $$'` reports `Command exited with code 137`.
+- The write tool no longer reports a UTF-16 code-unit count as bytes
+  (`e583b290a`); the success message is `Successfully wrote to <path>`.
+- Skills stay available when bash is the only enabled tool (`1d6dbf9e3`):
+  `formatSkillsForPrompt` takes the reading tool and the system prompt picks
+  `read` or falls back to `bash`.
+- Branch summary output cap raised from 2048 to `min(4096, model.maxTokens)`
+  (`e44d75c20`), so a reasoning-heavy summary can no longer consume the whole
+  output budget.
+- Abort cancels compaction (`bea67d90d`): `AgentSession.abort()` now aborts
+  manual compaction and branch summarization and waits for idle; `isIdle`
+  includes `isCompacting`; the idle resolver runs from the manual and auto
+  compaction finally paths.
+- Fork preserves the compaction boundary (`2631b25c3`): labels removed from the
+  forked path are remapped, and a compaction entry's `firstKeptEntryId` follows
+  its label to the next retained entry. Verified with a compiled probe.
+- Session import no longer overwrites an existing file with the same name
+  (`1a773c8e7`): colliding destinations get a `-N` suffix. `path.parse` and the
+  3-argument `copyFileSync` have no scriptc lowering, so the name/extension
+  split and the copy are done manually.
+- Session tree navigation is rejected while compaction or another navigation is
+  running (`e687434a6`).
+- Exact session ID lookup reads only session headers instead of listing and
+  parsing transcript bodies (`9b791a4cc`): new `SessionManager.findById`, used
+  synchronously by the CLI session resolver.
+
+Already present (verified, no port needed): thinking-block visibility toggling
+updates live components without rebuilding the chat, covering history and chat
+containers. The upstream `ctx.cwd` tool fix (`62835ea81`) is not applicable:
+extensions were removed and the built-in tools are constructed with the
+session's cwd.
+
+Still open for the next round: post-tool threshold compaction (`56700d42e`
+#6879, `8bdcd4498` #9740). It moves `prepareNextTurn` invocation to the top of
+the continuing agent loop and adds `_compactBeforeNextAssistantResponse`; that
+touches the loop's abort/steering ordering and needs its own verification.
+
+Verified: tsgo/build clean; deepseek-flash and mimo-v2.5 read/bash round trips;
+session create, resume-by-exact-id and fork flows; compiled probes for the fork
+boundary. Version stays 0.2.7 until the round is committed.

@@ -4,6 +4,14 @@
  * comments and trailing garbage beyond the first completed value are not supported.
  */
 
+function completionForTail(tail: string): string | undefined {
+	if (tail === "t" || tail === "tr" || tail === "tru") return "true";
+	if (tail === "f" || tail === "fa" || tail === "fal" || tail === "fals") return "false";
+	if (tail === "n" || tail === "nu" || tail === "nul") return "null";
+	if (tail === "N" || tail === "Na" || tail === "Nan") return "NaN";
+	return undefined;
+}
+
 function closeOpenStructures(text: string): string | undefined {
 	const stack: string[] = [];
 	let inString = false;
@@ -38,21 +46,7 @@ function closeOpenStructures(text: string): string | undefined {
 		const tail = tailMatch[0];
 		const prevChar = out.length > tail.length ? out[out.length - tail.length - 1] : "";
 		if ("[{,: \t".includes(prevChar)) {
-			const full = {
-				t: "true",
-				tr: "true",
-				tru: "true",
-				f: "false",
-				fa: "false",
-				fal: "false",
-				fals: "false",
-				n: "null",
-				nu: "null",
-				nul: "null",
-				N: "NaN",
-				Na: "NaN",
-				Nan: "NaN",
-			}[tail];
+			const full = completionForTail(tail);
 			if (full !== undefined) out = out.slice(0, out.length - tail.length) + full;
 		}
 	}

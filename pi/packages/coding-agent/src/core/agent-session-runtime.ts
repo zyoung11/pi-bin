@@ -1,5 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";import { basename, join, resolve } from "node:path";
 import { resolvePath } from "../utils/paths.ts";
 import type { AgentSession } from "./agent-session.ts";
 import type { AgentSessionRuntimeDiagnostic, AgentSessionServices } from "./agent-session-services.ts";
@@ -297,8 +296,18 @@ export class AgentSessionRuntime {
 			mkdirSync(sessionDir, { recursive: true });
 		}
 
-		const destinationPath = join(sessionDir, basename(resolvedPath));
-		if (resolve(destinationPath) !== resolvedPath) {
+		const destinationName = basename(resolvedPath);
+		const destinationDot = destinationName.lastIndexOf(".");
+		const destinationExt = destinationDot > 0 ? destinationName.slice(destinationDot) : "";
+		const destinationBase = destinationDot > 0 ? destinationName.slice(0, destinationDot) : destinationName;
+		let destinationPath = join(sessionDir, destinationName);
+		const sourceAlreadyStored = resolve(destinationPath) === resolvedPath;
+		if (!sourceAlreadyStored) {
+			let suffix = 1;
+			while (existsSync(destinationPath)) {
+				destinationPath = join(sessionDir, `${destinationBase}-${suffix}${destinationExt}`);
+				suffix++;
+			}
 			copyFileSync(resolvedPath, destinationPath);
 		}
 

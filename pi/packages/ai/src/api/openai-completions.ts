@@ -1793,11 +1793,34 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
 		provider === "xiaomi-token-plan-cn" ||
 		provider === "xiaomi-token-plan-sgp" ||
 		baseUrl.toLowerCase().includes("xiaomimimo.com");
+	const isCerebras = provider === "cerebras" || baseUrl.includes("cerebras.ai");
+	const isBaseten = provider === "baseten" || baseUrl.includes("baseten.co");
+	const isFireworks = provider === "fireworks" || baseUrl.includes("api.fireworks.ai");
+	const isGroq = provider === "groq" || baseUrl.includes("api.groq.com");
+	const isHuggingFace = provider === "huggingface" || baseUrl.includes("huggingface.co");
+	const isOpenCode = provider === "opencode" || provider === "opencode-go" || baseUrl.includes("opencode.ai");
+	const isQwenTokenPlan =
+		provider === "qwen-token-plan" ||
+		provider === "qwen-token-plan-cn" ||
+		provider === "qwen-token-plan-individual" ||
+		baseUrl.includes("maas.aliyuncs.com") ||
+		baseUrl.includes("dashscope.aliyuncs.com");
+	const isStrictCapable =
+		isZai ||
+		isDeepSeek ||
+		isOpenRouter ||
+		isAntLing ||
+		isXiaomi ||
+		isBaseten ||
+		isFireworks ||
+		isGroq ||
+		isHuggingFace ||
+		isOpenCode ||
+		isQwenTokenPlan;
 
 	const isNonStandard =
 		isNvidia ||
-		provider === "cerebras" ||
-		baseUrl.includes("cerebras.ai") ||
+		isCerebras ||
 		provider === "xai" ||
 		baseUrl.includes("api.x.ai") ||
 		isTogether ||
@@ -1864,7 +1887,7 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
 		zaiToolStream: false,
 		supportsThinkingTokenBudget: false,
 		thinkingTokenBudgetField: undefined,
-		supportsStrictMode: !isMoonshot && !isTogether && !isCloudflareAiGateway && !isNvidia,
+		supportsStrictMode: isStrictCapable,
 		supportsOpenAIGrammarTools: false,
 		cacheControlFormat,
 		sendSessionAffinityHeaders: false,
