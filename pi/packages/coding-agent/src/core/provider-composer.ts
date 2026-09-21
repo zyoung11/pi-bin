@@ -22,7 +22,7 @@ import {
 	type StreamOptionExtras,
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
-import { setThinkingLevelMapOverride, thinkingLevelMapKey } from "../../../ai/src/models.ts";
+import { setThinkingLevelMapOverride, setVllmPriorityOverride, thinkingLevelMapKey, vllmPriorityKey } from "../../../ai/src/models.ts";
 import type { ModelConfig, ModelsJsonModel, ModelsJsonModelOverride, ModelsJsonProvider } from "./model-config.ts";
 import {
 	clearConfigValueCache,
@@ -79,6 +79,10 @@ export type AuthStatus = {
 };
 
 export const clearApiKeyCache = clearConfigValueCache;
+
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
 
 function copyCompatRecord(source: unknown): Record<string, unknown> {
 	const target: Record<string, unknown> = {};
@@ -180,7 +184,7 @@ function modelFromJson(
 	if (definition.maxTokens !== undefined && definition.maxTokens <= 0) {
 		throw new Error(`Provider ${providerId}, model ${definition.id}: invalid maxTokens`);
 	}
-	const compatValue = mergeCompat(providerConfig.compat, definition.compat);
+	const compatValue = mergeCompat(recordViewOf(providerConfig)["compat"], recordViewOf(definition)["compat"]);
 	// Xiaomi mimo endpoints accept reasoning_effort low/medium/high/xhigh only and
 	// officially have no reasoning_effort parameter at all; force it off so the
 	// deepseek-format branch never sends it (thinking:{type} is the only control).
@@ -224,6 +228,15 @@ function modelFromJson(
 
 /** Registry override keys written by applyModelsJson from models.json definitions. */
 const modelsJsonLevelMapKeys = new Set<string>();
+
+/** vllmPriority override keys written by applyModelsJson from models.json definitions. */
+const modelsJsonVllmPriorityKeys = new Set<string>();
+
+function lookupNumberField(value: unknown, key: string): number | undefined {
+	if (value === null || typeof value !== "object") return undefined;
+	const found = (value as Record<string, unknown>)[key];
+	return typeof found === "number" ? found : undefined;
+}
 
 function applyModelsJson(
 	providerId: string,
@@ -269,6 +282,20 @@ function applyModelsJson(
 		} else if (modelsJsonLevelMapKeys.has(levelMapKey)) {
 			setThinkingLevelMapOverride(providerId, definition.id, undefined);
 			modelsJsonLevelMapKeys.delete(levelMapKey);
+		}
+		// The compat record is a union whose typed reads drop single-arm fields under
+		// the static runtime; vllmPriority is mirrored into the registry for the
+		// request path.
+		const providerCompat = recordViewOf(config)["compat"];
+		const definitionCompat = recordViewOf(definition)["compat"];
+		const priority = lookupNumberField(definitionCompat, "vllmPriority") ?? lookupNumberField(providerCompat, "vllmPriority");
+		const priorityKey = vllmPriorityKey(providerId, definition.id);
+		if (priority !== undefined) {
+			setVllmPriorityOverride(providerId, definition.id, priority);
+			modelsJsonVllmPriorityKeys.add(priorityKey);
+		} else if (modelsJsonVllmPriorityKeys.has(priorityKey)) {
+			setVllmPriorityOverride(providerId, definition.id, undefined);
+			modelsJsonVllmPriorityKeys.delete(priorityKey);
 		}
 		if (existingIndex >= 0) models[existingIndex] = model;
 		else models.push(model);

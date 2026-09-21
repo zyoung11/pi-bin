@@ -1,5 +1,6 @@
 import { setKeybindings } from "../../../tui/src/keybindings.ts";
 import { ProcessTerminal } from "../../../tui/src/terminal.ts";
+import { setCapabilityOverrides } from "../../../tui/src/terminal-image.ts";
 import type { TuiBase } from "../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../tui/src/tui-main-screen.ts";
 import { getAgentDir } from "../config.ts";
@@ -44,6 +45,7 @@ async function loadStartupThemes(settingsManager: SettingsManager): Promise<Them
 }
 
 export async function createStartupTui(settingsManager: SettingsManager): Promise<TuiBase> {
+	setCapabilityOverrides(settingsManager.getTerminalCapabilityOverrides());
 	setRegisteredThemes(await loadStartupThemes(settingsManager));
 	initTheme(settingsManager.getThemeSetting() ?? "dark");
 	setKeybindings(KeybindingsManager.create());

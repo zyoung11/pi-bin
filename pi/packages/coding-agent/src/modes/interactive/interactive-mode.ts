@@ -22,6 +22,7 @@ import { Text } from "../../../../tui/src/components/text.ts";
 import { TruncatedText } from "../../../../tui/src/components/truncated-text.ts";
 import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
+import { setCapabilityOverrides } from "../../../../tui/src/terminal-image.ts";
 import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
 import { type Component, Container, type TUI, type TuiBase } from "../../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
@@ -605,6 +606,7 @@ export class InteractiveMode {
 
 	constructor(runtimeHost: AgentSessionRuntime, options: InteractiveModeOptions = {}) {
 		this.runtimeHost = runtimeHost;
+		setCapabilityOverrides(this.settingsManager.getTerminalCapabilityOverrides());
 		this.options = { ...options };
 		this.autoTrustOnReloadCwd = options.autoTrustOnReloadCwd;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {

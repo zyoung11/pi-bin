@@ -950,3 +950,42 @@ Ported from upstream (v0.85.0–v0.86.1):
 - Not ported: WSL image clipboard (image paste was removed from this fork) and
   the native clipboard helper (the static build keeps the exec and OSC 52
   fallbacks).
+
+---
+
+## Phase 22 — upstream sync batch D: vLLM priority, per-model compaction budgets, terminal capabilities, fuzzy search
+
+Ported from upstream (v0.86.0 and earlier post-baseline commits):
+
+- `vllmPriority` (`256f63024` #9004): `OpenAICompletionsCompat.vllmPriority` is
+  forwarded as the top-level `priority` request field and accepted by the
+  models.json schema. Verified with the mock provider at provider level and
+  model level, and absent when unset.
+  - Static-runtime finding: the compat record is a union, and typed reads drop
+    single-arm fields. `vllmPriority` survived in `ModelConfig` but was gone
+    after provider composition and request building. `modelFromJson` and
+    `getCompat` now read compat through dyn views, and the value is mirrored in
+    a module-level registry in pi-ai `models.ts` keyed `provider:model`, written
+    by `applyModelsJson` and cleared when a definition drops the field.
+- Per-model compaction budgets (`46bde88a1` #8133):
+  `compaction.modelOverrides` keyed by exact `provider/modelId`, resolved per
+  field through model override, ordinary setting, then built-in default, with
+  validation errors for invalid values. `AgentSession` passes the active model
+  to `getCompactionSettings` for manual compaction, threshold checks, overflow
+  recovery, and the pre-next-request compaction. Verified with a mock provider
+  where the ordinary settings would not trigger compaction but the model
+  override does.
+- Terminal capability overrides (`e86823096` #8665): `PI_HYPERLINKS`,
+  `PI_IMAGE_PROTOCOL`, and `PI_TRUE_COLOR` environment overrides plus
+  `terminal.hyperlinks`/`images`/`trueColor` JSON settings applied through
+  `setCapabilityOverrides` before the TUI is created. Verified compiled against
+  Node, including override precedence.
+- Fuzzy search latency (`590144609` #9267): `fuzzyMatch` now finds successive
+  query characters with native `indexOf` scans; compiled scores verified
+  identical to the previous algorithm across a probe set.
+- Not ported in this round: prompt cache warming (`c596d09d9` #9668, a 437-line
+  module plus scheduler, settings and UI wiring), click toggling for summaries
+  (needs the upstream mouse interaction subsystem, which this fork does not
+  have), and llama.cpp `enable_thinking` detection (upstream implements it in
+  the removed llama extension; models.json users configure the thinking map
+  directly).

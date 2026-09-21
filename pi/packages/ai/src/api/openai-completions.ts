@@ -1,4 +1,4 @@
-import { calculateCost, clampThinkingLevel, getThinkingLevelMapOverride } from "../models.ts";
+import { calculateCost, clampThinkingLevel, getThinkingLevelMapOverride, getVllmPriorityOverride } from "../models.ts";
 import type {
 	AssistantMessage,
 	CacheRetention,
@@ -209,12 +209,17 @@ interface OpenAICompatCacheControl {
 
 type ResolvedOpenAICompletionsCompat = Omit<
 	Required<OpenAICompletionsCompat>,
-	"cacheControlFormat" | "deferredToolsMode" | "supportsThinkingTokenBudget" | "thinkingTokenBudgetField"
+	| "cacheControlFormat"
+	| "deferredToolsMode"
+	| "supportsThinkingTokenBudget"
+	| "thinkingTokenBudgetField"
+	| "vllmPriority"
 > & {
 	cacheControlFormat?: OpenAICompletionsCompat["cacheControlFormat"];
 	deferredToolsMode?: OpenAICompletionsCompat["deferredToolsMode"];
 	supportsThinkingTokenBudget?: OpenAICompletionsCompat["supportsThinkingTokenBudget"];
 	thinkingTokenBudgetField?: OpenAICompletionsCompat["thinkingTokenBudgetField"];
+	vllmPriority?: OpenAICompletionsCompat["vllmPriority"];
 };
 
 type ResolvedChatTemplateKwargValue = string | number | boolean | null;
@@ -999,6 +1004,10 @@ function buildParams(
 
 	if (options?.toolChoice) {
 		params["tool_choice"] = options.toolChoice;
+	}
+
+	if (compat.vllmPriority !== undefined) {
+		params["priority"] = compat.vllmPriority;
 	}
 
 	const thinkingTokenBudgetField = resolveThinkingTokenBudgetField(compat);
@@ -1909,7 +1918,11 @@ function detectCompat(model: Model<"openai-completions">): ResolvedOpenAIComplet
  */
 function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletionsCompat {
 	const detected = detectCompat(model);
-	const overrides = model.compat as OpenAICompletionsCompat | undefined;
+	const overridesValue = recordViewOf(model)["compat"];
+	const overrides =
+		overridesValue === null || typeof overridesValue !== "object"
+			? undefined
+			: (overridesValue as OpenAICompletionsCompat);
 	if (!overrides) return detected;
 
 	return {
@@ -1940,5 +1953,6 @@ function getCompat(model: Model<"openai-completions">): ResolvedOpenAICompletion
 		deferredToolsMode: overrides.deferredToolsMode ?? detected.deferredToolsMode,
 		sessionAffinityFormat: overrides.sessionAffinityFormat ?? detected.sessionAffinityFormat,
 		supportsLongCacheRetention: overrides.supportsLongCacheRetention ?? detected.supportsLongCacheRetention,
+		vllmPriority: getVllmPriorityOverride(model) ?? overrides.vllmPriority,
 	};
 }

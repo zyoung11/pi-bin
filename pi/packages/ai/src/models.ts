@@ -740,6 +740,26 @@ export function getThinkingLevelMapOverride(
 	}
 }
 
+const vllmPriorityOverrides = new Map<string, number>();
+
+/** Registry key for a model's vllmPriority override: `provider:model-id`. */
+export function vllmPriorityKey(provider: string, modelId: string): string {
+	return `${provider}:${modelId}`;
+}
+
+export function setVllmPriorityOverride(provider: string, modelId: string, value: number | undefined): void {
+	const key = vllmPriorityKey(provider, modelId);
+	if (value === undefined) {
+		vllmPriorityOverrides.delete(key);
+		return;
+	}
+	vllmPriorityOverrides.set(key, value);
+}
+
+export function getVllmPriorityOverride(model: Pick<Model<Api>, "provider" | "id">): number | undefined {
+	return vllmPriorityOverrides.get(vllmPriorityKey(model.provider, model.id));
+}
+
 function lookupThinkingLevelMap(map: unknown, key: string): string | null | undefined {
 	if (map === null || typeof map !== "object") return undefined;
 	const value = (map as Record<string, unknown>)[key];

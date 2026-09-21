@@ -2,17 +2,29 @@ import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import { DEFAULT_MAX_AGENT_RETRY_DELAY_MS } from "../../../ai/src/index.ts";
+import { DEFAULT_MAX_AGENT_RETRY_DELAY_MS, type Api, type Model } from "../../../ai/src/index.ts";
+import type { TerminalCapabilities } from "../../../tui/src/terminal-image.ts";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
 import lockfile from "../utils/mini-lockfile.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dispatcher.ts";
 
+export interface CompactionModelOverride {
+	reserveTokens?: number;
+	keepRecentTokens?: number;
+}
+
+const DEFAULT_COMPACTION_TOKEN_SETTINGS: Required<CompactionModelOverride> = {
+	reserveTokens: 16384,
+	keepRecentTokens: 20000,
+};
+
 export interface CompactionSettings {
 	enabled?: boolean; // default: true
 	reserveTokens?: number; // default: 16384
 	keepRecentTokens?: number; // default: 20000
+	modelOverrides?: Record<string, CompactionModelOverride>; // exact "provider/modelId" keys
 }
 
 export interface BranchSummarySettings {
@@ -39,6 +51,9 @@ export interface TerminalSettings {
 	imageWidthCells?: number; // default: 60 (preferred inline image width in terminal cells)
 	clearOnShrink?: boolean; // default: false (clear empty rows when content shrinks)
 	showTerminalProgress?: boolean; // default: false (OSC 9;4 terminal progress indicators)
+	hyperlinks?: boolean | "auto";
+	images?: "kitty" | "iterm2" | "auto" | false;
+	trueColor?: boolean | "auto";
 }
 
 export interface ImageSettings {
@@ -829,19 +844,73 @@ export class SettingsManager {
 		this.save();
 	}
 
-	getCompactionReserveTokens(): number {
-		return this.settings.compaction?.reserveTokens ?? 16384;
+	private readCompactionModelOverride(
+		model: Pick<Model<Api>, "provider" | "id"> | undefined,
+	): Record<string, unknown> | undefined {
+		if (model === undefined) return undefined;
+		const overrides = this.settings.compaction?.modelOverrides;
+		if (overrides === undefined) return undefined;
+		const modelKey = `${model.provider}/${model.id}`;
+		const entry = recordViewOf(overrides)[modelKey];
+		if (entry === undefined) return undefined;
+		if (!isMergeableObject(entry)) {
+			throw new Error(
+				`Invalid compaction.modelOverrides["${modelKey}"] setting: ${String(entry)}. Expected an object.`,
+			);
+		}
+		return entry;
 	}
 
-	getCompactionKeepRecentTokens(): number {
-		return this.settings.compaction?.keepRecentTokens ?? 20000;
+	private getCompactionTokenSetting(
+		field: "reserveTokens" | "keepRecentTokens",
+		model?: Pick<Model<Api>, "provider" | "id">,
+	): number {
+		const compaction = this.settings.compaction;
+		const entry = this.readCompactionModelOverride(model);
+		let ordinary: number | undefined;
+		let override: unknown;
+		if (field === "reserveTokens") {
+			ordinary = compaction?.reserveTokens;
+			override = entry === undefined ? undefined : entry["reserveTokens"];
+		} else {
+			ordinary = compaction?.keepRecentTokens;
+			override = entry === undefined ? undefined : entry["keepRecentTokens"];
+		}
+		if (ordinary !== undefined && (typeof ordinary !== "number" || !Number.isSafeInteger(ordinary) || ordinary < 0)) {
+			throw new Error(
+				`Invalid compaction.${field} setting: ${String(ordinary)}. Expected a non-negative safe integer.`,
+			);
+		}
+		if (override !== undefined && (typeof override !== "number" || !Number.isSafeInteger(override) || override < 0)) {
+			const modelKey = model === undefined ? "" : `${model.provider}/${model.id}`;
+			throw new Error(
+				`Invalid compaction.modelOverrides["${modelKey}"].${field} setting: ${String(override)}. Expected a non-negative safe integer.`,
+			);
+		}
+		if (override !== undefined) return override;
+		if (ordinary !== undefined) return ordinary;
+		return field === "reserveTokens"
+			? DEFAULT_COMPACTION_TOKEN_SETTINGS.reserveTokens
+			: DEFAULT_COMPACTION_TOKEN_SETTINGS.keepRecentTokens;
 	}
 
-	getCompactionSettings(): { enabled: boolean; reserveTokens: number; keepRecentTokens: number } {
+	getCompactionReserveTokens(model?: Pick<Model<Api>, "provider" | "id">): number {
+		return this.getCompactionTokenSetting("reserveTokens", model);
+	}
+
+	getCompactionKeepRecentTokens(model?: Pick<Model<Api>, "provider" | "id">): number {
+		return this.getCompactionTokenSetting("keepRecentTokens", model);
+	}
+
+	getCompactionSettings(model?: Pick<Model<Api>, "provider" | "id">): {
+		enabled: boolean;
+		reserveTokens: number;
+		keepRecentTokens: number;
+	} {
 		return {
 			enabled: this.getCompactionEnabled(),
-			reserveTokens: this.getCompactionReserveTokens(),
-			keepRecentTokens: this.getCompactionKeepRecentTokens(),
+			reserveTokens: this.getCompactionReserveTokens(model),
+			keepRecentTokens: this.getCompactionKeepRecentTokens(model),
 		};
 	}
 
@@ -1098,6 +1167,24 @@ export class SettingsManager {
 
 	getThinkingBudgets(): ThinkingBudgetsSettings | undefined {
 		return this.settings.thinkingBudgets;
+	}
+
+	getTerminalCapabilityOverrides(): Partial<TerminalCapabilities> {
+		const terminal = this.settings.terminal;
+		const overrides: Partial<TerminalCapabilities> = {};
+		const images = terminal?.images;
+		if (images === "kitty" || images === "iterm2") {
+			overrides.images = images;
+		} else if (images === false) {
+			overrides.images = null;
+		}
+		if (typeof terminal?.trueColor === "boolean") {
+			overrides.trueColor = terminal.trueColor;
+		}
+		if (typeof terminal?.hyperlinks === "boolean") {
+			overrides.hyperlinks = terminal.hyperlinks;
+		}
+		return overrides;
 	}
 
 	getShowImages(): boolean {
