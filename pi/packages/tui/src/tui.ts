@@ -1208,14 +1208,20 @@ export abstract class TuiBase extends Container implements TUI {
 	}
 
 	protected applyLineResets(lines: string[]): string[] {
-		const reset = SEGMENT_RESET;
 		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			if (!isImageLine(line)) {
-				lines[i] = normalizeTerminalOutput(line) + reset;
-			}
+			lines[i] = this.resetLine(lines[i]);
 		}
 		return lines;
+	}
+
+	/**
+	 * Reset suffix and terminal normalization for one line that is about to be
+	 * written. Image lines pass through untouched. Callers apply this at write
+	 * time so unchanged lines above the viewport never pay for it.
+	 */
+	protected resetLine(line: string): string {
+		if (isImageLine(line)) return line;
+		return normalizeTerminalOutput(line) + SEGMENT_RESET;
 	}
 
 	private compositeLineAt(

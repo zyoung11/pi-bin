@@ -105,6 +105,15 @@ function extractKittyImageRows(line: string): number {
 	return parseKittyImageHeader(line)?.rows ?? 1;
 }
 
+/** Whether any line in the range carries a kitty or iTerm2 image sequence. */
+function rangeHasImageLine(lines: readonly string[], from: number, to: number): boolean {
+	const end = Math.min(to, lines.length - 1);
+	for (let index = Math.max(0, from); index <= end; index++) {
+		if (isImageLine(lines[index])) return true;
+	}
+	return false;
+}
+
 function isTermuxSession(): boolean {
 	return Boolean(process.env.TERMUX_VERSION);
 }
@@ -211,6 +220,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		lastChanged: number,
 		newLines: string[],
 	): { firstChanged: number; lastChanged: number } {
+		if (this.previousKittyImageIds.size === 0 && !rangeHasImageLine(newLines, firstChanged, lastChanged)) {
+			return { firstChanged, lastChanged };
+		}
 		let expandedFirstChanged = firstChanged;
 		let expandedLastChanged = lastChanged;
 		const expandForLines = (lines: string[]): void => {
@@ -270,8 +282,6 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		// Extract cursor position before applying line resets (marker must be found first)
 		const cursorPos = this.extractCursorPosition(newLines, height);
 
-		newLines = this.applyLineResets(newLines);
-
 		// Helper to clear scrollback and viewport and render all new lines
 		const fullRender = (clear: boolean): void => {
 			this.fullRedrawCount += 1;
@@ -284,13 +294,14 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			// Fast path: one native join + append for image-free frames; the
 			// per-line append loop costs ~90µs per line through the dynamic
 			// engine (~5s on a 30k-line transcript).
-			const joined = newLines.join("\r\n");
+			const writeLines = newLines.map((line) => this.resetLine(line));
+			const joined = writeLines.join("\r\n");
 			if (joinedLinePayloadHasImages(joined)) {
-				for (let i = 0; i < newLines.length; i++) {
+				for (let i = 0; i < writeLines.length; i++) {
 					if (i > 0) output.append("\r\n");
-					const line = newLines[i];
+					const line = writeLines[i];
 					const isImage = isImageLine(line);
-					const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i) : 1;
+					const imageReservedRows = isImage ? this.getKittyImageReservedRows(writeLines, i) : 1;
 					if (imageReservedRows > 1 && imageReservedRows <= height) {
 						for (let row = 1; row < imageReservedRows; row++) {
 							output.append("\r\n");
@@ -498,8 +509,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		const renderEnd = Math.min(lastChanged, newLines.length - 1);
 		for (let i = firstChanged; i <= renderEnd; i++) {
 			if (i > firstChanged) output.append("\r\n");
-			const line = newLines[i];
-			const isImage = isImageLine(line);
+			const rawLine = newLines[i];
+			const line = this.resetLine(rawLine);
+			const isImage = isImageLine(rawLine);
 			const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i, renderEnd) : 1;
 			if (imageReservedRows > 1) {
 				const imageStartScreenRow = i - viewportTop;

@@ -65,6 +65,7 @@ export function createMermaidMarkdownTransformer(options: MermaidTransformerOpti
 		) {
 			return markdown;
 		}
+		if (markdown.indexOf("```") === -1 && markdown.indexOf("~~~") === -1) return markdown;
 		const lines = markdown.split("\n");
 		const out: string[] = [];
 		let i = 0;

@@ -282,6 +282,50 @@ function isAsciiAlnum(char: string): boolean {
 	return (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57);
 }
 
+/**
+ * Characters that can start a built-in inline construct, plus the delimiters of
+ * the registered inline extensions (the LaTeX tokenizer uses `$` and `\`). An
+ * inline extension added later must list its own trigger characters here, or
+ * the plain-text fast path will skip its start positions.
+ */
+function isInlineSpecialCode(code: number): boolean {
+	return (
+		code === 0x5c ||
+		code === 0x60 ||
+		code === 0x7e ||
+		code === 0x2a ||
+		code === 0x5f ||
+		code === 0x21 ||
+		code === 0x5b ||
+		code === 0x3c ||
+		code === 0x24 ||
+		code === 0x20 ||
+		code === 0x09
+	);
+}
+
+/** Index of the next inline start position, or the text length when none follows. */
+function findNextInlineSpecial(text: string, from: number): number {
+	const length = text.length;
+	let index = from;
+	while (index < length) {
+		if (isInlineSpecialCode(text.charCodeAt(index))) return index;
+		index += 1;
+	}
+	return length;
+}
+
+/** End of the space and tab run that starts at the given index. */
+function findWhitespaceRunEnd(text: string, from: number): number {
+	let index = from;
+	while (index < text.length) {
+		const code = text.charCodeAt(index);
+		if (code !== 0x20 && code !== 0x09) break;
+		index += 1;
+	}
+	return index;
+}
+
 class InlineLexer {
 	private extensions: TokenizerExtension[];
 	private customTokenizer: Tokenizer | undefined;
@@ -306,17 +350,34 @@ class InlineLexer {
 			}
 		};
 		while (position < text.length) {
+			const nextSpecial = findNextInlineSpecial(text, position);
+			if (nextSpecial > position) {
+				plain += text.slice(position, nextSpecial);
+				position = nextSpecial;
+				continue;
+			}
+			const code = text.charCodeAt(position);
+			if (code === 0x20 || code === 0x09) {
+				const runEnd = findWhitespaceRunEnd(text, position);
+				if (runEnd - position < 2 || text.charCodeAt(runEnd) !== 0x0a) {
+					plain += text.slice(position, runEnd);
+					position = runEnd;
+					continue;
+				}
+			}
 			const rest = text.slice(position);
 			let handled = false;
-			for (const extension of this.extensions) {
-				if (!extension.tokenizer) continue;
-				const produced = extension.tokenizer(rest, tokens);
-				if (produced) {
-					flushPlain();
-					tokens.push(produced as Token);
-					position += produced.raw.length;
-					handled = true;
-					break;
+			if (code === 0x24 || code === 0x5c) {
+				for (const extension of this.extensions) {
+					if (!extension.tokenizer) continue;
+					const produced = extension.tokenizer(rest, tokens);
+					if (produced) {
+						flushPlain();
+						tokens.push(produced as Token);
+						position += produced.raw.length;
+						handled = true;
+						break;
+					}
 				}
 			}
 			if (handled) continue;
@@ -325,164 +386,197 @@ class InlineLexer {
 			// nor close emphasis, so `alpha_beta` stays literal (asterisks have no
 			// such restriction).
 			const prevIsAlnum = position > 0 && isAsciiAlnum(text[position - 1]);
-			const escapeMatch = /^\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/.exec(rest);
-			if (escapeMatch) {
-				flushPlain();
-				tokens.push({ type: "escape", raw: escapeMatch[0], text: escapeMatch[1] });
-				position += escapeMatch[0].length;
-				continue;
-			}
-			const codespanMatch = /^(`+)([\s\S]*?[^`])\1(?!`)/.exec(rest);
-			if (codespanMatch) {
-				flushPlain();
-				let codeText = codespanMatch[2].replace(/\n/g, " ");
-				if (codeText.startsWith(" ") && codeText.endsWith(" ") && codeText.trim() !== "") {
-					codeText = codeText.slice(1, -1);
-				}
-				tokens.push({ type: "codespan", raw: codespanMatch[0], text: codeText });
-				position += codespanMatch[0].length;
-				continue;
-			}
-			if (this.customTokenizer && rest.startsWith("~~")) {
-				const delToken = this.customTokenizer.del(rest);
-				if (delToken) {
+			if (code === 0x5c) {
+				const escapeMatch = /^\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/.exec(rest);
+				if (escapeMatch) {
 					flushPlain();
-					tokens.push(delToken);
-					position += delToken.raw.length;
+					tokens.push({ type: "escape", raw: escapeMatch[0], text: escapeMatch[1] });
+					position += escapeMatch[0].length;
 					continue;
 				}
 			}
-			const delMatch = /^~~(?=\S)([\s\S]*?\S)~~/.exec(rest);
-			if (delMatch) {
-				flushPlain();
-				tokens.push({ type: "del", raw: delMatch[0], text: delMatch[1], tokens: this.inlineTokens(delMatch[1]) });
-				position += delMatch[0].length;
-				continue;
+			if (code === 0x60) {
+				const codespanMatch = /^(`+)([\s\S]*?[^`])\1(?!`)/.exec(rest);
+				if (codespanMatch) {
+					flushPlain();
+					let codeText = codespanMatch[2].replace(/\n/g, " ");
+					if (codeText.startsWith(" ") && codeText.endsWith(" ") && codeText.trim() !== "") {
+						codeText = codeText.slice(1, -1);
+					}
+					tokens.push({ type: "codespan", raw: codespanMatch[0], text: codeText });
+					position += codespanMatch[0].length;
+					continue;
+				}
 			}
-			const strongEmMatch = /^(\*\*\*|___)(?=\S)([\s\S]*?\S)\1/.exec(rest);
-			if (strongEmMatch && (strongEmMatch[1] === "***" || !prevIsAlnum)) {
-				flushPlain();
-				tokens.push({
-					type: "strong",
-					raw: strongEmMatch[0],
-					text: strongEmMatch[2],
-					tokens: this.inlineTokens(strongEmMatch[2]),
-				});
-				position += strongEmMatch[0].length;
-				continue;
+			if (code === 0x7e) {
+				if (this.customTokenizer && rest.startsWith("~~")) {
+					const delToken = this.customTokenizer.del(rest);
+					if (delToken) {
+						flushPlain();
+						tokens.push(delToken);
+						position += delToken.raw.length;
+						continue;
+					}
+				}
+				const delMatch = /^~~(?=\S)([\s\S]*?\S)~~/.exec(rest);
+				if (delMatch) {
+					flushPlain();
+					tokens.push({
+						type: "del",
+						raw: delMatch[0],
+						text: delMatch[1],
+						tokens: this.inlineTokens(delMatch[1]),
+					});
+					position += delMatch[0].length;
+					continue;
+				}
 			}
-			const strongStarMatch = /^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*\*|[*_])/.exec(rest);
-			if (strongStarMatch) {
-				flushPlain();
-				tokens.push({
-					type: "strong",
-					raw: strongStarMatch[0],
-					text: strongStarMatch[1],
-					tokens: this.inlineTokens(strongStarMatch[1]),
-				});
-				position += strongStarMatch[0].length;
-				continue;
+			if (code === 0x2a || code === 0x5f) {
+				const strongEmMatch = /^(\*\*\*|___)(?=\S)([\s\S]*?\S)\1/.exec(rest);
+				if (strongEmMatch && (strongEmMatch[1] === "***" || !prevIsAlnum)) {
+					flushPlain();
+					tokens.push({
+						type: "strong",
+						raw: strongEmMatch[0],
+						text: strongEmMatch[2],
+						tokens: this.inlineTokens(strongEmMatch[2]),
+					});
+					position += strongEmMatch[0].length;
+					continue;
+				}
 			}
-			const strongUnderscoreMatch = !prevIsAlnum ? /^__(?=\S)([\s\S]*?\S)__(?![a-zA-Z0-9_*])/.exec(rest) : undefined;
-			if (strongUnderscoreMatch) {
-				flushPlain();
-				tokens.push({
-					type: "strong",
-					raw: strongUnderscoreMatch[0],
-					text: strongUnderscoreMatch[1],
-					tokens: this.inlineTokens(strongUnderscoreMatch[1]),
-				});
-				position += strongUnderscoreMatch[0].length;
-				continue;
+			if (code === 0x2a) {
+				const strongStarMatch = /^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*\*|[*_])/.exec(rest);
+				if (strongStarMatch) {
+					flushPlain();
+					tokens.push({
+						type: "strong",
+						raw: strongStarMatch[0],
+						text: strongStarMatch[1],
+						tokens: this.inlineTokens(strongStarMatch[1]),
+					});
+					position += strongStarMatch[0].length;
+					continue;
+				}
 			}
-			const emStarMatch = /^\*(?=\S)([\s\S]*?\S)\*/.exec(rest);
-			if (emStarMatch) {
-				flushPlain();
-				tokens.push({
-					type: "em",
-					raw: emStarMatch[0],
-					text: emStarMatch[1],
-					tokens: this.inlineTokens(emStarMatch[1]),
-				});
-				position += emStarMatch[0].length;
-				continue;
+			if (code === 0x5f) {
+				const strongUnderscoreMatch = !prevIsAlnum
+					? /^__(?=\S)([\s\S]*?\S)__(?![a-zA-Z0-9_*])/.exec(rest)
+					: undefined;
+				if (strongUnderscoreMatch) {
+					flushPlain();
+					tokens.push({
+						type: "strong",
+						raw: strongUnderscoreMatch[0],
+						text: strongUnderscoreMatch[1],
+						tokens: this.inlineTokens(strongUnderscoreMatch[1]),
+					});
+					position += strongUnderscoreMatch[0].length;
+					continue;
+				}
 			}
-			const emUnderscoreMatch = !prevIsAlnum ? /^_(?=\S)([\s\S]*?\S)_(?![a-zA-Z0-9])/.exec(rest) : undefined;
-			if (emUnderscoreMatch) {
-				flushPlain();
-				tokens.push({
-					type: "em",
-					raw: emUnderscoreMatch[0],
-					text: emUnderscoreMatch[1],
-					tokens: this.inlineTokens(emUnderscoreMatch[1]),
-				});
-				position += emUnderscoreMatch[0].length;
-				continue;
+			if (code === 0x2a) {
+				const emStarMatch = /^\*(?=\S)([\s\S]*?\S)\*/.exec(rest);
+				if (emStarMatch) {
+					flushPlain();
+					tokens.push({
+						type: "em",
+						raw: emStarMatch[0],
+						text: emStarMatch[1],
+						tokens: this.inlineTokens(emStarMatch[1]),
+					});
+					position += emStarMatch[0].length;
+					continue;
+				}
 			}
-			const imageMatch =
-				/^!\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
-					rest,
-				);
-			if (imageMatch) {
-				flushPlain();
-				tokens.push({
-					type: "image",
-					raw: imageMatch[0],
-					text: imageMatch[1],
-					href: imageMatch[3] ?? imageMatch[4] ?? "",
-					title: imageMatch[5] ?? imageMatch[6] ?? imageMatch[7] ?? null,
-					tokens: this.inlineTokens(imageMatch[1]),
-				});
-				position += imageMatch[0].length;
-				continue;
+			if (code === 0x5f) {
+				const emUnderscoreMatch = !prevIsAlnum ? /^_(?=\S)([\s\S]*?\S)_(?![a-zA-Z0-9])/.exec(rest) : undefined;
+				if (emUnderscoreMatch) {
+					flushPlain();
+					tokens.push({
+						type: "em",
+						raw: emUnderscoreMatch[0],
+						text: emUnderscoreMatch[1],
+						tokens: this.inlineTokens(emUnderscoreMatch[1]),
+					});
+					position += emUnderscoreMatch[0].length;
+					continue;
+				}
 			}
-			const linkMatch =
-				/^\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
-					rest,
-				);
-			if (linkMatch) {
-				flushPlain();
-				const linkText = linkMatch[1];
-				tokens.push({
-					type: "link",
-					raw: linkMatch[0],
-					text: linkText,
-					href: linkMatch[3] ?? linkMatch[4] ?? "",
-					title: linkMatch[5] ?? linkMatch[6] ?? linkMatch[7] ?? null,
-					tokens: this.inlineTokens(linkText),
-				});
-				position += linkMatch[0].length;
-				continue;
+			if (code === 0x21) {
+				const imageMatch =
+					/^!\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
+						rest,
+					);
+				if (imageMatch) {
+					flushPlain();
+					tokens.push({
+						type: "image",
+						raw: imageMatch[0],
+						text: imageMatch[1],
+						href: imageMatch[3] ?? imageMatch[4] ?? "",
+						title: imageMatch[5] ?? imageMatch[6] ?? imageMatch[7] ?? null,
+						tokens: this.inlineTokens(imageMatch[1]),
+					});
+					position += imageMatch[0].length;
+					continue;
+				}
 			}
-			const autolinkMatch = /^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*)>/.exec(rest);
-			if (autolinkMatch) {
-				flushPlain();
-				const url = autolinkMatch[1];
-				const urlText: TokensText = { type: "text", raw: url, text: url };
-				const autolinkToken: TokensLink = {
-					type: "link",
-					raw: autolinkMatch[0],
-					text: url,
-					href: url,
-					tokens: [urlText],
-				};
-				tokens.push(autolinkToken);
-				position += autolinkMatch[0].length;
-				continue;
+			if (code === 0x5b) {
+				const linkMatch =
+					/^\[([^\]]*)\]\(([ \t]*)(?:<([^<>]*)>|([^)) \t]*))(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^()]*)\)))?[ \t]*\)/.exec(
+						rest,
+					);
+				if (linkMatch) {
+					flushPlain();
+					const linkText = linkMatch[1];
+					tokens.push({
+						type: "link",
+						raw: linkMatch[0],
+						text: linkText,
+						href: linkMatch[3] ?? linkMatch[4] ?? "",
+						title: linkMatch[5] ?? linkMatch[6] ?? linkMatch[7] ?? null,
+						tokens: this.inlineTokens(linkText),
+					});
+					position += linkMatch[0].length;
+					continue;
+				}
 			}
-			const htmlMatch = /^<[a-zA-Z!?/][^\n<>]*>/.exec(rest);
-			if (htmlMatch) {
-				flushPlain();
-				tokens.push({ type: "html", raw: htmlMatch[0], text: htmlMatch[0] });
-				position += htmlMatch[0].length;
-				continue;
+			if (code === 0x3c) {
+				const autolinkMatch = /^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*)>/.exec(rest);
+				if (autolinkMatch) {
+					flushPlain();
+					const url = autolinkMatch[1];
+					const urlText: TokensText = { type: "text", raw: url, text: url };
+					const autolinkToken: TokensLink = {
+						type: "link",
+						raw: autolinkMatch[0],
+						text: url,
+						href: url,
+						tokens: [urlText],
+					};
+					tokens.push(autolinkToken);
+					position += autolinkMatch[0].length;
+					continue;
+				}
 			}
-			const brMatch = /^[ \t]{2,}\n|^ {2,}\n/.exec(rest);
-			if (brMatch && rest.startsWith(brMatch[0])) {
-				flushPlain();
-				tokens.push({ type: "br", raw: brMatch[0] });
-				position += brMatch[0].length;
-				continue;
+			if (code === 0x3c) {
+				const htmlMatch = /^<[a-zA-Z!?/][^\n<>]*>/.exec(rest);
+				if (htmlMatch) {
+					flushPlain();
+					tokens.push({ type: "html", raw: htmlMatch[0], text: htmlMatch[0] });
+					position += htmlMatch[0].length;
+					continue;
+				}
+			}
+			if (code === 0x20 || code === 0x09) {
+				const brMatch = /^[ \t]{2,}\n|^ {2,}\n/.exec(rest);
+				if (brMatch && rest.startsWith(brMatch[0])) {
+					flushPlain();
+					tokens.push({ type: "br", raw: brMatch[0] });
+					position += brMatch[0].length;
+					continue;
+				}
 			}
 			const first = text.charCodeAt(position);
 			if (first >= 0xd800 && first <= 0xdbff && position + 1 < text.length) {

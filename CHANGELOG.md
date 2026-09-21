@@ -1185,5 +1185,47 @@ model resident and the status line `Loaded Qwen3.8-27B-MTP`; Escape during a
 load cancelled it and the reopened list showed the router's post-cancel state
 instead of a stale `loading` row. Error paths were exercised with a dead port
 and with an empty `providers` block, and `/llama http://192.168.100.3:19966`
-worked without any models.json entry. `biome`, `tsgo` and the scriptc build are
-clean apart from two pre-existing biome findings in `interactive-mode.ts`.
+worked without any models.json entry. `tsgo` and the scriptc build are clean;
+the touched files are clean under `biome` apart from the two pre-existing
+findings in `interactive-mode.ts`, while the repo-wide `biome check` still
+reports pre-existing diagnostics in files this change does not touch.
+
+---
+
+## Phase 26 — rendering hot paths: regex and per-line cost
+
+First performance round outside the upstream sync; the analysis lives in
+`PERF-REPORT.md`, the constraints are no scriptc changes and keeping the inline
+main screen.
+
+- The inline lexer no longer tries roughly sixteen anchored regexes at every
+  token position. One character scan jumps to the next position that can start a
+  construct, only that character's constructs get regex attempts, and plain text
+  is copied as one slice instead of slicing the remaining string per token.
+  Equivalence was verified against the HEAD lexer by diffing token streams over
+  834 documents (synthetic cases plus 778 real session texts) at both the block
+  and inline level, zero mismatches.
+- The mermaid transformer returns immediately when the text contains no fence
+  marker, removing a per-line regex from every render.
+- The main screen no longer walks the whole buffer per frame to append resets
+  and terminal normalization; that work happens per written line, and the kitty
+  image scan now has a fast path when the previous frame had no images and the
+  changed range has none. `applyLineResets` stays for full redraws.
+- Measured on a 2.5MB session with a 600 chunk, 20ms mock stream: streaming CPU
+  went from a pegged core (100% for the whole stream, about 24s CPU for a 2000
+  chunk stream) to a steady 3 to 7% (about 0.5s CPU for the 600 chunk stream).
+  The background history fill completes in about 14s and costs about 6.5s CPU;
+  keystroke echo after the fill is about 14ms per key over a 19,601 line buffer
+  (render 6 to 10ms, diff 1 to 2ms, kitty 0ms).
+- Render regression: a sample with headings, lists, a table, code fences, LaTeX
+  inline and display, a mermaid diagram, CJK and emoji renders identically before
+  and after the change apart from cwd and startup context lines.
+- Gate state: `tsgo --noEmit` and the scriptc build are clean. `biome` reports no
+  new finding in the touched files; the only one there is the pre-existing unused
+  `codeSpan` helper in `mermaid.ts`. The repo-wide check still reports
+  pre-existing diagnostics (77 errors, 13 warnings) in untouched files, mostly
+  the vendored syntax highlighting tables.
+- Not done: transcript viewport scoping. Memory is still dominated by the
+  per-message rendered line caches (about 95MB for the 2.5MB session), and the
+  root render is still O(transcript) per frame; both need the memo and component
+  caches limited to the viewport, which is the next round.
