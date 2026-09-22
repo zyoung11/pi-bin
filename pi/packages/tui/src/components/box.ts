@@ -1,4 +1,4 @@
-import { Component, contentRevision } from "../tui.ts";
+import { Component } from "../tui.ts";
 import { applyBackgroundToLine, visibleWidth } from "../utils.ts";
 
 type RenderCache = {
@@ -6,7 +6,7 @@ type RenderCache = {
 	width: number;
 	bgSample: string | undefined;
 	lines: string[];
-	revision: number;
+	generation: number;
 };
 
 /**
@@ -22,7 +22,8 @@ export class Box extends Component {
 	private cache?: RenderCache;
 	private releasedHeight = -1;
 	private releasedWidth = -1;
-	private releasedRevision = -1;
+	private releasedGeneration = -1;
+	private structureGeneration = 0;
 
 	constructor(paddingX = 1, paddingY = 1, bgFn?: (text: string) => string) {
 		super();
@@ -57,13 +58,29 @@ export class Box extends Component {
 	private invalidateCache(): void {
 		this.cache = undefined;
 		this.releasedHeight = -1;
+		this.structureGeneration += 1;
 		this.markContentChanged();
 	}
 
+	/**
+	 * Content generation of this box and its children. Caches key on it instead
+	 * of the global content revision, so an unrelated change elsewhere in the
+	 * tree no longer forces released boxes above the window to re-render and
+	 * re-parse their children on every frame.
+	 */
+	private contentGeneration(): number {
+		let generation = this.structureGeneration;
+		for (let i = 0; i < this.children.length; i++) {
+			generation += this.children[i].contentVersion();
+		}
+		return generation;
+	}
+
 	measure(width: number): number {
+		const generation = this.contentGeneration();
 		const cache = this.cache;
-		if (cache && cache.width === width && cache.revision === contentRevision()) return cache.lines.length;
-		if (this.releasedHeight >= 0 && this.releasedWidth === width && this.releasedRevision === contentRevision()) {
+		if (cache && cache.width === width && cache.generation === generation) return cache.lines.length;
+		if (this.releasedHeight >= 0 && this.releasedWidth === width && this.releasedGeneration === generation) {
 			return this.releasedHeight;
 		}
 		return this.render(width).length;
@@ -74,7 +91,7 @@ export class Box extends Component {
 		if (cache) {
 			this.releasedHeight = cache.lines.length;
 			this.releasedWidth = cache.width;
-			this.releasedRevision = cache.revision;
+			this.releasedGeneration = cache.generation;
 			this.cache = undefined;
 		}
 		for (const child of this.children) {
@@ -148,7 +165,7 @@ export class Box extends Component {
 		}
 
 		// Update cache
-		this.cache = { childLines, width, bgSample, lines: result, revision: contentRevision() };
+		this.cache = { childLines, width, bgSample, lines: result, generation: this.contentGeneration() };
 
 		return result;
 	}

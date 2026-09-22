@@ -1333,3 +1333,50 @@ matches, `--no-session` is unchanged, and the `/thinking` selector filter still
 works. Gates: `tsgo --noEmit` and the scriptc build are clean; `biome` reports
 no finding in the touched files beyond the pre-existing `useTemplate` in
 `interactive-mode.ts`.
+
+---
+
+## Phase 29 — streaming cost: per-frame box storms and per-flush re-parses
+
+Fixes the CPU pegging that grew with use and the 200MB+ resident climb. The
+live `pi -c` process measured 98% of one core with 201MB RSS; the perf
+callgraph attributed 98% of it to `doRender`.
+
+- `renderWindow` measures every child of the windowed containers on each frame.
+  `ToolExecutionComponent.measure` answered with `render().length` (Phase 28),
+  so every frame fully re-rendered every tool box in the transcript and the
+  same walk then released those boxes, forcing the next frame to rebuild them
+  cold. `Box_applyBg` runs two `visibleWidth` passes with grapheme segmentation
+  per line and took 81% of the frame. `measure` now mirrors the render branches
+  over child measures that honor the render caches and the released heights,
+  so a released box answers from its recorded height.
+- `AssistantMessageComponent.updateContent` rebuilt every content block on each
+  150ms stream flush, re-parsing the full accumulated markdown. Markdown
+  sections now split into stable chunks at blank-line boundaries outside fenced
+  code, indented code, lists and html blocks, and the components whose chunk
+  text is unchanged survive the rebuild, so a flush re-parses only the growing
+  tail chunk of at most about 120 lines. Chunked rendering is byte-identical to
+  the single-block render over 720 checks (22 synthetic edge cases plus real
+  session texts at three widths).
+- `message_update` requests a render only when the content refresh ran or the
+  tool arguments changed, and `updateArgs` skips the display rebuild for
+  unchanged serialized arguments, instead of scheduling a frame per token
+  batch.
+- Box render caches and released heights key on the box's own content
+  generation instead of the global content revision, so an unrelated change
+  elsewhere in the tree no longer invalidates every released box above the
+  window on every frame.
+- scriptc findings: a nested closure that captures a function-typed parameter
+  and returns a class instance mis-lowers silently (the assistant transcript
+  rendered empty with no trap and no error output), and out of bounds array
+  reads trap with a RangeError instead of yielding undefined. The block reuse
+  path is closure-free with bounds-guarded lookups and constructor-assigned
+  fields.
+
+Measured on the 2.7MB BM session against the streaming mock: a 300 chunk
+response over 10s went from 12.7 to 1.6 CPU seconds (one pegged core to about
+16%) and from 16 to 43MB of RSS growth per response to 13 to 14MB; a 1200
+chunk response went from saturation to 5.6 CPU seconds and from 407MB to
+192MB peak RSS. Keystroke frames stay in the 4.5 to 6ms band on the same
+session and the resident baseline is about 97MB. Gates: `tsgo --noEmit`, the
+scriptc build and `biome` on the touched files are clean.

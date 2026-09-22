@@ -2442,6 +2442,7 @@ export class InteractiveMode {
 			case "message_update":
 				if (this.streamingComponent && event.message.role === "assistant") {
 					this.streamingMessage = event.message;
+					let changed = false;
 					// Re-rendering the streaming message re-parses its full accumulated
 					// markdown on the frame's render walk; throttled to keep frames cheap
 					// so keystroke echo stays responsive while streaming. The final
@@ -2450,6 +2451,7 @@ export class InteractiveMode {
 					if (now - this.lastStreamFlushAt >= STREAM_RENDER_INTERVAL_MS) {
 						this.lastStreamFlushAt = now;
 						this.streamingComponent.updateContent(this.streamingMessage, true);
+						changed = true;
 					}
 
 					for (const content of this.streamingMessage.content) {
@@ -2470,15 +2472,18 @@ export class InteractiveMode {
 								component.setExpanded(this.toolOutputExpanded);
 								this.chatContainer.addChild(component);
 								this.pendingTools.set(content.id, component);
+								changed = true;
 							} else {
 								const component = this.pendingTools.get(content.id);
-								if (component) {
-									component.updateArgs(content.arguments);
+								if (component?.updateArgs(content.arguments)) {
+									changed = true;
 								}
 							}
 						}
 					}
-					this.ui.requestRender();
+					if (changed) {
+						this.ui.requestRender();
+					}
 				}
 				break;
 

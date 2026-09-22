@@ -8,9 +8,6 @@ pi coding agent compiled to a native Linux binary via
 
 - Main entry: `packages/coding-agent/src/cli.ts`; the built binary is `./pi`.
 - The engineering log is `CHANGELOG.md` at the repo root, one entry per commit.
-  A deeper reference is `../docs/pi-bin-rewrite-and-debug-guide.md` (full
-  rewrite/debug guide). Read them when a change touches scriptc-sensitive code
-  or when debugging.
 - Config dir env var is `PI_CODING_AGENT_DIR` (NOT `PI_AGENT_DIR`); default
   `~/.pi/agent`. Models: `models.json` plus providers synthesized in memory from
   `models-store.json`; API keys from `auth.json`; custom themes from `themes/*.json`.
@@ -120,8 +117,7 @@ by a confirmed crash:
 
 Debugging tools: scriptc traps print a native backtrace,
 `--sanitize` builds an ASan binary for heap corruption, `journalctl -k` separates
-kernel OOM kills from scriptc aborts. See the guide in `../docs/` for the full
-debugging playbook.
+kernel OOM kills from scriptc aborts.
 
 ## Dependency and Install Security
 

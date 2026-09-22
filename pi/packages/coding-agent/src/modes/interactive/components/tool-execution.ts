@@ -35,6 +35,7 @@ export class ToolExecutionComponent extends Container {
 	private imageWidthCells: number;
 	private isPartial = true;
 	private toolDefinition?: ToolDefinition;
+	private serializedArgs: string;
 	private builtInToolDefinition?: ToolDefinition;
 	private ui: TUI;
 	private cwd: string;
@@ -61,6 +62,7 @@ export class ToolExecutionComponent extends Container {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
 		this.args = args;
+		this.serializedArgs = JSON.stringify(args);
 		this.toolDefinition = toolDefinition;
 		this.builtInToolDefinition = createAllToolDefinitions(cwd)[toolName as ToolName];
 		this.showImages = options.showImages ?? true;
@@ -165,9 +167,18 @@ export class ToolExecutionComponent extends Container {
 		return new Text(text, 0, 0);
 	}
 
-	updateArgs(args: Record<string, unknown>): void {
+	/**
+	 * Apply the latest partial tool call arguments.
+	 * @param args Latest partial arguments
+	 * @returns Whether the serialized arguments changed and the display rebuilt
+	 */
+	updateArgs(args: Record<string, unknown>): boolean {
+		const serialized = JSON.stringify(args);
+		if (serialized === this.serializedArgs) return false;
+		this.serializedArgs = serialized;
 		this.args = args;
 		this.updateDisplay();
+		return true;
 	}
 
 	markExecutionStarted(): void {
@@ -226,12 +237,28 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	/**
-	 * Line count of the composed render output. The render branches can hide this
-	 * component entirely or drop an empty self-rendered shell, so the child sum
-	 * is not a valid count here.
+	 * Line count of the composed render output without rendering it. The render
+	 * branches can hide this component or drop an empty self-rendered shell, so
+	 * the count mirrors those branches over cheap child measures that honor the
+	 * render caches and the released heights.
+	 * @param width Current viewport width
+	 * @returns Number of lines render produces at this width
 	 */
 	override measure(width: number): number {
-		return this.render(width).length;
+		if (this.hideComponent) return 0;
+		if (this.hasRendererDefinition() && this.getRenderShell() === "self") {
+			const contentCount = this.selfRenderContainer.measure(width);
+			if (contentCount === 0 && this.imageComponents.length === 0) return 0;
+			let total = contentCount > 0 ? 1 + contentCount : 0;
+			for (let i = 0; i < this.imageSpacers.length; i++) {
+				total += this.imageSpacers[i].measure(width);
+			}
+			for (let i = 0; i < this.imageComponents.length; i++) {
+				total += this.imageComponents[i].measure(width);
+			}
+			return total;
+		}
+		return super.measure(width);
 	}
 
 	override render(width: number): string[] {

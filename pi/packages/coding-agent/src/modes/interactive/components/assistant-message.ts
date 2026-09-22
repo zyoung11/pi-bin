@@ -2,7 +2,7 @@ import type { AssistantMessage } from "../../../../../ai/src/index.ts";
 import { Markdown, type MarkdownTheme } from "../../../../../tui/src/components/markdown.ts";
 import { Spacer } from "../../../../../tui/src/components/spacer.ts";
 import { Text } from "../../../../../tui/src/components/text.ts";
-import { Container } from "../../../../../tui/src/tui.ts";
+import { type Component, Container } from "../../../../../tui/src/tui.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import type { MarkdownTransformer } from "./markdown-transform.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
@@ -10,6 +10,74 @@ import { createMarkdownTransform } from "./markdown-transform.ts";
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
+const MARKDOWN_CHUNK_MIN_LINES = 120;
+
+/**
+ * Split markdown source into stable chunks at blank-line boundaries that fall
+ * outside fenced code and are not adjacent to indented code, list items or html
+ * blocks. The separating blank lines stay at the start of the next chunk, so the
+ * concatenation of the chunk renders equals the render of the whole source and a
+ * streamed text block only re-parses its growing tail chunk.
+ * @param text Markdown source
+ * @returns Chunk sources in order whose concatenation reproduces the input
+ */
+export function splitMarkdownChunks(text: string): string[] {
+	const lines = text.split("\n");
+	const chunks: string[] = [];
+	let fenceChar = "";
+	let fenceLength = 0;
+	let chunkStart = 0;
+	let chunkLines = 0;
+	let index = 0;
+	while (index < lines.length) {
+		const line = lines[index];
+		if (fenceChar !== "") {
+			const closeMatch = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+			if (closeMatch && closeMatch[1][0] === fenceChar && closeMatch[1].length >= fenceLength) {
+				fenceChar = "";
+				fenceLength = 0;
+			}
+			index++;
+			chunkLines++;
+			continue;
+		}
+		const openMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+		if (openMatch) {
+			fenceChar = openMatch[1][0];
+			fenceLength = openMatch[1].length;
+			index++;
+			chunkLines++;
+			continue;
+		}
+		if (line.trim() !== "") {
+			index++;
+			chunkLines++;
+			continue;
+		}
+		let runEnd = index;
+		while (runEnd < lines.length && lines[runEnd].trim() === "") runEnd++;
+		const runLength = runEnd - index;
+		const previous = index > 0 ? lines[index - 1] : "";
+		const next = runEnd < lines.length ? lines[runEnd] : undefined;
+		const boundarySafe =
+			next !== undefined &&
+			chunkLines >= MARKDOWN_CHUNK_MIN_LINES &&
+			!/^(?: {4}|\t)/.test(previous) &&
+			!/^(?: {4}|\t)/.test(next) &&
+			!/^\s*(?:[-*+]|\d+[.)])(?:\s|$)/.test(previous) &&
+			!/^\s*(?:[-*+]|\d+[.)])(?:\s|$)/.test(next) &&
+			!/^</.test(next.trimStart());
+		if (boundarySafe) {
+			chunks.push(lines.slice(chunkStart, index).join("\n"));
+			chunkStart = index;
+			chunkLines = 0;
+		}
+		index = runEnd;
+		chunkLines += runLength;
+	}
+	chunks.push(lines.slice(chunkStart).join("\n"));
+	return chunks;
+}
 
 /**
  * Component that renders a complete assistant message
@@ -24,6 +92,8 @@ export class AssistantMessageComponent extends Container {
 	private lastMessage?: AssistantMessage;
 	private hasToolCalls = false;
 	private isStreaming = false;
+	private builtBlockKeys: string[];
+	private builtBlockComponents: Component[];
 
 	constructor(
 		message?: AssistantMessage,
@@ -40,6 +110,8 @@ export class AssistantMessageComponent extends Container {
 		this.hiddenThinkingLabel = hiddenThinkingLabel;
 		this.outputPad = outputPad;
 		this.markdownTransformers = markdownTransformers;
+		this.builtBlockKeys = [];
+		this.builtBlockComponents = [];
 
 		// Container for text/thinking content
 		this.contentContainer = new Container();
@@ -91,6 +163,88 @@ export class AssistantMessageComponent extends Container {
 		return lines;
 	}
 
+	/**
+	 * Look up the component built for the same key at the same position in the
+	 * previous update, so streamed updates keep the cached lines of every
+	 * unchanged block.
+	 * @param index Position of the block in the build order
+	 * @param key Cache key of the block
+	 * @returns The previously built component, or undefined when it must rebuild
+	 */
+	private takeReusedBlock(index: number, key: string): Component | undefined {
+		if (index >= this.builtBlockKeys.length || index >= this.builtBlockComponents.length) return undefined;
+		if (this.builtBlockKeys[index] !== key) return undefined;
+		return this.builtBlockComponents[index];
+	}
+
+	/**
+	 * Append one markdown source as stable chunks, reusing the component built
+	 * for the same chunk key at the same position. Streamed updates only grow the
+	 * tail chunk, so every earlier chunk keeps its cached render output.
+	 * @param source Markdown source of the section
+	 * @param kind Block kind included in the cache key
+	 * @param thinking Whether the section renders as thinking text
+	 * @param keys Cache keys in build order, appended to in place
+	 * @param built Components in build order, appended to in place
+	 */
+	private addMarkdownBlocks(
+		source: string,
+		kind: string,
+		thinking: boolean,
+		keys: string[],
+		built: Component[],
+	): void {
+		const chunks = splitMarkdownChunks(source);
+		for (let c = 0; c < chunks.length; c++) {
+			const chunk = chunks[c];
+			const index = keys.length;
+			const key = JSON.stringify([
+				this.outputPad,
+				this.isStreaming,
+				this.hideThinkingBlock,
+				this.hiddenThinkingLabel,
+				kind,
+				chunk,
+			]);
+			keys.push(key);
+			let component = this.takeReusedBlock(index, key);
+			if (component === undefined) {
+				if (thinking) {
+					component = new Markdown(
+						chunk,
+						this.outputPad,
+						0,
+						this.markdownTheme,
+						{
+							color: (text: string) => theme.fg("thinkingText", text),
+							italic: true,
+						},
+						{
+							transform: createMarkdownTransform(
+								"assistant-thinking",
+								this.isStreaming,
+								this.markdownTransformers,
+							),
+						},
+					);
+				} else {
+					component = new Markdown(chunk, this.outputPad, 0, this.markdownTheme, undefined, {
+						transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
+					});
+				}
+			}
+			built.push(component);
+			this.contentContainer.addChild(component);
+		}
+	}
+
+	/**
+	 * Rebuild the display from the message. Streamed updates only re-parse the
+	 * growing tail chunk of each markdown section while every earlier chunk and
+	 * every unchanged block reuses its component and keeps its cached lines.
+	 * @param message The latest message state
+	 * @param isStreaming Whether the message is still streaming
+	 */
 	updateContent(message: AssistantMessage, isStreaming = this.isStreaming): void {
 		this.lastMessage = message;
 		this.isStreaming = isStreaming;
@@ -106,17 +260,14 @@ export class AssistantMessageComponent extends Container {
 			this.contentContainer.addChild(new Spacer(1));
 		}
 
+		const keys: string[] = [];
+		const built: Component[] = [];
+
 		// Render content in order
 		for (let i = 0; i < message.content.length; i++) {
 			const content = message.content[i];
 			if (content.type === "text" && content.text.trim()) {
-				// Assistant text messages with no background - trim the text
-				// Set paddingY=0 to avoid extra spacing before tool executions
-				this.contentContainer.addChild(
-					new Markdown(content.text.trim(), this.outputPad, 0, this.markdownTheme, undefined, {
-						transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
-					}),
-				);
+				this.addMarkdownBlocks(content.text.trim(), "text", false, keys, built);
 			} else if (content.type === "thinking") {
 				const thinkingBlocks: string[] = [];
 				for (; i < message.content.length; i++) {
@@ -142,37 +293,25 @@ export class AssistantMessageComponent extends Container {
 					.some((c) => (c.type === "text" && c.text.trim()) || (c.type === "thinking" && c.thinking.trim()));
 
 				if (this.hideThinkingBlock) {
-					// Show one static label for each run of thinking blocks when hidden.
-					this.contentContainer.addChild(
-						new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0),
-					);
+					const labelIndex = keys.length;
+					const labelKey = JSON.stringify([this.outputPad, this.hiddenThinkingLabel, "label"]);
+					keys.push(labelKey);
+					let label = this.takeReusedBlock(labelIndex, labelKey);
+					if (label === undefined) {
+						label = new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0);
+					}
+					built.push(label);
+					this.contentContainer.addChild(label);
 				} else {
-					// Render each run of thinking blocks as one Markdown section.
-					this.contentContainer.addChild(
-						new Markdown(
-							thinkingBlocks.join("\n\n"),
-							this.outputPad,
-							0,
-							this.markdownTheme,
-							{
-								color: (text: string) => theme.fg("thinkingText", text),
-								italic: true,
-							},
-							{
-								transform: createMarkdownTransform(
-									"assistant-thinking",
-									this.isStreaming,
-									this.markdownTransformers,
-								),
-							},
-						),
-					);
+					this.addMarkdownBlocks(thinkingBlocks.join("\n\n"), "thinking", true, keys, built);
 				}
 				if (hasVisibleContentAfter) {
 					this.contentContainer.addChild(new Spacer(1));
 				}
 			}
 		}
+		this.builtBlockKeys = keys;
+		this.builtBlockComponents = built;
 
 		// Check if incomplete/failed - show after partial content.
 		// For aborted/error tool calls, tool execution components show the error.
