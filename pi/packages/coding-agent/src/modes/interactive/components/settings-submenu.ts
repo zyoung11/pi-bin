@@ -33,7 +33,6 @@ export interface SelectSubmenuOptions {
  */
 export class SelectSubmenu extends Container {
 	private selectList: SelectList;
-	private listChildIndex: number;
 	private allOptions: SelectItem[];
 	private listLayout: SelectListLayoutOptions;
 	private searchInput: Input | undefined;
@@ -83,7 +82,6 @@ export class SelectSubmenu extends Container {
 
 		// Select list
 		this.selectList = this.buildSelectList(options, currentValue);
-		this.listChildIndex = this.children.length;
 		this.addChild(this.selectList);
 
 		// Hint
@@ -116,7 +114,7 @@ export class SelectSubmenu extends Container {
 			: this.allOptions;
 
 		const newList = this.buildSelectList(filtered, "");
-		this.children[this.listChildIndex] = newList;
+		this.replaceChild(this.selectList, newList);
 		this.selectList = newList;
 	}
 

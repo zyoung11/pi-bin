@@ -311,7 +311,13 @@ type OverlayFocusRestoreState =
 type OverlayFocusRestorePolicy = "clear" | "preserve";
 
 /**
- * Container - a component that contains other components
+ * Container - a component that contains other components.
+ *
+ * Its output is the concatenation of its children's output. A subclass that
+ * overrides `render()` must keep the line count equal to the concatenation of
+ * its children's line counts, or override `measure()` to match, and it must not
+ * use `ConcatContainer`: the windowed and streaming composition there assumes
+ * pure concatenation.
  */
 export class Container extends Component {
 	children: Component[] = [];
@@ -319,10 +325,10 @@ export class Container extends Component {
 	// Window bookkeeping: measured lines skipped above the last window, the
 	// content version of every skipped child at the time it was written, and the
 	// content revision those numbers are valid for.
-	private skippedLines = 0;
-	private skippedCount = 0;
-	private skippedVersions: number[] = [];
-	private skippedRevision = -1;
+	protected skippedLines = 0;
+	protected skippedCount = 0;
+	protected skippedVersions: number[] = [];
+	protected skippedRevision = -1;
 	private measureWidth = -1;
 	private measureRevision = -1;
 	private measureValue = 0;
@@ -341,6 +347,21 @@ export class Container extends Component {
 			this.children.splice(index, 1);
 			this.markStructureChanged();
 		}
+	}
+
+	/**
+	 * Replace one child with another in place, preserving the child order.
+	 * @param previous The child to replace
+	 * @param next The replacement child
+	 */
+	replaceChild(previous: Component, next: Component): void {
+		const index = this.children.indexOf(previous);
+		if (index === -1) {
+			this.addChild(next);
+			return;
+		}
+		this.children[index] = next;
+		this.markStructureChanged();
 	}
 
 	clear(): void {
@@ -401,12 +422,6 @@ export class Container extends Component {
 		}
 	}
 
-	streamLines(width: number, visit: (component: Component, lines: string[]) => void): void {
-		for (let i = 0; i < this.children.length; i++) {
-			this.children[i].streamLines(width, visit);
-		}
-	}
-
 	render(width: number): string[] {
 		let lines: string[] = [];
 		for (const child of this.children) {
@@ -417,6 +432,24 @@ export class Container extends Component {
 			lines = lines.concat(childLines);
 		}
 		return lines;
+	}
+}
+
+/**
+ * Container whose output is the pure concatenation of its children's output.
+ *
+ * This is the windowed and streaming variant of `Container`: `renderWindow`
+ * composes the bottom window from child slices and `streamLines` visits child
+ * batches in order, so both produce exactly the strings `render()` produces.
+ * Only use it for containers that never rewrite or recompose their children's
+ * lines; anything else must stay on `Container`, whose windowed and streaming
+ * paths fall back to `render()` and stay consistent by construction.
+ */
+export class ConcatContainer extends Container {
+	streamLines(width: number, visit: (component: Component, lines: string[]) => void): void {
+		for (let i = 0; i < this.children.length; i++) {
+			this.children[i].streamLines(width, visit);
+		}
 	}
 
 	/**
@@ -587,7 +620,7 @@ export interface TUI {
 	queryTerminalColorScheme(options: { timeoutMs: number }): Promise<TerminalColorScheme | undefined>;
 }
 
-export abstract class TuiBase extends Container implements TUI {
+export abstract class TuiBase extends ConcatContainer implements TUI {
 	readonly mode: TuiMode = "regular";
 
 	getMode(): TuiMode {
@@ -1075,8 +1108,10 @@ export abstract class TuiBase extends Container implements TUI {
 		if (!match) {
 			return false;
 		}
-		this.terminal.applyReportedWindowSize(parseInt(match[1], 10), parseInt(match[2], 10));
-		this.requestRender();
+		const changed = this.terminal.applyReportedWindowSize(parseInt(match[1], 10), parseInt(match[2], 10));
+		if (changed) {
+			this.requestRender();
+		}
 		return true;
 	}
 

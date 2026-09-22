@@ -556,10 +556,23 @@ export class ProcessTerminal implements Terminal {
 		return this.queriedRows > 0;
 	}
 
-	/** Record the window size reported by the terminal (CSI 18 t reply). */
-	applyReportedWindowSize(rows: number, columns: number): void {
-		if (rows > 0) this.queriedRows = rows;
-		if (columns > 0) this.queriedColumns = columns;
+	/**
+	 * Record the window size reported by the terminal (CSI 18 t reply).
+	 * @param rows Reported row count
+	 * @param columns Reported column count
+	 * @returns Whether either dimension changed
+	 */
+	applyReportedWindowSize(rows: number, columns: number): boolean {
+		let changed = false;
+		if (rows > 0 && rows !== this.queriedRows) {
+			this.queriedRows = rows;
+			changed = true;
+		}
+		if (columns > 0 && columns !== this.queriedColumns) {
+			this.queriedColumns = columns;
+			changed = true;
+		}
+		return changed;
 	}
 
 	moveBy(lines: number): void {

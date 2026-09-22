@@ -25,7 +25,7 @@ import { fuzzyFilter } from "../../../../tui/src/fuzzy.ts";
 import { type Keybinding, setKeybindings } from "../../../../tui/src/keybindings.ts";
 import { ProcessTerminal } from "../../../../tui/src/terminal.ts";
 import { setCapabilityOverrides } from "../../../../tui/src/terminal-image.ts";
-import { type Component, Container, type TUI, type TuiBase } from "../../../../tui/src/tui.ts";
+import { type Component, ConcatContainer, Container, type TUI, type TuiBase } from "../../../../tui/src/tui.ts";
 import { TuiMainScreen } from "../../../../tui/src/tui-main-screen.ts";
 import { visibleWidth } from "../../../../tui/src/utils.ts";
 import {
@@ -488,16 +488,17 @@ export class InteractiveMode {
 	// item per event-loop tick into historyContainer, which stays unmounted
 	// (invisible to the render walk) until the fill completes, then mounts once
 	// before chatContainer with a single full repaint.
-	private historyContainer: Container = new Container();
+	private historyContainer: Container = new ConcatContainer();
 	private historyMounted = false;
 	private initialFillItems: RenderSessionItem[] = [];
 	private initialFillIndex = 0;
 	private initialFillMisses: CacheMissEntry[] = [];
 	private initialFillPending: Map<string, ToolExecutionComponent> = new Map<string, ToolExecutionComponent>();
-	private initialFillContainer: Container = new Container();
+	private initialFillContainer: Container = new ConcatContainer();
 	private initialFillPaintWidth = 0;
 	private initialFillPaintedChildren = 0;
 	private initialFillPaintActive = false;
+	private initialFillOverflowTailLines: string[] = [];
 	private initialFillDeferred = 0;
 	private initialFillGeneration = 0;
 	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
@@ -570,17 +571,17 @@ export class InteractiveMode {
 		});
 		this.ui = createInteractiveTuiReference(() => this.renderer);
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
-		this.headerContainer = new Container();
-		this.loadedResourcesContainer = new Container();
-		this.chatContainer = new Container();
-		this.documentContainer = new Container();
+		this.headerContainer = new ConcatContainer();
+		this.loadedResourcesContainer = new ConcatContainer();
+		this.chatContainer = new ConcatContainer();
+		this.documentContainer = new ConcatContainer();
 		this.documentContainer.addChild(this.headerContainer);
 		this.documentContainer.addChild(this.loadedResourcesContainer);
 		this.documentContainer.addChild(this.chatContainer);
-		this.pendingMessagesContainer = new Container();
-		this.statusContainer = new Container();
-		this.widgetContainerAbove = new Container();
-		this.widgetContainerBelow = new Container();
+		this.pendingMessagesContainer = new ConcatContainer();
+		this.statusContainer = new ConcatContainer();
+		this.widgetContainerAbove = new ConcatContainer();
+		this.widgetContainerBelow = new ConcatContainer();
 		this.keybindings = KeybindingsManager.create();
 		setKeybindings(this.keybindings);
 		const editorPaddingX = this.settingsManager.getEditorPaddingX();
@@ -590,12 +591,12 @@ export class InteractiveMode {
 			autocompleteMaxVisible,
 		});
 		this.editor = this.defaultEditor;
-		this.editorContainer = new Container();
+		this.editorContainer = new ConcatContainer();
 		this.editorContainer.addChild(this.editor);
 		this.footerDataProvider = new FooterDataProvider(this.sessionManager.getCwd());
 		this.footer = new FooterComponent(this.session, this.footerDataProvider);
 		this.footer.setAutoCompactEnabled(this.session.autoCompactionEnabled);
-		this.footerContainer = new Container();
+		this.footerContainer = new ConcatContainer();
 		this.footerContainer.addChild(this.footer);
 
 		// Load hide thinking block setting
@@ -1775,23 +1776,14 @@ export class InteractiveMode {
 		}
 
 		const currentHeader = this.customHeader || this.builtInHeader;
-		const index = this.headerContainer.children.indexOf(currentHeader);
 
 		if (factory) {
 			this.customHeader = factory(this.ui, theme);
 			this.customHeader.setExpanded(this.toolOutputExpanded);
-			if (index !== -1) {
-				this.headerContainer.children[index] = this.customHeader;
-			} else {
-				this.headerContainer.addChild(this.customHeader);
-			}
+			this.headerContainer.replaceChild(currentHeader, this.customHeader);
 		} else if (this.customHeader) {
 			this.customHeader = undefined;
-			if (index !== -1) {
-				this.headerContainer.children[index] = this.builtInHeader;
-			} else {
-				this.headerContainer.addChild(this.builtInHeader);
-			}
+			this.headerContainer.replaceChild(currentHeader, this.builtInHeader);
 		}
 
 		this.ui.requestRender();
@@ -3209,34 +3201,41 @@ export class InteractiveMode {
 			this.initialFillTimer = undefined;
 		}
 		this.initialFillPending.clear();
+		this.initialFillOverflowTailLines = [];
 	}
 
+	/**
+	 * Mount the history container between the resource list and the chat.
+	 * documentContainer children at construction are [headerContainer,
+	 * loadedResourcesContainer, chatContainer], so the rebuilt sequence inserts
+	 * the history container at the chat slot. Children are replaced through
+	 * clear and addChild so the structure version and the window bookkeeping
+	 * stay coherent.
+	 */
 	private mountHistoryContainer(): void {
 		if (this.historyMounted) return;
-		// documentContainer children are fixed at construction:
-		// [headerContainer, loadedResourcesContainer, chatContainer]. The history
-		// container goes between the resource list and the chat, so the rebuilt
-		// array inserts it at the chat slot. Avoids splice-insert and indexOf,
-		// which have no scriptc lowering for dynamic component values.
 		const children = this.documentContainer.children;
-		const next: Component[] = [];
+		this.documentContainer.clear();
 		for (let i = 0; i < children.length; i++) {
-			if (i === 2) next.push(this.historyContainer);
-			next.push(children[i]);
+			if (i === 2) this.documentContainer.addChild(this.historyContainer);
+			this.documentContainer.addChild(children[i]);
 		}
-		if (next.length === children.length) next.push(this.historyContainer);
-		this.documentContainer.children = next;
+		if (children.length < 3) this.documentContainer.addChild(this.historyContainer);
 		this.historyMounted = true;
 	}
 
+	/**
+	 * Remove the history container from the document container, keeping every
+	 * remaining child in order. Children are replaced through clear and addChild
+	 * so the structure version and the window bookkeeping stay coherent.
+	 */
 	private detachHistoryContainer(): void {
 		if (!this.historyMounted) return;
 		const children = this.documentContainer.children;
-		const next: Component[] = [];
+		this.documentContainer.clear();
 		for (let i = 0; i < children.length; i++) {
-			if (i !== 2) next.push(children[i]);
+			if (i !== 2) this.documentContainer.addChild(children[i]);
 		}
-		this.documentContainer.children = next;
 		this.historyMounted = false;
 	}
 
@@ -3260,15 +3259,16 @@ export class InteractiveMode {
 		const width = this.ui.getTerminal().columns();
 		const height = this.ui.getTerminal().rows();
 		const linesAbove = this.headerContainer.measure(width) + this.loadedResourcesContainer.measure(width);
-		const frozenLines = this.collectFrozenTailLines(width);
+		const tailLines = this.collectFrozenTailLines(width);
+		const frozenCount = Math.min(tailLines.length, Math.max(1, height - 2));
+		const frozenLines = tailLines.slice(tailLines.length - frozenCount);
+		this.initialFillOverflowTailLines = tailLines.slice(0, tailLines.length - frozenCount);
 		this.initialFillPaintWidth = width;
 		this.initialFillPaintedChildren = 0;
-		this.initialFillPaintActive = frozenLines.length < height - 2;
+		this.initialFillPaintActive = height >= 3;
 		if (this.initialFillPaintActive) {
 			this.ui.beginTranscriptPaint(frozenLines.length, linesAbove, frozenLines);
 		} else {
-			// The visible tail already fills the screen: the history cannot be
-			// inserted above it without rewriting the scrollback.
 			this.ui.cancelTranscriptPaint();
 		}
 		this.initialFillGeneration += 1;
@@ -3300,7 +3300,7 @@ export class InteractiveMode {
 	private fitInitialTailToScreen(): void {
 		const width = this.ui.getTerminal().columns();
 		const height = this.ui.getTerminal().rows();
-		const budget = Math.max(6, height - this.measureFixedTail(width) - 2);
+		const budget = Math.max(6, height - this.measureFixedTail(width) - 3);
 		while (this.chatContainer.children.length > 1) {
 			if (this.chatContainer.measure(width) <= budget) return;
 			const oldest = this.chatContainer.children[0];
@@ -3366,27 +3366,62 @@ export class InteractiveMode {
 		this.initialFillPaintedChildren = children.length;
 	}
 
+	/**
+	 * Complete the initial fill: compose the history container from the filled
+	 * items followed by the excess tail items (filled history is older, so it
+	 * goes first), paint the excess into the open transcript paint, and close
+	 * the paint. Without an active paint neither the filled items nor the excess
+	 * reached the terminal, so the transcript repaint is requested instead. The
+	 * final requestRender is deliberately not an invalidate: that would release
+	 * the caches the first window needs and turn the mount repaint cold.
+	 */
 	private finishInitialFill(): void {
 		this.initialFillPending.clear();
 		const filled = this.initialFillContainer.children;
-		if (filled.length > 0) {
-			// Filled history is older than anything already in the container
-			// (excess tail items that did not fit on screen), so it goes first.
-			this.historyContainer.children = filled.concat(this.historyContainer.children);
-			this.initialFillContainer.children = [];
+		const excess = this.historyContainer.children;
+		const filledCount = filled.length;
+		if (filledCount > 0) {
+			this.historyContainer.clear();
+			for (let i = 0; i < filled.length; i++) {
+				this.historyContainer.addChild(filled[i]);
+			}
+			for (let i = 0; i < excess.length; i++) {
+				this.historyContainer.addChild(excess[i]);
+			}
+			this.initialFillContainer.clear();
+		}
+		this.paintExcessHistoryChildren(excess);
+		if (this.initialFillPaintActive && this.initialFillOverflowTailLines.length > 0) {
+			this.ui.paintTranscriptLines(this.initialFillOverflowTailLines);
+			this.initialFillOverflowTailLines = [];
 		}
 		if (this.historyContainer.children.length > 0) {
 			this.mountHistoryContainer();
 		}
 		if (this.initialFillPaintActive) {
 			this.ui.endTranscriptPaint();
-		} else {
+		} else if (filledCount > 0 || excess.length > 0) {
 			this.ui.requestTranscriptRepaint();
 		}
 		this.initialFillPaintActive = false;
-		// requestRender only: an invalidate here would release the caches the
-		// first window still needs and turn the mount repaint into a cold render.
 		this.ui.requestRender();
+	}
+
+	/**
+	 * Paint the excess tail items that fitInitialTailToScreen moved into the
+	 * history container. The fill ticks already painted the older filled items,
+	 * so the excess goes last, directly above the frozen tail. Releasing each
+	 * item after painting keeps the fill peak at one item.
+	 * @param excess Excess tail components in transcript order
+	 */
+	private paintExcessHistoryChildren(excess: Component[]): void {
+		if (!this.initialFillPaintActive) return;
+		for (let i = 0; i < excess.length; i++) {
+			const component = excess[i];
+			const painted = component.render(this.initialFillPaintWidth);
+			this.ui.paintTranscriptLines(painted);
+			component.releaseLines();
+		}
 	}
 
 	renderInitialMessages(): void {
@@ -3418,6 +3453,8 @@ export class InteractiveMode {
 		this.fitInitialTailToScreen();
 		if (tailStart > 0) {
 			this.startInitialFill(items.slice(0, tailStart), misses);
+		} else {
+			this.finishInitialFill();
 		}
 		this.renderProjectTrustWarningIfNeeded();
 

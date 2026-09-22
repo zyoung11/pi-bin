@@ -461,14 +461,11 @@ export class Markdown extends Component {
 
 		// Combine top padding, content, and bottom padding
 		const result = emptyLines.concat(contentLines, emptyLines);
-
-		// Update cache
 		this.cachedText = this.text;
 		this.cachedWidth = width;
 		this.cachedLines = result;
 		this.cachedEpoch = markdownRenderEpoch;
-
-		return result.length > 0 ? result : [""];
+		return result;
 	}
 
 	/**

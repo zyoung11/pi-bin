@@ -118,12 +118,9 @@ export class Text extends Component {
 		}
 
 		const result = [...emptyLines, ...contentLines, ...emptyLines];
-
-		// Update cache
 		this.cachedText = this.text;
 		this.cachedWidth = width;
 		this.cachedLines = result;
-
-		return result.length > 0 ? result : [""];
+		return result;
 	}
 }

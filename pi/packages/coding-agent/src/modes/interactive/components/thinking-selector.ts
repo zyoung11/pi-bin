@@ -36,7 +36,6 @@ const LEVEL_DESCRIPTIONS: Record<ThinkingLevel, string> = {
 export class ThinkingSelectorComponent extends Container implements Focusable {
 	private searchInput: Input;
 	private selectList: SelectList;
-	private selectListChildIndex: number;
 	private allItems: SelectItem[];
 	private onSelect: (level: ThinkingLevel) => void;
 	private onCancel: () => void;
@@ -87,7 +86,6 @@ export class ThinkingSelectorComponent extends Container implements Focusable {
 
 		// Create selector
 		this.selectList = this.buildSelectList(this.allItems, currentLevel);
-		this.selectListChildIndex = this.children.length;
 		this.addChild(this.selectList);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(theme.fg("dim", "  Enter to select · Ctrl+S to set as default · Esc to cancel"), 0, 0));
@@ -113,7 +111,7 @@ export class ThinkingSelectorComponent extends Container implements Focusable {
 			: this.allItems;
 		const selectedValue = this.selectList.getSelectedItem()?.value as ThinkingLevel | undefined;
 		const newList = this.buildSelectList(filtered, selectedValue);
-		this.children[this.selectListChildIndex] = newList;
+		this.replaceChild(this.selectList, newList);
 		this.selectList = newList;
 	}
 

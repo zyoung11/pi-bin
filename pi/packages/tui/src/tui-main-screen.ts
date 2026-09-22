@@ -360,7 +360,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		// In that environment, a full redraw causes the entire history to replay on every toggle.
 		if (heightChanged && !isTermuxSession()) {
 			logRedraw(`terminal height changed (${this.previousHeight} -> ${height})`);
-			fullRender(true);
+			this.repaintViewport(width, height, newLines, newStart, newTotal, cursorPos);
 			return;
 		}
 
@@ -877,7 +877,6 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		const width = this.terminal.columns();
 		const height = this.terminal.rows();
 		const frozenTailLines = this.paintFrozenLines;
-		const regionBottom = Math.max(1, height - frozenTailLines.length);
 		this.terminal.write("\x1b[r");
 		this.terminal.write("\x1b[?2026l");
 
@@ -905,8 +904,8 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		this.cursorRow = Math.max(0, this.previousTotalLines - 1);
 		this.hardwareCursorRow = Math.max(0, this.paintLinesAbove + this.paintTotal - 1);
 		this.maxLinesRendered = Math.max(this.maxLinesRendered, this.previousTotalLines);
-		this.previousViewportTop = Math.max(0, this.previousTotalLines - regionBottom);
-		this.previousKittyImageIds = this.collectKittyImageIds(frozenTailLines);
+		this.previousViewportTop = Math.max(0, this.previousTotalLines - height);
+		this.previousKittyImageIds = this.collectKittyImageIds(kept);
 		this.previousWidth = width;
 		this.previousHeight = height;
 		this.paintRing = [];

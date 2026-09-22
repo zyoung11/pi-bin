@@ -225,6 +225,15 @@ export class ToolExecutionComponent extends Container {
 		super.invalidate();
 	}
 
+	/**
+	 * Line count of the composed render output. The render branches can hide this
+	 * component entirely or drop an empty self-rendered shell, so the child sum
+	 * is not a valid count here.
+	 */
+	override measure(width: number): number {
+		return this.render(width).length;
+	}
+
 	override render(width: number): string[] {
 		if (this.hideComponent) {
 			return [];

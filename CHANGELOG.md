@@ -1269,3 +1269,67 @@ a minimal one, both with `--no-session`) and the allocation churn of rendering
 the transcript once, which the runtime never returns to the kernel. Both are
 next round material, together with the per-frame walk over every history block
 that still costs about half of the 4ms keystroke time.
+
+---
+
+## Phase 28 — one line source for every render path
+
+Fixes the self-refreshing screen on `pi -c` with long sessions and the startup
+clear-and-replay. Root cause and secondary defects were located with
+`PI_DEBUG_REDRAW=1` and `PI_TUI_WRITE_LOG` against the 2.7MB BM session.
+
+- The Phase 27 windowed paths bypassed per-component `render()` post-processing:
+  `Container.renderWindow` composed slices from children and `Container.streamLines`
+  recursed past the component, so `AssistantMessageComponent` and
+  `UserMessageComponent` lost their OSC133 zone markers and
+  `ToolExecutionComponent` lost its hide and self-shell handling on those paths.
+  The window frame and the stream baseline then disagreed on every message
+  boundary line while the line totals matched, so each diff reported a phantom
+  change at a fixed transcript line above the viewport and escalated to
+  `fullRender(true)`: `\x1b[2J\x1b[H\x1b[3J` plus a full transcript replay in 1MiB
+  chunks, visible as the screen flashing through the history to the bottom.
+  Idle frames arrive every ~7s from the cache warming `entry_appended` render
+  request and every keystroke forces one, which made the session unusable.
+- `Container` is now the safe base class: it no longer overrides `renderWindow`
+  or `streamLines`, so any component with a custom `render()` produces identical
+  strings on all three paths by construction. The windowed and streaming
+  composition moved to a new `ConcatContainer` used only where output is the
+  pure concatenation of children (the TUI root and the transcript containers).
+- `Text` and `Markdown` rendered an empty result as `[""]` on the first call
+  while caching `[]`, so `measure`, `render` and later calls disagreed on the
+  line count. Both now return and cache the same array.
+- `endTranscriptPaint` computed `previousViewportTop` from the scroll region
+  instead of the screen height, leaving the top `frozenTailLines.length` rows of
+  every screenful outside the viewport bookkeeping and turning changes there
+  into full repaints. Its kitty image baseline also covers the kept painted
+  lines now, not just the frozen tail.
+- The initial fill can no longer fall back to a clearing repaint.
+  `fitInitialTailToScreen` excess blocks were never written to the terminal at
+  all; they are painted at fill end in transcript order now. The frozen tail is
+  sliced at line granularity to the screen capacity and its overflow goes
+  through the scroll region above the frozen part, so the quiet fill path
+  handles a final message taller than the screen.
+- Height changes rewrite only the visible viewport instead of clearing the
+  screen and the scrollback. This also removes the startup replay when the CSI
+  18 t row report arrives after the first frame.
+- CSI 18 t window size reports request a render only when the size changed;
+  the resize poll re-queries every 250ms and was scheduling a frame each time.
+- Children are no longer mutated through raw array or index assignment:
+  `Container.replaceChild` was added and the history mount/detach, the fill
+  composition, the extension header swap, the login dialog and the
+  settings and thinking submenu filters all go through `clear`, `addChild` or
+  `replaceChild`, keeping the structure version and the window bookkeeping
+  coherent.
+- `ToolExecutionComponent` and `Stack` override `measure` because their custom
+  renders change the line count relative to the child sum.
+
+Verified against the 2.7MB BM session (28,589 rendered lines): before, the
+debug log recorded `fullRender: firstChanged < viewportTop (28530 < 28544)`
+every 7.05s forever and the terminal flashed through the whole transcript each
+time; after, the log holds only the first render and one viewport repaint for
+the CSI 18 t height report, with zero redraws over 40s idle and while typing,
+and the painted history stays intact in the scrollback. The 180x100 run
+matches, `--no-session` is unchanged, and the `/thinking` selector filter still
+works. Gates: `tsgo --noEmit` and the scriptc build are clean; `biome` reports
+no finding in the touched files beyond the pre-existing `useTemplate` in
+`interactive-mode.ts`.

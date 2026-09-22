@@ -69,6 +69,15 @@ export abstract class Stack extends Container {
 		this.entries = [];
 	}
 
+	/**
+	 * Line count of the composed stack output. Stack layout inserts gaps and
+	 * pads children to their allocated sizes, so the child sum is not a valid
+	 * count here.
+	 */
+	override measure(width: number): number {
+		return this.render(width).length;
+	}
+
 	getLayoutNode(): StackLayoutNode {
 		return this.makeLayoutNode();
 	}
