@@ -1380,3 +1380,75 @@ chunk response went from saturation to 5.6 CPU seconds and from 407MB to
 192MB peak RSS. Keystroke frames stay in the 4.5 to 6ms band on the same
 session and the resident baseline is about 97MB. Gates: `tsgo --noEmit`, the
 scriptc build and `biome` on the touched files are clean.
+
+---
+
+## Phase 30 — the remaining performance list
+
+Clears the open items from Phase 29. Every item was re-measured against the
+2.7MB BM session and the streaming mock before and after.
+
+- The keystroke frame cost fell from 6ms to 1.0ms. The dwarf callgraph showed
+  66% of the frame inside `FooterComponent.render`, where `getContextUsage`
+  walked every message of the branch with a JSON stringify per tool call and
+  `getSessionName` rebuilt the flat entry list on every frame. Both now memoize
+  on the entry revision, the branch leaf and the model, so a frame reads the
+  cached numbers. The skipped block walk that was suspected before the
+  measurement turned out to be minor.
+- Box background application computed the visible width twice per line, once in
+  `applyBg` and once inside `applyBackgroundToLine`. The padding is now applied
+  with the width already known. This and the footer fix together took a mock
+  stream from 1.6 to 0.9 CPU seconds per response.
+- Resident memory stops ratcheting. Two consecutive mock streams grew RSS by
+  124KB total against 13 to 14MB per response before. The block reuse
+  bookkeeping keeps chunk strings by reference instead of copying every chunk
+  text into JSON keys.
+- The startup floor dropped from 60.7MB to 17.3MB. The models.dev refresh
+  parsed the whole directory, every provider and model, into dynamic records
+  for the runtime heap to keep, just to pick one to three providers out of it.
+  `extractJsonMember` now scans the top level members and parses only the
+  requested provider, and the extracted provider records are identical to the
+  full parse output (model counts per provider unchanged). This only shows up
+  with credentials for catalog providers, which is why it hid behind the
+  minimal configuration.
+- `PI_DEBUG_REDRAW` now writes `pi-redraw.log`; it shared `pi-debug.log` with
+  the /debug dump and the two overwrote each other. The redraw label also reads
+  `redraw:` since it stopped meaning full renders in Phase 28.
+- The first frame waits up to 250ms for the CSI 18 t window size report, so
+  startup no longer renders at the 24 row fallback and then repaints. The
+  redraw log for a launch holds exactly one entry now.
+- The retry and error path with an unreachable endpoint went from 15.8 to 1.2
+  CPU seconds per prompt, confirming it was the same per frame storm.
+- scriptc finding: calling a function typed field as a method is rejected with
+  SC1090; the closure has to be read into a local first.
+
+---
+
+## Phase 31 — resume UX: loading placeholder and no new session decor
+
+Two entry polish items on `pi -c` with a long context, reported after the
+Phase 29 and 30 speedups made the backfill fast enough to notice them.
+
+- The initial history fill freezes the visible tail and suppresses rendering
+  while it streams, so anything typed reached the editor invisibly and only
+  appeared when the fill ended. The fill now mounts a `Loading session
+  history…` placeholder on the status row before the frozen tail is captured,
+  so it stays visible for the whole fill, and input is locked with a null focus
+  until the fill completes and hands the editor back. Typed keys during the
+  fill are dropped rather than queued unseen.
+- Resuming a session with history no longer shows the new session block (logo,
+  version, keybinding hints) or the loaded resources listing above the
+  backfilled transcript, where they read for a moment as a fresh empty session.
+  A fresh or empty session still shows both and an explicit `--verbose` request
+  overrides the suppression.
+- scriptc finding: reading a discriminator field off a large union array with a
+  typed access misreports constructed values while parsed ones behave. The
+  session header built by `newSession` leaked through `getEntries`, which made
+  every session look like it had history and is why the first cut hid the
+  header from new sessions too. The header skip in `getEntries`, `getHeader`
+  and `_buildIndex` now goes through `entryTypeOf`, the dyn read helper the
+  codebase already keeps for this.
+
+Verified in an isolated terminal: a fresh session shows the header, `--verbose`
+shows it, the 2.7MB session shows no header and the loading placeholder with
+input locked during the fill and working after it.

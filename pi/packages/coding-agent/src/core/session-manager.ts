@@ -1510,19 +1510,21 @@ export class SessionManager {
 		this.labelsById.clear();
 		this.labelTimestampsById.clear();
 		this.leafId = null;
-		for (const entry of this.fileEntries) {
-			if (entry.type === "session") continue;
+		for (const rawEntry of this.fileEntries) {
+			if (entryTypeOf(rawEntry) === "session") continue;
+			const entry = rawEntry as unknown as SessionEntry;
 			this.byId.set(entry.id, entry);
 			this.idClaims.set(entry.id, true);
 			this.idClaims.set(entry.id, true);
 			this.leafId = entry.id;
-			if (entry.type === "label") {
-				if (entry.label) {
-					this.labelsById.set(entry.targetId, entry.label);
-					this.labelTimestampsById.set(entry.targetId, entry.timestamp);
+			if (entryTypeOf(entry) === "label") {
+				const labelEntry = entry as unknown as LabelEntry;
+				if (labelEntry.label) {
+					this.labelsById.set(labelEntry.targetId, labelEntry.label);
+					this.labelTimestampsById.set(labelEntry.targetId, labelEntry.timestamp);
 				} else {
-					this.labelsById.delete(entry.targetId);
-					this.labelTimestampsById.delete(entry.targetId);
+					this.labelsById.delete(labelEntry.targetId);
+					this.labelTimestampsById.delete(labelEntry.targetId);
 				}
 			}
 		}
@@ -1712,17 +1714,29 @@ export class SessionManager {
 	}
 
 	/** Get the current session name from the latest session_info entry, if any. */
+	private sessionNameRevision = -1;
+	private sessionNameCache: string | undefined;
+
+	/**
+	 * Latest session name from the entry list. Memoized on the entry revision
+	 * because the footer reads it on every frame while getEntries rebuilds the
+	 * flat list on every call.
+	 */
 	getSessionName(): string | undefined {
-		// Walk entries in reverse to find the latest session_info entry.
-		// Empty names explicitly clear the session title.
+		const revision = this.entryRevision;
+		if (revision === this.sessionNameRevision) return this.sessionNameCache;
+		let name: string | undefined;
 		const entries = this.getEntries();
 		for (let i = entries.length - 1; i >= 0; i--) {
 			const entry = entries[i];
 			if (entry.type === "session_info") {
-				return entry.name?.trim() || undefined;
+				name = entry.name?.trim() || undefined;
+				break;
 			}
 		}
-		return undefined;
+		this.sessionNameCache = name;
+		this.sessionNameRevision = revision;
+		return name;
 	}
 
 	/**
@@ -1857,7 +1871,7 @@ export class SessionManager {
 	getHeader(): SessionHeader | null {
 		let header: SessionHeader | null = null;
 		for (const e of this.fileEntries) {
-			if (e.type === "session") {
+			if (entryTypeOf(e) === "session") {
 				header = e as unknown as SessionHeader;
 				break;
 			}
@@ -1873,7 +1887,7 @@ export class SessionManager {
 	getEntries(): SessionEntry[] {
 		const entries: SessionEntry[] = [];
 		for (const e of this.fileEntries) {
-			if (e.type !== "session") entries.push(e);
+			if (entryTypeOf(e) !== "session") entries.push(e as unknown as SessionEntry);
 		}
 		return entries;
 	}

@@ -92,8 +92,10 @@ export class AssistantMessageComponent extends Container {
 	private lastMessage?: AssistantMessage;
 	private hasToolCalls = false;
 	private isStreaming = false;
-	private builtBlockKeys: string[];
+	private builtBlockKinds: string[];
+	private builtBlockChunks: string[];
 	private builtBlockComponents: Component[];
+	private builtBlockOptions: string;
 
 	constructor(
 		message?: AssistantMessage,
@@ -110,8 +112,10 @@ export class AssistantMessageComponent extends Container {
 		this.hiddenThinkingLabel = hiddenThinkingLabel;
 		this.outputPad = outputPad;
 		this.markdownTransformers = markdownTransformers;
-		this.builtBlockKeys = [];
+		this.builtBlockKinds = [];
+		this.builtBlockChunks = [];
 		this.builtBlockComponents = [];
+		this.builtBlockOptions = "";
 
 		// Container for text/thinking content
 		this.contentContainer = new Container();
@@ -164,16 +168,19 @@ export class AssistantMessageComponent extends Container {
 	}
 
 	/**
-	 * Look up the component built for the same key at the same position in the
-	 * previous update, so streamed updates keep the cached lines of every
-	 * unchanged block.
+	 * Look up the component built for the same chunk at the same position in the
+	 * previous update. The chunk strings are compared by value and shared with
+	 * the retained components, so the bookkeeping holds no second copy of the
+	 * message text.
 	 * @param index Position of the block in the build order
-	 * @param key Cache key of the block
+	 * @param kind Block kind of the block
+	 * @param chunk Chunk source of the block
 	 * @returns The previously built component, or undefined when it must rebuild
 	 */
-	private takeReusedBlock(index: number, key: string): Component | undefined {
-		if (index >= this.builtBlockKeys.length || index >= this.builtBlockComponents.length) return undefined;
-		if (this.builtBlockKeys[index] !== key) return undefined;
+	private takeReusedBlock(index: number, kind: string, chunk: string): Component | undefined {
+		if (index >= this.builtBlockKinds.length || index >= this.builtBlockComponents.length) return undefined;
+		if (this.builtBlockKinds[index] !== kind) return undefined;
+		if (this.builtBlockChunks[index] !== chunk) return undefined;
 		return this.builtBlockComponents[index];
 	}
 
@@ -190,26 +197,19 @@ export class AssistantMessageComponent extends Container {
 	private addMarkdownBlocks(
 		source: string,
 		kind: string,
-		thinking: boolean,
-		keys: string[],
+		kinds: string[],
+		chunks: string[],
 		built: Component[],
 	): void {
-		const chunks = splitMarkdownChunks(source);
-		for (let c = 0; c < chunks.length; c++) {
-			const chunk = chunks[c];
-			const index = keys.length;
-			const key = JSON.stringify([
-				this.outputPad,
-				this.isStreaming,
-				this.hideThinkingBlock,
-				this.hiddenThinkingLabel,
-				kind,
-				chunk,
-			]);
-			keys.push(key);
-			let component = this.takeReusedBlock(index, key);
+		const sourceChunks = splitMarkdownChunks(source);
+		for (let c = 0; c < sourceChunks.length; c++) {
+			const chunk = sourceChunks[c];
+			const index = kinds.length;
+			kinds.push(kind);
+			chunks.push(chunk);
+			let component = this.takeReusedBlock(index, kind, chunk);
 			if (component === undefined) {
-				if (thinking) {
+				if (kind === "thinking") {
 					component = new Markdown(
 						chunk,
 						this.outputPad,
@@ -260,14 +260,22 @@ export class AssistantMessageComponent extends Container {
 			this.contentContainer.addChild(new Spacer(1));
 		}
 
-		const keys: string[] = [];
+		const options = `${this.outputPad}|${this.isStreaming ? "1" : "0"}|${this.hideThinkingBlock ? "1" : "0"}|${this.hiddenThinkingLabel}`;
+		if (options !== this.builtBlockOptions) {
+			this.builtBlockOptions = options;
+			this.builtBlockKinds = [];
+			this.builtBlockChunks = [];
+			this.builtBlockComponents = [];
+		}
+		const kinds: string[] = [];
+		const chunks: string[] = [];
 		const built: Component[] = [];
 
 		// Render content in order
 		for (let i = 0; i < message.content.length; i++) {
 			const content = message.content[i];
 			if (content.type === "text" && content.text.trim()) {
-				this.addMarkdownBlocks(content.text.trim(), "text", false, keys, built);
+				this.addMarkdownBlocks(content.text.trim(), "text", kinds, chunks, built);
 			} else if (content.type === "thinking") {
 				const thinkingBlocks: string[] = [];
 				for (; i < message.content.length; i++) {
@@ -293,24 +301,25 @@ export class AssistantMessageComponent extends Container {
 					.some((c) => (c.type === "text" && c.text.trim()) || (c.type === "thinking" && c.thinking.trim()));
 
 				if (this.hideThinkingBlock) {
-					const labelIndex = keys.length;
-					const labelKey = JSON.stringify([this.outputPad, this.hiddenThinkingLabel, "label"]);
-					keys.push(labelKey);
-					let label = this.takeReusedBlock(labelIndex, labelKey);
+					const labelIndex = kinds.length;
+					kinds.push("label");
+					chunks.push(this.hiddenThinkingLabel);
+					let label = this.takeReusedBlock(labelIndex, "label", this.hiddenThinkingLabel);
 					if (label === undefined) {
 						label = new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0);
 					}
 					built.push(label);
 					this.contentContainer.addChild(label);
 				} else {
-					this.addMarkdownBlocks(thinkingBlocks.join("\n\n"), "thinking", true, keys, built);
+					this.addMarkdownBlocks(thinkingBlocks.join("\n\n"), "thinking", kinds, chunks, built);
 				}
 				if (hasVisibleContentAfter) {
 					this.contentContainer.addChild(new Spacer(1));
 				}
 			}
 		}
-		this.builtBlockKeys = keys;
+		this.builtBlockKinds = kinds;
+		this.builtBlockChunks = chunks;
 		this.builtBlockComponents = built;
 
 		// Check if incomplete/failed - show after partial content.

@@ -900,6 +900,102 @@ export function mergeCatalogProviderIntoStore(storePath: string, provider: Catal
 
 const MODELS_DEV_URL = "https://models.dev/api.json";
 
+function skipJsonWhitespace(text: string, index: number): number {
+	let i = index;
+	while (i < text.length) {
+		const c = text.charCodeAt(i);
+		if (c === 32 || c === 9 || c === 10 || c === 13) i++;
+		else break;
+	}
+	return i;
+}
+
+function scanJsonStringEnd(text: string, start: number): number {
+	let i = start + 1;
+	while (i < text.length) {
+		const c = text[i];
+		if (c === "\\") {
+			i += 2;
+			continue;
+		}
+		if (c === '"') return i;
+		i++;
+	}
+	return -1;
+}
+
+function scanJsonValueEnd(text: string, start: number): number {
+	const first = text[start];
+	if (first === '"') return scanJsonStringEnd(text, start);
+	if (first !== "{" && first !== "[") {
+		let i = start;
+		while (i < text.length) {
+			const c = text[i];
+			if (c === "," || c === "}" || c === "]") return i - 1;
+			i++;
+		}
+		return text.length - 1;
+	}
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	let i = start;
+	while (i < text.length) {
+		const c = text[i];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (c === "\\") escaped = true;
+			else if (c === '"') inString = false;
+		} else if (c === '"') {
+			inString = true;
+		} else if (c === "{" || c === "[") {
+			depth++;
+		} else if (c === "}" || c === "]") {
+			depth--;
+			if (depth === 0) return i;
+		}
+		i++;
+	}
+	return -1;
+}
+
+/**
+ * Extract one top level member of a JSON object without materializing the rest
+ * of the document. The models.dev directory lists every provider and model and
+ * held as dynamic records it costs tens of megabytes the runtime heap keeps, so
+ * only the requested member is parsed.
+ * @param text JSON object source
+ * @param key Top level member key to extract
+ * @returns The parsed member value, or undefined when absent or malformed
+ */
+function extractJsonMember(text: string, key: string): unknown {
+	let cursor = skipJsonWhitespace(text, 0);
+	if (text[cursor] !== "{") return undefined;
+	cursor = skipJsonWhitespace(text, cursor + 1);
+	const wanted = JSON.stringify(key);
+	while (cursor < text.length && text[cursor] === '"') {
+		const keyEnd = scanJsonStringEnd(text, cursor);
+		if (keyEnd === -1) return undefined;
+		const memberKey = text.slice(cursor, keyEnd + 1);
+		cursor = skipJsonWhitespace(text, keyEnd + 1);
+		if (text[cursor] !== ":") return undefined;
+		cursor = skipJsonWhitespace(text, cursor + 1);
+		const valueEnd = scanJsonValueEnd(text, cursor);
+		if (valueEnd === -1) return undefined;
+		if (memberKey === wanted) {
+			try {
+				return JSON.parse(text.slice(cursor, valueEnd + 1));
+			} catch {
+				return undefined;
+			}
+		}
+		cursor = skipJsonWhitespace(text, valueEnd + 1);
+		if (text[cursor] === ",") cursor = skipJsonWhitespace(text, cursor + 1);
+		else return undefined;
+	}
+	return undefined;
+}
+
 /** MiMo API control surface: thinking is a boolean toggle (thinking:{type:"enabled"/
  * "disabled"}, default enabled); the request body has no reasoning_effort parameter at
  * all, so reasoning_effort is never sent (compat.supportsReasoningEffort false) and all
@@ -1022,7 +1118,7 @@ export async function refreshCatalogFromModelsDev(
 	try {
 		const response = await fetch(MODELS_DEV_URL, { signal: signal ?? AbortSignal.timeout(20_000) });
 		if (!response.ok) return updated;
-		const directory = recordViewOf(JSON.parse(await response.text()) as unknown);
+		const directoryText = await response.text();
 		let store: Record<string, unknown> = {};
 		try {
 			store = recordViewOf(JSON.parse(readFileSync(storePath, "utf-8")) as unknown);
@@ -1032,7 +1128,7 @@ export async function refreshCatalogFromModelsDev(
 		let dirty = false;
 		for (const providerId of providerIds) {
 			const provider = findCatalogProvider(providerId);
-			const devProvider = recordViewOf(directory)[providerId];
+			const devProvider = extractJsonMember(directoryText, providerId);
 			if (provider === undefined || typeof devProvider !== "object" || devProvider === null) continue;
 			const devRecord = recordViewOf(devProvider);
 			const models = modelsDevToCatalogModels(provider.baseUrl, devRecord);

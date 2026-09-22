@@ -499,6 +499,7 @@ export class InteractiveMode {
 	private initialFillPaintedChildren = 0;
 	private initialFillPaintActive = false;
 	private initialFillOverflowTailLines: string[] = [];
+	private loadingHistoryStatusMounted = false;
 	private initialFillDeferred = 0;
 	private initialFillGeneration = 0;
 	private initialFillTimer: ReturnType<typeof setTimeout> | undefined;
@@ -812,8 +813,10 @@ export class InteractiveMode {
 
 		await this.themeController.applyFromSettings();
 
-		// Add header with keybindings from config (unless silenced)
-		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
+		// Add header with keybindings from config unless silenced or the resumed
+		// session already has history, where the new session block would read as a
+		// fresh empty session above the backfilled transcript
+		if (!this.suppressStartupDecor() && (this.options.verbose || !this.settingsManager.getQuietStartup())) {
 			const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
 
 			// Build startup instructions using keybinding hint helpers
@@ -1345,7 +1348,9 @@ export class InteractiveMode {
 		// Resource rendering is idempotent; chat clears no longer clear this separate container.
 		this.loadedResourcesContainer.clear();
 
-		const showListing = options?.force || this.options.verbose || !this.settingsManager.getQuietStartup();
+		const showListing =
+			options?.force ||
+			((this.options.verbose || !this.settingsManager.getQuietStartup()) && !this.suppressStartupDecor());
 		const showDiagnostics = showListing || options?.showDiagnosticsWhenQuiet === true;
 		if (!showListing && !showDiagnostics) {
 			return;
@@ -3194,6 +3199,7 @@ export class InteractiveMode {
 
 	private resetTranscriptContainers(): void {
 		this.cancelInitialFill();
+		this.clearLoadingHistoryStatus();
 		this.ui.cancelTranscriptPaint();
 		this.historyContainer.clear();
 		this.detachHistoryContainer();
@@ -3409,6 +3415,7 @@ export class InteractiveMode {
 			this.ui.requestTranscriptRepaint();
 		}
 		this.initialFillPaintActive = false;
+		this.clearLoadingHistoryStatus();
 		this.ui.requestRender();
 	}
 
@@ -3427,6 +3434,42 @@ export class InteractiveMode {
 			this.ui.paintTranscriptLines(painted);
 			component.releaseLines();
 		}
+	}
+
+	/**
+	 * Whether the new session startup block stays hidden because the resumed
+	 * session already holds conversation history and no explicit verbose request
+	 * overrides it.
+	 */
+	private suppressStartupDecor(): boolean {
+		if (this.options.verbose) return false;
+		const entries = this.sessionManager.getEntries();
+		for (let i = 0; i < entries.length; i++) {
+			if (entryTypeOf(entries[i]) === "message") return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Show the loading placeholder on the status row while the initial history
+	 * fill runs and lock input, so nothing typed lands in the frozen editor the
+	 * user cannot see repainted.
+	 */
+	private showLoadingHistoryStatus(): void {
+		this.loadingHistoryStatusMounted = true;
+		this.statusContainer.clear();
+		this.statusContainer.addChild(new Text(theme.fg("dim", "Loading session history…"), 1, 0));
+		this.ui.setFocus(null);
+	}
+
+	/**
+	 * Remove the loading placeholder and hand input back to the editor.
+	 */
+	private clearLoadingHistoryStatus(): void {
+		if (!this.loadingHistoryStatusMounted) return;
+		this.loadingHistoryStatusMounted = false;
+		this.statusContainer.clear();
+		this.ui.setFocus(this.editor);
 	}
 
 	renderInitialMessages(): void {
@@ -3455,6 +3498,9 @@ export class InteractiveMode {
 			target: this.chatContainer,
 			misses,
 		});
+		if (tailStart > 0) {
+			this.showLoadingHistoryStatus();
+		}
 		this.fitInitialTailToScreen();
 		if (tailStart > 0) {
 			this.startInitialFill(items.slice(0, tailStart), misses);

@@ -1,11 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 import { deleteKittyImage, isImageLine, joinedLinePayloadHasImages } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { truncateToWidth, visibleWidth } from "./utils.ts";
 
 const KITTY_SEQUENCE_PREFIX = "\x1b_G";
 const MAX_RENDER_WRITE_CHARS = 1024 * 1024;
+const FIRST_FRAME_WAIT_MS = 250;
+const FIRST_FRAME_POLL_MS = 40;
 
 /**
  * Streams terminal output in 1 MiB chunks so a full render never forms one string large enough to exceed V8's limit.
@@ -146,6 +149,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	private previousViewportTop = 0;
 	private painting = false;
 	private renderAfterPaint = false;
+	private firstFrameDeadline = 0;
 	private viewportRepaintRequested = false;
 	private paintLinesAbove = 0;
 	private paintTotal = 0;
@@ -286,6 +290,15 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			this.renderAfterPaint = true;
 			return;
 		}
+		if (this.previousTotalLines === 0 && !this.terminal.hasReportedWindowSize()) {
+			if (this.firstFrameDeadline === 0) {
+				this.firstFrameDeadline = performance.now() + FIRST_FRAME_WAIT_MS;
+			}
+			if (performance.now() < this.firstFrameDeadline) {
+				setTimeout(() => this.requestRender(), FIRST_FRAME_POLL_MS);
+				return;
+			}
+		}
 		const width = this.terminal.columns();
 		const height = this.terminal.rows();
 		const widthChanged = this.previousWidth !== 0 && this.previousWidth !== width;
@@ -324,8 +337,8 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		const debugRedraw = process.env.PI_DEBUG_REDRAW === "1";
 		const logRedraw = (reason: string): void => {
 			if (!debugRedraw) return;
-			const logPath = path.join(this.logDirectory, "pi-debug.log");
-			const msg = `[${new Date().toISOString()}] fullRender: ${reason} (prev=${this.previousLines.length}, new=${newLines.length}, height=${height})\n`;
+			const logPath = path.join(this.logDirectory, "pi-redraw.log");
+			const msg = `[${new Date().toISOString()}] redraw: ${reason} (prev=${this.previousLines.length}, new=${newLines.length}, height=${height})\n`;
 			fs.mkdirSync(path.dirname(logPath), { recursive: true });
 			fs.appendFileSync(logPath, msg);
 		};

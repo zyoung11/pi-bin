@@ -51,6 +51,7 @@ import { sleep } from "../utils/sleep.ts";
 import { normalizeToolResultImages } from "../utils/tool-result-images.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
+import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
 import {
 	type CompactionPreparation,
 	type CompactionResult,
@@ -71,7 +72,6 @@ import type { ModelRuntime } from "./model-runtime.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { exportSessionToJsonl } from "./session-export.ts";
-import type { CacheWarmer, CacheWarmingStatus } from "./cache-warmer.ts";
 import type { BranchSummaryEntry, CustomData, SessionEntry, SessionManager } from "./session-manager.ts";
 import { entryTypeOf, getLatestCompactionEntry } from "./session-manager.ts";
 import type { CacheWarmingMode, SettingsManager } from "./settings-manager.ts";
@@ -2595,12 +2595,23 @@ export class AgentSession {
 		};
 	}
 
+	private contextUsageCache: ContextUsage | undefined;
+	private contextUsageCacheKey = "";
+
+	/**
+	 * Context usage of the current branch. Memoized on the entry revision, the
+	 * branch leaf and the model because the footer reads it on every frame while
+	 * the estimate walks every message of the branch.
+	 */
 	getContextUsage(): ContextUsage | undefined {
 		const model = this.model;
 		if (!model) return undefined;
 
 		const contextWindow = model.contextWindow ?? 0;
 		if (contextWindow <= 0) return undefined;
+
+		const cacheKey = `${this.sessionManager.getEntryRevision()}|${this.sessionManager.getLeafId() ?? ""}|${model.provider}|${model.id}|${contextWindow}`;
+		if (cacheKey === this.contextUsageCacheKey) return this.contextUsageCache;
 
 		// After compaction, the last assistant usage reflects pre-compaction context size.
 		// We can only trust usage from an assistant that responded after the latest compaction.
@@ -2633,18 +2644,24 @@ export class AgentSession {
 			}
 
 			if (!hasPostCompactionUsage) {
-				return { tokens: null, contextWindow, percent: null };
+				const unknown: ContextUsage = { tokens: null, contextWindow, percent: null };
+				this.contextUsageCache = unknown;
+				this.contextUsageCacheKey = cacheKey;
+				return unknown;
 			}
 		}
 
 		const estimate = estimateContextTokens(this.messages);
 		const percent = (estimate.tokens / contextWindow) * 100;
 
-		return {
+		const usage: ContextUsage = {
 			tokens: estimate.tokens,
 			contextWindow,
 			percent,
 		};
+		this.contextUsageCache = usage;
+		this.contextUsageCacheKey = cacheKey;
+		return usage;
 	}
 
 	/**
