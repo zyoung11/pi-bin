@@ -80,10 +80,19 @@ export class Loader extends Text {
 		}, this.intervalMs);
 	}
 
-	private updateDisplay(): void {
+	protected getRenderedIndicator(): string {
 		const frame = this.frames[this.currentFrame] ?? "";
-		const renderedFrame = this.renderIndicatorVerbatim ? frame : this.spinnerColorFn(frame);
-		const indicator = frame.length > 0 ? `${renderedFrame} ` : "";
+		return this.renderIndicatorVerbatim ? frame : this.spinnerColorFn(frame);
+	}
+
+	override invalidate(): void {
+		super.invalidate();
+		this.updateDisplay();
+	}
+
+	private updateDisplay(): void {
+		const renderedFrame = this.getRenderedIndicator();
+		const indicator = renderedFrame.length > 0 ? `${renderedFrame} ` : "";
 		this.setText(`${indicator}${this.messageColorFn(this.message)}`);
 		if (this.ui) {
 			this.ui.requestRender();

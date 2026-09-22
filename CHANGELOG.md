@@ -1452,3 +1452,41 @@ Phase 29 and 30 speedups made the backfill fast enough to notice them.
 Verified in an isolated terminal: a fresh session shows the header, `--verbose`
 shows it, the 2.7MB session shows no header and the loading placeholder with
 input locked during the fill and working after it.
+
+---
+
+## Phase 32 — session status spinners in the editor border
+
+Ports the upstream Working spinner rework (upstream `1d9787c11` and
+`c1d4c8011`) and puts the initial history fill placeholder there too.
+
+- The editor gains `renderTopBorder` and `renderBottomBorder` hooks and the
+  scroll overflow label is centered in the border instead of left aligned.
+- The editor top border embeds the active session status at its left edge as
+  `── ⠹ Working... ─────`. Narrow widths degrade to the spinner glyph alone and
+  the centered scroll label shares the border when both fit.
+- All session status spinners embed through the same path now: working,
+  compaction, branch summary, retry and the new loading history indicator.
+  Editors that do not embed keep the standalone status row.
+- The working spinner and label follow the editor border color, so they match
+  the thinking level border and the bash mode border automatically.
+- The `Loading session history…` placeholder moved from the status row into the
+  editor border with the spinner, keeping the whole session UI in one place.
+- The frozen tail of the initial history fill repaints in place on render
+  requests now, so the spinner animates while the fill streams. Only rows
+  below the scroll region are rewritten and the cursor is saved and restored
+  around the write, so the fill keeps its own stream position. The height
+  guard records the rendered tree height at paint start instead of deriving it
+  from the frozen row count, because the line granular tail split moves an
+  overflow block that is still part of the tree.
+- Status indicators gained `renderInBorder` and `renderSpinnerInBorder`, and the
+  loader exposes its rendered indicator for the border path.
+- scriptc findings: method calls and field reads through an interface narrowed
+  by a type guard are rejected with SC1090 and SC2002, so the embed check uses
+  `instanceof CustomEditor` instead of the upstream duck-typed guard.
+
+Verified in an isolated terminal: the fill shows `── ⠙ Loading session history…`
+in the border with the spinner advancing and input locked, a mock stream shows
+`── ⠧ Working... ────`, a 16 column terminal degrades to `── ⠦ ───`, a scrolled
+editor shows the centered `↑ 13 more` label alongside, and the 2.7MB session
+still renders all 28595 lines.

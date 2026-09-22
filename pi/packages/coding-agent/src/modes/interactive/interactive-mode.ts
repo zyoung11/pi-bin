@@ -133,6 +133,7 @@ import {
 	BranchSummaryStatusIndicator,
 	CompactionStatusIndicator,
 	IdleStatus,
+	LoadingHistoryStatusIndicator,
 	RetryStatusIndicator,
 	type StatusIndicator,
 	WorkingStatusIndicator,
@@ -429,6 +430,7 @@ export class InteractiveMode {
 	private onInputCallback?: (text: string, images?: ImageContent[]) => void;
 	private pendingUserInputs: string[] = [];
 	private activeStatusIndicator: StatusIndicator | undefined = undefined;
+	private activeWorkingIndicatorEmbedded = false;
 	private readonly idleStatus = new IdleStatus();
 	private workingMessage: string | undefined = undefined;
 	private workingVisible = true;
@@ -590,6 +592,7 @@ export class InteractiveMode {
 		this.defaultEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
 			paddingX: editorPaddingX,
 			autocompleteMaxVisible,
+			embedWorkingStatus: true,
 		});
 		this.editor = this.defaultEditor;
 		this.editorContainer = new ConcatContainer();
@@ -1612,10 +1615,30 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	/**
+	 * Embed a status indicator into the editor border when the active editor
+	 * supports it and report whether it was embedded.
+	 * @param indicator The indicator to embed, or undefined to clear it
+	 * @returns Whether the active editor took the indicator
+	 */
+	private setEditorWorkingStatusIndicator(indicator: StatusIndicator | undefined): boolean {
+		this.defaultEditor.setWorkingStatusIndicator(undefined);
+		const editor = this.editor;
+		if (!(editor instanceof CustomEditor) || !editor.embedWorkingStatus) return false;
+		editor.setWorkingStatusIndicator(indicator);
+		return true;
+	}
+
 	private showStatusIndicator(indicator: StatusIndicator): void {
 		this.activeStatusIndicator?.dispose();
 		this.activeStatusIndicator = indicator;
+		this.activeWorkingIndicatorEmbedded = false;
 		this.statusContainer.clear();
+		this.setEditorWorkingStatusIndicator(undefined);
+		if (this.setEditorWorkingStatusIndicator(indicator)) {
+			this.activeWorkingIndicatorEmbedded = true;
+			return;
+		}
 		this.statusContainer.addChild(indicator);
 	}
 
@@ -1623,21 +1646,31 @@ export class InteractiveMode {
 		if (kind && this.activeStatusIndicator?.kind !== kind) {
 			return;
 		}
-		const hadActiveStatusIndicator = this.activeStatusIndicator !== undefined;
-		this.activeStatusIndicator?.dispose();
+		const clearedIndicator = this.activeStatusIndicator;
+		const clearedIndicatorWasEmbedded = this.activeWorkingIndicatorEmbedded;
+		clearedIndicator?.dispose();
 		this.activeStatusIndicator = undefined;
+		this.activeWorkingIndicatorEmbedded = false;
 		this.statusContainer.clear();
-		if (hadActiveStatusIndicator && this.ui.getClearOnShrink()) {
+		this.setEditorWorkingStatusIndicator(undefined);
+		if (clearedIndicator && !clearedIndicatorWasEmbedded && this.ui.getClearOnShrink()) {
 			this.statusContainer.addChild(this.idleStatus);
 		}
 	}
 
 	private showWorkingStatusIndicator(): void {
+		const editor = this.editor;
+		let colorFn: ((text: string) => string) | undefined;
+		if (editor instanceof CustomEditor && editor.embedWorkingStatus) {
+			const borderFn = editor.borderColor;
+			colorFn = (text: string) => borderFn(text);
+		}
 		this.showStatusIndicator(
 			new WorkingStatusIndicator(
 				this.ui,
 				this.workingMessage ?? this.defaultWorkingMessage,
 				this.workingIndicatorOptions,
+				colorFn,
 			),
 		);
 	}
@@ -3457,8 +3490,7 @@ export class InteractiveMode {
 	 */
 	private showLoadingHistoryStatus(): void {
 		this.loadingHistoryStatusMounted = true;
-		this.statusContainer.clear();
-		this.statusContainer.addChild(new Text(theme.fg("dim", "Loading session history…"), 1, 0));
+		this.showStatusIndicator(new LoadingHistoryStatusIndicator(this.ui));
 		this.ui.setFocus(null);
 	}
 
@@ -3468,7 +3500,7 @@ export class InteractiveMode {
 	private clearLoadingHistoryStatus(): void {
 		if (!this.loadingHistoryStatusMounted) return;
 		this.loadingHistoryStatusMounted = false;
-		this.statusContainer.clear();
+		this.clearStatusIndicator("loading");
 		this.ui.setFocus(this.editor);
 	}
 

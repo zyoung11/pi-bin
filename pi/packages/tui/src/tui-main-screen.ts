@@ -154,6 +154,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	private paintLinesAbove = 0;
 	private paintTotal = 0;
 	private paintFrozenLines: string[] = [];
+	private paintRenderedTotal = 0;
 	private paintRing: string[] = [];
 	private paintRingStart = 0;
 	private paintRingCapacity = 0;
@@ -288,6 +289,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		if (this.stopped) return;
 		if (this.painting) {
 			this.renderAfterPaint = true;
+			this.refreshPaintFrozenTail();
 			return;
 		}
 		if (this.previousTotalLines === 0 && !this.terminal.hasReportedWindowSize()) {
@@ -688,6 +690,55 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	}
 
 	/**
+	 * Rewrite the frozen tail of an open transcript paint in place when its
+	 * rendered lines changed, so spinners and status text stay live while the
+	 * fill streams above. Only rows below the scroll region are touched and the
+	 * cursor is saved and restored around the write, so the fill stream keeps
+	 * writing from its own position. Skipped when the tree height changed,
+	 * because the scroll region boundary cannot move mid-paint.
+	 */
+	private refreshPaintFrozenTail(): void {
+		const frozenLines = this.paintFrozenLines;
+		const frozenCount = frozenLines.length;
+		if (frozenCount === 0) return;
+		const width = this.terminal.columns();
+		const rendered = this.render(width);
+		if (this.paintRenderedTotal === 0) {
+			this.paintRenderedTotal = rendered.length;
+		} else if (rendered.length !== this.paintRenderedTotal) {
+			return;
+		}
+		const tailLines = rendered.slice(rendered.length - frozenCount);
+		let firstChanged = -1;
+		let lastChanged = -1;
+		for (let i = 0; i < frozenCount; i++) {
+			const line = tailLines[i];
+			if (line !== frozenLines[i]) {
+				if (isImageLine(line) || isImageLine(frozenLines[i])) continue;
+				if (firstChanged === -1) firstChanged = i;
+				lastChanged = i;
+			}
+		}
+		if (firstChanged === -1 || lastChanged < firstChanged) return;
+
+		const regionBottom = Math.max(1, this.terminal.rows() - frozenCount);
+		const output = new BoundedTerminalWriter((data) => this.terminal.write(data));
+		output.append("\x1b[?2026h");
+		output.append("\x1b7");
+		for (let i = firstChanged; i <= lastChanged; i++) {
+			const line = tailLines[i];
+			if (line === frozenLines[i] || isImageLine(line)) continue;
+			output.append(`\x1b[${regionBottom + 1 + i};1H`);
+			output.append("\x1b[2K");
+			output.append(this.resetLine(line));
+			frozenLines[i] = line;
+		}
+		output.append("\x1b8");
+		output.append("\x1b[?2026l");
+		output.flush();
+	}
+
+	/**
 	 * Write one batch of lines, handling kitty image reserved rows. Batches are
 	 * joined with CRLF so the whole batch is one native append.
 	 */
@@ -846,6 +897,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		this.painting = true;
 		this.paintLinesAbove = linesAbove;
 		this.paintTotal = 0;
+		this.paintRenderedTotal = 0;
 		this.paintFrozenLines = [...frozenTailLines];
 		this.paintRing = [];
 		this.paintRingStart = 0;

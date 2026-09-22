@@ -14,24 +14,30 @@ Forked from [pi-mono](https://github.com/badlogic/pi-mono) (v0.84.3) and compile
 
 | | pi-bin | pi (Node.js) |
 |---|---|---|
-| Binary | 9 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
-| Startup to `--version` | ~2 ms | ~380 ms |
-| Startup to `--list-models` | ~20 ms | ~420 ms |
-| TUI ready (no session) | ~50 ms | ~490 ms |
-| TUI interactive (5 MB session) | ~0.4 s | ~540 ms (includes full transcript) |
-| History back-fill (5 MB session) | ~20 s in background | — |
-| Idle memory (TUI running) | ~10 MB | ~145 MB |
-| Memory (chat round-trip) | ~9 MB | ~152 MB |
-| Memory (5 MB session loaded) | ~104 MB | ~259 MB |
+| Binary | 9.5 MB single ELF | 289 MB `node_modules` + Node.js ≥ 24 |
+| Startup to `--version` | ~3 ms | ~380 ms |
+| Startup to `--list-models` | ~40 ms | ~420 ms |
+| TUI ready (no session) | ~70 ms | ~490 ms |
+| TUI interactive (5 MB session) | ~0.3 s | ~540 ms (includes full transcript) |
+| History back-fill (5 MB session) | ~9 s in background | — |
+| Idle memory (TUI running) | ~17 MB | ~145 MB |
+| Memory (chat round-trip) | no measurable growth | ~152 MB |
+| Memory (5 MB session loaded) | ~105 MB | ~259 MB |
 | Operating System Support | Linux (currently) | Linux, Windows, MacOS |
 | Runtime dependencies | libc, libm, libz | Node.js ≥ 24 + npm packages |
 
 Each number is the median of repeated runs on Linux x86-64 (same config, same
-terminal size, same local model endpoint).
+terminal size, same local model endpoint). Startup numbers are the local
+paths; a configured credential for a catalog provider adds about one second
+while the models.dev directory refresh runs.
 
 On multi-MB sessions the transcript loads progressively: the newest screens
-render first and the TUI is interactive immediately; older history back-fills
-in the background over the following ~20 s.
+render first and the TUI is interactive immediately, older history back-fills
+in the background over the following seconds, and the editor border shows
+`── ⠙ Loading session history…` with input held until the fill finishes. The
+border also hosts the session status spinners (working, compaction, branch
+summary, retry), and a resumed session with history drops the new session
+banner so the first screen holds only the transcript.
 
 ## Differences
 
@@ -53,7 +59,8 @@ prompt templates, and the bash/edit/read/write workflow) behaves the same.
 Session loading differs by design. Instead of rendering the whole transcript
 before the TUI becomes usable, which grows with history size, the newest
 screens render first and the TUI is interactive immediately. Older history
-back-fills in the background over the following ~20 s, so scrolling far up
+back-fills in the background over the following seconds with a loading
+placeholder in the editor border, so scrolling far up
 into old history may still be filling in during that window.
 
 The scriptc compiler (v0.0.35) is bundled in the repo at `scriptc/`, so no
@@ -80,7 +87,7 @@ git clone https://github.com/zyoung11/pi-bin.git
 cd pi-bin
 
 npm install --ignore-scripts   # install npm dependencies
-npm run build:native           # compile → ./pi (8.6 MB ELF)
+npm run build:native           # compile → ./pi (9.5 MB ELF)
 npm run check                  # optional: biome + tsgo --noEmit
 ```
 

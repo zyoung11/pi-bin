@@ -1,5 +1,6 @@
 import { Loader } from "../../../../../tui/src/components/loader.ts";
 import { Component, type TUI } from "../../../../../tui/src/tui.ts";
+import { truncateToWidth } from "../../../../../tui/src/utils.ts";
 /** Working indicator configuration for the interactive streaming loader. */
 export interface WorkingIndicatorOptions {
 	frames?: string[];
@@ -10,7 +11,7 @@ import { theme } from "../theme/theme.ts";
 import { CountdownTimer } from "./countdown-timer.ts";
 import { keyText } from "./keybinding-hints.ts";
 
-export type StatusIndicatorKind = "working" | "retry" | "compaction" | "branchSummary";
+export type StatusIndicatorKind = "working" | "retry" | "compaction" | "branchSummary" | "loading";
 
 export class StatusIndicator extends Loader {
 	readonly kind: StatusIndicatorKind;
@@ -27,20 +28,55 @@ export class StatusIndicator extends Loader {
 		this.kind = kind;
 	}
 
+	/**
+	 * Render the indicator line trimmed for embedding into an editor border.
+	 * @param width Columns available inside the border
+	 * @returns The indicator line without outer padding
+	 */
+	renderInBorder(width: number): string {
+		const line = super.render(width + 2)[1] ?? "";
+		return truncateToWidth(line.startsWith(" ") ? line.slice(1).trimEnd() : line.trimEnd(), width, "");
+	}
+
+	/**
+	 * Render only the spinner glyph for embedding into a narrow editor border.
+	 * @param width Columns available inside the border
+	 * @returns The rendered spinner glyph
+	 */
+	renderSpinnerInBorder(width: number): string {
+		return truncateToWidth(this.getRenderedIndicator(), width, "");
+	}
+
 	dispose(): void {
 		this.stop();
 	}
 }
 
 export class WorkingStatusIndicator extends StatusIndicator {
-	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions) {
+	constructor(ui: TUI, message: string, indicator?: WorkingIndicatorOptions, colorFn?: (text: string) => string) {
 		super(
 			"working",
 			ui,
-			(spinner) => theme.fg("accent", spinner),
-			(text) => theme.fg("muted", text),
+			colorFn ?? ((text) => theme.fg("accent", text)),
+			colorFn ?? ((text) => theme.fg("muted", text)),
 			message,
 			indicator,
+		);
+	}
+}
+
+/**
+ * Status indicator shown while the initial history fill streams into the
+ * scrollback and the editor stays input locked.
+ */
+export class LoadingHistoryStatusIndicator extends StatusIndicator {
+	constructor(ui: TUI) {
+		super(
+			"loading",
+			ui,
+			(spinner) => theme.fg("accent", spinner),
+			(text) => theme.fg("muted", text),
+			"Loading session history…",
 		);
 	}
 }
