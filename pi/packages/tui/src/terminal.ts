@@ -13,6 +13,17 @@ const DESIRED_KITTY_KEYBOARD_PROTOCOL_FLAGS = 7;
 const KEYBOARD_PROTOCOL_RESPONSE_FRAGMENT_TIMEOUT_MS = 150;
 const KITTY_KEYBOARD_PROTOCOL_QUERY = `\x1b[>${DESIRED_KITTY_KEYBOARD_PROTOCOL_FLAGS}u\x1b[?u\x1b[c`;
 
+/**
+ * Gated resize-diagnostics logger (PI_DEBUG_RESIZE=1) writing to /tmp/pi-resize.log.
+ * @param message One log line without trailing newline
+ */
+export function debugResize(message: string): void {
+	if (process.env.PI_DEBUG_RESIZE !== "1") return;
+	try {
+		fs.appendFileSync("/tmp/pi-resize.log", `${Date.now() % 100000} ${message}\n`);
+	} catch {}
+}
+
 export type KeyboardProtocolNegotiationSequence =
 	| { type: "kitty-flags"; flags: number }
 	| { type: "device-attributes" };
@@ -183,20 +194,24 @@ export class ProcessTerminal implements Terminal {
 		// no stdout resize event) and fire the handler on change.
 		this.lastColumns = this.columns();
 		this.lastRows = this.rows();
+		let queryCountdown = 0;
 		this.resizePollTimer = setInterval(() => {
-			// The row count comes from the terminal's own size report, so ask for
-			// a fresh report before comparing; the reply arrives as input and is
-			// consumed by the TUI. Without it a height-only resize is invisible.
-			process.stdout.write("\x1b[18t");
+			queryCountdown -= 1;
+			if (queryCountdown <= 0) {
+				queryCountdown = 5;
+				process.stdout.write("\x1b[18t");
+			}
 			const cols = this.columns();
 			const rws = this.rows();
+			debugResize(`poll cols=${cols}/${this.lastColumns} rows=${rws}/${this.lastRows}`);
 			if (cols !== this.lastColumns || rws !== this.lastRows) {
 				this.lastColumns = cols;
 				this.lastRows = rws;
 				const resizeHandler = this.resizeHandler;
+				debugResize(`poll fire handler=${resizeHandler !== undefined}`);
 				if (resizeHandler) resizeHandler();
 			}
-		}, 250);
+		}, 25);
 
 		// Refresh terminal dimensions - they may be stale after suspend/resume
 		// (SIGWINCH is lost while process is stopped). Unix only, best-effort.

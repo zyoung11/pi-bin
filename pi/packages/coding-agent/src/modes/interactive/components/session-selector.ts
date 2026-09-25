@@ -834,8 +834,7 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		this.sessionList.onToggleNameFilter = () => this.toggleNameFilter();
 		this.sessionList.onRenameSession = (sessionPath) => {
 			if (!renameSession) return;
-			const activeLoad: SessionLoadController | null =
-				this.scope === "current" ? this.currentLoad : this.allLoad;
+			const activeLoad: SessionLoadController | null = this.scope === "current" ? this.currentLoad : this.allLoad;
 			if (activeLoad !== null) return;
 
 			const sessions = this.scope === "all" ? (this.allSessions ?? []) : (this.currentSessions ?? []);

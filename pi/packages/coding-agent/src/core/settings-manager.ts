@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import type { ThinkingLevel } from "../../../agent/src/index.ts";
-import { DEFAULT_MAX_AGENT_RETRY_DELAY_MS, type Api, type Model } from "../../../ai/src/index.ts";
+import { type Api, DEFAULT_MAX_AGENT_RETRY_DELAY_MS, type Model } from "../../../ai/src/index.ts";
 import type { TerminalCapabilities } from "../../../tui/src/terminal-image.ts";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
 import lockfile from "../utils/mini-lockfile.ts";

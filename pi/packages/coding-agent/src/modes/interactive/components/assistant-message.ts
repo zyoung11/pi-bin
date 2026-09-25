@@ -136,6 +136,7 @@ export class AssistantMessageComponent extends Container {
 	}
 
 	setHideThinkingBlock(hide: boolean): void {
+		if (this.hideThinkingBlock === hide) return;
 		this.hideThinkingBlock = hide;
 		if (this.lastMessage) {
 			this.updateContent(this.lastMessage);
@@ -143,6 +144,7 @@ export class AssistantMessageComponent extends Container {
 	}
 
 	setHiddenThinkingLabel(label: string): void {
+		if (this.hiddenThinkingLabel === label) return;
 		this.hiddenThinkingLabel = label;
 		if (this.lastMessage) {
 			this.updateContent(this.lastMessage);
@@ -150,6 +152,7 @@ export class AssistantMessageComponent extends Container {
 	}
 
 	setOutputPad(padding: number): void {
+		if (this.outputPad === padding) return;
 		this.outputPad = padding;
 		if (this.lastMessage) {
 			this.updateContent(this.lastMessage);

@@ -1019,8 +1019,7 @@ class LatexParser {
 		const supValue = scripts["sup"];
 		const subUnicode = subValue === undefined ? undefined : formatUnicodeScript(subValue, "sub");
 		const supUnicode = supValue === undefined ? undefined : formatUnicodeScript(supValue, "sup");
-		const canUseLayout =
-			!scriptValueBlocksLayout(subValue) && !scriptValueBlocksLayout(supValue);
+		const canUseLayout = !scriptValueBlocksLayout(subValue) && !scriptValueBlocksLayout(supValue);
 		const needsLayout =
 			this.display &&
 			canUseLayout &&

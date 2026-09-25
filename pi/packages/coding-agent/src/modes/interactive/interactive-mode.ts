@@ -401,6 +401,7 @@ export function createInteractiveTuiReference(getTui: () => TuiBase): TUI {
 
 const INITIAL_TAIL_TARGET_LINES = 120;
 const INITIAL_FILL_TICK_BUDGET_MS = 12;
+const INITIAL_FILL_WINDOW_REPORT_ATTEMPTS = 50;
 const STREAM_RENDER_INTERVAL_MS = 150;
 
 export class InteractiveMode {
@@ -3294,7 +3295,10 @@ export class InteractiveMode {
 	private beginInitialFill(): void {
 		// The paint has to keep the visible tail frozen, so the fill waits for
 		// the terminal's window size report (CSI 18 t) before it picks the split.
-		if (!this.ui.getTerminal().hasReportedWindowSize() && this.initialFillDeferred < 10) {
+		if (
+			!this.ui.getTerminal().hasReportedWindowSize() &&
+			this.initialFillDeferred < INITIAL_FILL_WINDOW_REPORT_ATTEMPTS
+		) {
 			this.initialFillDeferred += 1;
 			this.initialFillTimer = setTimeout(() => this.beginInitialFill(), 40);
 			return;
@@ -3530,6 +3534,13 @@ export class InteractiveMode {
 			target: this.chatContainer,
 			misses,
 		});
+		this.renderProjectTrustWarningIfNeeded();
+		const allEntries = this.sessionManager.getEntries();
+		const compactionCount = allEntries.filter((e) => e.type === "compaction").length;
+		if (compactionCount > 0) {
+			const times = compactionCount === 1 ? "1 time" : `${compactionCount} times`;
+			this.showStatus(`Session compacted ${times}`);
+		}
 		if (tailStart > 0) {
 			this.showLoadingHistoryStatus();
 		}
@@ -3538,15 +3549,6 @@ export class InteractiveMode {
 			this.startInitialFill(items.slice(0, tailStart), misses);
 		} else {
 			this.finishInitialFill();
-		}
-		this.renderProjectTrustWarningIfNeeded();
-
-		// Show compaction info if session was compacted
-		const allEntries = this.sessionManager.getEntries();
-		const compactionCount = allEntries.filter((e) => e.type === "compaction").length;
-		if (compactionCount > 0) {
-			const times = compactionCount === 1 ? "1 time" : `${compactionCount} times`;
-			this.showStatus(`Session compacted ${times}`);
 		}
 	}
 

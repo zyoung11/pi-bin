@@ -66,8 +66,7 @@ function copyViaWindowsClipboard(text: string): boolean {
 	} finally {
 		try {
 			unlinkSync(tempPath);
-		} catch {
-		}
+		} catch {}
 	}
 }
 
@@ -146,8 +145,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 			await clipboard.setText(text);
 			copied = true;
 		}
-	} catch {
-	}
+	} catch {}
 
 	if (!copied) {
 		try {
@@ -166,8 +164,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 							stdio: ["pipe", "ignore", "ignore"],
 						});
 						copied = true;
-					} catch {
-					}
+					} catch {}
 				}
 
 				if (!copied && isWaylandSession(env) && env.WAYLAND_DISPLAY) {
@@ -175,8 +172,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 						execSync("which wl-copy", { stdio: "ignore" });
 						execSync("wl-copy", { input: text, timeout: 5000, stdio: ["pipe", "ignore", "ignore"] });
 						copied = true;
-					} catch {
-					}
+					} catch {}
 				}
 
 				if (!copied && env.DISPLAY) {
@@ -184,8 +180,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 					copied = true;
 				}
 			}
-		} catch {
-		}
+		} catch {}
 	}
 
 	let osc52Emitted = false;

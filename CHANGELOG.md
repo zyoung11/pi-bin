@@ -1490,3 +1490,210 @@ in the border with the spinner advancing and input locked, a mock stream shows
 `── ⠧ Working... ────`, a 16 column terminal degrades to `── ⠦ ───`, a scrolled
 editor shows the centered `↑ 13 more` label alongside, and the 2.7MB session
 still renders all 28595 lines.
+
+---
+
+## Phase 33 — width-change replay downgraded and the frozen tail painted at paint open (2026-09-24)
+
+Two intermittent display corruptions, both traced to the same family: the
+screen desyncs from the renderer's baseline and the only repair tool was a full
+transcript replay.
+
+- tmux window/session switch glitch, reproduced by inspection: a pane width
+  change on switch-back (`window-size latest` re-sizes a hidden window when it
+  is displayed again) sends pi through `widthChanged -> fullRender(true)`:
+  `\x1b[2J\x1b[H\x1b[3J` clears the screen and the scrollback, then
+  `streamLines` rewrites the whole transcript synchronously. On a 5MB session
+  that is a multi-second freeze with a visible replay through history and lost
+  scrollback. The doubled line spacing seen at the start is every full-width
+  line wrapping after the width shrink (every border and box line is exactly
+  pane width, so any shrink wraps every line) until the replay rewrites at the
+  new width. The `repaintFromLine >= 0` escalation and `forceTranscript` reach
+  the same replay. Probe finding: tmux answers neither CSI 18t nor DSR to a
+  hidden or detached pane, so the row report dies while the pane is not
+  displayed and `rows()` falls back to env `LINES` or 24.
+- `widthChanged` now repaints only the visible viewport (`repaintViewport`),
+  the same path height changes already took. A resize blip no longer clears
+  the scrollback and no longer costs O(transcript). The scrollback above the
+  viewport keeps tmux's own reflow of the old lines. A later change landing
+  above the viewport can still escalate to the full replay by design.
+- `beginTranscriptPaint` now writes the frozen tail into its screen rows at
+  open. The paint previously assumed a previous frame had painted the tail at
+  exactly those rows, which was a scheduling race: `requestRender` is
+  nextTick-throttled, and when the last painted frame predated the tail render
+  or `fitInitialTailToScreen`, the fill compared captured lines against the
+  tree (identical, so `refreshPaintFrozenTail` wrote nothing) while the screen
+  kept the stale frame. That was the blank bottom area and the duplicated or
+  missing editor border lines during the fill, gone as soon as the fill ended
+  and a forced repaint corrected the rows.
+- `refreshPaintFrozenTail` hardening: `paintRenderedTotal` is recorded at paint
+  open (it was lazily locked on the first refresh, so a tree mutated between
+  capture and first refresh locked the guard onto the wrong height and every
+  later comparison mis-windowed the tail), `paintRegionBottom` is fixed at
+  open instead of being recomputed from a possibly changed `rows()`, and the
+  slice is length guarded. The negative-slice mis-window read `tailLines[i]`
+  past the array end, which the scriptc runtime traps on.
+- `renderInitialMessages` runs the trust warning and the compaction
+  `showStatus` before the tail capture. `showStatus` appends to
+  `chatContainer`, which is part of the captured tail, and both used to land
+  after the capture when the window size report was already in.
+- The window size report wait for the initial fill grew from 400ms to 2s (50
+  x 40ms). Hidden panes never answer the query, so the old budget could expire
+  while the reply was merely slow and the fill opened with the fallback height.
+- `AssistantMessageComponent` setters no-op on an unchanged value. A same-value
+  walk rebuilt `contentContainer` (clear and addChild bump the structure
+  version), which inflated `contentVersion` of every skipped component above
+  the render window and turned the next frame into `content above window
+  changed` -> full transcript replay.
+
+Verified: `biome check` and `tsgo --noEmit` clean for the touched files (the
+repo-wide pre-existing findings unchanged), scriptc build clean, and in an
+isolated tmux session against a copied 4.8MB session the frozen tail shows the
+newest message and the editor border immediately at fill start with the
+loading placeholder exactly once and the spinner animating, the back-fill
+streams above it, the completed frame has exactly the two border lines with
+input unlocked, and a live round trip with a bash tool call renders the tool
+box and the reply correctly. The CSI 18t/DSR probe was run against tmux 3.7c
+in a detached session.
+
+---
+
+## Phase 34 — resize detection at 50ms and paint cancellation on size change (2026-09-24)
+
+What was left of the tmux switch-back glitch after Phase 33: the doubled line
+spacing and the brief four-line editor, at idle and while streaming alike.
+
+- Root cause is detection latency. tmux reflows every full-width line the
+  moment the pane width changes (every border and box line is exactly pane
+  width, so any shrink wraps each line to two rows: the two editor borders
+  become four), and pi repaired it only after the 250ms resize poll plus a
+  throttled frame. scriptc has no signal handler registration (only the
+  spawnSync kill-signal name table survives), so SIGWINCH-driven detection is
+  not available and the poll is the only channel.
+- Probe findings (PI_DEBUG_RESIZE=1, gated file logger at /tmp/pi-resize.log):
+  the poll, the handler, requestRender and the throttle frame were verified
+  end to end with timestamps and the whole gap was cadence. Independently
+  ruled out by compiled probes: process.nextTick dispatches immediately at
+  idle, setInterval ticks through a SIGWINCH self-signal and a direct
+  process.stdout.write in the callback, and process.stdout.columns is a live
+  ioctl read (scr_process_columns) that tracks resizes from the first tick.
+- The stuck-for-23-seconds repro was a resize landing inside the 15s initial
+  history fill. While a paint is open every frame goes to
+  refreshPaintFrozenTail, whose height guard trips on a width change (the
+  rendered line counts move), so nothing repaints until finishInitialFill.
+  The probe trace showed one beginTranscriptPaint, painting=true on every
+  doRender for 15s, and the repair frame only after endTranscriptPaint.
+- The resize poll now runs at 50ms with the CSI 18t size query kept at its
+  250ms cadence (every fifth tick), cutting the repair window to roughly one
+  poll plus one frame.
+- A size change while a paint is open now cancels the paint
+  (cancelTranscriptPaint resets the scroll region and drops the baseline) and
+  falls through to the normal render path, which repaints the viewport at the
+  new size in the same frame. The fill keeps streaming into the unmounted
+  history container and the completed fill repaints the full transcript.
+
+Verified in tmux against the 4.8MB session: an idle resize is repaired within
+one poll and one frame (the redraw log shows the width-change frame at
+~100ms), a resize during the fill shows a clean tail and editor immediately
+with the loading placeholder intact, the completed fill renders the whole
+transcript with the two border lines and working input, and the scrollback
+survives. tmux itself recalculated the test window size twice (180 -> 150 ->
+169) during the session; with window-size latest each such flap is its own
+reflow, which is why the artifact could appear more than once per switch.
+
+Phase 34 extended: the remaining brief artifact on switch-back had two more
+components.
+
+- The Phase 33 width-downgrade exposed an anchor mismatch in
+  `repaintViewport`: it wrote the frame bottom-anchored (`CSI height;1H` then
+  move up) while the differential renderer's line coordinates are
+  top-anchored, so a frame shorter than the terminal was painted as a SECOND
+  copy at the bottom rows with the stale first copy left above it, and the
+  hardware cursor bookkeeping then drifted into wrong-row writes (fused
+  garbage lines with stray box characters). Reproduced with a flap on a short
+  session: two identical copies of the whole frame on one screen. The write
+  now starts at row 1 like every other path and clears the rows below a short
+  frame, so the anchors agree at every content height.
+- tmux reflow fuses full-width rows while the pane resizes (a wrapped row
+  joins the next row's content: `──┴──┘` style lines), and that transient was
+  visible until the repair frame. The resize poll is now 25ms (the CSI 18t
+  query stays at 250ms), putting the whole repair window under ~40ms.
+- `writeLineBatch` now clips over-wide lines like the other write paths. The
+  initial-fill and transcript-replay writes had no clip, so one over-wide
+  history line wrapped in the terminal and flagged a row for tmux's later
+  reflow to mangle.
+
+Re-verified in tmux: a resize flap on a short session leaves exactly one
+frame with no duplicate and no stray box characters in any capture, and the
+4.8MB resumed session survives the same flap with zero garbage lines and the
+editor borders intact. The remaining flash is tmux's own reflow output before
+pi can repaint; under `window-size latest` the switch itself can also resize
+the window more than once, and `window-size manual` removes that source
+entirely.
+
+---
+
+## Phase 35 — the margin-fill root cause: rows at the last column vs tmux damage redraws (2026-09-25)
+
+The real root of the switch-back artifact (doubled line spacing plus a
+four-line editor box), established by capturing the terminal byte stream. The
+earlier reflow theories were wrong: copying during the artifact yields clean
+text, and reflow would corrupt tmux's grid, which copy reads.
+
+- Evidence chain. A script-wrapped tmux client recording every byte of the
+  switch-back redraw showed tmux advances rows two different ways: full
+  redraws use CR+LF and absolute positioning (safe), but damage redraws —
+  the path a re-shown window takes after the window selector — chain
+  `\x1b[<row>;<col>H\x1b[1K` with BARE line feeds to clear rows. In a
+  split-window capture those bare LFs number 214 against 3 in a single-pane
+  capture. A bare LF only misbehaves at the terminal margin: pi renders every
+  row at exactly the pane width (borders, footer padding), so when its pane
+  touches the screen's right edge (the right-hand pane of a split) writing the
+  last cell leaves the terminal in auto-wrap pending state, and the next bare
+  LF advances TWO rows (auto-wrap plus line feed). Every row lands at double
+  pitch: doubled spacing everywhere and the two editor borders become four.
+  tmux's own grid is unaffected, so copy is clean, and pi's next
+  absolute-positioned frame repairs the rows, so it passes in a moment.
+  Consistent with everything observed: it needs the right-hand pane geometry,
+  it happens with and without the model running, and it is independent of
+  session content.
+- The fix is to never occupy the last cell. TuiMainScreen renders and writes
+  at `contentWidth()`, one column below the terminal width, and the initial
+  fill's capture paths use the same width, so a written row can never enter
+  auto-wrap pending state and any bare line feed advances exactly one row.
+  No write path truncates content any more: the whole layout is one column
+  narrower (borders end one cell short of the right edge; footer text is
+  intact).
+- Re-verified: in a 120-column terminal the client stream carries no content
+  at column 120 (bar rows 119 wide), the footer shows its full text, the
+  editor keeps exactly two border lines, and the resize flap on short and
+  4.8MB sessions stays clean.
+
+Phase 35 extended: a human-verifiable repaint stamp and pane-resume repair.
+
+- `PI_DEBUG_REDRAW=1` now stamps a reverse-video `R<count>:<columns>` mark at
+  the top left corner after every pi write (frames, fill batches, frozen-tail
+  refreshes). The stamp lives outside the render baseline and stays until the
+  next pi write, so a frozen counter means the screen changed without pi. A
+  manual test with the stamp settled the attribution: during the artifact the
+  counter is frozen and the stamp is wiped (tmux redrew the pane from its own
+  grid, which never held the stamp, and the redraw's row advances landed at
+  double pitch), and the artifact clears exactly when pi writes again. pi's
+  writes are the repair, not the cause; the offending rows can come from any
+  full-width row on the client line, including a neighboring pane.
+- Window size reports (CSI 18t) now track arrival gaps: a report arriving more
+  than 400ms after the previous one means the pane was hidden (tmux answers no
+  queries for hidden panes) and just came back, so the TUI forces a viewport
+  repaint instead of waiting for a coincidental frame. PI_DEBUG_RESIZE logs
+  every report with its gap. Note the detection depends on tmux withholding
+  reports from hidden panes, which a headless harness cannot verify.
+
+Phase 35 revised: the margin defense (rendering one column below the terminal
+width) is reverted. The repaint stamp and the redraw log attributed the
+artifact to tmux resizing pi's pane on hide/show — the pane width flaps 131
+<-> 263 on every switch — and the reflow of the previous full-width rows at
+that size transition is the whole artifact. The bare line feeds in tmux's
+damage redraws all land away from the terminal margin, so the pending-wrap
+class the defense targeted does not occur in practice, and the one-column
+cost bought nothing. The stamp, the write-time clipping of over-wide lines,
+and the pane-resume repair stay.

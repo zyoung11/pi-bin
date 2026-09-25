@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { performance } from "node:perf_hooks";
+import { debugResize } from "./terminal.ts";
 import { deleteKittyImage, isImageLine, joinedLinePayloadHasImages } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
 import { truncateToWidth, visibleWidth } from "./utils.ts";
@@ -155,6 +156,10 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	private paintTotal = 0;
 	private paintFrozenLines: string[] = [];
 	private paintRenderedTotal = 0;
+	private paintRegionBottom = 0;
+	private paintWidth = 0;
+	private paintHeight = 0;
+	private repaintMarkCount = 0;
 	private paintRing: string[] = [];
 	private paintRingStart = 0;
 	private paintRingCapacity = 0;
@@ -287,10 +292,36 @@ export class TuiMainScreen extends TuiBase implements TUI {
 
 	protected doRender(): void {
 		if (this.stopped) return;
+		this.renderFrame();
+		this.writeRepaintMark();
+	}
+
+	/**
+	 * Repaint stamp for PI_DEBUG_REDRAW=1: a reverse-video write counter at the
+	 * top left corner that advances only when pi writes to the screen. The stamp
+	 * stays until the next pi write, so a frozen counter means the screen
+	 * changed without pi (the terminal's own redraw), which separates pi's
+	 * writes from display-side corruption by eye.
+	 */
+	private writeRepaintMark(): void {
+		if (process.env.PI_DEBUG_REDRAW !== "1") return;
+		this.repaintMarkCount += 1;
+		this.terminal.write(`\x1b7\x1b[1;1H\x1b[7mR${this.repaintMarkCount}:${this.terminal.columns()}\x1b[0m \x1b8`);
+	}
+
+	private renderFrame(): void {
+		if (this.stopped) return;
+		debugResize(
+			`doRender painting=${this.painting} prevTotal=${this.previousTotalLines} width=${this.terminal.columns()}/${this.previousWidth} firstDeadline=${this.firstFrameDeadline}`,
+		);
 		if (this.painting) {
-			this.renderAfterPaint = true;
-			this.refreshPaintFrozenTail();
-			return;
+			if (this.terminal.columns() !== this.paintWidth || this.terminal.rows() !== this.paintHeight) {
+				this.cancelTranscriptPaint();
+			} else {
+				this.renderAfterPaint = true;
+				this.refreshPaintFrozenTail();
+				return;
+			}
 		}
 		if (this.previousTotalLines === 0 && !this.terminal.hasReportedWindowSize()) {
 			if (this.firstFrameDeadline === 0) {
@@ -363,10 +394,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			return;
 		}
 
-		// Width changes always need a full re-render because wrapping changes.
 		if (widthChanged) {
 			logRedraw(`terminal width changed (${this.previousWidth} -> ${width})`);
-			fullRender(true);
+			this.repaintViewport(width, height, newLines, newStart, newTotal, cursorPos);
 			return;
 		}
 
@@ -609,9 +639,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				fs.mkdirSync(path.dirname(crashLogPath), { recursive: true });
 				fs.writeFileSync(crashLogPath, crashData);
 
-				output.append(truncateToWidth(line, width));
+				output.append(truncateToWidth(line, width, ""));
 			} else {
-				output.append(line);
+				output.append(isImage ? line : truncateToWidth(line, width, ""));
 			}
 		}
 
@@ -694,8 +724,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	 * rendered lines changed, so spinners and status text stay live while the
 	 * fill streams above. Only rows below the scroll region are touched and the
 	 * cursor is saved and restored around the write, so the fill stream keeps
-	 * writing from its own position. Skipped when the tree height changed,
-	 * because the scroll region boundary cannot move mid-paint.
+	 * writing from its own position. Skipped when the tree height differs from
+	 * the height recorded at paint open, because the scroll region boundary
+	 * cannot move mid-paint.
 	 */
 	private refreshPaintFrozenTail(): void {
 		const frozenLines = this.paintFrozenLines;
@@ -703,12 +734,10 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		if (frozenCount === 0) return;
 		const width = this.terminal.columns();
 		const rendered = this.render(width);
-		if (this.paintRenderedTotal === 0) {
-			this.paintRenderedTotal = rendered.length;
-		} else if (rendered.length !== this.paintRenderedTotal) {
-			return;
-		}
+		if (rendered.length !== this.paintRenderedTotal) return;
+		if (rendered.length < frozenCount) return;
 		const tailLines = rendered.slice(rendered.length - frozenCount);
+		if (tailLines.length !== frozenCount) return;
 		let firstChanged = -1;
 		let lastChanged = -1;
 		for (let i = 0; i < frozenCount; i++) {
@@ -721,7 +750,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		}
 		if (firstChanged === -1 || lastChanged < firstChanged) return;
 
-		const regionBottom = Math.max(1, this.terminal.rows() - frozenCount);
+		const regionBottom = this.paintRegionBottom;
 		const output = new BoundedTerminalWriter((data) => this.terminal.write(data));
 		output.append("\x1b[?2026h");
 		output.append("\x1b7");
@@ -730,12 +759,13 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			if (line === frozenLines[i] || isImageLine(line)) continue;
 			output.append(`\x1b[${regionBottom + 1 + i};1H`);
 			output.append("\x1b[2K");
-			output.append(this.resetLine(line));
+			output.append(this.frozenLineWrite(line, width));
 			frozenLines[i] = line;
 		}
 		output.append("\x1b8");
 		output.append("\x1b[?2026l");
 		output.flush();
+		this.writeRepaintMark();
 	}
 
 	/**
@@ -746,9 +776,14 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		output: BoundedTerminalWriter,
 		lines: string[],
 		height: number,
+		width: number,
 		leadingNewline: boolean,
 	): void {
-		const writeLines = lines.map((line) => this.resetLine(line));
+		const writeLines = lines.map((line) => {
+			const reset = this.resetLine(line);
+			if (isImageLine(line)) return reset;
+			return truncateToWidth(reset, width, "");
+		});
 		const joined = writeLines.join("\r\n");
 		if (joinedLinePayloadHasImages(joined)) {
 			for (let i = 0; i < writeLines.length; i++) {
@@ -805,7 +840,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		let firstBatch = true;
 		this.streamLines(width, (component, lines) => {
 			if (lines.length === 0) return;
-			this.writeLineBatch(output, lines, height, !firstBatch);
+			this.writeLineBatch(output, lines, height, width, !firstBatch);
 			firstBatch = false;
 			if (written + lines.length <= tailStart) {
 				component.releaseLines();
@@ -837,9 +872,12 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	}
 
 	/**
-	 * Rewrite only the visible lines of the frame, anchored to the bottom of the
-	 * terminal, and adopt the frame as the baseline. Cheap enough for every
-	 * forced redraw and it cannot leave stale rows inside the viewport.
+	 * Rewrite only the visible lines of the frame from the top row down, and
+	 * adopt the frame as the baseline. The top anchor matches the differential
+	 * renderer's line-index coordinates for every content height, so the
+	 * hardware cursor bookkeeping cannot drift into a second stale copy of a
+	 * short frame. Cheap enough for every forced redraw and it cannot leave
+	 * stale rows inside the viewport.
 	 */
 	private repaintViewport(
 		width: number,
@@ -851,21 +889,23 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	): void {
 		const output = new BoundedTerminalWriter((data) => this.terminal.write(data));
 		output.append("\x1b[?2026h");
-		output.append(`\x1b[${height};1H`);
+		output.append("\x1b[1;1H");
 		const viewportStart = Math.max(lineStart, total - height);
-		const moveUp = total - 1 - viewportStart;
-		if (moveUp > 0) output.append(`\x1b[${moveUp}A`);
 		for (let i = viewportStart; i < total; i++) {
 			if (i > viewportStart) output.append("\r\n");
 			const rawLine = lines[i - lineStart];
 			const isImage = isImageLine(rawLine);
 			if (!isImage) output.append("\x1b[2K");
 			const line = this.resetLine(rawLine);
-			if (!isImage && visibleWidth(line) > width) {
-				output.append(truncateToWidth(line, width));
+			if (!isImage) {
+				output.append(truncateToWidth(line, width, ""));
 			} else {
 				output.append(line);
 			}
+		}
+		const writtenRows = total - viewportStart;
+		if (writtenRows < height) {
+			output.append(`\x1b[${writtenRows + 1};1H\x1b[0J`);
 		}
 		output.append("\x1b[?2026l");
 		output.flush();
@@ -884,25 +924,53 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	}
 
 	/**
+	 * Write payload for one frozen tail line: the terminal reset form of the
+	 * line, clipped to the terminal width so an over-wide line cannot wrap into
+	 * the frozen row below it.
+	 * @param line Rendered line to write
+	 * @param width Terminal width in columns
+	 * @returns Terminal sequences for the line content
+	 */
+	private frozenLineWrite(line: string, width: number): string {
+		const reset = this.resetLine(line);
+		if (isImageLine(line)) return reset;
+		return truncateToWidth(reset, width, "");
+	}
+
+	/**
 	 * Open a streaming paint of transcript content into the scrollback while a
-	 * frozen tail of `frozenRows` screen rows stays in place. Painted lines are
-	 * written above that tail; the terminal scrolls its region and keeps the
-	 * scrolled out lines in the scrollback in order.
+	 * frozen tail of `frozenRows` screen rows stays in place. The frozen tail is
+	 * written to its screen rows in place first, so the paint never depends on a
+	 * previous frame having painted it. Painted lines then go above that tail;
+	 * the terminal scrolls its region and keeps the scrolled out lines in the
+	 * scrollback in order.
 	 * @param frozenRows Screen rows at the bottom that must not be touched
 	 * @param linesAbove Lines of the buffer above the painted region
+	 * @param frozenTailLines Lines of the frozen tail, in order from the top row
 	 */
 	beginTranscriptPaint(frozenRows: number, linesAbove: number, frozenTailLines: string[]): void {
+		debugResize(`beginTranscriptPaint rows=${frozenRows} painting=${this.painting}`);
 		const height = this.terminal.rows();
+		const width = this.terminal.columns();
 		const regionBottom = Math.max(1, height - frozenRows);
 		this.painting = true;
+		this.paintWidth = width;
+		this.paintHeight = height;
 		this.paintLinesAbove = linesAbove;
 		this.paintTotal = 0;
-		this.paintRenderedTotal = 0;
+		this.paintRenderedTotal = this.render(width).length;
 		this.paintFrozenLines = [...frozenTailLines];
+		this.paintRegionBottom = regionBottom;
 		this.paintRing = [];
 		this.paintRingStart = 0;
 		this.paintRingCapacity = Math.max(height * 2, height + 16);
 		this.terminal.write("\x1b[?2026h");
+		for (let i = 0; i < frozenRows; i++) {
+			const line = i < frozenTailLines.length ? frozenTailLines[i] : "";
+			this.terminal.write(`\x1b[${regionBottom + 1 + i};1H`);
+			if (!isImageLine(line)) this.terminal.write("\x1b[2K");
+			this.terminal.write(this.frozenLineWrite(line, width));
+		}
 		this.terminal.write(`\x1b[1;${regionBottom}r`);
 		this.terminal.write(`\x1b[${regionBottom};1H`);
 	}
@@ -911,12 +979,13 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	paintTranscriptLines(lines: string[]): void {
 		if (!this.painting || lines.length === 0) return;
 		const output = new BoundedTerminalWriter((data) => this.terminal.write(data));
-		this.writeLineBatch(output, lines, this.terminal.rows(), true);
+		this.writeLineBatch(output, lines, this.terminal.rows(), this.terminal.columns(), true);
 		output.flush();
 		for (let i = 0; i < lines.length; i++) {
 			this.appendPaintRing(lines[i]);
 		}
 		this.paintTotal += lines.length;
+		this.writeRepaintMark();
 	}
 
 	private appendPaintRing(line: string): void {
@@ -937,6 +1006,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	 * @param frozenTailLines Lines of the frozen tail, in order
 	 */
 	endTranscriptPaint(): void {
+		debugResize(`endTranscriptPaint painting=${this.painting}`);
 		if (!this.painting) return;
 		this.painting = false;
 		const width = this.terminal.columns();

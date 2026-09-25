@@ -5,11 +5,7 @@ import type { SelectItem } from "../../../../../tui/src/components/select-list.t
 import { type SettingItem, SettingsList } from "../../../../../tui/src/components/settings-list.ts";
 import { getCapabilities } from "../../../../../tui/src/terminal-image.ts";
 import { type Component, Container } from "../../../../../tui/src/tui.ts";
-import {
-	type CacheWarmingMode,
-	type DefaultProjectTrust,
-	type MermaidRenderingMode,
-} from "../../../core/settings-manager.ts";
+import type { CacheWarmingMode, DefaultProjectTrust, MermaidRenderingMode } from "../../../core/settings-manager.ts";
 import { getSettingsListTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";

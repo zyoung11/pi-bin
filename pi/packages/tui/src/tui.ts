@@ -1,4 +1,4 @@
-import type { ProcessTerminal } from "./terminal.ts";
+import { debugResize, type ProcessTerminal } from "./terminal.ts";
 /**
  * Minimal TUI implementation with differential rendering
  */
@@ -644,7 +644,9 @@ export abstract class TuiBase extends ConcatContainer implements TUI {
 	private immediateRenderScheduled = false;
 	private renderTimer: NodeJS.Timeout | undefined;
 	private lastRenderAt = 0;
+	private lastWindowReportAt = 0;
 	private static readonly MIN_RENDER_INTERVAL_MS = 16;
+	private static readonly WINDOW_REPORT_GAP_MS = 400;
 	private showHardwareCursor = process.env.PI_HARDWARE_CURSOR === "1";
 	private clearOnShrink = process.env.PI_CLEAR_ON_SHRINK === "1";
 	protected fullRedrawCount = 0;
@@ -1109,7 +1111,14 @@ export abstract class TuiBase extends ConcatContainer implements TUI {
 			return false;
 		}
 		const changed = this.terminal.applyReportedWindowSize(parseInt(match[1], 10), parseInt(match[2], 10));
-		if (changed) {
+		const now = performance.now();
+		const gapMs = this.lastWindowReportAt === 0 ? 0 : now - this.lastWindowReportAt;
+		const resumed = gapMs > TuiBase.WINDOW_REPORT_GAP_MS;
+		this.lastWindowReportAt = now;
+		debugResize(`window report changed=${changed} resumed=${resumed} gap=${Math.round(gapMs)}`);
+		if (resumed) {
+			this.requestRenderForce(true);
+		} else if (changed) {
 			this.requestRender();
 		}
 		return true;
@@ -1148,6 +1157,7 @@ export abstract class TuiBase extends ConcatContainer implements TUI {
 	}
 
 	requestRenderForce(force: boolean): void {
+		debugResize(`requestRenderForce force=${force} requested=${this.renderRequested}`);
 		if (force) {
 			this.resetRenderState();
 			this.requestImmediateRender();
@@ -1182,12 +1192,16 @@ export abstract class TuiBase extends ConcatContainer implements TUI {
 	}
 
 	private scheduleRender(): void {
+		debugResize(
+			`scheduleRender timer=${this.renderTimer !== undefined} requested=${this.renderRequested} stopped=${this.stopped}`,
+		);
 		if (this.stopped || this.renderTimer || !this.renderRequested) {
 			return;
 		}
 		const elapsed = performance.now() - this.lastRenderAt;
 		const delay = Math.max(0, TuiBase.MIN_RENDER_INTERVAL_MS - elapsed);
 		this.renderTimer = setTimeout(() => {
+			debugResize("throttle fire");
 			this.renderTimer = undefined;
 			if (this.stopped || !this.renderRequested) {
 				return;
