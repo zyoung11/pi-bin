@@ -41,6 +41,22 @@ banner so the first screen holds only the transcript.
 
 ## Differences
 
+Added:
+
+- A built-in llama.cpp provider for self-hosted llama.cpp routers (the upstream
+  llama extension, reworked for the static build): `/login llama.cpp` records
+  the server URL and an optional key, the model catalog and its metadata
+  (thinking, context window, quantization, modalities) are discovered from the
+  router, and `/llama` lists, loads, and unloads the models the router holds
+  with a framed progress view. No model downloads.
+- Thinking levels are measured, not assumed. pi asks the server to render its
+  own chat template for every level (`/apply-template`, no inference) and the
+  ladder offers exactly the levels the template accepts: refusals are hidden,
+  and levels that render an identical prompt are aliases of one depth, so only
+  the name the template resolves to is shown. A level a template refuses at
+  request time is dropped from the ladder at runtime instead of failing the
+  turn.
+
 Removed:
 
 - Extension system (TypeScript extensions, extension marketplace)
@@ -115,6 +131,7 @@ Provider coverage (✓ works with `/login`, ✗ not supported yet):
 | Groq | ✓ |
 | Hugging Face | ✓ |
 | Kimi For Coding | ✗ |
+| llama.cpp (self-hosted router) | ✓ |
 | MiniMax (and CN) | ✗ |
 | Mistral | ✗ |
 | Moonshot AI (and CN) | ✓ |
@@ -135,9 +152,13 @@ Provider coverage (✓ works with `/login`, ✗ not supported yet):
   Google/Bedrock/Mistral proprietary protocols, OAuth/subscription logins
   (GitHub Copilot, OpenAI Codex), or special credential chains (Amazon
   Bedrock, Cloudflare, RADIUS).
-- Self-hosted OpenAI-compatible endpoints (llama.cpp, vLLM, ...) work through
-  a `models.json` file in the agent config directory instead. llama.cpp router
-  providers can set `detectChatTemplateThinking: true` to pick up the
-  `enable_thinking` chat-template control automatically, and `/llama` loads and
-  unloads the models the router holds (no model downloads).
+- Self-hosted llama.cpp routers are first-class: `/login llama.cpp` adds one,
+  its catalog and per-model metadata are discovered automatically, and `/llama`
+  loads and unloads the models the router holds (no model downloads). Thinking
+  levels come from the server's own template render, so the ladder offers
+  exactly the levels a model accepts.
+- Other self-hosted OpenAI-compatible endpoints (vLLM, ...) work through a
+  `models.json` file in the agent config directory. Those providers can set
+  `detectChatTemplateThinking: true` to pick up the `enable_thinking`
+  chat-template control and the accepted thinking levels automatically.
 - Select models with `--model`, the `/model` command, or `Ctrl+P`.

@@ -23,6 +23,7 @@ import {
 	type StreamOptions,
 } from "../../../ai/src/index.ts";
 import {
+	isChatTemplateEffortModel,
 	isChatTemplateThinkingModel,
 	setThinkingFormatOverride,
 	setThinkingLevelMapOverride,
@@ -353,9 +354,16 @@ function applyModelsJson(
 		if (detectedThinking) {
 			model.reasoning = true;
 			if (definition.thinkingLevelMap === undefined) {
-				setThinkingLevelMapOverride(providerId, definition.id, CHAT_TEMPLATE_THINKING_LEVEL_MAP);
-				model.thinkingLevelMap = CHAT_TEMPLATE_THINKING_LEVEL_MAP;
-				chatTemplateThinkingLevelMapKeys.add(chatTemplateLevelMapKey);
+				if (isChatTemplateEffortModel(providerId, definition.id)) {
+					// A template that reads reasoning_effort picks its own level values, so
+					// the level probe owns this model's map and the boolean ladder would
+					// hide every level the template accepts.
+					chatTemplateThinkingLevelMapKeys.delete(chatTemplateLevelMapKey);
+				} else {
+					setThinkingLevelMapOverride(providerId, definition.id, CHAT_TEMPLATE_THINKING_LEVEL_MAP);
+					model.thinkingLevelMap = CHAT_TEMPLATE_THINKING_LEVEL_MAP;
+					chatTemplateThinkingLevelMapKeys.add(chatTemplateLevelMapKey);
+				}
 			}
 		} else if (
 			definition.thinkingLevelMap === undefined &&

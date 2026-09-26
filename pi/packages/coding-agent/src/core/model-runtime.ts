@@ -38,11 +38,16 @@ import {
 	clearChatTemplateModels,
 	setChatTemplateEffortModels,
 	setChatTemplateThinkingModels,
+	setThinkingLevelMapOverride,
 } from "../../../ai/src/models.ts";
 import { getAgentDir } from "../config.ts";
 import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
 import { AuthStorage as DefaultAuthStorage } from "./auth-storage.ts";
-import { type ChatTemplateThinkingTarget, detectChatTemplateThinking } from "./chat-template-thinking.ts";
+import {
+	type ChatTemplateThinkingTarget,
+	detectChatTemplateThinking,
+	probeThinkingLevels,
+} from "./chat-template-thinking.ts";
 import {
 	createLlamaCppProvider,
 	discoverLlamaCppCatalog,
@@ -311,17 +316,52 @@ export class ModelRuntime implements Models {
 		if (due.length === 0) return;
 		const detections = await detectChatTemplateThinking(due, signal);
 		if (signal.aborted) return;
+		const recomposed: string[] = [];
+		const levelTargets: ChatTemplateThinkingTarget[] = [];
+		const levelModelIds: string[][] = [];
 		for (const target of due) {
 			this.chatTemplateProbedAt.set(target.providerId, Date.now());
 			clearChatTemplateModels(target.providerId);
+			const effortModelIds: string[] = [];
 			for (const detection of detections) {
 				if (detection.providerId !== target.providerId) continue;
 				setChatTemplateThinkingModels(target.providerId, detection.modelIds);
 				setChatTemplateEffortModels(target.providerId, detection.effortModelIds);
+				for (const modelId of detection.effortModelIds) effortModelIds.push(modelId);
 			}
-			this.recomposeProvider(target.providerId);
+			levelTargets.push(target);
+			levelModelIds.push(effortModelIds);
+			recomposed.push(target.providerId);
 		}
+		// Level maps land before the recompose so a models.json thinkingLevelMap
+		// stays authoritative: applyModelsJson writes explicit definitions last.
+		let levelIndex = 0;
+		while (levelIndex < levelTargets.length) {
+			await this.probeChatTemplateThinkingLevels(levelTargets[levelIndex], levelModelIds[levelIndex], signal);
+			levelIndex++;
+		}
+		for (const providerId of recomposed) this.recomposeProvider(providerId);
 		this.updateModelSnapshot();
+	}
+
+	/**
+	 * Probe the thinking levels a chat-template effort model's template accepts
+	 * and record them as its thinkingLevelMap. The probe cache keeps this a
+	 * once-per-process cost per model, and a model the probe cannot judge gets no
+	 * map so its ladder stays unmapped and the server reports its own errors.
+	 */
+	private async probeChatTemplateThinkingLevels(
+		target: ChatTemplateThinkingTarget,
+		modelIds: string[],
+		signal: AbortSignal,
+	): Promise<void> {
+		let index = 0;
+		while (index < modelIds.length) {
+			const modelId = modelIds[index];
+			index++;
+			const levelMap = await probeThinkingLevels(target.baseUrl, target.apiKey, modelId, signal);
+			setThinkingLevelMapOverride(target.providerId, modelId, levelMap ?? undefined);
+		}
 	}
 
 	/**

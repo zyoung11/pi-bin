@@ -1786,3 +1786,69 @@ reasoning block rendered. Loading reports only status text on this server
 (the progress bar draws whenever the server publishes a progress record;
 lmgo reports progress for downloads, not for loads). The router's LRU
 scheduler moved models in and out during the test and the catalog tracked it.
+
+---
+
+## Phase 37 — thinking level detection for llama.cpp models (2026-09-26)
+
+The thinking ladder knew that a llama.cpp model thinks and that its chat
+template reads reasoning_effort, but not which effort values the template
+accepts. The server cannot say: caps reports a single boolean
+(`supports_reasoning_effort` is `effort->stats.used`, common/jinja/caps.cpp) and
+the values are decided by the template text, so Qwen3.8-27B-MTP raises
+`Unexpected reasoning effort minimal. Supported types are xhigh (default),
+medium, and low.` for anything outside low/medium/xhigh while pi offered all
+seven levels and a selection failed at render time inside the request.
+
+- `core/chat-template-thinking.ts` probes the levels a template accepts: one
+  one-token completion per level carrying pi's own thinking wire
+  (`reasoning_effort` next to `chat_template_kwargs.enable_thinking`), where a
+  rejecting template fails at render time and names the level it will not take.
+  Accepted levels map to themselves, rejected ones to null, levels the probe
+  cannot judge are left alone, and the result is cached per server and model so
+  discovery costs the six requests once per process instead of on every
+  catalog refresh.
+- `core/llama-cpp.ts` records the map through the thinkingLevelMap registry for
+  every discovered effort model, so the ladder and the request clamp follow the
+  template. Verified live against lmgo-v2 wrapping llama-server: the ladder for
+  Qwen3.8-27B-MTP shrinks from seven levels to off/low/medium/high/xhigh, which
+  is exactly the set its template names.
+- `agent-session.ts` self-heals when a rejection does reach a request: the level
+  named in `Unexpected reasoning effort ...` is hidden through
+  `markThinkingLevelUnsupported` (packages/ai/src/models.ts) and the session
+  level re-clamps to the nearest survivor. Verified live on the models.json
+  path: a minimal request failed with the template error, the ladder dropped
+  minimal, the footer moved to low, and the follow-up round trip succeeded.
+- The rejection heuristic stays conservative: a failed probe counts as a
+  rejection only when the error names both the effort field and the bad value
+  (unexpected, supported types, unsupported, must be), so a transport, schema,
+  or capacity error can never hide a level the template accepts.
+- The models.json path collapsed every chat-template thinking model to a fixed
+  boolean ladder (`CHAT_TEMPLATE_THINKING_LEVEL_MAP`, provider-composer.ts) of
+  off and medium even when the template takes reasoning_effort, so an
+  effort-capable model there lost every other level to a map that ignored the
+  caps verdict. The boolean ladder now applies only to templates that just
+  toggle thinking, `refreshChatTemplateThinking` probes the levels of an
+  opted-in provider's effort models before the recompose so a models.json
+  thinkingLevelMap still overrides the probe, and the probe cache serves both
+  paths. Verified live on both: the ladder for Qwen3.8-27B-MTP reads
+  off/low/medium/high/xhigh whether the model comes from the built-in provider
+  or a models.json provider, and a round trip at high renders its reasoning
+  block.
+- The ladder hid only what the template refused, so an alias still showed up as
+  its own level: Qwen3.8-27B-MTP rewrites `high` to `xhigh` before it validates,
+  so `high` rendered, behaved exactly like `xhigh`, and sat next to it in the
+  ladder where it read as a separate depth. The probe now asks the server to
+  render instead of to generate: `POST /apply-template` answers with the prompt
+  the template produced and runs no inference, so two levels whose prompts come
+  out byte identical are one behaviour under two names, and the name the prompt
+  itself carries ("Reasoning effort is set to xhigh") picks which name survives.
+  Qwen3.8-27B-MTP now offers exactly off/low/medium/xhigh on both the built-in
+  and the models.json path, and a round trip at xhigh renders its reasoning
+  block. A server without the endpoint falls back to the one token completions,
+  which settle acceptance but cannot tell aliases apart.
+- One adjacent finding stands: the settings `enabledModels` whitelist hides any
+  model whose provider/id is not listed, which is how a test provider stayed
+  invisible from the catalog until its entry was added.
+- The README documents the built-in llama.cpp provider and the measured
+  thinking ladder under Differences and Models. Version 0.2.9 → 0.3.0.

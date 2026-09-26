@@ -40,6 +40,7 @@ import {
 	isContextOverflow,
 	isRecoverableLength,
 	isRetryableAssistantError,
+	markThinkingLevelUnsupported,
 	modelsAreEqual,
 	type RetryCallbacks,
 	resetApiProviders,
@@ -588,6 +589,7 @@ export class AgentSession {
 				this._lastAssistantMessage = event.message;
 
 				const assistantMsg = event.message as AssistantMessage;
+				this._hideRejectedThinkingLevel(assistantMsg);
 				if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
 					this._overflowRecoveryAttempted = false;
 				}
@@ -1535,6 +1537,22 @@ export class AgentSession {
 
 	private _clampThinkingLevel(level: ThinkingLevel, _availableLevels: ThinkingLevel[]): ThinkingLevel {
 		return this.model ? (clampThinkingLevel(this.model, level) as ThinkingLevel) : "off";
+	}
+
+	/**
+	 * Hide a thinking level the server rejected in a chat template error and
+	 * clamp the session level again, so the ladder and the next request stop
+	 * offering a value this model's template will not render.
+	 */
+	private _hideRejectedThinkingLevel(message: AssistantMessage): void {
+		const model = this.model;
+		if (!model || message.stopReason !== "error") return;
+		const errorMessage = message.errorMessage;
+		if (!errorMessage) return;
+		const match = /Unexpected reasoning effort ([A-Za-z_]+)/.exec(errorMessage);
+		if (match === null) return;
+		markThinkingLevelUnsupported(model.provider, model.id, match[1]);
+		this.setThinkingLevel(this.agent.state.thinkingLevel);
 	}
 
 	// =========================================================================

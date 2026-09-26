@@ -741,6 +741,29 @@ export function getThinkingLevelMapOverride(
 	}
 }
 
+/** Thinking levels a thinkingLevelMap can carry, in ladder order. */
+const MAPPED_THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
+
+/**
+ * Hide one thinking level for a model because the server rejected it, keeping
+ * every other entry of the current map. A fresh map enumerates all levels,
+ * since xhigh and max become selectable only when they are mapped explicitly.
+ */
+export function markThinkingLevelUnsupported(provider: string, modelId: string, level: string): void {
+	if (MAPPED_THINKING_LEVELS.indexOf(level) === -1) return;
+	const key = thinkingLevelMapKey(provider, modelId);
+	const json = thinkingLevelMapOverrides.get(key);
+	const merged: Record<string, unknown> = {};
+	if (json === undefined) {
+		for (const name of MAPPED_THINKING_LEVELS) merged[name] = name;
+	} else {
+		const existing = JSON.parse(json) as Record<string, unknown>;
+		for (const name of Object.keys(existing)) merged[name] = existing[name];
+	}
+	merged[level] = null;
+	thinkingLevelMapOverrides.set(key, JSON.stringify(merged));
+}
+
 const vllmPriorityOverrides = new Map<string, number>();
 
 /** Registry key for a model's vllmPriority override: `provider:model-id`. */
