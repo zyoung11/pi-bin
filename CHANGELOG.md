@@ -1697,3 +1697,92 @@ damage redraws all land away from the terminal margin, so the pending-wrap
 class the defense targeted does not occur in practice, and the one-column
 cost bought nothing. The stamp, the write-time clipping of over-wide lines,
 and the pane-resume repair stay.
+
+---
+
+## Phase 36 — built-in llama.cpp provider: login, auto catalog, and synthesized metadata (2026-09-25)
+
+Everything the local-server workflow needed now lives in the TUI: `/login
+llama.cpp` records the server URL and key, the model catalog is discovered
+from the server, and thinking/context/modalities are synthesized per model.
+models.json is no longer required for a llama.cpp server.
+
+- `core/llama-cpp.ts`: the built-in `llama.cpp` provider with the official
+  login flow (URL prompt, optional key prompt, catalog validation before the
+  credential commits) and a mutable catalog. Discovery reads the router's
+  `/models` listing (context from `n_ctx`/`n_ctx_train`, quantization, size,
+  vision from `architecture.input_modalities`) and classifies thinking through
+  the existing chat-template probes for LOADED models only, so unloaded
+  presets and sleeping instances are never woken. Thinking levels pass through
+  unmapped: pi's ladder names are exactly llama.cpp's documented effort enum,
+  and `off` maps to the disabled toggle.
+- `core/model-runtime.ts` composes the provider and runs the discovery on
+  every refresh and after login, throttled like the chat-template probes; an
+  unreachable server keeps the last known catalog so an offline server machine
+  does not empty the model list.
+- `/llama` resolves the server URL and key from the credential (previously it
+  read only the models.json baseUrl), so the built-in provider is a first-class
+  candidate. The loader shows a real progress bar with bytes from the router's
+  `progress` record, the load poll tightens to 250ms, and a `/models/sse`
+  subscription wakes the poll on status events with polling as the fallback.
+- The thinking request now carries the full llama.cpp wire: verified
+  `chat_template_kwargs: {enable_thinking: true}` with `reasoning_effort`
+  next to it at every ladder level, through a mock router end to end.
+- Three static-runtime bugs surfaced while wiring this and are fixed:
+  `getProviderEnvValue` read `env[name]` on a typed string record, where a
+  missing key traps instead of returning undefined (any provider whose auth
+  resolution returns an env record hit this on the first request); model
+  records must materialize every optional key and keep `compat` as a dynamic
+  record cast from `unknown`, because a record-to-union cast re-tags and a
+  literal coerced into an interface copies every typed slot; and the shared
+  provider stream helper narrowed `SimpleStreamOptions` to `StreamOptions`,
+  whose copy semantics silently dropped `reasoning`, so the thinking toggle
+  and effort depth never reached `buildParams` from the unified stream entry.
+  The `stream` entry now derives `reasoningEffort` from `reasoning` the same
+  way `streamSimple` does.
+- The load progress view now draws the upstream layout line for line: accent
+  border, bold `Loading model` title, the model id on its own line, a muted
+  status line, a 40 cell `█`/`─` bar in accent with the percent, byte counts on
+  their own dim line, and `Esc stop` in the footer. It replaced the bordered
+  spinner, which squeezed a 10 cell `█`/`░` bar into the message line next to
+  the spinner and had no line of its own to hold the byte counts. The view also
+  decodes `/models/sse` frames now instead of treating every chunk as a bare
+  wake-up, so a load reads `stages`/`current`/`value` for its bar and message
+  and a download reads its byte counters, exactly as the upstream extension
+  does; a server that reports neither falls back to the catalog `progress`
+  record, and the sliding indeterminate bar is gone because upstream draws no
+  bar when the server reports no ratio.
+- Two more scriptc lowering limits surfaced and are worked around: an
+  `AbortController` field on a class has no lowering (the component holds the
+  `{ signal, abort }` shape from `createAbortHandle` instead, like every other
+  cancellable component), and `TextDecoder.decode` rejects a `{ stream: true }`
+  call and an unknown-typed chunk (the SSE reader annotates the chunk as
+  `Uint8Array`, carries the incomplete UTF-8 tail into the next chunk through
+  `incompleteUtf8TailLength`, and decodes whole buffers).
+- Verified against a mock llama.cpp router (catalog, props, load/unload with
+  progress, SSE, chat completions) in an isolated tmux session: login flow
+  with URL and key prompts, automatic model selection after login, `/model`
+  listing with metadata, `/llama` listing with quantization/size/context/vision
+  rows, the load progress bar, the full thinking ladder in `/thinking`, and
+  round trips at off/low/high/max with the expected wire.
+- The reworked progress view was re-captured against a mock router that
+  reports stage progress, then against the same mock with stages withheld so
+  only the catalog byte counters remain: stage bar with no byte line, byte bar
+  with the matching byte line, the unload view, and the return to the model
+  list after each flow. Escape cancelled a load mid-flight on every repeat run;
+  one earlier attempt let the load finish instead, and it did not reproduce.
+
+Phase 36 verified live against the real server (lmgo-v2 wrapping llama-server):
+the catalog is the wrapper's shape — no meta record, the context and launcher
+config live in `status.args` and `status.preset` — so the metadata reader now
+falls back to parsing `--ctx-size` and the model file's quantization suffix.
+The live run confirmed: `/login llama.cpp` with URL and key, the catalog rows
+(`Q8_0 · 8k ctx`, `IQ4_XS · 256k ctx`, `IQ3_S - 3.4375 bpw · 11.3 GiB · 256k
+ctx` for a loaded model whose meta does appear), contextWindow 8192 and 131072
+synthesized per model, the thinking ladder collapsing to `off` for a
+non-thinking translation model and expanding to the full ladder for
+Qwen3.8-27B-MTP after it was loaded, and a real thinking round trip with the
+reasoning block rendered. Loading reports only status text on this server
+(the progress bar draws whenever the server publishes a progress record;
+lmgo reports progress for downloads, not for loads). The router's LRU
+scheduler moved models in and out during the test and the catalog tracked it.

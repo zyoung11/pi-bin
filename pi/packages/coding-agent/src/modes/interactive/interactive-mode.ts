@@ -105,7 +105,6 @@ import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
 import { BashExecutionComponent } from "./components/bash-execution.ts";
-import { BorderedLoader } from "./components/bordered-loader.ts";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.ts";
 import { CompactionSummaryMessageComponent } from "./components/compaction-summary-message.ts";
 import { CustomEditor } from "./components/custom-editor.ts";
@@ -119,6 +118,7 @@ import type { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
 import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import { LlamaProgressView } from "./components/llama-progress.ts";
 import { LlamaSelectorComponent } from "./components/llama-selector.ts";
 import { LoginDialogComponent } from "./components/login-dialog.ts";
 import type { MarkdownTransformer } from "./components/markdown-transform.ts";
@@ -4297,10 +4297,17 @@ export class InteractiveMode {
 		if (isUnknownModel(previousModel)) {
 			const availableModels = this.session.modelRuntime.getAvailableSnapshot();
 			const providerModels = availableModels.filter((model) => model.provider === providerId);
-			if (!hasDefaultModelProvider(providerId)) {
-				selectionError = `${actionLabel}, but no default model is configured for provider "${providerId}". Use /model to select a model.`;
-			} else if (providerModels.length === 0) {
+			if (providerModels.length === 0) {
 				selectionError = `${actionLabel}, but no models are available for that provider. Use /model to select a model.`;
+			} else if (!hasDefaultModelProvider(providerId)) {
+				selectedModel = providerModels[0];
+				try {
+					await this.session.setModel(selectedModel, { persist: true });
+				} catch (error: unknown) {
+					selectedModel = undefined;
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					selectionError = `${actionLabel}, but selecting ${String(providerModels[0]?.id)} failed: ${errorMessage}. Use /model to select a model.`;
+				}
 			} else {
 				const defaultModelId = defaultModelPerProvider[providerId];
 				selectedModel = providerModels.find((model) => model.id === defaultModelId);
@@ -4652,8 +4659,9 @@ export class InteractiveMode {
 
 	/**
 	 * /llama manages models on a self-hosted llama.cpp router. Candidates come
-	 * from models.json providers outside the built-in catalog; an explicit URL
-	 * argument targets another server. Model downloads are not part of this
+	 * from the built-in llama.cpp provider configured through /login llama.cpp
+	 * and from models.json providers outside the built-in catalog; an explicit
+	 * URL argument targets another server. Model downloads are not part of this
 	 * command, the router loads what its model directory already holds.
 	 */
 	private async handleLlamaCommand(urlArg?: string): Promise<void> {
@@ -4670,7 +4678,7 @@ export class InteractiveMode {
 		}
 		if (candidates.length === 0) {
 			this.showError(
-				"No self-hosted provider with a baseUrl found in models.json. Add one there or pass a server URL with /llama <url>.",
+				"No self-hosted llama.cpp server found. Log one in with /login llama.cpp, add one to models.json, or pass a server URL with /llama <url>.",
 			);
 			return;
 		}
@@ -4706,30 +4714,30 @@ export class InteractiveMode {
 		await this.runLlamaManager(chosen);
 	}
 
-	/** Resolve the bearer token the router needs from the provider credentials. */
+	/** Resolve the router URL and bearer token from the provider credentials. */
 	private async resolveLlamaServer(candidate: LlamaRouterServer): Promise<LlamaRouterServer> {
-		if (candidate.apiKey !== undefined && candidate.apiKey.length > 0) return candidate;
 		try {
 			const auth = await this.session.modelRuntime.getAuth(candidate.id, { signal: AbortSignal.timeout(5_000) });
+			const resolved = auth?.auth.baseUrl;
 			const apiKey = auth?.auth.apiKey;
-			if (apiKey !== undefined && apiKey.length > 0) return { ...candidate, apiKey };
+			const baseUrl = resolved !== undefined && resolved.length > 0 ? llamaRouterRoot(resolved) : candidate.baseUrl;
+			const key = apiKey !== undefined && apiKey.length > 0 ? apiKey : candidate.apiKey;
+			return { ...candidate, baseUrl, apiKey: key };
 		} catch {
 			return candidate;
 		}
-		return candidate;
 	}
 
-	private mountLlamaLoader(message: string): BorderedLoader {
-		const loader = new BorderedLoader(this.ui, theme, message);
+	private mountLlamaProgress(title: string, model: string, message: string): LlamaProgressView {
+		const view = new LlamaProgressView(this.ui, theme, title, model, message);
 		this.editorContainer.clear();
-		this.editorContainer.addChild(loader);
-		this.ui.setFocus(loader);
+		this.editorContainer.addChild(view);
+		this.ui.setFocus(view);
 		this.ui.requestRender();
-		return loader;
+		return view;
 	}
 
-	private unmountLlamaLoader(loader: BorderedLoader): void {
-		loader.dispose();
+	private unmountLlamaProgress(): void {
 		this.editorContainer.clear();
 		this.editorContainer.addChild(this.editor);
 		this.ui.setFocus(this.editor);
@@ -4764,10 +4772,10 @@ export class InteractiveMode {
 	}
 
 	private async loadLlamaModelFlow(server: LlamaRouterServer, model: LlamaRouterModel): Promise<void> {
-		const loader = this.mountLlamaLoader(`Loading ${model.id}…`);
-		const result = await loadLlamaModel(server, model.id, (message) => loader.setMessage(message), loader.signal);
-		const aborted = loader.signal.aborted;
-		this.unmountLlamaLoader(loader);
+		const view = this.mountLlamaProgress("Loading model", model.id, "Starting…");
+		const result = await loadLlamaModel(server, model.id, (progress) => view.setProgress(progress), view.signal);
+		const aborted = view.signal.aborted;
+		this.unmountLlamaProgress();
 		if (aborted || result.cancelled) {
 			await cancelLlamaModelLoad(server, model.id);
 			this.showStatus(`Cancelled loading ${model.id}`);
@@ -4781,10 +4789,10 @@ export class InteractiveMode {
 	}
 
 	private async unloadLlamaModelFlow(server: LlamaRouterServer, model: LlamaRouterModel): Promise<void> {
-		const loader = this.mountLlamaLoader(`Unloading ${model.id}…`);
-		const result = await unloadLlamaModel(server, model.id, loader.signal);
-		const aborted = loader.signal.aborted;
-		this.unmountLlamaLoader(loader);
+		const view = this.mountLlamaProgress("Unloading model", model.id, "Unloading…");
+		const result = await unloadLlamaModel(server, model.id, view.signal);
+		const aborted = view.signal.aborted;
+		this.unmountLlamaProgress();
 		if (aborted || result.cancelled) {
 			this.showStatus(`Stopped waiting for ${model.id} to unload`);
 			return;

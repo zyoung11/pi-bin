@@ -15,10 +15,22 @@ function getBunSandboxEnvValue(_name: string): string | undefined {
 	return undefined;
 }
 
+function recordViewOf(value: unknown): Record<string, unknown> {
+	return value as Record<string, unknown>;
+}
+
 /**
  * Resolve a provider env value from scoped overrides, normal process.env, then
- * the duplicated Bun sandbox fallback for direct pi-ai consumers.
+ * the duplicated Bun sandbox fallback for direct pi-ai consumers. The scoped
+ * record is read through a dynamic view: an absent key on a typed string record
+ * traps under the static runtime where Node returns undefined.
  */
 export function getProviderEnvValue(name: string, env?: ProviderEnv): string | undefined {
-	return env?.[name] || process.env[name] || getBunSandboxEnvValue(name) || undefined;
+	if (env !== undefined && env !== null) {
+		const override = recordViewOf(env)[name];
+		if (typeof override === "string" && override.length > 0) return override;
+	}
+	const ambient = process.env[name];
+	if (ambient !== undefined && ambient.length > 0) return ambient;
+	return getBunSandboxEnvValue(name) ?? undefined;
 }

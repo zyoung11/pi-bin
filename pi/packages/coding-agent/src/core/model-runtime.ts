@@ -43,6 +43,14 @@ import { getAgentDir } from "../config.ts";
 import { operationSignal, raceWithAbortSignal } from "../utils/abort.ts";
 import { AuthStorage as DefaultAuthStorage } from "./auth-storage.ts";
 import { type ChatTemplateThinkingTarget, detectChatTemplateThinking } from "./chat-template-thinking.ts";
+import {
+	createLlamaCppProvider,
+	discoverLlamaCppCatalog,
+	LLAMA_CPP_PROVIDER_ID,
+	type LlamaCppProviderController,
+	type LlamaCppServer,
+} from "./llama-cpp.ts";
+import { llamaRouterRoot } from "./llama-router.ts";
 import { ModelConfig } from "./model-config.ts";
 import { FileModelsStore, InMemoryCodingAgentModelsStore } from "./models-store.ts";
 import {
@@ -208,6 +216,8 @@ export class ModelRuntime implements Models {
 	private availabilityError: string | undefined;
 	private readonly credentialOperations = new Map<string, Promise<void>>();
 	private readonly chatTemplateProbedAt = new Map<string, number>();
+	private readonly llamaCpp: LlamaCppProviderController;
+	private llamaCppProbedAt = 0;
 
 	private constructor(
 		credentials: RuntimeCredentials,
@@ -224,6 +234,8 @@ export class ModelRuntime implements Models {
 		this.defaultBuiltins = new Map(providers.map((provider) => [provider.id, provider]));
 		for (const [providerId, provider] of this.defaultBuiltins) this.builtins.set(providerId, provider);
 		this.models = createModels({ credentials, modelsStore });
+		this.llamaCpp = createLlamaCppProvider();
+		this.nativeExtensionProviders.set(LLAMA_CPP_PROVIDER_ID, this.llamaCpp.provider);
 		this.rebuildProviders();
 	}
 
@@ -309,6 +321,50 @@ export class ModelRuntime implements Models {
 			}
 			this.recomposeProvider(target.providerId);
 		}
+		this.updateModelSnapshot();
+	}
+
+	/**
+	 * Discover the built-in llama.cpp provider's catalog from its server: the
+	 * /models listing plus the chat-template probes that classify thinking. The
+	 * probe is throttled like the chat-template probes and a server that cannot
+	 * be reached keeps the last known catalog, so an offline server machine does
+	 * not empty the model list.
+	 */
+	private async refreshLlamaCppCatalog(signal: AbortSignal): Promise<void> {
+		if (!this.modelNetworkEnabled) return;
+		const now = Date.now();
+		if (now - this.llamaCppProbedAt < CHAT_TEMPLATE_PROBE_INTERVAL_MS) return;
+		this.llamaCppProbedAt = now;
+		let resolution: AuthResult | undefined;
+		try {
+			resolution = await this.models.getAuth(LLAMA_CPP_PROVIDER_ID, { signal });
+		} catch {
+			return;
+		}
+		if (resolution === undefined) return;
+		const root = llamaRouterRoot(resolution.auth.baseUrl ?? "");
+		if (root.length === 0) return;
+		const server: LlamaCppServer = { baseUrl: root, apiKey: resolution.auth.apiKey };
+		let models: Awaited<ReturnType<typeof discoverLlamaCppCatalog>>;
+		try {
+			models = await discoverLlamaCppCatalog(server, signal);
+		} catch {
+			return;
+		}
+		if (signal.aborted) return;
+		this.llamaCpp.setCatalog(models, server);
+		clearChatTemplateModels(LLAMA_CPP_PROVIDER_ID);
+		const thinkingIds: string[] = [];
+		const effortIds: string[] = [];
+		for (const model of models) {
+			if (!model.reasoning) continue;
+			thinkingIds.push(model.id);
+			if (model.effort) effortIds.push(model.id);
+		}
+		setChatTemplateThinkingModels(LLAMA_CPP_PROVIDER_ID, thinkingIds);
+		setChatTemplateEffortModels(LLAMA_CPP_PROVIDER_ID, effortIds);
+		this.recomposeProvider(LLAMA_CPP_PROVIDER_ID);
 		this.updateModelSnapshot();
 	}
 
@@ -549,14 +605,18 @@ export class ModelRuntime implements Models {
 		overrides: ModelRuntimeAuthOverrides = {},
 	): Promise<AuthResult | undefined> {
 		if (typeof providerOrModel === "string") return this.models.getAuth(providerOrModel, overrides);
+
 		const resolution = await this.models.getAuth(providerOrModel, overrides);
+
 		if (!resolution) return undefined;
+
 		const configuredHeaders = resolveConfiguredModelHeaders(
 			providerOrModel,
 			this.config.getProvider(providerOrModel.provider),
 			this.extensionProviders.get(providerOrModel.provider),
 			{ ...(resolution.env ?? {}), ...(overrides.env ?? {}) },
 		);
+
 		return {
 			...resolution,
 			auth: {
@@ -577,6 +637,7 @@ export class ModelRuntime implements Models {
 			this.recomposeProvider(providerId);
 			const compositionError = this.compositionErrors.get(providerId);
 			if (compositionError) throw new Error(compositionError);
+			await this.refreshLlamaCppCatalog(signal);
 			const result = await this.models.refresh({ allowNetwork: false, providers: [providerId], signal });
 			if (result.aborted) signal.throwIfAborted();
 			const refreshError = result.errors.get(providerId);
@@ -636,12 +697,15 @@ export class ModelRuntime implements Models {
 		options: SimpleStreamOptions;
 	}> {
 		const provider = this.models.getProvider(model.provider);
+
 		if (!provider) throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
+
 		const resolution = await this.getAuth(model, {
 			apiKey: options?.apiKey,
 			env: options?.env,
 			signal: options?.signal,
 		});
+
 		if (!resolution) throw new ModelsError("auth", `Provider is not configured: ${model.provider}`);
 
 		const sourceOptions: SimpleStreamOptions & ModelsRequestTransforms = options ?? {};
@@ -777,6 +841,7 @@ export class ModelRuntime implements Models {
 			this.rebuildProviders();
 		}
 		await this.refreshChatTemplateThinking(operationSignal(options.signal));
+		await this.refreshLlamaCppCatalog(operationSignal(options.signal));
 		const refreshOptions = {
 			...options,
 			allowNetwork: options.allowNetwork ?? this.modelNetworkEnabled,

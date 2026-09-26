@@ -1,5 +1,6 @@
 /** llama.cpp router management for the /llama command. */
 
+import { incompleteUtf8TailLength } from "../../../ai/src/api/openai-http.ts";
 import { sleep } from "../utils/sleep.ts";
 
 /** One configured server the command can manage. */
@@ -10,12 +11,33 @@ export interface LlamaRouterServer {
 	apiKey: string | undefined;
 }
 
+/** One progress update for the llama.cpp progress view. */
+export interface LlamaLoadProgress {
+	message: string;
+	ratio: number | undefined;
+	detail: string | undefined;
+}
+
+/** One model event carried by the router status stream. */
+export interface LlamaRouterEvent {
+	model: string;
+	event: string;
+	data: Record<string, unknown> | undefined;
+}
+
 /** One model as reported by the router catalog. */
 export interface LlamaRouterModel {
 	id: string;
 	status: string;
 	failed: boolean;
 	detail: string;
+	ratio: number | undefined;
+	bytes: string | undefined;
+	context: number | undefined;
+	contextTrain: number | undefined;
+	ftype: string | undefined;
+	size: number | undefined;
+	image: boolean;
 }
 
 /** Outcome of a router operation that reports failure instead of throwing. */
@@ -30,7 +52,7 @@ export function llamaModelIsResident(model: LlamaRouterModel): boolean {
 	return model.status === "loaded" || model.status === "sleeping";
 }
 
-const LOAD_POLL_INTERVAL_MS = 500;
+const LOAD_POLL_INTERVAL_MS = 250;
 const UNLOAD_POLL_INTERVAL_MS = 250;
 const LOAD_TIMEOUT_MS = 10 * 60_000;
 const UNLOAD_TIMEOUT_MS = 60_000;
@@ -152,9 +174,8 @@ function statusLabel(status: string): string {
 	return status;
 }
 
-function progressLabel(statusRecord: Record<string, unknown> | undefined): string | undefined {
-	const progress = lookupRecord(statusRecord, "progress");
-	if (progress === undefined) return undefined;
+/** Byte counters summed over every file the status record reports progress for. */
+function progressTotals(progress: Record<string, unknown>): { done: number; total: number } | undefined {
 	const keys = Object.keys(progress);
 	if (keys.length === 0) return undefined;
 	let done = 0;
@@ -167,7 +188,76 @@ function progressLabel(statusRecord: Record<string, unknown> | undefined): strin
 		if (entryTotal !== undefined && entryTotal > 0) total += entryTotal;
 	}
 	if (total <= 0) return undefined;
-	return `${Math.floor((done / total) * 100)}%`;
+	return { done, total };
+}
+
+function progressLabel(statusRecord: Record<string, unknown> | undefined): string | undefined {
+	const progress = lookupRecord(statusRecord, "progress");
+	if (progress === undefined) return undefined;
+	const totals = progressTotals(progress);
+	if (totals === undefined) return undefined;
+	const ratio = Math.min(1, totals.done / totals.total);
+	const filled = Math.floor(ratio * 10);
+	let bar = "";
+	for (let i = 0; i < 10; i++) bar += i < filled ? "█" : "░";
+	return `${bar} ${Math.floor(ratio * 100)}% · ${formatBytes(totals.done)} / ${formatBytes(totals.total)}`;
+}
+
+/**
+ * Catalog metadata as the server reports it: a meta record on upstream
+ * llama.cpp, or the launcher args and preset on llama-server wrappers where
+ * the context is the --ctx-size argument and the quantization is the model
+ * file's suffix.
+ */
+function catalogMetadataOf(
+	entry: Record<string, unknown>,
+	statusRecord: Record<string, unknown> | undefined,
+): {
+	context: number | undefined;
+	contextTrain: number | undefined;
+	ftype: string | undefined;
+	size: number | undefined;
+} {
+	const meta = lookupRecord(entry, "meta");
+	const args = lookupArray(statusRecord, "args");
+	let argsCtx: number | undefined;
+	let argsModel: string | undefined;
+	if (args !== undefined) {
+		for (let i = 0; i < args.length; i++) {
+			const flag = args[i];
+			const value = i + 1 < args.length ? args[i + 1] : undefined;
+			if (flag === "--ctx-size" && typeof value === "string") {
+				const parsed = Number(value);
+				if (Number.isFinite(parsed) && parsed > 0) argsCtx = parsed;
+			}
+			if (flag === "--model" && typeof value === "string") argsModel = value;
+		}
+	}
+	const preset = lookupString(statusRecord, "preset");
+	let presetCtx: number | undefined;
+	let presetModel = argsModel;
+	if (preset !== undefined) {
+		const ctxMatch = /(?:^|\n)\s*ctx-size\s*=\s*(\d+)/.exec(preset);
+		if (ctxMatch !== null) {
+			const parsed = Number(ctxMatch[1]);
+			if (Number.isFinite(parsed) && parsed > 0) presetCtx = parsed;
+		}
+		const modelMatch = /(?:^|\n)\s*model\s*=\s*([^\n]+)/.exec(preset);
+		if (modelMatch !== null && presetModel === undefined) presetModel = modelMatch[1].trim();
+	}
+	const modelPath = presetModel ?? "";
+	const slash = Math.max(modelPath.lastIndexOf("/"), modelPath.lastIndexOf("\\"));
+	const fileName = slash >= 0 ? modelPath.slice(slash + 1) : modelPath;
+	const dot = fileName.lastIndexOf(".");
+	const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
+	const dash = stem.lastIndexOf("-");
+	const suffixQuant = dash >= 0 ? stem.slice(dash + 1) : undefined;
+	return {
+		context: lookupNumber(meta, "n_ctx") ?? argsCtx ?? presetCtx,
+		contextTrain: lookupNumber(meta, "n_ctx_train"),
+		ftype: lookupString(meta, "ftype") ?? suffixQuant,
+		size: lookupNumber(meta, "size"),
+	};
 }
 
 function describeModel(
@@ -178,12 +268,12 @@ function describeModel(
 ): string {
 	const parts: string[] = [];
 	parts.push(failed ? "failed to load" : statusLabel(status));
-	const meta = lookupRecord(entry, "meta");
-	const ftype = lookupString(meta, "ftype");
+	const metadata = catalogMetadataOf(entry, statusRecord);
+	const ftype = metadata.ftype;
 	if (ftype !== undefined && ftype.length > 0) parts.push(ftype);
-	const size = lookupNumber(meta, "size");
+	const size = metadata.size;
 	if (size !== undefined && size > 0) parts.push(formatBytes(size));
-	const context = lookupNumber(meta, "n_ctx") ?? lookupNumber(meta, "n_ctx_train");
+	const context = metadata.context ?? metadata.contextTrain;
 	if (context !== undefined && context > 0) parts.push(`${Math.round(context / 1024)}k ctx`);
 	const modalities = lookupArray(lookupRecord(entry, "architecture"), "input_modalities");
 	if (modalities !== undefined) {
@@ -202,7 +292,30 @@ function parseModelEntry(entry: Record<string, unknown>): LlamaRouterModel | und
 	const statusRecord = lookupRecord(entry, "status");
 	const status = lookupString(statusRecord, "value") ?? "unknown";
 	const failed = lookupBoolean(statusRecord, "failed") === true;
-	return { id, status, failed, detail: describeModel(entry, statusRecord, status, failed) };
+	const architecture = lookupRecord(entry, "architecture");
+	const modalities = lookupArray(architecture, "input_modalities");
+	let image = false;
+	if (modalities !== undefined) {
+		for (const modality of modalities) {
+			if (modality === "image") image = true;
+		}
+	}
+	const metadata = catalogMetadataOf(entry, statusRecord);
+	const progress = lookupRecord(statusRecord, "progress");
+	const totals = progress !== undefined ? progressTotals(progress) : undefined;
+	return {
+		id,
+		status,
+		failed,
+		detail: describeModel(entry, statusRecord, status, failed),
+		ratio: totals !== undefined ? Math.min(1, totals.done / totals.total) : undefined,
+		bytes: totals !== undefined ? `${formatBytes(totals.done)} / ${formatBytes(totals.total)}` : undefined,
+		context: metadata.context,
+		contextTrain: metadata.contextTrain,
+		ftype: metadata.ftype,
+		size: metadata.size,
+		image,
+	};
 }
 
 function modelEntriesOf(payload: unknown): Record<string, unknown>[] {
@@ -259,41 +372,224 @@ export async function listLlamaModels(server: LlamaRouterServer, signal: AbortSi
 	return models;
 }
 
+/**
+ * Decode one server-sent frame into a router model event, if it carries one.
+ * @param frame Raw frame text between two blank lines
+ * @returns The event, or undefined when the frame is not a model event
+ */
+function parseModelEvent(frame: string): LlamaRouterEvent | undefined {
+	let payload = "";
+	for (const line of frame.split("\n")) {
+		if (!line.startsWith("data:")) continue;
+		payload += (payload.length > 0 ? "\n" : "") + line.slice(5).trimStart();
+	}
+	if (payload.length === 0) return undefined;
+	const parsed = safeParse(payload);
+	const model = lookupString(parsed, "model");
+	const name = lookupString(parsed, "event");
+	if (model === undefined || name === undefined) return undefined;
+	return { model, event: name, data: lookupRecord(parsed, "data") };
+}
+
+/**
+ * Subscribe to the router's model status stream. Every chunk means the catalog
+ * may have changed, which is all a polling loop needs to re-read immediately,
+ * and decoded model events are handed over so a progress view can render them.
+ * The subscription ends when the signal aborts or the stream drops; callers
+ * keep their polling fallback for both cases.
+ * @param server Router to watch
+ * @param onChange Called once per stream chunk
+ * @param onEvent Called for every frame that carries a model event
+ * @param signal Cancels the subscription
+ * @returns Unsubscribe function
+ */
+export function watchLlamaModels(
+	server: LlamaRouterServer,
+	onChange: () => void,
+	onEvent: (event: LlamaRouterEvent) => void,
+	signal: AbortSignal,
+): () => void {
+	let stopped = false;
+	const stop = (): void => {
+		stopped = true;
+	};
+	void (async (): Promise<void> => {
+		try {
+			const url = `${llamaRouterRoot(server.baseUrl)}/models/sse`;
+			const response = await fetch(url, { headers: requestHeaders(server, false), signal });
+			if (!response.ok) return;
+			const body = response.body;
+			if (!body) return;
+			const reader = body.getReader();
+			const decoder = new TextDecoder("utf-8");
+			let buffer = "";
+			let pendingBytes: Uint8Array | undefined;
+			while (!stopped) {
+				const chunk = await reader.read();
+				if (chunk.done) return;
+				const value: Uint8Array = chunk.value;
+				const bytes: Uint8Array =
+					pendingBytes !== undefined && pendingBytes.length > 0 ? joinBytes(pendingBytes, value) : value;
+				const tailLength = incompleteUtf8TailLength(bytes);
+				pendingBytes = tailLength > 0 ? bytes.slice(bytes.length - tailLength) : undefined;
+				const safeBytes: Uint8Array = tailLength > 0 ? bytes.slice(0, bytes.length - tailLength) : bytes;
+				buffer += decoder.decode(safeBytes).split("\r\n").join("\n");
+				onChange();
+				let boundary = buffer.indexOf("\n\n");
+				while (boundary >= 0) {
+					const frame = buffer.slice(0, boundary);
+					buffer = buffer.slice(boundary + 2);
+					const event = parseModelEvent(frame);
+					if (event !== undefined) onEvent(event);
+					boundary = buffer.indexOf("\n\n");
+				}
+			}
+		} catch {
+			return;
+		}
+	})();
+	return stop;
+}
+
+/** Concatenate a carried partial UTF-8 tail with the next chunk of bytes. */
+function joinBytes(head: Uint8Array, tail: Uint8Array): Uint8Array {
+	const merged = new Uint8Array(head.length + tail.length);
+	merged.set(head, 0);
+	merged.set(tail, head.length);
+	return merged;
+}
+
 function resultFromError(error: unknown, signal: AbortSignal): LlamaRouterResult {
 	if (signal.aborted) return { ok: false, cancelled: true, error: undefined };
 	return { ok: false, cancelled: false, error: errorText(error) };
 }
 
 /**
+ * Load progress from a model status event: the stage list the chat template
+ * work is reported in, folded into one ratio over all stages.
+ * @param event Router event to read
+ * @returns The progress, or undefined when the event carries none
+ */
+function stageProgressFromEvent(event: LlamaRouterEvent): LlamaLoadProgress | undefined {
+	if (event.event !== "model_status" && event.event !== "status_change") return undefined;
+	const progress = lookupRecord(event.data, "progress");
+	if (progress === undefined) return undefined;
+	const stage = lookupString(progress, "current") ?? lookupString(progress, "stage");
+	const stageNames: string[] = [];
+	const stages = lookupArray(progress, "stages");
+	if (stages !== undefined) {
+		for (const entry of stages) {
+			if (typeof entry === "string") stageNames.push(entry);
+		}
+	}
+	let ratio = lookupNumber(progress, "value");
+	if (ratio !== undefined) ratio = Math.max(0, Math.min(1, ratio));
+	if (stage !== undefined && stageNames.length > 0) {
+		const index = stageNames.indexOf(stage);
+		if (index >= 0) ratio = (index + (ratio ?? 0)) / stageNames.length;
+	}
+	return {
+		message: stage !== undefined ? `Loading ${stage.split("_").join(" ")}` : "Loading model",
+		ratio,
+		detail: undefined,
+	};
+}
+
+/**
+ * Download progress from a download event: byte counters per file, summed.
+ * @param event Router event to read
+ * @returns The progress, or undefined when the event carries none
+ */
+function downloadProgressFromEvent(event: LlamaRouterEvent): LlamaLoadProgress | undefined {
+	if (event.event !== "download_progress") return undefined;
+	const files = lookupRecord(event.data, "progress") ?? event.data;
+	if (files === undefined) return undefined;
+	const totals = progressTotals(files);
+	if (totals === undefined) return undefined;
+	return {
+		message: "Downloading model",
+		ratio: Math.min(1, totals.done / totals.total),
+		detail: `${formatBytes(totals.done)} / ${formatBytes(totals.total)}`,
+	};
+}
+
+/**
  * Ask the router to load one model and wait until it reports loaded. Progress
- * messages carry the current model detail so the caller can render them.
+ * updates carry a status line, a ratio when the server reports one, and byte
+ * counts for the detail line.
  */
 export async function loadLlamaModel(
 	server: LlamaRouterServer,
 	modelId: string,
-	onProgress: (message: string) => void,
+	onProgress: (progress: LlamaLoadProgress) => void,
 	signal: AbortSignal,
 ): Promise<LlamaRouterResult> {
 	const deadline = Date.now() + LOAD_TIMEOUT_MS;
+	onProgress({ message: "Starting…", ratio: undefined, detail: undefined });
 	try {
 		await requestJson(server, "/models/load", "POST", JSON.stringify({ model: modelId }), signal);
 	} catch (error) {
 		return resultFromError(error, signal);
 	}
-	onProgress(`Loading ${modelId}`);
-	while (Date.now() < deadline) {
-		try {
-			await sleep(LOAD_POLL_INTERVAL_MS, signal);
-			const model = findLlamaModel(await listLlamaModels(server, signal), modelId);
-			if (model === undefined) return { ok: true, cancelled: false, error: undefined };
-			if (model.status === "loaded") return { ok: true, cancelled: false, error: undefined };
-			if (model.failed || model.status === "unloaded") {
-				return { ok: false, cancelled: false, error: `Model ${modelId} failed to load` };
+	onProgress({ message: "Loading model", ratio: undefined, detail: undefined });
+	let stageProgress: LlamaLoadProgress | undefined;
+	let eventWake: (() => void) | undefined;
+	const wake = (): void => {
+		const pending = eventWake;
+		eventWake = undefined;
+		if (pending !== undefined) pending();
+	};
+	const stopWatch = watchLlamaModels(
+		server,
+		wake,
+		(event) => {
+			if (event.model !== modelId) return;
+			const stage = stageProgressFromEvent(event);
+			if (stage !== undefined) {
+				stageProgress = stage;
+				onProgress(stage);
+				return;
 			}
-			onProgress(`Loading ${modelId} · ${model.detail}`);
-		} catch (error) {
-			return resultFromError(error, signal);
+			const download = downloadProgressFromEvent(event);
+			if (download !== undefined) onProgress(download);
+		},
+		signal,
+	);
+	try {
+		while (Date.now() < deadline) {
+			try {
+				const eventWait = new Promise<void>((resolve) => {
+					eventWake = resolve;
+				});
+				await Promise.race([sleep(LOAD_POLL_INTERVAL_MS, signal), eventWait]);
+				const model = findLlamaModel(await listLlamaModels(server, signal), modelId);
+				if (model === undefined) return { ok: true, cancelled: false, error: undefined };
+				if (model.status === "loaded") return { ok: true, cancelled: false, error: undefined };
+				if (model.failed || model.status === "unloaded") {
+					return { ok: false, cancelled: false, error: `Model ${modelId} failed to load` };
+				}
+				let message = "Loading model";
+				let ratio: number | undefined;
+				let detail: string | undefined;
+				if (model.status === "downloading") {
+					message = "Downloading model";
+					ratio = model.ratio;
+					detail = model.bytes;
+				} else if (stageProgress !== undefined) {
+					message = stageProgress.message;
+					ratio = stageProgress.ratio;
+					detail = stageProgress.detail;
+				} else {
+					ratio = model.ratio;
+					detail = model.bytes;
+				}
+				onProgress({ message, ratio, detail });
+			} catch (error) {
+				return resultFromError(error, signal);
+			}
 		}
+	} finally {
+		stopWatch();
 	}
 	return { ok: false, cancelled: false, error: `Timed out waiting for ${modelId} to load` };
 }
