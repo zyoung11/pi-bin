@@ -45,6 +45,9 @@ export async function listModels(
 		console.error(chalk.yellow(`Warning: errors loading models.json:\n${loadError}`));
 	}
 
+	// The llama.cpp discovery runs in the background so startup never waits on a
+	// possibly offline server; printing the full list is the one place that joins it.
+	await modelRuntime.awaitLlamaDiscovery();
 	const models = [...(await modelRuntime.getAvailable(undefined, { signal }))];
 
 	if (models.length === 0) {

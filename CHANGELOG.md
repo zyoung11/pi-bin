@@ -1852,3 +1852,50 @@ seven levels and a selection failed at render time inside the request.
   invisible from the catalog until its entry was added.
 - The README documents the built-in llama.cpp provider and the measured
   thinking ladder under Differences and Models. Version 0.2.9 → 0.3.0.
+
+---
+
+## Phase 38 — an offline llama.cpp server no longer blocks startup (2026-09-28)
+
+With the router host unreachable (SYN dropped, not refused) pi-bin sat on a
+blank screen for 30 seconds before the first frame: `ModelRuntime.create`
+awaited `refresh()`, which awaited `refreshLlamaCppCatalog`, whose `/models`
+fetch hung until the 15 second discovery budget aborted it, and the startup
+path ran that round twice. The model list then came up empty anyway, because
+the last known catalog only ever lived in the running process. Measured on a
+config with the llama.cpp credential: `--list-models` took 30.07s and the TUI
+was still blank at 10s; the same config without the credential took 0.106s.
+
+Upstream pi never has this problem: its llama extension starts with an empty
+model list and only contacts the server inside the `/llama` command, where an
+unreachable server raises a `llama.cpp unavailable / Retry / Close` dialog
+instead of blocking anything. The 15 second request timeout is the same there,
+it just never sits on the startup path.
+
+- The llama.cpp discovery (chat-template probes, catalog, thinking levels) now
+  runs detached from `refresh()`: startup renders immediately and the model
+  list fills in when the discovery lands. Callers that print the complete
+  model list join it through `awaitLlamaDiscovery`, and each round chains onto
+  the previous one so a throttled round cannot hide one still in flight.
+- `/llama` shows the upstream `Retry / Close` dialog when no router answers,
+  covering both the initial probe and the later catalog reads.
+- The discovery budget drops to 5 seconds and a server that failed the
+  discovery stays out of the refresh path for 60 seconds, so repeated refreshes
+  cannot stack timeouts against an offline host. Level probes run under one
+  budgeted signal per model and skip the completion fallback when the server
+  never answered at all.
+- A gitignore trap surfaced while auditing the tree: the bare `core` pattern
+  meant for core dumps matches the `src/core` source directory, so every file
+  newly created there was silently dropped from git while already tracked files
+  stayed. `core/llama-cpp.ts` never made it into the Phase 36 commits or the
+  0.3.0 sources, and `git add` reported the ignored directory on every round
+  without saying what it skipped. The rule is anchored to the repo root now.
+- Version 0.3.0 → 0.3.1.
+
+Measured after the change on the same offline config: the TUI is interactive at
+2 seconds, where it was still blank at 3 and 10 before and first drew at 30;
+`--list-models` is 5.04s against the offline host, down from 30.07s, because
+it now joins one bounded discovery instead of two hung rounds. Against a mock
+router that delays `/models` by 3 seconds the listing takes 3.04s and includes
+the discovered model, so the join reports what the server answers instead of
+guessing. `pi --offline` remains the hard off switch at 0.08s.

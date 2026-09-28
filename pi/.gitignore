@@ -47,8 +47,10 @@ pi-native
 pi
 pi-asan
 *.ll
-core
-core.*
+# core dumps at the repo root only: a bare `core` pattern also matches the
+# src/core source directory and would silently drop new files from git.
+/core
+/core.*
 diag*.txt
 cli.ll
 pi

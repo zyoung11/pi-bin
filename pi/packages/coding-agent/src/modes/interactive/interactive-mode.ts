@@ -4682,18 +4682,28 @@ export class InteractiveMode {
 			);
 			return;
 		}
-		const usable: LlamaRouterServer[] = [];
-		let index = 0;
-		while (index < candidates.length) {
-			const server = await this.resolveLlamaServer(candidates[index]);
-			index++;
-			if (await probeLlamaRouter(server, AbortSignal.timeout(5_000))) usable.push(server);
-		}
-		if (usable.length === 0) {
+		let usable: LlamaRouterServer[] = [];
+		for (;;) {
+			usable = [];
+			let index = 0;
+			while (index < candidates.length) {
+				const server = await this.resolveLlamaServer(candidates[index]);
+				index++;
+				if (await probeLlamaRouter(server, AbortSignal.timeout(5_000))) usable.push(server);
+			}
+			if (usable.length > 0) break;
 			const names: string[] = [];
 			for (const candidate of candidates) names.push(candidate.name);
-			this.showError(`No llama.cpp router answered on ${names.join(", ")}. Start the router or check the baseUrl.`);
-			return;
+			const choice = await this.showLlamaList(
+				"llama.cpp unavailable",
+				`${names.join(", ")}\nNo router answered. Start the server or check the baseUrl.`,
+				[
+					{ value: "retry", label: "Retry", description: "Probe the server again" },
+					{ value: "close", label: "Close", description: "Leave the router alone" },
+				],
+				"Enter to select · Esc to close",
+			);
+			if (choice !== "retry") return;
 		}
 		let chosen = usable[0];
 		if (usable.length > 1) {
@@ -4809,11 +4819,23 @@ export class InteractiveMode {
 		const label = server.name === root ? root : `${server.name} · ${root}`;
 		while (true) {
 			let models: LlamaRouterModel[] = [];
-			try {
-				models = await listLlamaModels(server, AbortSignal.timeout(10_000));
-			} catch (error) {
-				this.showError(`Could not read the model list: ${error instanceof Error ? error.message : String(error)}`);
-				return;
+			for (;;) {
+				try {
+					models = await listLlamaModels(server, AbortSignal.timeout(10_000));
+					break;
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					const choice = await this.showLlamaList(
+						"llama.cpp unavailable",
+						`${label}\n${message}`,
+						[
+							{ value: "retry", label: "Retry", description: "Read the model list again" },
+							{ value: "close", label: "Close", description: "Leave the router alone" },
+						],
+						"Enter to select · Esc to close",
+					);
+					if (choice !== "retry") return;
+				}
 			}
 			if (models.length === 0) {
 				this.showStatus(`No models found on ${label}`);

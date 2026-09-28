@@ -77,6 +77,12 @@ import { RuntimeCredentials } from "./runtime-credentials.ts";
  */
 const CHAT_TEMPLATE_PROBE_INTERVAL_MS = 10_000;
 
+/** Bounded budget for one model's thinking level probes, so an unreachable server cannot stack per-request timeouts. */
+const CHAT_TEMPLATE_LEVEL_PROBE_TIMEOUT_MS = 5_000;
+
+/** How long an unreachable llama.cpp server stays out of the refresh path before the next attempt. */
+const LLAMA_DOWN_COOLDOWN_MS = 60_000;
+
 interface ModelRuntimeSnapshot {
 	all: readonly Model<Api>[];
 	available: readonly Model<Api>[];
@@ -223,6 +229,8 @@ export class ModelRuntime implements Models {
 	private readonly chatTemplateProbedAt = new Map<string, number>();
 	private readonly llamaCpp: LlamaCppProviderController;
 	private llamaCppProbedAt = 0;
+	private llamaCppDownUntil = 0;
+	private pendingLlamaDiscovery: Promise<void> | undefined;
 
 	private constructor(
 		credentials: RuntimeCredentials,
@@ -359,7 +367,8 @@ export class ModelRuntime implements Models {
 		while (index < modelIds.length) {
 			const modelId = modelIds[index];
 			index++;
-			const levelMap = await probeThinkingLevels(target.baseUrl, target.apiKey, modelId, signal);
+			const probeSignal = AbortSignal.any([signal, AbortSignal.timeout(CHAT_TEMPLATE_LEVEL_PROBE_TIMEOUT_MS)]);
+			const levelMap = await probeThinkingLevels(target.baseUrl, target.apiKey, modelId, probeSignal);
 			setThinkingLevelMapOverride(target.providerId, modelId, levelMap ?? undefined);
 		}
 	}
@@ -374,6 +383,7 @@ export class ModelRuntime implements Models {
 	private async refreshLlamaCppCatalog(signal: AbortSignal): Promise<void> {
 		if (!this.modelNetworkEnabled) return;
 		const now = Date.now();
+		if (now < this.llamaCppDownUntil) return;
 		if (now - this.llamaCppProbedAt < CHAT_TEMPLATE_PROBE_INTERVAL_MS) return;
 		this.llamaCppProbedAt = now;
 		let resolution: AuthResult | undefined;
@@ -390,9 +400,11 @@ export class ModelRuntime implements Models {
 		try {
 			models = await discoverLlamaCppCatalog(server, signal);
 		} catch {
+			this.llamaCppDownUntil = Date.now() + LLAMA_DOWN_COOLDOWN_MS;
 			return;
 		}
 		if (signal.aborted) return;
+		this.llamaCppDownUntil = 0;
 		this.llamaCpp.setCatalog(models, server);
 		clearChatTemplateModels(LLAMA_CPP_PROVIDER_ID);
 		const thinkingIds: string[] = [];
@@ -880,8 +892,18 @@ export class ModelRuntime implements Models {
 		} else {
 			this.rebuildProviders();
 		}
-		await this.refreshChatTemplateThinking(operationSignal(options.signal));
-		await this.refreshLlamaCppCatalog(operationSignal(options.signal));
+		// The llama.cpp discovery talks to a user-hosted server that may be offline or
+		// unreachable, so it never blocks the refresh: startup renders immediately and
+		// the model list fills in when the discovery lands. Callers that need the
+		// discovered catalog join it through awaitLlamaDiscovery. Each round chains
+		// onto the previous one, because a throttled round resolves immediately and
+		// must not hide the round still waiting on the server.
+		const previousDiscovery = this.pendingLlamaDiscovery;
+		this.pendingLlamaDiscovery = (async (): Promise<void> => {
+			if (previousDiscovery !== undefined) await previousDiscovery;
+			await this.refreshChatTemplateThinking(operationSignal(options.signal));
+			await this.refreshLlamaCppCatalog(operationSignal(options.signal));
+		})();
 		const refreshOptions = {
 			...options,
 			allowNetwork: options.allowNetwork ?? this.modelNetworkEnabled,
@@ -918,6 +940,21 @@ export class ModelRuntime implements Models {
 			}
 		}
 		return { aborted: result.aborted || (options.signal?.aborted ?? false), errors };
+	}
+
+	/**
+	 * Join the llama.cpp discovery a refresh started in the background. Startup
+	 * never waits on it, so callers that print the complete model list opt in
+	 * here instead of blocking every other refresh on a possibly offline server.
+	 */
+	async awaitLlamaDiscovery(): Promise<void> {
+		const pending = this.pendingLlamaDiscovery;
+		if (pending === undefined) return;
+		try {
+			await pending;
+		} catch {
+			// Discovery failures are already handled by the refresh itself.
+		}
 	}
 
 	registerNativeProvider(provider: Provider): void {

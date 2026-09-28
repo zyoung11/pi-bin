@@ -136,6 +136,7 @@ function rejectsEffortValue(body: string): boolean {
 interface ThinkingLevelRender {
 	verdict: string;
 	prompt: string;
+	responded: boolean;
 }
 
 /**
@@ -165,7 +166,9 @@ export async function probeThinkingLevels(
 	if (cached !== undefined) return JSON.parse(cached) as Record<string, unknown>;
 	const renders = await renderThinkingLevels(baseUrl, apiKey, modelId, signal);
 	let map = levelMapFromRenders(renders);
-	if (map === undefined) map = await levelMapFromCompletions(baseUrl, apiKey, modelId, signal);
+	if (map === undefined && serverResponded(renders)) {
+		map = await levelMapFromCompletions(baseUrl, apiKey, modelId, signal);
+	}
 	if (map === undefined) return undefined;
 	thinkingLevelProbeCache.set(cacheKey, JSON.stringify(map));
 	return map;
@@ -196,7 +199,7 @@ async function renderThinkingLevel(
 	level: string,
 	signal: AbortSignal,
 ): Promise<ThinkingLevelRender> {
-	const failure: ThinkingLevelRender = { verdict: "unknown", prompt: "" };
+	const failure: ThinkingLevelRender = { verdict: "unknown", prompt: "", responded: false };
 	try {
 		const headers: Record<string, string> = { "Content-Type": "application/json" };
 		if (apiKey !== undefined && apiKey.length > 0) headers["Authorization"] = `Bearer ${apiKey}`;
@@ -214,13 +217,24 @@ async function renderThinkingLevel(
 		});
 		if (response.ok) {
 			const prompt = lookupString(safeJson(await response.text()), "prompt");
-			return prompt === undefined ? failure : { verdict: "accepted", prompt };
+			return prompt === undefined
+				? { verdict: "unknown", prompt: "", responded: true }
+				: { verdict: "accepted", prompt, responded: true };
 		}
-		if (rejectsEffortValue(await response.text())) return { verdict: "rejected", prompt: "" };
-		return failure;
+		const body = await response.text();
+		if (rejectsEffortValue(body)) return { verdict: "rejected", prompt: "", responded: true };
+		return { verdict: "unknown", prompt: "", responded: true };
 	} catch {
 		return failure;
 	}
+}
+
+/** Whether the server answered at all, which is what makes the completion fallback worth its requests. */
+function serverResponded(renders: ThinkingLevelRender[]): boolean {
+	for (const render of renders) {
+		if (render.responded) return true;
+	}
+	return false;
 }
 
 /**
