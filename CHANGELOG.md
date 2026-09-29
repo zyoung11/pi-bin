@@ -1957,3 +1957,23 @@ in the UI for interactive runs and on stderr for one-shot commands.
   imports, the compaction bookkeeping that assigned its results through five
   pre-declared variables in both compaction paths, and two concatenation style
   warnings in the model fallback message and number formatting.
+
+---
+
+## Phase 41 — mechanical lint cleanup (2026-09-29)
+
+The remaining biome findings outside the two syntax highlighting tables are
+style and complexity notes that carry no behaviour: string concatenation that
+should be template literals, explicit undefined checks that should be optional
+chaining, two unused imports, and two unused helper functions.
+
+- Fourteen findings are rewritten mechanically across `ai`, `coding-agent`, and
+  `tui`. Two of biome's automatic fixes do not survive the toolchain and get
+  equivalent explicit forms instead: `anyOfList?.some(...)` has no scriptc
+  lowering and returns `boolean | undefined` where a `boolean` is declared, and
+  `stored.env?.[envKey]` types the value as `string | undefined` for a
+  `Record<string, string>`. The unused helpers keep their code but take an
+  underscore prefix, since one of them is a documented scriptc port.
+- The 56 regex findings stay untouched: 54 of them are character classes in the
+  syntax highlighting grammars where the classes are the point, and rewriting
+  them risks changing what colours.

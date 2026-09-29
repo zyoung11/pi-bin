@@ -65,7 +65,7 @@ function splitLinesWithEndings(content: string): string[] {
 	const result: string[] = [];
 	for (let index = 0; index < parts.length; index++) {
 		if (index < parts.length - 1) {
-			result.push(parts[index] + "\n");
+			result.push(`${parts[index]}\n`);
 		} else if (parts[index] !== "") {
 			result.push(parts[index]);
 		}

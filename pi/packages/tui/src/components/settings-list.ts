@@ -226,7 +226,7 @@ export class SettingsList extends Component {
 						item.currentValue = selectedValue;
 						this.onChange(item.id, selectedValue);
 					}
-					if (options !== undefined && options.navigateTo) {
+					if (options?.navigateTo) {
 						this.navigateAfterClose = options.navigateTo;
 					}
 					this.closeSubmenu();

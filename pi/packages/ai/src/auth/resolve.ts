@@ -100,7 +100,8 @@ async function resolveProviderAuthWithSignal(
 			let credential = stored;
 			if (overrides?.env !== undefined && stored !== undefined) {
 				const mergedEnv: Record<string, string> = {};
-				for (const envKey of Object.keys(stored.env ?? {})) mergedEnv[envKey] = (stored.env ?? {})[envKey];
+				const storedEnv = stored.env ?? {};
+				for (const envKey of Object.keys(storedEnv)) mergedEnv[envKey] = storedEnv[envKey];
 				for (const envKey of Object.keys(overrides.env)) mergedEnv[envKey] = overrides.env[envKey];
 				credential = { ...stored, env: mergedEnv };
 			}

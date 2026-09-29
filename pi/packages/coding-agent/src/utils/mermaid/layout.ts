@@ -6,7 +6,7 @@ function filledArray<T>(count: number, make: (index: number) => T): T[] {
 }
 
 /** scriptc port: Math.max has no lowering. */
-function maxOf(a: number, b: number): number {
+function _maxOf(a: number, b: number): number {
 	return a > b ? a : b;
 }
 

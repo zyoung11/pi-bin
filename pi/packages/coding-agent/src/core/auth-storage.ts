@@ -191,7 +191,7 @@ export class FileAuthStorageBackend extends AuthStorageBackend {
 				await sleep(delayMs, signal);
 				continue;
 			}
-			if (signal !== undefined && signal.aborted) {
+			if (signal?.aborted) {
 				await release();
 				signal.throwIfAborted();
 			}

@@ -157,7 +157,7 @@ function createAbortError(): Error {
 
 function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
 	return new Promise((resolve, reject) => {
-		if (signal !== undefined && signal.aborted) {
+		if (signal?.aborted) {
 			reject(createAbortError());
 			return;
 		}
@@ -202,7 +202,7 @@ export async function retryProviderRequest<T>(
 		try {
 			return await request();
 		} catch (caught) {
-			if (options.signal !== undefined && options.signal.aborted) throw createAbortError();
+			if (options.signal?.aborted) throw createAbortError();
 			if (retriesRemaining <= 0 || !(caught instanceof ProviderHttpError)) throw caught;
 			if (!isRetryableProviderError(caught)) throw caught;
 

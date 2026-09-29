@@ -95,7 +95,8 @@ function schemaAllowsNull(schemaValue: unknown): boolean {
 	const enumValue = schema["enum"];
 	if (Array.isArray(enumValue) && includesNull(enumValue)) return true;
 	const anyOfList = arrayUnknown(schema["anyOf"]);
-	return anyOfList !== undefined && anyOfList.some((variant) => schemaAllowsNull(variant));
+	if (anyOfList === undefined) return false;
+	return anyOfList.some((variant) => schemaAllowsNull(variant));
 }
 
 function makeJsonSchemaNodeStrict(schemaValue: unknown): Record<string, unknown> {

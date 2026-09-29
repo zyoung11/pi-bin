@@ -1,5 +1,4 @@
 import {
-	type AssistantMessageEventStream,
 	type Context,
 	calculateCost,
 	type Model,

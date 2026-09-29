@@ -14,7 +14,7 @@ function formatTokenCount(value: number): string {
 	for (let i = whole.length - 1; i >= 0; i--) {
 		out = whole[i] + out;
 		count++;
-		if (count % 3 === 0 && i > 0) out = "," + out;
+		if (count % 3 === 0 && i > 0) out = `,${out}`;
 	}
 	return (value < 0 ? "-" : "") + out;
 }

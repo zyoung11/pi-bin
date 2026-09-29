@@ -33,8 +33,8 @@ function segmentToRegExpSource(segment: string): string {
 			const end = segment.indexOf("]", index + 1);
 			if (end > index + 1) {
 				let body = segment.slice(index + 1, end);
-				if (body.startsWith("!")) body = "^" + body.slice(1);
-				out += "[" + body + "]";
+				if (body.startsWith("!")) body = `^${body.slice(1)}`;
+				out += `[${body}]`;
 				index = end + 1;
 				continue;
 			}
@@ -67,7 +67,7 @@ function ruleToRegExpSource(pattern: string, _anchored: boolean): string {
 			parts.push(segmentToRegExpSource(segment));
 		}
 	}
-	let source = "^" + prefix + parts.join("/");
+	let source = `^${prefix}${parts.join("/")}`;
 	if (trailingAny) source += "(?:/.*)?";
 	source += "$";
 	return source;

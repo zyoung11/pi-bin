@@ -8,7 +8,7 @@ interface MermaidTransformerOptions {
 	theme?: Theme;
 }
 
-function codeSpan(line: string): string {
+function _codeSpan(line: string): string {
 	// Encode each diagram row as inline code (` ... `) so Markdown preserves its spacing and
 	// box-drawing characters. Use a non-breaking space for blank rows because an
 	// empty code span has no visible height.
