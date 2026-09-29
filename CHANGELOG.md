@@ -1899,3 +1899,29 @@ it now joins one bounded discovery instead of two hung rounds. Against a mock
 router that delays `/models` by 3 seconds the listing takes 3.04s and includes
 the discovered model, so the join reports what the server answers instead of
 guessing. `pi --offline` remains the hard off switch at 0.08s.
+
+---
+
+## Phase 39 — the model scope no longer drops the llama.cpp models (2026-09-28)
+
+After Phase 38 moved the llama.cpp discovery off the startup path, the startup
+model scope raced it and lost: `resolveModelScope` runs inside
+`createAgentSessionRuntime`, before the background discovery has landed, so the
+five `enabledModels` patterns naming llama.cpp models matched nothing, the
+resolver warned "No models match pattern" once per pattern, and the session
+scope silently kept only the four models of the other providers. `/model` then
+listed four entries and Ctrl+P cycled four. The catalog was never the problem:
+the selector's all view listed every discovered model, and `--list-models`
+joined the discovery and printed them.
+
+- `refreshModelCatalogs` joins the background discovery, so a caller told the
+  catalogs refreshed receives the discovered models too instead of a snapshot
+  taken while the discovery was still in flight.
+- Once the catalog is complete, `reconcileScopedModels` adds models the
+  configured patterns match but the startup scope missed. It only ever adds, so
+  a scope the user narrowed by hand stays narrowed.
+- The model scope line moves behind a shared helper, and the repaired scope is
+  reported through the UI status line: the startup line can only describe the
+  scope as it was before the discovery landed, so it would otherwise keep
+  telling a wrong story.
+- Version 0.3.1 → 0.3.2.

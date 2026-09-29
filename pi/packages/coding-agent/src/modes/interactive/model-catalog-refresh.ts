@@ -89,7 +89,16 @@ class ModelCatalogRefreshCoordinator {
 
 const modelCatalogRefreshCoordinator = new ModelCatalogRefreshCoordinator();
 
-/** Share concurrent interactive all-catalog refreshes while keeping each caller's cancellation independent. */
-export function refreshModelCatalogs(modelRuntime: ModelRuntime, signal: AbortSignal): Promise<ModelsRefreshResult> {
-	return modelCatalogRefreshCoordinator.refresh(modelRuntime, signal);
+/**
+ * Share concurrent interactive all-catalog refreshes while keeping each caller's
+ * cancellation independent. Joins the background llama.cpp discovery, because a
+ * caller that is told the catalogs refreshed expects the discovered models too.
+ */
+export async function refreshModelCatalogs(
+	modelRuntime: ModelRuntime,
+	signal: AbortSignal,
+): Promise<ModelsRefreshResult> {
+	const result = await modelCatalogRefreshCoordinator.refresh(modelRuntime, signal);
+	await modelRuntime.awaitLlamaDiscovery();
+	return result;
 }

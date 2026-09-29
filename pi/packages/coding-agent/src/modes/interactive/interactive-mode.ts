@@ -773,6 +773,24 @@ export class InteractiveMode {
 		this.ui.stopWithOptions({ preserveScreen: false });
 	}
 
+	/**
+	 * The line that reports which models cycling covers.
+	 */
+	private modelScopeBanner(): string {
+		const modelList = this.session.scopedModels
+			.map((sm) => {
+				const thinkingStr = sm.thinkingLevel ? `:${sm.thinkingLevel}` : "";
+				return `${sm.model.id}${thinkingStr}`;
+			})
+			.join(", ");
+		const cycleKeys = this.keybindings.getKeys("app.model.cycleForward");
+		const cycleHint =
+			cycleKeys.length > 0
+				? theme.fg("muted", ` (${formatKeyText(cycleKeys.join("/"), { capitalize: true })} to cycle)`)
+				: "";
+		return `Model scope: ${modelList}${cycleHint}`;
+	}
+
 	async init(): Promise<void> {
 		if (this.isInitialized) return;
 
@@ -780,18 +798,7 @@ export class InteractiveMode {
 		this.scheduleKnownProviderCatalogRefresh();
 
 		if (this.session.scopedModels.length > 0 && (this.options.verbose || !this.settingsManager.getQuietStartup())) {
-			const modelList = this.session.scopedModels
-				.map((sm) => {
-					const thinkingStr = sm.thinkingLevel ? `:${sm.thinkingLevel}` : "";
-					return `${sm.model.id}${thinkingStr}`;
-				})
-				.join(", ");
-			const cycleKeys = this.keybindings.getKeys("app.model.cycleForward");
-			const cycleHint =
-				cycleKeys.length > 0
-					? theme.fg("muted", ` (${formatKeyText(cycleKeys.join("/"), { capitalize: true })} to cycle)`)
-					: "";
-			console.log(theme.fg("dim", `Model scope: ${modelList}${cycleHint}`));
+			console.log(theme.fg("dim", this.modelScopeBanner()));
 		}
 
 		// Keep one component tree and remount it when changing renderers.
@@ -938,6 +945,7 @@ export class InteractiveMode {
 			const timeout = setTimeout(() => controller.abort(), 15_000);
 			void refreshModelCatalogs(this.session.modelRuntime, controller.signal)
 				.then(() => this.updateAvailableProviderCount())
+				.then(() => this.reconcileScopedModels())
 				.catch(() => {})
 				.finally(() => clearTimeout(timeout));
 		}
@@ -5028,6 +5036,37 @@ export class InteractiveMode {
 		});
 	}
 
+	/**
+	 * Add models the configured patterns match but the startup scope missed.
+	 *
+	 * The startup scope resolves before the background llama.cpp discovery has
+	 * landed, so patterns naming those models match nothing and the scope drops
+	 * them silently. Once the catalog is complete this repairs the omission,
+	 * without removing anything the scope already had.
+	 */
+	private reconcileScopedModels(): void {
+		const patterns = this.settingsManager.getEnabledModels();
+		if (!patterns || patterns.length === 0) return;
+		const current = this.session.scopedModels;
+		if (current.length === 0) return;
+		const availableModels = [...this.session.modelRuntime.getAvailableSnapshot()];
+		const resolved = resolveModelScopeFromModels(patterns, availableModels).scopedModels;
+		const missing: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }> = [];
+		let index = 0;
+		while (index < resolved.length) {
+			const scoped = resolved[index];
+			index++;
+			const modelId = `${scoped.model.provider}/${scoped.model.id}`;
+			if (current.some((existing) => `${existing.model.provider}/${existing.model.id}` === modelId)) continue;
+			missing.push({ model: scoped.model, thinkingLevel: scoped.thinkingLevel });
+		}
+		if (missing.length === 0) return;
+		this.session.setScopedModels([...current, ...missing]);
+		this.updateAvailableProviderCount();
+		this.showStatus(this.modelScopeBanner());
+		this.ui.requestRender();
+	}
+
 	private showModelsSelector(): void {
 		let availableModels = [...this.session.modelRuntime.getAvailableSnapshot()];
 		let availableModelIds = new Set(availableModels.map((model) => `${model.provider}/${model.id}`));
@@ -5106,10 +5145,14 @@ export class InteractiveMode {
 			void refreshModelCatalogs(this.session.modelRuntime, controller.signal)
 				.then((result) => {
 					if (disposed) return;
+					this.reconcileScopedModels();
 					availableModels = [...this.session.modelRuntime.getAvailableSnapshot()];
 					availableModelIds = new Set(availableModels.map((model) => `${model.provider}/${model.id}`));
-					if (!selectionChanged && sessionScopedModels.length === 0) {
-						currentEnabledIds = configuredEnabledIds(availableModels);
+					if (!selectionChanged) {
+						currentEnabledIds =
+							this.session.scopedModels.length > 0
+								? this.session.scopedModels.map((scoped) => `${scoped.model.provider}/${scoped.model.id}`)
+								: configuredEnabledIds(availableModels);
 						selector.updateModels(availableModels, currentEnabledIds);
 					} else {
 						selector.updateModels(availableModels);
