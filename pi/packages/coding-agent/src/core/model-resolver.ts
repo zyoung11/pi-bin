@@ -379,6 +379,13 @@ export async function resolveModelScopeWithDiagnostics(
 	return resolveModelScopeFromModels(patterns, await modelRuntime.getAvailable(undefined, options));
 }
 
+/**
+ * Resolve patterns into a model scope, warning about patterns that cannot
+ * produce a model at all. Patterns that match nothing stay silent here:
+ * the llama.cpp catalog arrives from a background discovery, so a pattern
+ * naming one of its models cannot be judged yet. Callers re-check them through
+ * unmatchedScopePatternMessages once the catalog has settled.
+ */
 export async function resolveModelScope(
 	patterns: string[],
 	modelRuntime: ModelRuntime,
@@ -386,9 +393,22 @@ export async function resolveModelScope(
 ): Promise<ScopedModel[]> {
 	const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics(patterns, modelRuntime, options);
 	for (const diagnostic of diagnostics) {
+		if (diagnostic.code === "no-match") continue;
 		console.warn(chalk.yellow(`Warning: ${diagnostic.message}`));
 	}
 	return scopedModels;
+}
+
+/**
+ * Messages for scope patterns that match nothing in the given models.
+ */
+export function unmatchedScopePatternMessages(patterns: string[], models: readonly Model<Api>[]): string[] {
+	const messages: string[] = [];
+	const { diagnostics } = resolveModelScopeFromModels(patterns, models);
+	for (const diagnostic of diagnostics) {
+		if (diagnostic.code === "no-match") messages.push(diagnostic.message);
+	}
+	return messages;
 }
 
 export interface ResolveCliModelResult {

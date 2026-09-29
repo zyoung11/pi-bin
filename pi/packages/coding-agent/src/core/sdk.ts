@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Agent, type AgentMessage, setDefaultStreamFn, type ThinkingLevel } from "../../../agent/src/index.ts";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "../../../ai/src/compat.ts";
@@ -51,6 +50,8 @@ export interface CreateAgentSessionOptions {
 	thinkingLevel?: ThinkingLevel;
 	/** Models available for cycling (Ctrl+P in interactive mode) */
 	scopedModels?: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
+	/** Patterns the scoped models were resolved from, kept for later repair and diagnostics */
+	modelScopePatterns?: string[];
 
 	/**
 	 * Optional default tool suppression mode when no explicit allowlist is provided.
@@ -206,8 +207,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		if (model === undefined) {
 			modelFallbackMessage = formatNoModelsAvailableMessage();
 		} else if (modelFallbackMessage !== undefined) {
-			const current = modelFallbackMessage;
-			modelFallbackMessage = current + `. Using ${model.provider}/${model.id}`;
+			modelFallbackMessage = `${modelFallbackMessage}. Using ${model.provider}/${model.id}`;
 		}
 	}
 
@@ -405,6 +405,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		settingsManager,
 		cwd,
 		scopedModels: options.scopedModels,
+		modelScopePatterns: options.modelScopePatterns,
 		resourceLoader,
 		customTools: options.customTools,
 		modelRuntime,

@@ -1925,3 +1925,35 @@ joined the discovery and printed them.
   scope as it was before the discovery landed, so it would otherwise keep
   telling a wrong story.
 - Version 0.3.1 → 0.3.2.
+
+---
+
+## Phase 40 — unmatched model patterns are judged after the catalog settles (2026-09-28)
+
+Phase 39 repaired the model scope once the llama.cpp discovery landed, but the
+warnings stayed wrong: `resolveModelScope` printed "No models match pattern"
+during startup, while the discovery was still in flight, so the five
+`enabledModels` patterns naming llama.cpp models cried wolf on every start even
+though the models worked. The warning and the resolution had the same problem,
+and only the resolution had been fixed.
+
+- Patterns that match nothing are no longer judged at resolve time. The
+  resolution warns about patterns that cannot produce a model at all and defers
+  the empty matches to `unmatchedScopePatternMessages`, which runs once the
+  catalog is complete: interactive mode reports what is still missing through
+  the UI, one-shot commands report it after joining the discovery. A pattern
+  that resolves late is now silent; a typo still warns.
+- The patterns the scope was resolved from live on the session
+  (`modelScopePatterns`), so repair and diagnostics use the patterns that built
+  the scope. `reconcileScopedModels` used the settings patterns before, which
+  added models to a scope built from `--models` patterns and reported the wrong
+  ones.
+
+Verified on the working configuration: startup prints no warnings at all where
+it printed five, and with the discovery disabled the five warnings still appear,
+in the UI for interactive runs and on stderr for one-shot commands.
+
+- The lint backlog in the files this round touched goes with it: two unused
+  imports, the compaction bookkeeping that assigned its results through five
+  pre-declared variables in both compaction paths, and two concatenation style
+  warnings in the model fallback message and number formatting.

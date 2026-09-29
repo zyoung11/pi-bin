@@ -70,6 +70,7 @@ import {
 	defaultModelPerProvider,
 	findExactModelReferenceMatch,
 	resolveModelScopeFromModels,
+	unmatchedScopePatternMessages,
 } from "../../core/model-resolver.ts";
 import type { ProjectTrustContext } from "../../core/project-trust.ts";
 import {
@@ -283,9 +284,9 @@ function formatNumber(value: number): string {
 	let out = "";
 	let count = 0;
 	for (let i = whole.length - 1; i >= 0; i--) {
-		out = whole[i] + out;
+		out = `${whole[i]}${out}`;
 		count++;
-		if (count % 3 === 0 && i > 0) out = "," + out;
+		if (count % 3 === 0 && i > 0) out = `,${out}`;
 	}
 	return (negative ? "-" : "") + out;
 }
@@ -946,8 +947,12 @@ export class InteractiveMode {
 			void refreshModelCatalogs(this.session.modelRuntime, controller.signal)
 				.then(() => this.updateAvailableProviderCount())
 				.then(() => this.reconcileScopedModels())
+				.then(() => this.warnUnresolvedModelPatterns())
 				.catch(() => {})
 				.finally(() => clearTimeout(timeout));
+		} else {
+			this.reconcileScopedModels();
+			this.warnUnresolvedModelPatterns();
 		}
 
 		// Check tmux keyboard setup asynchronously
@@ -4422,11 +4427,10 @@ export class InteractiveMode {
 
 	private showSettingsSelector(): void {
 		this.showSelector((done): SelectorHandle => {
-			let selector: SettingsSelectorComponent | undefined;
 			const defaultProvider = this.settingsManager.getDefaultProvider();
 			const defaultModelId = this.settingsManager.getDefaultModel();
 			const defaultModel = defaultProvider && defaultModelId ? `${defaultProvider}/${defaultModelId}` : "not set";
-			selector = new SettingsSelectorComponent(
+			const selector = new SettingsSelectorComponent(
 				{
 					autoCompact: this.session.autoCompactionEnabled,
 					defaultModel,
@@ -5045,7 +5049,7 @@ export class InteractiveMode {
 	 * without removing anything the scope already had.
 	 */
 	private reconcileScopedModels(): void {
-		const patterns = this.settingsManager.getEnabledModels();
+		const patterns = this.session.modelScopePatterns;
 		if (!patterns || patterns.length === 0) return;
 		const current = this.session.scopedModels;
 		if (current.length === 0) return;
@@ -5065,6 +5069,22 @@ export class InteractiveMode {
 		this.updateAvailableProviderCount();
 		this.showStatus(this.modelScopeBanner());
 		this.ui.requestRender();
+	}
+
+	/**
+	 * Warn about scope patterns that still match nothing.
+	 *
+	 * Resolution cannot judge a pattern naming a llama.cpp model before the
+	 * background discovery lands, so those warnings are reported here, once the
+	 * catalog is complete and a pattern is known to be genuinely unmatched.
+	 */
+	private warnUnresolvedModelPatterns(): void {
+		const patterns = this.session.modelScopePatterns;
+		if (!patterns || patterns.length === 0) return;
+		const availableModels = [...this.session.modelRuntime.getAvailableSnapshot()];
+		for (const message of unmatchedScopePatternMessages(patterns, availableModels)) {
+			this.showWarning(message);
+		}
 	}
 
 	private showModelsSelector(): void {

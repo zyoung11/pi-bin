@@ -184,6 +184,8 @@ export interface AgentSessionConfig {
 	cwd: string;
 	/** Models to cycle through with Ctrl+P (from --models flag) */
 	scopedModels?: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
+	/** Patterns the scoped models were resolved from, kept for later repair and diagnostics */
+	modelScopePatterns?: string[];
 	/** Resource loader for extensions, skills, prompts, themes, context files, and system prompt */
 	resourceLoader: ResourceLoader;
 	/** Custom tools provided by the caller as static tool definitions. */
@@ -303,6 +305,7 @@ export class AgentSession {
 	readonly settingsManager: SettingsManager;
 
 	private _scopedModels: Array<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }>;
+	private _modelScopePatterns: string[];
 
 	// Event subscription state
 	private _unsubscribeAgent?: () => void;
@@ -363,6 +366,7 @@ export class AgentSession {
 		this.sessionManager = config.sessionManager;
 		this.settingsManager = config.settingsManager;
 		this._scopedModels = config.scopedModels ?? [];
+		this._modelScopePatterns = config.modelScopePatterns ?? [];
 		this._resourceLoader = config.resourceLoader;
 		this._customTools = config.customTools ?? [];
 		this._cwd = config.cwd;
@@ -834,6 +838,13 @@ export class AgentSession {
 	/** Scoped models for cycling (from --models flag) */
 	get scopedModels(): ReadonlyArray<{ model: Model<Api>; thinkingLevel?: ThinkingLevel }> {
 		return this._scopedModels;
+	}
+
+	/**
+	 * Patterns the scoped models were resolved from.
+	 */
+	get modelScopePatterns(): string[] {
+		return this._modelScopePatterns;
 	}
 
 	/** Update scoped models for cycling */
@@ -1663,12 +1674,6 @@ export class AgentSession {
 				throw new Error("Nothing to compact (session too small)");
 			}
 
-			let summary: string;
-			let firstKeptEntryId: string;
-			let tokensBefore: number;
-			let usage: Usage | undefined;
-			let details: unknown;
-
 			const result = await this._runDefaultCompaction(
 				preparation,
 				requestModel,
@@ -1679,35 +1684,30 @@ export class AgentSession {
 				env,
 				"manual",
 			);
-			summary = result.summary;
-			firstKeptEntryId = result.firstKeptEntryId;
-			tokensBefore = result.tokensBefore;
-			usage = result.usage;
-			details = result.details;
 
 			if (this._compactionAbortController.signal.aborted) {
 				throw new Error("Compaction cancelled");
 			}
 
 			this.sessionManager.appendCompaction(
-				summary,
-				firstKeptEntryId,
-				tokensBefore,
-				details as CustomData | undefined,
+				result.summary,
+				result.firstKeptEntryId,
+				result.tokensBefore,
+				result.details as CustomData | undefined,
 				false,
-				usage,
+				result.usage,
 			);
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
 			const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
 
 			const compactionResult: CompactionResult = {
-				summary,
-				firstKeptEntryId,
-				tokensBefore,
+				summary: result.summary,
+				firstKeptEntryId: result.firstKeptEntryId,
+				tokensBefore: result.tokensBefore,
 				estimatedTokensAfter,
-				usage,
-				details,
+				usage: result.usage,
+				details: result.details,
 			};
 			// compaction_end listeners may submit queued prompts, so expose idle state before notifying them.
 			this._clearManualCompactionState();
@@ -1911,12 +1911,6 @@ export class AgentSession {
 			this._autoCompactionAbortController = { signal: autoController.signal, abort: () => autoController.abort() };
 			started = true;
 
-			let summary: string;
-			let firstKeptEntryId: string;
-			let tokensBefore: number;
-			let usage: Usage | undefined;
-			let details: unknown;
-
 			const compactResult = await this._runDefaultCompaction(
 				preparation,
 				requestModel,
@@ -1927,11 +1921,6 @@ export class AgentSession {
 				env,
 				reason,
 			);
-			summary = compactResult.summary;
-			firstKeptEntryId = compactResult.firstKeptEntryId;
-			tokensBefore = compactResult.tokensBefore;
-			usage = compactResult.usage;
-			details = compactResult.details;
 
 			if (this._autoCompactionAbortController.signal.aborted) {
 				this._emitCompactionEnd(reason, undefined, true, false, undefined);
@@ -1939,24 +1928,24 @@ export class AgentSession {
 			}
 
 			this.sessionManager.appendCompaction(
-				summary,
-				firstKeptEntryId,
-				tokensBefore,
-				details as CustomData | undefined,
+				compactResult.summary,
+				compactResult.firstKeptEntryId,
+				compactResult.tokensBefore,
+				compactResult.details as CustomData | undefined,
 				false,
-				usage,
+				compactResult.usage,
 			);
 			const sessionContext = this.sessionManager.buildSessionContext();
 			this.agent.state.messages = sessionContext.messages;
 			const estimatedTokensAfter = estimateMessagesTokens(sessionContext.messages);
 
 			const result: CompactionResult = {
-				summary,
-				firstKeptEntryId,
-				tokensBefore,
+				summary: compactResult.summary,
+				firstKeptEntryId: compactResult.firstKeptEntryId,
+				tokensBefore: compactResult.tokensBefore,
 				estimatedTokensAfter,
-				usage,
-				details,
+				usage: compactResult.usage,
+				details: compactResult.details,
 			};
 			this._emitCompactionEnd(reason, result, false, willRetry, undefined);
 

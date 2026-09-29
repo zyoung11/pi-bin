@@ -44,7 +44,12 @@ import { formatNoModelsAvailableMessage } from "./core/auth-guidance.ts";
 import { AuthStorage, ReadOnlyAuthStorage } from "./core/auth-storage.ts";
 import { exportFromFile } from "./core/export-html/index.ts";
 import { applyHttpProxySettings, configureHttpDispatcher } from "./core/http-dispatcher.ts";
-import { resolveCliModel, resolveModelScope, type ScopedModel } from "./core/model-resolver.ts";
+import {
+	resolveCliModel,
+	resolveModelScope,
+	type ScopedModel,
+	unmatchedScopePatternMessages,
+} from "./core/model-resolver.ts";
 import { ModelRuntime } from "./core/model-runtime.ts";
 import { restoreStdout, takeOverStdout } from "./core/output-guard.ts";
 import { type AppMode, resolveProjectTrusted } from "./core/project-trust.ts";
@@ -69,7 +74,6 @@ import {
 	handleConfigCommand,
 	handlePackageCommand,
 } from "./package-manager-cli.ts";
-import { render } from "./utils/mermaid/index.ts";
 import chalk from "./utils/mini-chalk.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
 import { cleanupWindowsSelfUpdateQuarantine } from "./utils/windows-self-update.ts";
@@ -823,6 +827,12 @@ export async function main(args: string[]) {
 			modelPatterns && modelPatterns.length > 0
 				? await resolveModelScope(modelPatterns, modelRuntime, { signal: AbortSignal.timeout(15_000) })
 				: [];
+		if (modelPatterns && modelPatterns.length > 0 && appMode !== "interactive") {
+			await modelRuntime.awaitLlamaDiscovery();
+			for (const message of unmatchedScopePatternMessages(modelPatterns, modelRuntime.getAvailableSnapshot())) {
+				console.warn(chalk.yellow(`Warning: ${message}`));
+			}
+		}
 		const {
 			options: sessionOptions,
 			cliThinkingFromModel,
@@ -853,6 +863,7 @@ export async function main(args: string[]) {
 			model: sessionOptions.model,
 			thinkingLevel: sessionOptions.thinkingLevel,
 			scopedModels: sessionOptions.scopedModels,
+			modelScopePatterns: modelPatterns ?? [],
 			tools: sessionOptions.tools,
 			excludeTools: sessionOptions.excludeTools,
 			noTools: sessionOptions.noTools,
